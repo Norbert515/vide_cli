@@ -8,9 +8,14 @@ environment:
 
 dependencies:
   nocterm:
-    path: /Users/norbertkozsir/IdeaProjects/nocterm
+    git:
+      url: https://github.com/Norbert515/nocterm.git
+      ref: 318dc83bd3ef9fd0c686096f39f39c05416cbccd
   nocterm_riverpod:
-    path: /Users/norbertkozsir/IdeaProjects/nocterm/packages/nocterm_riverpod
+    git:
+      url: https://github.com/Norbert515/nocterm.git
+      ref: 318dc83bd3ef9fd0c686096f39f39c05416cbccd
+      path: packages/nocterm_riverpod
   claude_api:
     path: ./packages/claude_api
   flutter_runtime_mcp:
