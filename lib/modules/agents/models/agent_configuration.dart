@@ -1,0 +1,129 @@
+import 'package:claude_api/claude_api.dart';
+import '../../mcp/models/mcp_server_type.dart';
+
+/// High-level configuration for an agent.
+///
+/// This is a more expressive representation than [ClaudeConfig], providing:
+/// - Agent identity (name, description)
+/// - System prompt content
+/// - MCP server access control
+/// - Tool restrictions
+/// - Model and permission settings
+///
+/// Convert to [ClaudeConfig] using [toClaudeConfig] when spawning agents.
+class AgentConfiguration {
+  /// Human-readable name for this agent type
+  final String name;
+
+  /// Description of the agent's purpose and when to use it
+  final String? description;
+
+  /// System prompt content for the agent
+  final String systemPrompt;
+
+  /// MCP servers this agent has access to
+  ///
+  /// If null, the agent inherits all MCP servers from its parent.
+  /// If empty list, the agent has no MCP servers.
+  /// Otherwise, only the specified servers are available.
+  final List<McpServerType>? mcpServers;
+
+  /// Individual tools this agent can access
+  ///
+  /// If null, the agent inherits all tools (including MCP tools).
+  /// If specified, only these tools are available.
+  ///
+  /// Note: MCP tools are automatically added based on [mcpServers].
+  /// This field is for restricting non-MCP tools.
+  final List<String>? allowedTools;
+
+  /// Model to use for this agent
+  ///
+  /// Common values: 'sonnet', 'opus', 'haiku'
+  /// If null, uses default model.
+  final String? model;
+
+  /// Permission mode for this agent
+  ///
+  /// Common values: 'acceptEdits', 'ask', 'deny'
+  /// Defaults to 'acceptEdits' if not specified.
+  final String? permissionMode;
+
+  /// Temperature for response generation (0.0 - 1.0)
+  final double? temperature;
+
+  /// Maximum tokens for responses
+  final int? maxTokens;
+
+  const AgentConfiguration({
+    required this.name,
+    required this.systemPrompt,
+    this.description,
+    this.mcpServers,
+    this.allowedTools,
+    this.model,
+    this.permissionMode,
+    this.temperature,
+    this.maxTokens,
+  });
+
+  /// Convert to ClaudeConfig for spawning the agent
+  ///
+  /// This handles:
+  /// - Setting system prompt
+  /// - Configuring allowed tools (non-MCP)
+  /// - Model and permission settings
+  ///
+  /// Note: MCP server configuration is handled separately in the
+  /// client creation process based on [mcpServers].
+  ClaudeConfig toClaudeConfig({
+    String? sessionId,
+    String? workingDirectory,
+  }) {
+    return ClaudeConfig(
+      appendSystemPrompt: systemPrompt,
+      allowedTools: allowedTools,
+      model: model,
+      permissionMode: permissionMode ?? 'acceptEdits',
+      temperature: temperature,
+      maxTokens: maxTokens,
+      sessionId: sessionId,
+      workingDirectory: workingDirectory,
+    );
+  }
+
+  /// Create a copy with modified fields
+  AgentConfiguration copyWith({
+    String? name,
+    String? description,
+    String? systemPrompt,
+    List<McpServerType>? mcpServers,
+    List<String>? allowedTools,
+    String? model,
+    String? permissionMode,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return AgentConfiguration(
+      name: name ?? this.name,
+      description: description ?? this.description,
+      systemPrompt: systemPrompt ?? this.systemPrompt,
+      mcpServers: mcpServers ?? this.mcpServers,
+      allowedTools: allowedTools ?? this.allowedTools,
+      model: model ?? this.model,
+      permissionMode: permissionMode ?? this.permissionMode,
+      temperature: temperature ?? this.temperature,
+      maxTokens: maxTokens ?? this.maxTokens,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'AgentConfiguration('
+        'name: $name, '
+        'mcpServers: ${mcpServers?.length ?? "inherited"}, '
+        'allowedTools: ${allowedTools?.length ?? "inherited"}, '
+        'model: ${model ?? "default"}'
+        ')';
+  }
+}

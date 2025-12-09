@@ -1,0 +1,8 @@
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - avoid_print: false  # Allow print statements in TUI app
+    - prefer_const_constructors
+    - prefer_const_literals_to_create_immutables

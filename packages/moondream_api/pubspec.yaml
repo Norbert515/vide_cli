@@ -1,0 +1,17 @@
+name: moondream_api
+description: Dart client for Moondream Vision Language Model API
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  http: ^1.2.0
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  test: ^1.26.3
+  json_serializable: ^6.8.0
+  build_runner: ^2.4.9
+  lints: ^3.0.0

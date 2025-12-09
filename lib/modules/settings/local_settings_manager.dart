@@ -1,0 +1,199 @@
+import 'dart:io';
+import 'dart:convert';
+import 'package:path/path.dart' as p;
+import 'models/claude_settings.dart';
+
+class LocalSettingsManager {
+  final String projectRoot;
+  final String parrottRoot;
+
+  LocalSettingsManager({required this.projectRoot, required this.parrottRoot});
+
+  /// Detects if we're running as a compiled executable.
+  ///
+  /// When compiled, Platform.resolvedExecutable points to the compiled binary
+  /// and Platform.script points to the same file (or a file: URI to it).
+  /// When running via `dart run`, Platform.resolvedExecutable points to the dart binary.
+  static bool get isCompiled {
+    final executableName = p.basename(Platform.resolvedExecutable);
+    // If the executable is 'dart' or 'dart.exe', we're running from source
+    return executableName != 'dart' && executableName != 'dart.exe';
+  }
+
+  /// Gets the hook command based on whether we're compiled or running from source.
+  String getHookCommand() {
+    if (isCompiled) {
+      // In compiled mode, use the executable directly with --hook flag
+      return '${Platform.resolvedExecutable} --hook';
+    } else {
+      // In development mode, use dart hook.dart (which delegates to main.dart --hook)
+      final hookPath = p.join(parrottRoot, 'hook.dart');
+      return 'dart $hookPath';
+    }
+  }
+
+  File get settingsFile {
+    final claudeDir = Directory(p.join(projectRoot, '.claude'));
+    return File(p.join(claudeDir.path, 'settings.local.json'));
+  }
+
+  /// Read current settings (or defaults if not exists)
+  Future<ClaudeSettings> readSettings() async {
+    if (!await settingsFile.exists()) {
+      return ClaudeSettings.defaults();
+    }
+
+    try {
+      final content = await settingsFile.readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      return ClaudeSettings.fromJson(json);
+    } catch (e) {
+      print('[LocalSettingsManager] Error reading settings: $e');
+      return ClaudeSettings.defaults();
+    }
+  }
+
+  /// Check if Parott hook is installed
+  Future<bool> isHookInstalled() async {
+    final settings = await readSettings();
+
+    if (settings.hooks == null) {
+      return false;
+    }
+
+    for (final hook in settings.hooks!.preToolUse) {
+      if (hook.hooks.any(
+        (cmd) =>
+            cmd.command.contains('parott') && cmd.command.contains('hook.dart'),
+      )) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Get the Parott hook configuration
+  PreToolUseHook getParottHook() {
+    return PreToolUseHook(
+      matcher: 'Write|Edit|Bash|MultiEdit|WebFetch|WebSearch|Read',
+      hooks: [
+        HookCommand(
+          type: 'command',
+          command: getHookCommand(),
+          timeout:
+              60000, // 60 seconds (in milliseconds) - matches Claude Code default
+        ),
+      ],
+    );
+  }
+
+  /// Generate installation diff
+  Future<SettingsDiff> generateInstallDiff() async {
+    final before = await readSettings();
+    final parrottHook = getParottHook();
+
+    // Preserve existing hooks or start with empty list
+    final existingHooks = before.hooks?.preToolUse ?? [];
+
+    final after = ClaudeSettings(
+      permissions: before.permissions,
+      hooks: HooksConfig(preToolUse: [...existingHooks, parrottHook]),
+    );
+
+    return SettingsDiff(
+      before: before,
+      after: after,
+      explanation:
+          '''
+Parott will install a PreToolUse hook to handle permissions.
+
+Hook Configuration:
+- Matcher: ${parrottHook.matcher}
+- Command: ${parrottHook.hooks.first.command}
+- Timeout: ${parrottHook.hooks.first.timeout}ms
+
+This hook intercepts file writes, edits, and shell commands
+to request permission through the Parott UI.
+''',
+    );
+  }
+
+  /// Install the hook
+  Future<void> installHook() async {
+    final diff = await generateInstallDiff();
+    await _writeSettings(diff.after);
+  }
+
+  /// Add permission to allow list
+  Future<void> addToAllowList(String pattern) async {
+    final settings = await readSettings();
+
+    // Check if already in allow list
+    if (settings.permissions.allow.contains(pattern)) {
+      return;
+    }
+
+    final updatedPermissions = settings.permissions.copyWith(
+      allow: [...settings.permissions.allow, pattern],
+    );
+
+    final updatedSettings = ClaudeSettings(
+      permissions: updatedPermissions,
+      hooks: settings.hooks,
+    );
+
+    await _writeSettings(updatedSettings);
+  }
+
+  /// Atomic write using temp file + rename
+  Future<void> _writeSettings(ClaudeSettings settings) async {
+    // Ensure .claude directory exists
+    final claudeDir = settingsFile.parent;
+    if (!await claudeDir.exists()) {
+      await claudeDir.create(recursive: true);
+    }
+
+    // Write to temp file
+    final tempFile = File('${settingsFile.path}.tmp');
+    final encoder = JsonEncoder.withIndent('  ');
+    await tempFile.writeAsString(encoder.convert(settings.toJson()));
+
+    // Atomic rename
+    await tempFile.rename(settingsFile.path);
+  }
+}
+
+class SettingsDiff {
+  final ClaudeSettings before;
+  final ClaudeSettings after;
+  final String explanation;
+
+  const SettingsDiff({
+    required this.before,
+    required this.after,
+    required this.explanation,
+  });
+
+  String toPrettyString() {
+    final buffer = StringBuffer();
+
+    // Show new hooks
+    final beforeHooks = before.hooks?.preToolUse.length ?? 0;
+    final afterHooks = after.hooks?.preToolUse.length ?? 0;
+    final newHooks = afterHooks - beforeHooks;
+
+    if (newHooks > 0 && after.hooks != null) {
+      buffer.writeln('+ hooks.PreToolUse[$beforeHooks]:');
+      final hook = after.hooks!.preToolUse.last;
+      buffer.writeln('  + matcher: "${hook.matcher}"');
+      buffer.writeln('  + command: "${hook.hooks.first.command}"');
+      buffer.writeln('  + timeout: ${hook.hooks.first.timeout}');
+      buffer.writeln();
+    }
+
+    buffer.writeln(explanation);
+
+    return buffer.toString();
+  }
+}

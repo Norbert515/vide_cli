@@ -1,0 +1,89 @@
+import 'package:nocterm/nocterm.dart';
+import 'package:claude_api/claude_api.dart';
+import 'package:parott/modules/agent_network/models/agent_id.dart';
+import 'flutter_output_renderer.dart';
+import 'terminal_output_renderer.dart';
+import 'diff_renderer.dart';
+import 'default_renderer.dart';
+
+/// Main router for tool invocation rendering.
+///
+/// Routes tool invocations to appropriate renderers based on tool type:
+/// - SubAgent tools (containing 'spawnAgent') → SubagentRenderer
+/// - Flutter runtime start → FlutterOutputRenderer
+/// - Bash commands → TerminalOutputRenderer
+/// - Write/Edit/MultiEdit (successful) → DiffRenderer
+/// - All other tools → DefaultRenderer
+class ToolInvocationRouter extends StatelessComponent {
+  final ToolInvocation invocation;
+  final String workingDirectory;
+  final String executionId;
+  final AgentId agentId;
+
+  const ToolInvocationRouter({
+    required this.invocation,
+    required this.workingDirectory,
+    required this.executionId,
+    required this.agentId,
+    super.key,
+  });
+
+  @override
+  Component build(BuildContext context) {
+    // Route 0: Internal tools that should not be rendered
+    if (invocation.toolName == 'mcp__parott-task-management__setTaskName' || invocation.toolName == 'TodoWrite') {
+      return SizedBox();
+    }
+
+    // Route 2: Flutter runtime start
+    if (invocation.toolName == 'mcp__flutter-runtime__flutterStart') {
+      return FlutterOutputRenderer(
+        invocation: invocation,
+        agentId: agentId,
+        workingDirectory: workingDirectory,
+        executionId: executionId,
+      );
+    }
+
+    // Route 3: Terminal/Bash output
+    if (invocation.toolName == 'Bash') {
+      return TerminalOutputRenderer(
+        invocation: invocation,
+        agentId: agentId,
+        workingDirectory: workingDirectory,
+        executionId: executionId,
+      );
+    }
+
+    // Route 4: Write/Edit/MultiEdit with successful result (show diff)
+    if (_shouldShowDiff()) {
+      return DiffRenderer(
+        invocation: invocation,
+        workingDirectory: workingDirectory,
+        executionId: executionId,
+        agentId: agentId,
+      );
+    }
+
+    // Route 5: TodoWrite tool
+    if (invocation.toolName == 'TodoWrite') {
+      return SizedBox();
+    }
+
+    // Route 6: Default renderer for all other tools
+    return DefaultRenderer(
+      invocation: invocation,
+      workingDirectory: workingDirectory,
+      executionId: executionId,
+      agentId: agentId,
+    );
+  }
+
+  /// Determines if diff view should be shown for Write/Edit/MultiEdit tools
+  bool _shouldShowDiff() {
+    final toolName = invocation.toolName.toLowerCase();
+    return (toolName == 'write' || toolName == 'edit' || toolName == 'multiedit') &&
+        invocation.hasResult &&
+        !invocation.isError;
+  }
+}

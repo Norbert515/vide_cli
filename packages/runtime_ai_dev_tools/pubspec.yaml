@@ -1,0 +1,17 @@
+name: runtime_ai_dev_tools
+description: Runtime AI dev tools for Flutter - service extensions for AI-assisted app testing
+version: 0.0.1
+homepage:
+
+environment:
+  sdk: ^3.6.0
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0

@@ -1,0 +1,43 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
+
+  errors:
+    missing_required_param: error
+    missing_return: error
+    todo: ignore
+
+linter:
+  rules:
+    - always_declare_return_types
+    - annotate_overrides
+    - avoid_empty_else
+    - avoid_null_checks_in_equality_operators
+    - avoid_relative_lib_imports
+    - avoid_return_types_on_setters
+    - avoid_shadowing_type_parameters
+    - avoid_types_as_parameter_names
+    - camel_case_extensions
+    - curly_braces_in_flow_control_structures
+    - empty_catches
+    - file_names
+    - hash_and_equals
+    - iterable_contains_unrelated_type
+    - list_remove_unrelated_type
+    - no_duplicate_case_values
+    - prefer_generic_function_type_aliases
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - prefer_iterable_whereType
+    - prefer_single_quotes
+    - slash_for_doc_comments
+    - type_init_formals
+    - unnecessary_const
+    - unnecessary_new
+    - unrelated_type_equality_checks
+    - use_rethrow_when_possible
+    - valid_regexps

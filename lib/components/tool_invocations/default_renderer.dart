@@ -1,0 +1,168 @@
+import 'package:nocterm/nocterm.dart';
+import 'package:claude_api/claude_api.dart';
+import 'package:parott/constants/text_opacity.dart';
+import 'package:parott/modules/agent_network/models/agent_id.dart';
+import 'package:path/path.dart' as p;
+
+/// Default renderer for tool invocations.
+/// Handles all tools that don't have specialized renderers.
+class DefaultRenderer extends StatefulComponent {
+  final ToolInvocation invocation;
+  final String workingDirectory;
+  final String executionId;
+  final AgentId agentId;
+
+  const DefaultRenderer({
+    required this.invocation,
+    required this.workingDirectory,
+    required this.executionId,
+    required this.agentId,
+    super.key,
+  });
+
+  @override
+  State<DefaultRenderer> createState() => _DefaultRendererState();
+}
+
+class _DefaultRendererState extends State<DefaultRenderer> {
+  @override
+  Component build(BuildContext context) {
+    final hasResult = component.invocation.hasResult;
+
+    final isError = component.invocation.isError;
+
+    // Determine status color and indicator
+    final Color statusColor;
+    final String statusIndicator;
+
+    if (!hasResult) {
+      // Yellow: Pending or in-progress (no result yet)
+      statusColor = Colors.yellow;
+      statusIndicator = '●';
+    } else if (isError) {
+      // Red: Error, denied, or blocked by hook
+      statusColor = Colors.red;
+      statusIndicator = '●';
+    } else {
+      // Green: Successful completion
+      statusColor = Colors.green;
+      statusIndicator = '●';
+    }
+
+    return Container(
+      padding: EdgeInsets.only(bottom: 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tool header with name and params
+          Row(
+            children: [
+              // Status indicator
+              Text(statusIndicator, style: TextStyle(color: statusColor)),
+              SizedBox(width: 1),
+              // Tool name
+              Text(component.invocation.displayName, style: TextStyle(color: Colors.white)),
+              if (component.invocation.parameters.isNotEmpty) ...[
+                Flexible(
+                  child: Text(
+                    '(${_getParameterPreview()}',
+                    style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                Text(')', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary))),
+              ],
+            ],
+          ),
+
+          // Result content
+          if (hasResult && _shouldShowResultPreview())
+            Container(padding: EdgeInsets.only(left: 2), child: _buildResultView()),
+        ],
+      ),
+    );
+  }
+
+  bool _shouldShowResultPreview() {
+    // Don't show result preview for Read and Grep tools
+    return component.invocation.toolName != 'Read' && component.invocation.toolName != 'Grep';
+  }
+
+  Component _buildResultView() {
+    final preview = _getResultPreview();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+        Expanded(
+          child: Text(
+            preview,
+            style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _getParameterPreview() {
+    final params = component.invocation.parameters;
+    if (params.isEmpty) return '';
+
+    final firstKey = params.keys.first;
+    final value = params[firstKey];
+    String valueStr = value.toString();
+
+    // Format file paths
+    if (firstKey == 'file_path') {
+      // Use typed invocation for file path formatting if available
+      if (component.invocation is FileOperationToolInvocation) {
+        final typed = component.invocation as FileOperationToolInvocation;
+        valueStr = typed.getRelativePath(component.workingDirectory);
+      } else {
+        valueStr = _formatFilePath(valueStr);
+      }
+    }
+
+    return '$firstKey: $valueStr';
+  }
+
+  String _getResultPreview() {
+    final content = component.invocation.resultContent ?? '';
+    if (content.isEmpty) return 'Empty result';
+
+    // For Read and Grep tools, don't show any preview
+    if (component.invocation.toolName == 'Read' || component.invocation.toolName == 'Grep') {
+      return '';
+    }
+
+    final lines = content.split('\n');
+    final firstLine = lines.first.trim();
+
+    if (firstLine.isEmpty && lines.length > 1) {
+      return lines.firstWhere((line) => line.trim().isNotEmpty, orElse: () => 'Empty result');
+    }
+
+    String preview = firstLine;
+    if (lines.length > 1) {
+      preview += ' (${lines.length} lines total)';
+    }
+
+    return preview;
+  }
+
+  String _formatFilePath(String filePath) {
+    if (component.workingDirectory.isEmpty) return filePath;
+
+    try {
+      final relative = p.relative(filePath, from: component.workingDirectory);
+      // Only use relative if it's actually shorter (file is within working dir)
+      return relative.length < filePath.length ? relative : filePath;
+    } catch (e) {
+      return filePath; // Fallback on error
+    }
+  }
+}
