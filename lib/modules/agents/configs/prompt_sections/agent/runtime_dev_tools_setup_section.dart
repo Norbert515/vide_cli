@@ -19,7 +19,9 @@ Check the app's `pubspec.yaml` for the `runtime_ai_dev_tools` dependency:
 ```yaml
 dependencies:
   runtime_ai_dev_tools:
-    path: /Users/norbertkozsir/IdeaProjects/parott/packages/runtime_ai_dev_tools
+    git:
+      url: https://github.com/Norbert515/vide_cli.git
+      path: packages/runtime_ai_dev_tools
 ```
 
 If missing:
@@ -71,7 +73,7 @@ memorySave(key: "added_runtime_dep", value: "true/false")
 
 **Quick Checklist:**
 - [ ] Check if `runtime_ai_dev_tools` dependency exists in pubspec.yaml
-- [ ] Add dependency if missing (path: `/Users/norbertkozsir/IdeaProjects/parott/packages/runtime_ai_dev_tools`)
+- [ ] Add dependency if missing (git: `https://github.com/Norbert515/vide_cli.git`, path: `packages/runtime_ai_dev_tools`)
 - [ ] Run `flutter pub get` / `fvm flutter pub get`
 - [ ] Find `runApp()` in `main.dart`
 - [ ] Add import: `import 'package:runtime_ai_dev_tools/runtime_ai_dev_tools.dart';`
