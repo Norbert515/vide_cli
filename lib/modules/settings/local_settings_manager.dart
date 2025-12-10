@@ -53,7 +53,7 @@ class LocalSettingsManager {
     }
   }
 
-  /// Check if Parott hook is installed
+  /// Check if our hook is installed
   Future<bool> isHookInstalled() async {
     final settings = await readSettings();
 
@@ -62,15 +62,27 @@ class LocalSettingsManager {
     }
 
     for (final hook in settings.hooks!.preToolUse) {
-      if (hook.hooks.any(
-        (cmd) =>
-            cmd.command.contains('parott') && cmd.command.contains('hook.dart'),
-      )) {
+      if (hook.hooks.any((cmd) => _isOurHook(cmd.command))) {
         return true;
       }
     }
 
     return false;
+  }
+
+  /// Checks if a command belongs to our hook.
+  /// This is robust against project renames and different execution modes.
+  bool _isOurHook(String command) {
+    // Check for known project names
+    final hasProjectName =
+        command.contains('parott') || command.contains('vide');
+
+    // Check for hook indicators (covers both dev and compiled modes)
+    final hasHookIndicator =
+        command.contains('hook.dart') || command.contains('--hook');
+
+    // A command is ours if it has either a project name OR a hook indicator
+    return hasProjectName || hasHookIndicator;
   }
 
   /// Get the Parott hook configuration
