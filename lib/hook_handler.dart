@@ -1,5 +1,20 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'package:sentry/sentry.dart';
+
+/// Sentry DSN for hook handler (runs as separate process)
+const String _sentryDsn =
+    'https://72bde1285798c1a0ec98c770c65cad3a@o4510511934275584.ingest.de.sentry.io/4510511935717456';
+
+/// Initialize Sentry for hook handler
+Future<void> _initSentryForHook() async {
+  await Sentry.init((options) {
+    options.dsn = _sentryDsn;
+    options.environment =
+        const String.fromEnvironment('SENTRY_ENV', defaultValue: 'development');
+  });
+}
 
 /// Runs the Parott hook handler.
 ///
@@ -11,8 +26,12 @@ import 'dart:convert';
 /// - 2: Deny/block the operation
 Future<void> runHook() async {
   try {
+    // Initialize Sentry early (non-blocking, errors will still work if this fails)
+    unawaited(_initSentryForHook());
+
     // Read hook input from stdin
-    final stdinContent = stdin.hasTerminal ? '' : await utf8.decoder.bind(stdin).join();
+    final stdinContent =
+        stdin.hasTerminal ? '' : await utf8.decoder.bind(stdin).join();
 
     if (stdinContent.isEmpty) {
       _outputAllow('No input from stdin, allowing operation');
@@ -31,7 +50,8 @@ Future<void> runHook() async {
     }
 
     // Read port file
-    final portFile = File('${Directory.systemTemp.path}/parott_hook_port_$sessionId');
+    final portFile =
+        File('${Directory.systemTemp.path}/parott_hook_port_$sessionId');
     if (!await portFile.exists()) {
       // Parott not running - allow the operation (graceful degradation)
       _outputAllow('Parott not running for this session, allowing operation');
@@ -46,7 +66,8 @@ Future<void> runHook() async {
     }
 
     // Check permission mode file
-    final modeFile = File('${Directory.systemTemp.path}/parott_hook_mode_$sessionId');
+    final modeFile =
+        File('${Directory.systemTemp.path}/parott_hook_mode_$sessionId');
     String? permissionMode;
     if (await modeFile.exists()) {
       permissionMode = (await modeFile.readAsString()).trim();
@@ -68,7 +89,8 @@ Future<void> runHook() async {
 
       if (filePath != null && cwd != null) {
         // Normalize paths by resolving to absolute paths
-        final normalizedFilePath = filePath.startsWith('/') ? filePath : '$cwd/$filePath';
+        final normalizedFilePath =
+            filePath.startsWith('/') ? filePath : '$cwd/$filePath';
 
         // Check if the file is inside the working directory
         if (normalizedFilePath.startsWith(cwd)) {
@@ -79,7 +101,8 @@ Future<void> runHook() async {
     }
 
     // Validate process is alive
-    final pidFile = File('${Directory.systemTemp.path}/parott_hook_pid_$sessionId');
+    final pidFile =
+        File('${Directory.systemTemp.path}/parott_hook_pid_$sessionId');
     if (await pidFile.exists()) {
       final pidString = await pidFile.readAsString();
       final pid = int.tryParse(pidString.trim());
@@ -95,7 +118,8 @@ Future<void> runHook() async {
     // Make HTTP request to Parott
     final client = HttpClient();
     try {
-      final request = await client.postUrl(Uri.parse('http://localhost:$port/permission'));
+      final request =
+          await client.postUrl(Uri.parse('http://localhost:$port/permission'));
       request.headers.contentType = ContentType.json;
       request.write(stdinContent);
 
@@ -126,8 +150,15 @@ Future<void> runHook() async {
     } finally {
       client.close();
     }
-  } catch (e) {
-    // On any error, allow the operation to proceed
+  } catch (e, stackTrace) {
+    // Report error to Sentry, but still allow the operation to proceed
+    // This ensures hook failures don't block the user's workflow
+    try {
+      await Sentry.captureException(e, stackTrace: stackTrace);
+    } catch (_) {
+      // Ignore Sentry errors - don't let monitoring break the app
+    }
+
     _outputAllow('Error in hook: $e, allowing operation');
   }
 
