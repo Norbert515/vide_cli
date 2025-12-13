@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:parott/modules/agent_network/models/agent_network.dart';
-import 'package:parott/services/parott_config_manager.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_cli/services/vide_config_manager.dart';
 import 'package:path/path.dart' as path;
 
 final agentNetworkPersistenceManagerProvider =
@@ -18,7 +18,7 @@ final agentNetworkPersistenceManagerProvider =
 class AgentNetworkPersistenceManager {
   AgentNetworkPersistenceManager({String? projectPath})
       : _projectPath = projectPath ?? Directory.current.path {
-    final configManager = ParottConfigManager();
+    final configManager = VideConfigManager();
     _storageDir = configManager.getProjectStorageDir(_projectPath);
   }
 

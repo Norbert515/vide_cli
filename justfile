@@ -6,4 +6,4 @@ default:
 
 compile:
     dart pub get
-    dart compile exe lib/main.dart -o parott
+    dart compile exe lib/main.dart -o vide

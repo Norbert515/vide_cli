@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 /// Reusable component for displaying a todo list.
 /// Shows tasks with status icons and color coding.

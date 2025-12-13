@@ -1,10 +1,10 @@
 import 'package:claude_api/claude_api.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
-import 'package:parott/modules/mcp/agent/agent_mcp_server.dart';
-import 'package:parott/modules/mcp/git/git_server.dart';
-import 'package:parott/modules/mcp/models/mcp_server_type.dart';
-import 'package:parott/modules/mcp/task_management/task_management_server.dart';
-import 'package:parott/modules/memory/memory_mcp_server.dart';
+import 'package:vide_cli/modules/mcp/agent/agent_mcp_server.dart';
+import 'package:vide_cli/modules/mcp/git/git_server.dart';
+import 'package:vide_cli/modules/mcp/models/mcp_server_type.dart';
+import 'package:vide_cli/modules/mcp/task_management/task_management_server.dart';
+import 'package:vide_cli/modules/memory/memory_mcp_server.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../agent_network/models/agent_id.dart';

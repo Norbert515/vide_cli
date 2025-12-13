@@ -1,11 +1,11 @@
-# Parott 🦜
+# Vide CLI
 
 A terminal UI client for Claude AI built with Dart and nocterm.
 
 ## Features
 
 - Interactive chat interface with Claude
-- Real-time streaming responses  
+- Real-time streaming responses
 - Tool use visualization
 - Clean terminal UI with colored output
 - Command-line interface for quick queries
@@ -17,7 +17,7 @@ A terminal UI client for Claude AI built with Dart and nocterm.
 Run the interactive chat interface:
 
 ```bash
-dart run bin/parott.dart
+dart run bin/vide.dart
 ```
 
 This opens a full-screen terminal UI where you can:
@@ -32,13 +32,13 @@ For quick, one-off queries:
 
 ```bash
 # Ask a default question
-dart run bin/parott_cli.dart
+dart run bin/vide_cli.dart
 
 # Ask a specific question
-dart run bin/parott_cli.dart "What is the capital of France?"
+dart run bin/vide_cli.dart "What is the capital of France?"
 
 # Multi-word prompts
-dart run bin/parott_cli.dart Tell me about Dart programming
+dart run bin/vide_cli.dart Tell me about Dart programming
 ```
 
 ### Simple Test Interface
@@ -51,13 +51,13 @@ dart run bin/test_simple.dart
 
 ```
 bin/
-  parott.dart      - Main interactive chat interface
-  parott_cli.dart  - Command-line interface
+  vide.dart      - Main interactive chat interface
+  vide_cli.dart  - Command-line interface
   test_simple.dart - Simple test interface with text field
 
 lib/
   interactive_claude.dart - Full interactive chat component
-  simple_claude.dart      - Simple streaming component  
+  simple_claude.dart      - Simple streaming component
   components/
     response_item.dart    - Response rendering component
 

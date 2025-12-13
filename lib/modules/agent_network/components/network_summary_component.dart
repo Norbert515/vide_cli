@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/modules/agent_network/models/agent_network.dart';
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 class NetworkSummaryComponent extends StatefulComponent {
   final AgentNetwork network;

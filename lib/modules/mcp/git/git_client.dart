@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:parott/modules/mcp/git/git_models.dart';
+import 'package:vide_cli/modules/mcp/git/git_models.dart';
 import 'git_exception.dart';
 
 /// A client for executing git operations with typed results.

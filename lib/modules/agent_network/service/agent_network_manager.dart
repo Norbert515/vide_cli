@@ -1,21 +1,21 @@
 import 'package:claude_api/claude_api.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:parott/modules/agent_network/service/claude_manager.dart';
-import 'package:parott/services/posthog_service.dart';
-import 'package:parott/modules/agent_network/models/agent_id.dart';
-import 'package:parott/modules/agent_network/models/agent_metadata.dart';
-import 'package:parott/modules/agent_network/models/agent_network.dart';
-import 'package:parott/modules/agent_network/service/agent_network_persistence_manager.dart';
-import 'package:parott/modules/agents/configs/context_collection_agent_config.dart';
-import 'package:parott/modules/agents/configs/flutter_tester_agent_config.dart';
-import 'package:parott/modules/agents/configs/implementation_agent_config.dart';
-import 'package:parott/modules/agents/configs/main_agent_config.dart';
-import 'package:parott/modules/agents/configs/planning_agent_config.dart';
-import 'package:parott/modules/agents/models/agent_configuration.dart';
-import 'package:parott/modules/agent_network/state/agent_status_manager.dart';
-import 'package:parott/modules/mcp/mcp_provider.dart';
-import 'package:parott/utils/project_detector.dart';
-import 'package:parott/utils/working_dir_provider.dart';
+import 'package:vide_cli/modules/agent_network/service/claude_manager.dart';
+import 'package:vide_cli/services/posthog_service.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_metadata.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_cli/modules/agent_network/service/agent_network_persistence_manager.dart';
+import 'package:vide_cli/modules/agents/configs/context_collection_agent_config.dart';
+import 'package:vide_cli/modules/agents/configs/flutter_tester_agent_config.dart';
+import 'package:vide_cli/modules/agents/configs/implementation_agent_config.dart';
+import 'package:vide_cli/modules/agents/configs/main_agent_config.dart';
+import 'package:vide_cli/modules/agents/configs/planning_agent_config.dart';
+import 'package:vide_cli/modules/agents/models/agent_configuration.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
+import 'package:vide_cli/modules/mcp/mcp_provider.dart';
+import 'package:vide_cli/utils/project_detector.dart';
+import 'package:vide_cli/utils/working_dir_provider.dart';
 import 'package:uuid/uuid.dart';
 
 /// Agent types that can be spawned via the agent network.

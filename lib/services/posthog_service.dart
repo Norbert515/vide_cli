@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:uuid/uuid.dart';
-import 'package:parott/services/parott_config_manager.dart';
+import 'package:vide_cli/services/vide_config_manager.dart';
 
 /// PostHog analytics service for tracking product usage.
 ///
@@ -34,7 +34,7 @@ class PostHogService {
 
   /// Load existing distinct ID or create a new one.
   static Future<String> _loadOrCreateDistinctId() async {
-    final configManager = ParottConfigManager();
+    final configManager = VideConfigManager();
     final configDir = configManager.configRoot;
     final idFile = File('$configDir/posthog_distinct_id');
 
@@ -79,7 +79,7 @@ class PostHogService {
         'event': event,
         'distinct_id': _distinctId,
         'properties': {
-          '\$lib': 'parott-dart',
+          '\$lib': 'vide-dart',
           ...?properties,
         },
       });

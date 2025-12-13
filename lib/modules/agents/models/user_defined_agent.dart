@@ -21,7 +21,7 @@ class UserDefinedAgent {
   /// If empty list, has no MCP servers
   /// Otherwise, only the specified servers are available
   ///
-  /// Examples: ["parott-git", "parott-memory", "dart"]
+  /// Examples: ["vide-git", "vide-memory", "dart"]
   final List<String>? mcpServers;
 
   /// Optional list of tool names this agent can access
@@ -52,7 +52,7 @@ class UserDefinedAgent {
   /// ---
   /// name: agent-name
   /// description: When to use this agent
-  /// mcpServers: parott-git, parott-memory  # Optional
+  /// mcpServers: vide-git, vide-memory  # Optional
   /// tools: Read, Grep, Glob, Bash          # Optional
   /// model: sonnet                           # Optional
   /// ---
@@ -94,10 +94,10 @@ class UserDefinedAgent {
     List<String>? mcpServers;
     if (mcpServersField != null) {
       if (mcpServersField is String) {
-        // Parse comma-separated list: "parott-git, parott-memory"
+        // Parse comma-separated list: "vide-git, vide-memory"
         mcpServers = mcpServersField.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
       } else if (mcpServersField is YamlList) {
-        // Parse YAML list: [parott-git, parott-memory]
+        // Parse YAML list: [vide-git, vide-memory]
         mcpServers = mcpServersField.cast<String>().toList();
       }
     }
@@ -160,11 +160,11 @@ class UserDefinedAgent {
       parsedMcpServers = mcpServers!.map((serverName) {
         // Check if it's a built-in server
         switch (serverName) {
-          case 'parott-git':
+          case 'vide-git':
             return McpServerType.git;
-          case 'parott-memory':
+          case 'vide-memory':
             return McpServerType.memory;
-          case 'parott-task-management':
+          case 'vide-task-management':
             return McpServerType.taskManagement;
           case 'flutter-runtime':
             return McpServerType.flutterRuntime;

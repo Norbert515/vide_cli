@@ -23,7 +23,7 @@ class _SetupPageState extends State<SetupPage> {
     _loadDiff();
   }
 
-  /// Find the Parott installation root directory
+  /// Find the Vide CLI installation root directory
   String _getParrottRoot() {
     final scriptPath = Platform.script.toFilePath();
     final scriptDir = path.dirname(scriptPath);
@@ -91,7 +91,7 @@ class _SetupPageState extends State<SetupPage> {
             padding: EdgeInsets.symmetric(vertical: 1, horizontal: 2),
             decoration: BoxDecoration(color: Colors.blue),
             child: Text(
-              'Parott Setup',
+              'Vide CLI Setup',
               style: TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
@@ -103,7 +103,7 @@ class _SetupPageState extends State<SetupPage> {
 
           // Explanation
           Text(
-            'Parott needs to install a permission hook in your Claude Code settings.',
+            'Vide CLI needs to install a permission hook in your Claude Code settings.',
             style: TextStyle(color: Colors.white),
           ),
           SizedBox(height: 1),

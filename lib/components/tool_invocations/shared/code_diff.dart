@@ -1,7 +1,7 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/components/rich_text.dart';
-import 'package:parott/constants/text_opacity.dart';
-import 'package:parott/utils/syntax_highlighter.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/utils/syntax_highlighter.dart';
 
 enum DiffLineType { added, removed, unchanged, header }
 

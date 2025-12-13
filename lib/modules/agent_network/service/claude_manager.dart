@@ -1,6 +1,6 @@
 import 'package:claude_api/claude_api.dart';
-import 'package:parott/modules/agent_network/models/agent_id.dart';
-import 'package:parott/modules/agents/models/agent_configuration.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/agents/models/agent_configuration.dart';
 import 'package:riverpod/riverpod.dart';
 
 class AgentIdAndClaudeConfig {

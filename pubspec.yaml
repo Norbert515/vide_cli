@@ -1,4 +1,4 @@
-name: parott
+name: vide_cli
 description: Minimal Claude TUI
 version: 0.1.0
 publish_to: none

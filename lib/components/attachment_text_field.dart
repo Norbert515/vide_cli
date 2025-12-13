@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_api/claude_api.dart';
 import 'package:path/path.dart' as path;
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 /// A text field that automatically detects image paths, converts them to attachments,
 /// and provides a complete Message object on submit.

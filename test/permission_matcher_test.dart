@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:parott/modules/settings/permission_matcher.dart';
+import 'package:vide_cli/modules/settings/permission_matcher.dart';
 
 void main() {
   group('PermissionMatcher - Bash patterns', () {

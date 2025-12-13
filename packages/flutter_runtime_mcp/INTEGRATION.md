@@ -2,7 +2,7 @@
 
 ## Summary
 
-The Flutter Runtime MCP server has been successfully created and integrated into the Parott agent system.
+The Flutter Runtime MCP server has been successfully created and integrated into the Vide CLI agent system.
 
 ## What Was Created
 
@@ -42,7 +42,7 @@ packages/flutter_runtime_mcp/
 
 ## Integration Points
 
-### 1. Main Application (`/Users/norbertkozsir/IdeaProjects/parott/pubspec.yaml`)
+### 1. Main Application (`pubspec.yaml`)
 ```yaml
 dependencies:
   flutter_runtime_mcp:
@@ -89,7 +89,7 @@ if (enableFlutterRuntime && !useMockClient) {
 3. **Configuration**
    - `ProcessManager.getMcpArgs()` generates config
    - Creates temporary JSON: `{"mcpServers": {"flutter-runtime": {"type": "sse", "url": "..."}}}`
-   - Passes to Claude Code: `--mcp-config /tmp/parott_mcp_config_*.json`
+   - Passes to Claude Code: `--mcp-config /tmp/vide_mcp_config_*.json`
    - Allows tools: `--allowed-tools mcp__flutter-runtime__*`
 
 4. **Runtime**
@@ -177,7 +177,7 @@ Get detailed info about specific instance.
 ## Testing
 
 ### Integration Test
-Location: `/Users/norbertkozsir/IdeaProjects/parott/test/flutter_runtime_integration_test.dart`
+Location: `test/flutter_runtime_integration_test.dart`
 
 Run with:
 ```bash
@@ -187,7 +187,7 @@ dart test test/flutter_runtime_integration_test.dart
 **All tests pass ✓**
 
 ### Demo
-Location: `/Users/norbertkozsir/IdeaProjects/parott/packages/flutter_runtime_mcp/example/flutter_runtime_demo.dart`
+Location: `packages/flutter_runtime_mcp/example/flutter_runtime_demo.dart`
 
 Run with:
 ```bash
@@ -266,7 +266,7 @@ Automatic port allocation uses range 8080-9100 (via `PortManager`).
 ✅ **Tests Passing**
 ✅ **Documentation Complete**
 
-The Flutter Runtime MCP is now fully integrated and available to all Parott agents!
+The Flutter Runtime MCP is now fully integrated and available to all Vide CLI agents!
 
 ## Future Enhancements
 

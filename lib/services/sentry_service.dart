@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/services/posthog_service.dart';
+import 'package:vide_cli/services/posthog_service.dart';
 import 'package:sentry/sentry.dart';
 
 class SentryService {

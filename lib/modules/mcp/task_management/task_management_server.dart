@@ -13,7 +13,7 @@ final taskManagementServerProvider = Provider.family<TaskManagementServer, Agent
 
 /// MCP server for task management operations
 class TaskManagementServer extends McpServerBase {
-  static const String serverName = 'parott-task-management';
+  static const String serverName = 'vide-task-management';
 
   final AgentId callerAgentId;
   final Ref _ref;

@@ -1,4 +1,4 @@
-/// Enumeration of MCP servers available in Parott.
+/// Enumeration of MCP servers available in Vide CLI.
 ///
 /// This enum identifies both built-in MCP servers and custom servers.
 /// Built-in servers are managed internally, while custom servers can be
@@ -6,18 +6,18 @@
 sealed class McpServerType {
   const McpServerType();
 
-  /// Git operations MCP server (parott-git)
-  static const git = _BuiltInMcpServer._('parott-git');
+  /// Git operations MCP server (vide-git)
+  static const git = _BuiltInMcpServer._('vide-git');
 
-  /// Agent network MCP server (parott-agent)
+  /// Agent network MCP server (vide-agent)
   /// Provides tools for spawning agents and inter-agent communication
-  static const agent = _BuiltInMcpServer._('parott-agent');
+  static const agent = _BuiltInMcpServer._('vide-agent');
 
-  /// Memory/context storage MCP server (parott-memory)
-  static const memory = _BuiltInMcpServer._('parott-memory');
+  /// Memory/context storage MCP server (vide-memory)
+  static const memory = _BuiltInMcpServer._('vide-memory');
 
-  /// Task management MCP server (parott-task-management)
-  static const taskManagement = _BuiltInMcpServer._('parott-task-management');
+  /// Task management MCP server (vide-task-management)
+  static const taskManagement = _BuiltInMcpServer._('vide-task-management');
 
   /// Flutter runtime MCP server (flutter-runtime)
   static const flutterRuntime = _BuiltInMcpServer._('flutter-runtime');
@@ -27,7 +27,7 @@ sealed class McpServerType {
 
   /// Custom MCP server referenced by name
   ///
-  /// Use this for external MCP servers not managed by Parott.
+  /// Use this for external MCP servers not managed by Vide CLI.
   /// The name should match the server's identifier in the MCP config.
   static McpServerType custom(String serverName) => _CustomMcpServer._(serverName);
 
@@ -35,7 +35,7 @@ sealed class McpServerType {
   String get serverName;
 }
 
-/// Built-in MCP server managed by Parott
+/// Built-in MCP server managed by Vide CLI
 class _BuiltInMcpServer extends McpServerType {
   @override
   final String serverName;

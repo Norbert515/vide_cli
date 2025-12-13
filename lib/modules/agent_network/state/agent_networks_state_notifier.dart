@@ -1,5 +1,5 @@
-import 'package:parott/modules/agent_network/models/agent_network.dart';
-import 'package:parott/modules/agent_network/service/agent_network_persistence_manager.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_cli/modules/agent_network/service/agent_network_persistence_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
 final agentNetworksStateNotifierProvider = StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((ref) {

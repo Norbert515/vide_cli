@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 class EnhancedLoadingIndicator extends StatefulComponent {
   const EnhancedLoadingIndicator({super.key});

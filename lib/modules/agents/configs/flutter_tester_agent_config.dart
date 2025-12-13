@@ -1,4 +1,4 @@
-import 'package:parott/utils/project_detector.dart';
+import 'package:vide_cli/utils/project_detector.dart';
 
 import '../models/agent_configuration.dart';
 import '../../mcp/models/mcp_server_type.dart';

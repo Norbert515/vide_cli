@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:parott/modules/memory/model/memory_entry.dart';
-import 'package:parott/services/parott_config_manager.dart';
+import 'package:vide_cli/modules/memory/model/memory_entry.dart';
+import 'package:vide_cli/services/vide_config_manager.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
@@ -21,7 +21,7 @@ final memoryServiceProvider = Provider<MemoryService>((ref) {
 class MemoryService {
   MemoryService();
 
-  final ParottConfigManager _configManager = ParottConfigManager();
+  final VideConfigManager _configManager = VideConfigManager();
 
   /// Gets the memory file path for a given project.
   String _getMemoryFilePath(String projectPath) {

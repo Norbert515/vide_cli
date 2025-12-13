@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/modules/mcp/git/git_client.dart';
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/modules/mcp/git/git_client.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 class GitBranchIndicator extends StatefulComponent {
   final String sessionId;

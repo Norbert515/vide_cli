@@ -1,7 +1,7 @@
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
-import 'package:parott/modules/memory/memory_service.dart';
-import 'package:parott/utils/working_dir_provider.dart';
+import 'package:vide_cli/modules/memory/memory_service.dart';
+import 'package:vide_cli/utils/working_dir_provider.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../agent_network/models/agent_id.dart';
@@ -15,7 +15,7 @@ final memoryServerProvider = Provider.family<MemoryMCPServer, AgentId>((ref, age
 /// This server wraps the MemoryService and scopes operations to a specific
 /// working directory. Each MemoryServer instance is bound to one project path.
 class MemoryMCPServer extends McpServerBase {
-  static const String serverName = 'parott-memory';
+  static const String serverName = 'vide-memory';
 
   final MemoryService _memoryService;
   final String _projectPath;

@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_api/claude_api.dart';
-import 'package:parott/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'flutter_output_renderer.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
@@ -31,7 +31,7 @@ class ToolInvocationRouter extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     // Route 0: Internal tools that should not be rendered
-    if (invocation.toolName == 'mcp__parott-task-management__setTaskName' || invocation.toolName == 'TodoWrite') {
+    if (invocation.toolName == 'mcp__vide-task-management__setTaskName' || invocation.toolName == 'TodoWrite') {
       return SizedBox();
     }
 

@@ -147,16 +147,16 @@ class PermissionService {
 
   /// Write port/pid/mode files for a session ID
   Future<void> _writeFilesForSession(String sessionId) async {
-    final portFile = File('${Directory.systemTemp.path}/parott_hook_port_$sessionId');
+    final portFile = File('${Directory.systemTemp.path}/vide_hook_port_$sessionId');
     await portFile.writeAsString(_port.toString());
     _portFiles.add(portFile);
 
-    final pidFile = File('${Directory.systemTemp.path}/parott_hook_pid_$sessionId');
+    final pidFile = File('${Directory.systemTemp.path}/vide_hook_pid_$sessionId');
     await pidFile.writeAsString(pid.toString());
     _pidFiles.add(pidFile);
 
     if (_permissionMode != null) {
-      final modeFile = File('${Directory.systemTemp.path}/parott_hook_mode_$sessionId');
+      final modeFile = File('${Directory.systemTemp.path}/vide_hook_mode_$sessionId');
       await modeFile.writeAsString(_permissionMode!);
       _modeFiles.add(modeFile);
     }
@@ -374,21 +374,21 @@ class PermissionService {
           .list()
           .where(
             (f) =>
-                f.path.contains('parott_hook_port_') ||
-                f.path.contains('parott_hook_pid_') ||
-                f.path.contains('parott_hook_mode_'),
+                f.path.contains('vide_hook_port_') ||
+                f.path.contains('vide_hook_pid_') ||
+                f.path.contains('vide_hook_mode_'),
           )
           .toList();
 
       for (final file in files) {
         if (file is File) {
-          final match = RegExp(r'parott_hook_(port|pid|mode)_(.+)$').firstMatch(file.path);
+          final match = RegExp(r'vide_hook_(port|pid|mode)_(.+)$').firstMatch(file.path);
 
           if (match != null) {
             final sessionId = match.group(2)!;
-            final pidFile = File('${Directory.systemTemp.path}/parott_hook_pid_$sessionId');
-            final portFile = File('${Directory.systemTemp.path}/parott_hook_port_$sessionId');
-            final modeFile = File('${Directory.systemTemp.path}/parott_hook_mode_$sessionId');
+            final pidFile = File('${Directory.systemTemp.path}/vide_hook_pid_$sessionId');
+            final portFile = File('${Directory.systemTemp.path}/vide_hook_port_$sessionId');
+            final modeFile = File('${Directory.systemTemp.path}/vide_hook_mode_$sessionId');
 
             if (await pidFile.exists()) {
               final pidString = await pidFile.readAsString();

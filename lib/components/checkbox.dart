@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/constants/text_opacity.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 
 /// A checkbox component with focus support for nocterm TUI
 class Checkbox extends StatelessComponent {

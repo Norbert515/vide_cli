@@ -16,9 +16,9 @@ Future<void> _initSentryForHook() async {
   });
 }
 
-/// Runs the Parott hook handler.
+/// Runs the Vide CLI hook handler.
 ///
-/// This reads hook input from stdin, checks for a running Parott instance,
+/// This reads hook input from stdin, checks for a running Vide CLI instance,
 /// and makes an HTTP request to get permission decisions.
 ///
 /// Exit codes:
@@ -51,10 +51,10 @@ Future<void> runHook() async {
 
     // Read port file
     final portFile =
-        File('${Directory.systemTemp.path}/parott_hook_port_$sessionId');
+        File('${Directory.systemTemp.path}/vide_hook_port_$sessionId');
     if (!await portFile.exists()) {
-      // Parott not running - allow the operation (graceful degradation)
-      _outputAllow('Parott not running for this session, allowing operation');
+      // Vide CLI not running - allow the operation (graceful degradation)
+      _outputAllow('Vide CLI not running for this session, allowing operation');
       exit(0);
     }
 
@@ -67,7 +67,7 @@ Future<void> runHook() async {
 
     // Check permission mode file
     final modeFile =
-        File('${Directory.systemTemp.path}/parott_hook_mode_$sessionId');
+        File('${Directory.systemTemp.path}/vide_hook_mode_$sessionId');
     String? permissionMode;
     if (await modeFile.exists()) {
       permissionMode = (await modeFile.readAsString()).trim();
@@ -102,20 +102,20 @@ Future<void> runHook() async {
 
     // Validate process is alive
     final pidFile =
-        File('${Directory.systemTemp.path}/parott_hook_pid_$sessionId');
+        File('${Directory.systemTemp.path}/vide_hook_pid_$sessionId');
     if (await pidFile.exists()) {
       final pidString = await pidFile.readAsString();
       final pid = int.tryParse(pidString.trim());
       if (pid != null && !await _isProcessAlive(pid)) {
         // Process is dead, allow operation and clean up stale files
-        _outputAllow('Parott process has stopped, allowing operation');
+        _outputAllow('Vide CLI process has stopped, allowing operation');
         await portFile.delete().catchError((_) => portFile);
         await pidFile.delete().catchError((_) => pidFile);
         exit(0);
       }
     }
 
-    // Make HTTP request to Parott
+    // Make HTTP request to Vide CLI
     final client = HttpClient();
     try {
       final request =

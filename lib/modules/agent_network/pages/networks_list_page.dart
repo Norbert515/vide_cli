@@ -1,13 +1,13 @@
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:parott/modules/agent_network/models/agent_network.dart';
-import 'package:parott/modules/memory/memory_service.dart';
-import 'package:parott/modules/agent_network/network_execution_page.dart';
-import 'package:parott/modules/agent_network/components/network_summary_component.dart';
-import 'package:parott/modules/agent_network/state/agent_networks_state_notifier.dart';
-import 'package:parott/modules/agent_network/service/agent_network_manager.dart';
-import 'package:parott/modules/memory/memories_viewer_page.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_cli/modules/memory/memory_service.dart';
+import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
+import 'package:vide_cli/modules/agent_network/components/network_summary_component.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
+import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
+import 'package:vide_cli/modules/memory/memories_viewer_page.dart';
 import 'package:path/path.dart' as path;
 
 class NetworksListPage extends StatefulComponent {

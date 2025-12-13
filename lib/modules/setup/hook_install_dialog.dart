@@ -58,7 +58,7 @@ class HookInstallDialog extends StatelessComponent {
               SizedBox(height: 1),
 
               Text(
-                'Parott needs to install a hook in Claude Code settings.',
+                'Vide CLI needs to install a hook in Claude Code settings.',
                 style: TextStyle(color: Colors.white),
               ),
 

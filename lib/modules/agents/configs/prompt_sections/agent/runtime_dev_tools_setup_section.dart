@@ -11,7 +11,7 @@ class RuntimeDevToolsSetupSection extends PromptSection {
 The runtime AI dev tools are **automatically injected** when you start a Flutter app using the `flutterStart` tool. No manual setup is required.
 
 **What happens automatically:**
-1. A synthetic main file is generated in `.dart_tool/parott_debug_main.dart`
+1. A synthetic main file is generated in `.dart_tool/vide_debug_main.dart`
 2. Your app is wrapped with a debug overlay for tap visualization
 3. Service extensions are registered for: screenshots, taps, typing, and scrolling
 4. The app is launched using `flutter run --target` pointing to the synthetic main

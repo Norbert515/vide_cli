@@ -1,9 +1,9 @@
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
-import 'package:parott/modules/agent_network/models/agent_id.dart';
-import 'package:parott/modules/agent_network/models/agent_status.dart';
-import 'package:parott/modules/agent_network/service/agent_network_manager.dart';
-import 'package:parott/modules/agent_network/state/agent_status_manager.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_status.dart';
+import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
 final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((ref, agentId) {
@@ -22,7 +22,7 @@ final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((ref, agent
 ///
 /// This is a thin wrapper around [AgentNetworkManager] methods.
 class AgentMCPServer extends McpServerBase {
-  static const String serverName = 'parott-agent';
+  static const String serverName = 'vide-agent';
 
   final AgentId callerAgentId;
   final AgentNetworkManager _networkManager;

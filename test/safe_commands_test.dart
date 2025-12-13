@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:parott/modules/settings/safe_commands.dart';
+import 'package:vide_cli/modules/settings/safe_commands.dart';
 
 void main() {
   group('SafeCommands - Basic read-only commands', () {

@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
-import 'package:parott/modules/agent_network/models/agent_id.dart';
-import 'package:parott/modules/mcp/git/git_client.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/mcp/git/git_client.dart';
 import 'package:riverpod/riverpod.dart';
 import 'git_models.dart';
 
@@ -13,7 +13,7 @@ final gitServerProvider = Provider.family<GitServer, AgentId>((ref, agentId) {
 
 /// MCP server for Git operations including worktrees
 class GitServer extends McpServerBase {
-  static const String serverName = 'parott-git';
+  static const String serverName = 'vide-git';
 
   final _statusStream = StreamController<GitStatus>.broadcast();
 

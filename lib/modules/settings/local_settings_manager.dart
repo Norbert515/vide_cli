@@ -85,8 +85,8 @@ class LocalSettingsManager {
     return hasProjectName || hasHookIndicator;
   }
 
-  /// Get the Parott hook configuration
-  PreToolUseHook getParottHook() {
+  /// Get the Vide CLI hook configuration
+  PreToolUseHook getVideHook() {
     return PreToolUseHook(
       matcher: 'Write|Edit|Bash|MultiEdit|WebFetch|WebSearch|Read',
       hooks: [
@@ -103,14 +103,14 @@ class LocalSettingsManager {
   /// Generate installation diff
   Future<SettingsDiff> generateInstallDiff() async {
     final before = await readSettings();
-    final parrottHook = getParottHook();
+    final videHook = getVideHook();
 
     // Preserve existing hooks or start with empty list
     final existingHooks = before.hooks?.preToolUse ?? [];
 
     final after = ClaudeSettings(
       permissions: before.permissions,
-      hooks: HooksConfig(preToolUse: [...existingHooks, parrottHook]),
+      hooks: HooksConfig(preToolUse: [...existingHooks, videHook]),
     );
 
     return SettingsDiff(
@@ -118,15 +118,15 @@ class LocalSettingsManager {
       after: after,
       explanation:
           '''
-Parott will install a PreToolUse hook to handle permissions.
+Vide CLI will install a PreToolUse hook to handle permissions.
 
 Hook Configuration:
-- Matcher: ${parrottHook.matcher}
-- Command: ${parrottHook.hooks.first.command}
-- Timeout: ${parrottHook.hooks.first.timeout}ms
+- Matcher: ${videHook.matcher}
+- Command: ${videHook.hooks.first.command}
+- Timeout: ${videHook.hooks.first.timeout}ms
 
 This hook intercepts file writes, edits, and shell commands
-to request permission through the Parott UI.
+to request permission through the Vide CLI UI.
 ''',
     );
   }

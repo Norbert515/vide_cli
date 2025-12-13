@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:parott/modules/setup/dart_mcp_manager.dart';
+import 'package:vide_cli/modules/setup/dart_mcp_manager.dart';
 
 /// Dialog to help users set up Dart MCP server
 class DartMcpSetupDialog extends StatelessComponent {

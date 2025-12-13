@@ -102,7 +102,7 @@ class ProcessManager {
 
       // Write config to a temporary file
       final tempFile = File(
-        '${Directory.systemTemp.path}/parott_mcp_config_${DateTime.now().millisecondsSinceEpoch}.json',
+        '${Directory.systemTemp.path}/vide_mcp_config_${DateTime.now().millisecondsSinceEpoch}.json',
       );
       await tempFile.writeAsString(jsonEncode(fullConfig));
       print('[ProcessManager] VERBOSE: Written MCP config to: ${tempFile.path}');

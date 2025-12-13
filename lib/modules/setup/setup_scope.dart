@@ -4,7 +4,7 @@ import 'package:path/path.dart' as path;
 import '../settings/local_settings_manager.dart';
 import 'setup_page.dart';
 
-/// A scope that ensures Parott is properly set up before showing the child.
+/// A scope that ensures Vide CLI is properly set up before showing the child.
 /// If setup is incomplete, shows SetupPage. Otherwise, shows the child.
 class SetupScope extends StatefulComponent {
   final Component child;
@@ -26,15 +26,15 @@ class _SetupScopeState extends State<SetupScope> {
     _checkSetup();
   }
 
-  /// Find the Parott installation root directory
-  String _getParrottRoot() {
+  /// Find the Vide CLI installation root directory
+  String _getVideRoot() {
     // Platform.script points to the main.dart file or compiled executable
     // We need to go up to find the project root where hook.dart lives
     final scriptPath = Platform.script.toFilePath();
     final scriptDir = path.dirname(scriptPath);
 
     // If running from lib/main.dart, go up one level
-    // If running from bin/parott, go up one level
+    // If running from bin/vide, go up one level
     // Either way, the parent of the script directory should be the project root
     if (path.basename(scriptDir) == 'lib' ||
         path.basename(scriptDir) == 'bin') {
@@ -49,7 +49,7 @@ class _SetupScopeState extends State<SetupScope> {
     try {
       final settingsManager = LocalSettingsManager(
         projectRoot: Directory.current.path,
-        parrottRoot: _getParrottRoot(),
+        parrottRoot: _getVideRoot(),
       );
 
       final isHookInstalled = await settingsManager.isHookInstalled();
@@ -80,7 +80,7 @@ class _SetupScopeState extends State<SetupScope> {
     if (_isChecking) {
       return Center(
         child: Text(
-          'Checking Parott setup...',
+          'Checking Vide CLI setup...',
           style: TextStyle(color: Colors.grey),
         ),
       );

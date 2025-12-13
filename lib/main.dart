@@ -1,14 +1,14 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:parott/modules/agent_network/pages/networks_overview_page.dart';
-import 'package:parott/modules/agent_network/state/console_title_provider.dart';
-import 'package:parott/modules/setup/setup_scope.dart';
-import 'package:parott/modules/permissions/permission_service.dart';
-import 'package:parott/services/parott_config_manager.dart';
-import 'package:parott/modules/agent_network/state/agent_networks_state_notifier.dart';
-import 'package:parott/hook_handler.dart';
-import 'package:parott/services/sentry_service.dart';
-import 'package:parott/services/posthog_service.dart';
+import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
+import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
+import 'package:vide_cli/modules/setup/setup_scope.dart';
+import 'package:vide_cli/modules/permissions/permission_service.dart';
+import 'package:vide_cli/services/vide_config_manager.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
+import 'package:vide_cli/hook_handler.dart';
+import 'package:vide_cli/services/sentry_service.dart';
+import 'package:vide_cli/services/posthog_service.dart';
 
 void main(List<String> args) async {
   // Check for --hook flag - run hook handler and exit
@@ -22,7 +22,7 @@ void main(List<String> args) async {
   await SentryService.init();
 
   // Initialize global config manager (must be before PostHog)
-  ParottConfigManager().initialize();
+  VideConfigManager().initialize();
 
   // Initialize PostHog analytics
   await PostHogService.init();
@@ -37,15 +37,15 @@ void main(List<String> args) async {
   await runApp(
     ProviderScope(
       parent: container,
-      child: ParottApp(container: container),
+      child: VideApp(container: container),
     ),
   );
 }
 
-class ParottApp extends StatelessComponent {
+class VideApp extends StatelessComponent {
   final ProviderContainer container;
 
-  ParottApp({required this.container});
+  VideApp({required this.container});
 
   @override
   Component build(BuildContext context) {

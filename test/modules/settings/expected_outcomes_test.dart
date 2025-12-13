@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
-import 'package:parott/modules/settings/permission_matcher.dart';
-import 'package:parott/modules/settings/pattern_inference.dart';
+import 'package:vide_cli/modules/settings/permission_matcher.dart';
+import 'package:vide_cli/modules/settings/pattern_inference.dart';
 
 /// Verify the expected outcomes from the requirements
 void main() {
