@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
+import 'package:sentry/sentry.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/mcp/git/git_client.dart';
+import 'package:vide_cli/services/sentry_service.dart';
 import 'package:riverpod/riverpod.dart';
 import 'git_models.dart';
 
@@ -21,6 +23,18 @@ class GitServer extends McpServerBase {
   Stream<GitStatus> get statusUpdates => _statusStream.stream;
 
   GitServer() : super(name: serverName, version: '1.0.0');
+
+  /// Report a git operation error to Sentry with context
+  Future<void> _reportError(Object e, StackTrace stackTrace, String toolName, {Map<String, dynamic>? context}) async {
+    await Sentry.configureScope((scope) {
+      scope.setTag('mcp_server', serverName);
+      scope.setTag('mcp_tool', toolName);
+      if (context != null) {
+        scope.setContexts('mcp_context', context);
+      }
+    });
+    await SentryService.captureException(e, stackTrace: stackTrace);
+  }
 
   @override
   List<String> get toolNames => [
@@ -89,7 +103,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Branch: ${status.branch}, Changes: ${status.hasChanges}')],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitStatus');
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -118,7 +133,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.commit(message, all: all, amend: amend);
           return CallToolResult.fromContent(content: [TextContent(text: 'Commit created')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitCommit', context: {'amend': amend, 'all': all});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -147,7 +163,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.add(files);
           return CallToolResult.fromContent(content: [TextContent(text: 'Files staged: ${files.join(", ")}')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitAdd', context: {'file_count': files.length});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -177,7 +194,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           final result = await git.diff(staged: staged, files: files);
           return CallToolResult.fromContent(content: [TextContent(text: result.isEmpty ? 'No changes' : result)]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitDiff', context: {'staged': staged});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -209,7 +227,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
             final result = commits.map((c) => '${c.hash}|${c.author}|${c.message}|${c.date}').join('\n');
             return CallToolResult.fromContent(content: [TextContent(text: result)]);
           }
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitLog', context: {'count': count, 'oneline': oneline});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -246,7 +265,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
             final result = branches.map((b) => '${b.isCurrent ? "* " : "  "}${b.name}').join('\n');
             return CallToolResult.fromContent(content: [TextContent(text: result)]);
           }
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitBranch', context: {'operation': create != null ? 'create' : (delete != null ? 'delete' : 'list')});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -285,7 +305,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           } else {
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Must specify branch or files')]);
           }
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitCheckout', context: {'create': create});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -346,7 +367,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           }
 
           return CallToolResult.fromContent(content: [TextContent(text: result)]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitStash', context: {'action': action});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -385,7 +407,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
 
           final result = worktrees.map((wt) => '${wt.path} ${wt.commit} [${wt.branch}]').join('\n');
           return CallToolResult.fromContent(content: [TextContent(text: result)]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitWorktreeList');
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -414,7 +437,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: basePath);
           await git.worktreeAdd(worktreePath, branch: branch, createBranch: createBranch);
           return CallToolResult.fromContent(content: [TextContent(text: 'Worktree added at: $worktreePath')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitWorktreeAdd', context: {'create_branch': createBranch});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -441,7 +465,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.worktreeRemove(worktree, force: force);
           return CallToolResult.fromContent(content: [TextContent(text: 'Worktree removed: $worktree')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitWorktreeRemove', context: {'force': force});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -468,7 +493,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.worktreeLock(worktree, reason: reason);
           return CallToolResult.fromContent(content: [TextContent(text: 'Worktree locked: $worktree')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitWorktreeLock');
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -493,7 +519,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.worktreeUnlock(worktree);
           return CallToolResult.fromContent(content: [TextContent(text: 'Worktree unlocked: $worktree')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitWorktreeUnlock');
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -521,7 +548,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           await git.fetch(remote: remote, all: all, prune: prune);
           return CallToolResult.fromContent(content: [TextContent(text: 'Fetch completed')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitFetch', context: {'remote': remote, 'all': all, 'prune': prune});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -549,7 +577,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           final result = await git.pull(remote: remote, branch: branch, rebase: rebase);
           return CallToolResult.fromContent(content: [TextContent(text: 'Pull completed: $result')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitPull', context: {'remote': remote, 'rebase': rebase});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -588,7 +617,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
             await git.merge(branch, message: message, noCommit: noCommit);
             return CallToolResult.fromContent(content: [TextContent(text: 'Merge completed')]);
           }
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitMerge', context: {'abort': abort, 'no_commit': noCommit});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -638,7 +668,8 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           }
 
           return CallToolResult.fromContent(content: [TextContent(text: 'Rebase $action')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'gitRebase', context: {'abort': abort, 'continue': continueRebase, 'skip': skip});
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },

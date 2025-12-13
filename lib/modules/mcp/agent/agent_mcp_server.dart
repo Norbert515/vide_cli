@@ -1,9 +1,11 @@
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
+import 'package:sentry/sentry.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_status.dart';
 import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
+import 'package:vide_cli/services/sentry_service.dart';
 import 'package:riverpod/riverpod.dart';
 
 final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((ref, agentId) {
@@ -119,7 +121,16 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'spawnAgent');
+            scope.setContexts('mcp_context', {
+              'agent_type': agentTypeStr,
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error spawning agent: $e')],
           );
@@ -176,7 +187,16 @@ Use this to coordinate with other agents in the network.''',
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'sendMessageToAgent');
+            scope.setContexts('mcp_context', {
+              'target_agent_id': targetAgentId,
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error sending message: $e')],
           );
@@ -235,7 +255,16 @@ Call this when:
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Agent status updated to: "$statusStr"')],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'setAgentStatus');
+            scope.setContexts('mcp_context', {
+              'status': statusStr,
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error updating agent status: $e')]);
         }
       },
@@ -294,7 +323,16 @@ Any agent can terminate any other agent, including itself.''',
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'terminateAgent');
+            scope.setContexts('mcp_context', {
+              'target_agent_id': targetAgentId,
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error terminating agent: $e')],
           );

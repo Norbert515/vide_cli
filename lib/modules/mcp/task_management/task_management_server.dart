@@ -1,6 +1,8 @@
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
+import 'package:sentry/sentry.dart';
 import 'package:riverpod/riverpod.dart';
+import 'package:vide_cli/services/sentry_service.dart';
 import '../../agent_network/models/agent_id.dart';
 import '../../agent_network/service/agent_network_manager.dart';
 
@@ -59,7 +61,15 @@ class TaskManagementServer extends McpServerBase {
           await _ref.read(agentNetworkManagerProvider.notifier).updateGoal(taskName);
 
           return CallToolResult.fromContent(content: [TextContent(text: 'Task name updated to: "$taskName"')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'setTaskName');
+            scope.setContexts('mcp_context', {
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error updating task name: $e')]);
         }
       },
@@ -92,7 +102,15 @@ class TaskManagementServer extends McpServerBase {
           await _ref.read(agentNetworkManagerProvider.notifier).updateAgentTaskName(callerAgentId, taskName);
 
           return CallToolResult.fromContent(content: [TextContent(text: 'Agent task name updated to: "$taskName"')]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'setAgentTaskName');
+            scope.setContexts('mcp_context', {
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error updating agent task name: $e')]);
         }
       },

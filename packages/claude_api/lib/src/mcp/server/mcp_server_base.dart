@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:claude_api/claude_api.dart';
 import 'package:mcp_dart/mcp_dart.dart';
+import 'package:sentry/sentry.dart';
 
 abstract class McpServerBase {
   final String name;
@@ -58,9 +59,19 @@ abstract class McpServerBase {
 
       // Call lifecycle hook
       await onStart();
-    } catch (e) {
+    } catch (e, stackTrace) {
       _stateController.add(ServerState.error);
       print('Error starting MCP server: $e');
+      // Report to Sentry with context
+      await Sentry.configureScope((scope) {
+        scope.setTag('mcp_server', name);
+        scope.setTag('mcp_operation', 'start');
+        scope.setContexts('mcp_context', {
+          'port': _assignedPort,
+          'server_version': version,
+        });
+      });
+      await Sentry.captureException(e, stackTrace: stackTrace);
       PortManager.releasePort(_assignedPort);
       rethrow;
     }

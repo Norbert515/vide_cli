@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
 import 'package:moondream_api/moondream_api.dart';
+import 'package:sentry/sentry.dart';
 import 'package:uuid/uuid.dart';
 import 'flutter_instance.dart';
 import 'synthetic_main_generator.dart';
@@ -25,6 +26,18 @@ class FlutterRuntimeServer extends McpServerBase {
     } catch (e) {
       // Moondream not available - flutterAct will fail with clear error
     }
+  }
+
+  /// Report a flutter runtime operation error to Sentry with context
+  Future<void> _reportError(Object e, StackTrace stackTrace, String toolName, {String? instanceId}) async {
+    await Sentry.configureScope((scope) {
+      scope.setTag('mcp_server', serverName);
+      scope.setTag('mcp_tool', toolName);
+      if (instanceId != null) {
+        scope.setContexts('mcp_context', {'instance_id': instanceId});
+      }
+    });
+    await Sentry.captureException(e, stackTrace: stackTrace);
   }
 
   @override
@@ -193,7 +206,8 @@ class FlutterRuntimeServer extends McpServerBase {
           }
 
           return CallToolResult.fromContent(content: [TextContent(text: outputBuffer.toString())]);
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterStart', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error starting Flutter instance: $e')]);
         }
       },
@@ -241,7 +255,8 @@ Type: ${hot ? 'Hot Reload' : 'Hot Restart'}
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterReload', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -282,7 +297,8 @@ Instance ID: $instanceId
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterRestart', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
         }
       },
@@ -330,7 +346,8 @@ Instance ID: $instanceId
               ),
             ],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterStop', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error stopping instance: $e')]);
         }
       },
@@ -446,7 +463,8 @@ Instance ID: $instanceId
           return CallToolResult.fromContent(
             content: [ImageContent(data: base64.encode(screenshotBytes), mimeType: 'image/png')],
           );
-        } catch (e) {
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScreenshot', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error taking screenshot: $e')]);
         }
       },
@@ -609,17 +627,21 @@ Instance ID: $instanceId
           } else {
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Tap command returned false')]);
           }
-        } on MoondreamAuthenticationException catch (e) {
+        } on MoondreamAuthenticationException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Moondream authentication failed. Check your API key: ${e.message}')],
           );
-        } on MoondreamRateLimitException catch (e) {
+        } on MoondreamRateLimitException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Moondream rate limit exceeded: ${e.message}')],
           );
-        } on MoondreamException catch (e) {
+        } on MoondreamException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: Moondream API error: ${e.message}')]);
         } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Failed to perform action: $e\n$stackTrace')],
           );
@@ -736,6 +758,7 @@ Instance ID: $instanceId
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Tap command returned false')]);
           }
         } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterTapAt', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Failed to perform tap: $e\n$stackTrace')],
           );
@@ -802,6 +825,7 @@ Instance ID: $instanceId
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Type command returned false')]);
           }
         } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterType', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Failed to type text: $e\n$stackTrace')],
           );
@@ -975,17 +999,21 @@ For example:
           } else {
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Scroll command returned false')]);
           }
-        } on MoondreamAuthenticationException catch (e) {
+        } on MoondreamAuthenticationException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Moondream authentication failed. Check your API key: ${e.message}')],
           );
-        } on MoondreamRateLimitException catch (e) {
+        } on MoondreamRateLimitException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Moondream rate limit exceeded: ${e.message}')],
           );
-        } on MoondreamException catch (e) {
+        } on MoondreamException catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
           return CallToolResult.fromContent(content: [TextContent(text: 'Error: Moondream API error: ${e.message}')]);
         } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Failed to perform scroll: $e\n$stackTrace')],
           );
@@ -1123,6 +1151,7 @@ For example:
             return CallToolResult.fromContent(content: [TextContent(text: 'Error: Scroll command returned false')]);
           }
         } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterScrollAt', instanceId: instanceId);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error: Failed to perform scroll: $e\n$stackTrace')],
           );
