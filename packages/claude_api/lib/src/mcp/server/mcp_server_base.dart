@@ -10,7 +10,7 @@ abstract class McpServerBase {
   late int _assignedPort;
   HttpServer? _server;
   McpServer? _mcpServer;
-  SseServerManager? _sseManager;
+  StreamableHTTPServerTransport? _httpTransport;
 
   final _stateController = StreamController<ServerState>.broadcast();
   Stream<ServerState> get stateStream => _stateController.stream;
@@ -41,8 +41,18 @@ abstract class McpServerBase {
       // Register tools
       registerTools(_mcpServer!);
 
-      // Setup SSE manager for HTTP transport
-      _sseManager = SseServerManager(_mcpServer!);
+      // Setup Streamable HTTP transport (replaces deprecated SSE transport)
+      // This transport has built-in keep-alive support and is the current MCP standard
+      _httpTransport = StreamableHTTPServerTransport(
+        options: StreamableHTTPServerTransportOptions(
+          // Stateless mode - no session management needed for local MCP servers
+          sessionIdGenerator: () => null,
+        ),
+      );
+
+      // Start the transport and connect to MCP server
+      await _httpTransport!.start();
+      await _mcpServer!.connect(_httpTransport!);
 
       // Create HTTP server
       _server = await HttpServer.bind('localhost', _assignedPort);
@@ -78,20 +88,30 @@ abstract class McpServerBase {
   }
 
   void _handleRequests() async {
-    if (_server == null || _sseManager == null) {
+    if (_server == null || _httpTransport == null) {
       return;
     }
 
     await for (final request in _server!) {
-      await _sseManager!.handleRequest(request);
+      // Route all requests to /mcp endpoint for Streamable HTTP transport
+      if (request.uri.path == '/mcp' || request.uri.path == '/') {
+        await _httpTransport!.handleRequest(request);
+      } else {
+        // Return 404 for unknown paths
+        request.response.statusCode = HttpStatus.notFound;
+        request.response.write('Not Found');
+        await request.response.close();
+      }
     }
   }
 
   /// Stop the server
   Future<void> stop() async {
     await onStop();
+    await _httpTransport?.close();
     await _mcpServer?.close();
     await _server?.close();
+    _httpTransport = null;
     _mcpServer = null;
     _server = null;
 
@@ -114,7 +134,8 @@ abstract class McpServerBase {
   /// Generate Claude Code configuration
   Map<String, dynamic> toClaudeConfig() {
     // Return config in Claude Code's expected format
-    final config = {'type': 'sse', 'url': 'http://localhost:${_assignedPort}/sse'};
+    // Using Streamable HTTP transport (replaces deprecated SSE)
+    final config = {'type': 'http', 'url': 'http://localhost:$_assignedPort/mcp'};
     return config;
   }
 
