@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:claude_api/claude_api.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 import '../../permissions/permission_scope.dart';
 import '../models/agent_status.dart';
 import '../service/agent_network_manager.dart';
+import '../service/claude_manager.dart';
 import 'agent_status_manager.dart';
 
 /// Provides the project name from the current working directory.
@@ -77,11 +79,33 @@ enum _AggregatedStatus {
   idle, // all idle
 }
 
+/// Infer actual status based on explicit status and conversation state.
+/// This provides safeguards against agents forgetting to call setAgentStatus.
+AgentStatus _inferActualStatus(AgentStatus explicitStatus, Conversation? conversation) {
+  if (conversation == null) {
+    return explicitStatus;
+  }
+
+  // If conversation is processing, agent is definitely working
+  if (conversation.isProcessing) {
+    return AgentStatus.working;
+  }
+
+  // If conversation is idle but agent claims to be working, override to idle
+  // This handles cases where agent forgot to call setAgentStatus("idle")
+  if (conversation.state == ConversationState.idle && explicitStatus == AgentStatus.working) {
+    return AgentStatus.idle;
+  }
+
+  return explicitStatus;
+}
+
 /// Determines the aggregated status across all agents and permission state
 _AggregatedStatus _getAggregatedStatus(Ref ref) {
   final networkState = ref.watch(agentNetworkManagerProvider);
   final agentIds = networkState.agentIds;
   final permissionState = ref.watch(permissionStateProvider);
+  final claudeClients = ref.watch(claudeManagerProvider);
 
   // Check if there's a pending permission request
   if (permissionState.current != null) {
@@ -96,7 +120,14 @@ _AggregatedStatus _getAggregatedStatus(Ref ref) {
   bool hasWorking = false;
 
   for (final agentId in agentIds) {
-    final status = ref.watch(agentStatusProvider(agentId));
+    final explicitStatus = ref.watch(agentStatusProvider(agentId));
+
+    // Get conversation state for this agent
+    final client = claudeClients[agentId];
+    final conversation = client?.currentConversation;
+
+    // Infer actual status
+    final status = _inferActualStatus(explicitStatus, conversation);
 
     switch (status) {
       case AgentStatus.waitingForUser:

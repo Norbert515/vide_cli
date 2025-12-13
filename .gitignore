@@ -12,3 +12,6 @@ test_project/
 packages/flutter_runtime_mcp/test_app
 
 .env
+
+# Local dependency overrides - don't commit pubspec.yaml with local paths
+pubspec_overrides.yaml

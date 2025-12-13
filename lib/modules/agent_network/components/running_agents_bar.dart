@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'package:claude_api/claude_api.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:parott/modules/agent_network/models/agent_metadata.dart';
 import 'package:parott/modules/agent_network/models/agent_status.dart';
+import 'package:parott/modules/agent_network/service/claude_manager.dart';
 import 'package:parott/modules/agent_network/state/agent_status_manager.dart';
 
 class RunningAgentsBar extends StatelessComponent {
@@ -89,9 +91,39 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     return agent.name;
   }
 
+  /// Infer the actual status based on both explicit status and conversation state.
+  /// This provides safeguards against agents forgetting to call setAgentStatus.
+  AgentStatus _inferActualStatus(AgentStatus explicitStatus, Conversation? conversation) {
+    if (conversation == null) {
+      return explicitStatus;
+    }
+
+    // If conversation is processing, agent is definitely working
+    if (conversation.isProcessing) {
+      return AgentStatus.working;
+    }
+
+    // If conversation is idle but agent claims to be working, override to idle
+    // This handles cases where agent forgot to call setAgentStatus("idle")
+    if (conversation.state == ConversationState.idle && explicitStatus == AgentStatus.working) {
+      return AgentStatus.idle;
+    }
+
+    // Otherwise trust the explicit status
+    return explicitStatus;
+  }
+
   @override
   Component build(BuildContext context) {
-    final status = context.watch(agentStatusProvider(component.agent.id));
+    final explicitStatus = context.watch(agentStatusProvider(component.agent.id));
+
+    // Get the claude client to check conversation state
+    final client = context.watch(claudeProvider(component.agent.id));
+    final conversation = client?.currentConversation;
+
+    // Infer actual status - override if conversation says we're idle but status says working
+    final status = _inferActualStatus(explicitStatus, conversation);
+
     final indicatorColor = _getIndicatorColor(status);
     final indicatorTextColor = _getIndicatorTextColor(status);
     final statusIndicator = _getStatusIndicator(status);

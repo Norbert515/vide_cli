@@ -13,9 +13,21 @@ class TodoListComponent extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    // Hide the component if all todos are completed
-    final allCompleted = todos.isNotEmpty && todos.every((todo) => todo['status'] == 'completed');
+    // Hide if empty
+    if (todos.isEmpty) {
+      return SizedBox();
+    }
+
+    // Hide if all todos are completed
+    final allCompleted = todos.every((todo) => todo['status'] == 'completed');
     if (allCompleted) {
+      return SizedBox();
+    }
+
+    // Hide if stale: no active work (no in_progress items)
+    // This handles: agent delegated to sub-agents, agent is idle, stale pending lists
+    final hasActiveWork = todos.any((todo) => todo['status'] == 'in_progress');
+    if (!hasActiveWork) {
       return SizedBox();
     }
 
