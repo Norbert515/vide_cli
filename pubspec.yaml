@@ -3,6 +3,9 @@ description: Minimal Claude TUI
 version: 0.1.0
 publish_to: none
 
+executables:
+  vide: vide
+
 environment:
   sdk: ^3.8.0
 
