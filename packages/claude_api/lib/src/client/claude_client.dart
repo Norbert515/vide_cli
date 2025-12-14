@@ -377,6 +377,10 @@ class ClaudeClientImpl implements ClaudeClient {
 
                       _updateConversation(updatedConversation);
 
+                      // Clear active process BEFORE notifying turn complete
+                      // so that inbox processing can start the next message
+                      _activeProcess = null;
+
                       // Notify listeners that the turn is complete
                       _turnCompleteController.add(null);
                     } else if (response is ErrorResponse) {
@@ -396,6 +400,10 @@ class ClaudeClientImpl implements ClaudeClient {
                       } else {
                         _updateConversation(_currentConversation.addMessage(errorMessage).withError(response.error));
                       }
+
+                      // Clear process and notify on error too
+                      _activeProcess = null;
+                      _turnCompleteController.add(null);
                     } else {
                       // For any other response type (MetaResponse, StatusResponse, etc.)
                       // Just accumulate it but don't update UI yet
