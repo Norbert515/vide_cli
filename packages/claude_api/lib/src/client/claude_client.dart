@@ -46,6 +46,12 @@ class ClaudeClientImpl implements ClaudeClient {
   Process? _activeProcess;
   bool _isAborting = false;
 
+  // Message inbox for handling concurrent messages from sub-agents.
+  // When a process is active, incoming messages are queued in the inbox
+  // and processed when the current turn completes.
+  final List<Message> _inbox = [];
+  StreamSubscription<void>? _inboxSubscription;
+
   @override
   bool get isAborting => _isAborting;
 
@@ -74,6 +80,9 @@ class ClaudeClientImpl implements ClaudeClient {
     if (this.config.workingDirectory == null) {
       this.config = this.config.copyWith(workingDirectory: Directory.current.path);
     }
+
+    // Set up inbox processing - when a turn completes, process any queued messages
+    _inboxSubscription = onTurnComplete.listen((_) => _processInbox());
   }
 
   Future<void> init() async {
@@ -129,6 +138,36 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
 
+    // Queue message in inbox if a process is already active.
+    // This prevents race conditions when multiple sub-agents report back simultaneously.
+    // Messages will be processed in order when the current turn completes.
+    if (_activeProcess != null) {
+      print('[ClaudeClient] Process busy, adding message to inbox (inbox size: ${_inbox.length + 1})');
+      _inbox.add(message);
+      return;
+    }
+
+    _processMessageFromInbox(message);
+  }
+
+  /// Process the next message from the inbox when a turn completes.
+  void _processInbox() {
+    if (_inbox.isEmpty) {
+      return;
+    }
+
+    // Don't process if already busy (shouldn't happen, but be safe)
+    if (_activeProcess != null) {
+      print('[ClaudeClient] WARNING: _processInbox called while process is active');
+      return;
+    }
+
+    final nextMessage = _inbox.removeAt(0);
+    print('[ClaudeClient] Processing message from inbox (${_inbox.length} remaining)');
+    _processMessageFromInbox(nextMessage);
+  }
+
+  void _processMessageFromInbox(Message message) {
     final hasAttachments = message.attachments != null && message.attachments!.isNotEmpty;
 
     // Add user message to conversation
@@ -507,6 +546,10 @@ class ClaudeClientImpl implements ClaudeClient {
     } else {
       print('[ClaudeClient] VERBOSE: No MCP servers to stop');
     }
+
+    // Cancel inbox subscription
+    await _inboxSubscription?.cancel();
+    _inboxSubscription = null;
 
     // Close streams
     print('[ClaudeClient] VERBOSE: Closing streams...');
