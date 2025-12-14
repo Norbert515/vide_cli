@@ -6,6 +6,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:claude_api/claude_api.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
+import 'package:vide_cli/modules/agent_network/models/activity_state.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
@@ -202,6 +203,15 @@ class _AgentChatState extends State<_AgentChat> {
     return null;
   }
 
+  /// Extracts the current activity state from the streaming conversation
+  ActivityState _getActivityState() {
+    final lastMessage = _conversation.lastMessage;
+    if (lastMessage == null || !lastMessage.isStreaming) {
+      return const ActivityState.idle();
+    }
+    return extractActivityState(lastMessage);
+  }
+
   void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride}) async {
     final permissionService = context.read(permissionServiceProvider);
 
@@ -296,7 +306,7 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(),
+                      EnhancedLoadingIndicator(activityState: _getActivityState()),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
@@ -390,7 +400,7 @@ class _AgentChatState extends State<_AgentChat> {
       for (final response in message.responses) {
         if (response is TextResponse) {
           if (response.content.isEmpty && message.isStreaming) {
-            widgets.add(EnhancedLoadingIndicator());
+            widgets.add(EnhancedLoadingIndicator(activityState: extractActivityState(message)));
           } else {
             widgets.add(MarkdownText(response.content));
           }
@@ -436,7 +446,7 @@ class _AgentChatState extends State<_AgentChat> {
             ...widgets,
 
             // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(),
+            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(activityState: extractActivityState(message)),
 
             if (message.error != null)
               Container(
