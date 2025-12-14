@@ -6,6 +6,7 @@ default:
 # Install vide globally (native compiled)
 install: compile
     cp vide ~/.pub-cache/bin/vide
+    codesign -s - ~/.pub-cache/bin/vide
 
 # Compile locally (for testing)
 compile:

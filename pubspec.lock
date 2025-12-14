@@ -426,8 +426,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: db02b6f02ef01b42cac4403b9c4599a429841b02
-      resolved-ref: db02b6f02ef01b42cac4403b9c4599a429841b02
+      ref: de40b1e605e6e01c6334722e47fd23d8339b40b5
+      resolved-ref: de40b1e605e6e01c6334722e47fd23d8339b40b5
       url: "https://github.com/Norbert515/nocterm.git"
     source: git
     version: "0.1.0"
@@ -435,8 +435,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/nocterm_riverpod"
-      ref: db02b6f02ef01b42cac4403b9c4599a429841b02
-      resolved-ref: db02b6f02ef01b42cac4403b9c4599a429841b02
+      ref: de40b1e605e6e01c6334722e47fd23d8339b40b5
+      resolved-ref: de40b1e605e6e01c6334722e47fd23d8339b40b5
       url: "https://github.com/Norbert515/nocterm.git"
     source: git
     version: "0.0.1"
