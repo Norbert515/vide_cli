@@ -21,8 +21,8 @@ class FlutterTesterAgentConfig {
       description: 'Tests Flutter applications using automated testing tools',
       systemPrompt: _buildSystemPrompt(projectType),
       permissionMode: 'acceptEdits',
-      // Flutter tester needs Flutter Runtime, Dart, Memory, TaskManagement
-      mcpServers: [McpServerType.flutterRuntime, McpServerType.memory, McpServerType.taskManagement],
+      // Flutter tester needs Flutter Runtime, Memory, TaskManagement, and Agent (for inter-agent communication)
+      mcpServers: [McpServerType.flutterRuntime, McpServerType.memory, McpServerType.taskManagement, McpServerType.agent],
     );
   }
 
