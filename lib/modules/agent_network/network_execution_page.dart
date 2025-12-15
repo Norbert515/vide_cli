@@ -6,7 +6,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:claude_api/claude_api.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/modules/agent_network/models/activity_state.dart';
+import 'package:vide_cli/services/loading_word_service.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
@@ -183,6 +183,13 @@ class _AgentChatState extends State<_AgentChat> {
       } else if (conversation.state != ConversationState.receivingResponse) {
         _responseStartTime = null;
       }
+
+      // When response completes, pre-generate words for the next message
+      if (_lastConversationState == ConversationState.receivingResponse &&
+          conversation.state == ConversationState.idle) {
+        _preGenerateWordsForNextMessage(conversation);
+      }
+
       _lastConversationState = conversation.state;
 
       setState(() {
@@ -205,7 +212,51 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(Message message) {
+    // Generate creative loading words with Haiku in the background
+    // Don't clear existing words - keep showing them until new ones arrive
+    LoadingWordService.generateWordsWithHaiku(message.text).then((words) {
+      if (!mounted) return;
+      if (words != null) {
+        context.read(dynamicLoadingWordsProvider.notifier).state = words;
+      }
+    });
+
+    // Send the actual message
     component.client.sendMessage(message);
+  }
+
+  /// Pre-generate loading words for the next message based on the completed response.
+  /// This way we have words ready before the user sends their next message.
+  void _preGenerateWordsForNextMessage(Conversation conversation) {
+    // Get the last assistant response to use as context
+    String contextForNextMessage = '';
+    for (final message in conversation.messages.reversed) {
+      if (message.role == MessageRole.assistant && message.responses.isNotEmpty) {
+        // Get the first text response as context
+        for (final response in message.responses) {
+          if (response is TextResponse) {
+            // Use first 200 chars of the response as context
+            contextForNextMessage = response.content.length > 200
+                ? response.content.substring(0, 200)
+                : response.content;
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    if (contextForNextMessage.isEmpty) return;
+
+    // Generate words in background - these will be ready for the next message
+    LoadingWordService.generateWordsWithHaiku(
+      'Continue discussing: $contextForNextMessage',
+    ).then((words) {
+      if (!mounted) return;
+      if (words != null) {
+        context.read(dynamicLoadingWordsProvider.notifier).state = words;
+      }
+    });
   }
 
   List<Map<String, dynamic>>? _getLatestTodos() {
@@ -222,38 +273,11 @@ class _AgentChatState extends State<_AgentChat> {
     return null;
   }
 
-  /// Extracts the current activity state from the streaming conversation
-  ActivityState _getActivityState() {
-    // Find the last streaming assistant message
-    for (final message in _conversation.messages.reversed) {
-      if (message.role == MessageRole.assistant && message.isStreaming) {
-        return extractActivityState(message);
-      }
-    }
-
-    // No streaming assistant message yet - return idle to show random fun messages
-    // (We don't show "Thinking..." unless extended thinking is actually active,
-    // which we can't detect from the CLI output yet)
-    return const ActivityState.idle();
-  }
-
-  /// Gets approximate output token count from the current streaming response.
-  /// This is estimated from text content length (roughly 4 chars per token).
+  /// Gets cumulative output token count across the conversation.
+  /// Shows total tokens used so far (updated after each response completes).
   int? _getOutputTokens() {
-    for (final message in _conversation.messages.reversed) {
-      if (message.role == MessageRole.assistant && message.isStreaming) {
-        // Count characters in text responses as rough token estimate
-        int charCount = 0;
-        for (final response in message.responses) {
-          if (response is TextResponse) {
-            charCount += response.content.length;
-          }
-        }
-        // Rough estimate: ~4 characters per token
-        return charCount ~/ 4;
-      }
-    }
-    return null;
+    final total = _conversation.totalOutputTokens;
+    return total > 0 ? total : null;
   }
 
   void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride}) async {
@@ -317,6 +341,9 @@ class _AgentChatState extends State<_AgentChat> {
     final permissionQueueState = context.watch(permissionStateProvider);
     final currentPermissionRequest = permissionQueueState.current;
 
+    // Get dynamic loading words from provider
+    final dynamicLoadingWords = context.watch(dynamicLoadingWordsProvider);
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -334,7 +361,7 @@ class _AgentChatState extends State<_AgentChat> {
                 children: [
                   // Todo list at the end (first in reversed list)
                   if (_getLatestTodos() case final todos? when todos.isNotEmpty) TodoListComponent(todos: todos),
-                  for (final message in _conversation.messages.reversed) _buildMessage(message),
+                  for (final message in _conversation.messages.reversed) _buildMessage(message, dynamicLoadingWords),
                 ],
               ),
             ),
@@ -351,9 +378,9 @@ class _AgentChatState extends State<_AgentChat> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       EnhancedLoadingIndicator(
-                        activityState: _getActivityState(),
                         responseStartTime: _responseStartTime,
                         outputTokens: _getOutputTokens(),
+                        dynamicWords: dynamicLoadingWords,
                       ),
                       SizedBox(width: 2),
                       Text(
@@ -410,7 +437,7 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
-  Component _buildMessage(ConversationMessage message) {
+  Component _buildMessage(ConversationMessage message, List<String>? dynamicLoadingWords) {
     if (message.role == MessageRole.user) {
       return Container(
         padding: EdgeInsets.only(bottom: 1),
@@ -449,9 +476,9 @@ class _AgentChatState extends State<_AgentChat> {
         if (response is TextResponse) {
           if (response.content.isEmpty && message.isStreaming) {
             widgets.add(EnhancedLoadingIndicator(
-              activityState: extractActivityState(message),
               responseStartTime: _responseStartTime,
               outputTokens: _getOutputTokens(),
+              dynamicWords: dynamicLoadingWords,
             ));
           } else {
             widgets.add(MarkdownText(response.content));
@@ -500,9 +527,9 @@ class _AgentChatState extends State<_AgentChat> {
             // If no responses yet but streaming, show loading
             if (message.responses.isEmpty && message.isStreaming)
               EnhancedLoadingIndicator(
-                activityState: extractActivityState(message),
                 responseStartTime: _responseStartTime,
                 outputTokens: _getOutputTokens(),
+                dynamicWords: dynamicLoadingWords,
               ),
 
             if (message.error != null)
