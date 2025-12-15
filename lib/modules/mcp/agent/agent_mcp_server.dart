@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_api/claude_api.dart';
+import 'package:path/path.dart' as path;
 import 'package:sentry/sentry.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_status.dart';
@@ -39,7 +42,7 @@ class AgentMCPServer extends McpServerBase {
         super(name: serverName, version: '1.0.0');
 
   @override
-  List<String> get toolNames => ['spawnAgent', 'sendMessageToAgent', 'setAgentStatus', 'terminateAgent'];
+  List<String> get toolNames => ['spawnAgent', 'sendMessageToAgent', 'setAgentStatus', 'terminateAgent', 'setSessionWorktree'];
 
   @override
   void registerTools(McpServer server) {
@@ -47,6 +50,7 @@ class AgentMCPServer extends McpServerBase {
     _registerSendMessageToAgentTool(server);
     _registerSetAgentStatusTool(server);
     _registerTerminateAgentTool(server);
+    _registerSetSessionWorktreeTool(server);
   }
 
   void _registerSpawnAgentTool(McpServer server) {
@@ -335,6 +339,94 @@ Any agent can terminate any other agent, including itself.''',
           await SentryService.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error terminating agent: $e')],
+          );
+        }
+      },
+    );
+  }
+
+  void _registerSetSessionWorktreeTool(McpServer server) {
+    server.tool(
+      'setSessionWorktree',
+      description: '''Set the worktree path for this session. All new agents will use this directory.
+
+Use this after creating a git worktree to make all agents work in that directory:
+1. Create worktree: gitWorktreeAdd(path: "../project-feature", branch: "feature/name", createBranch: true)
+2. Set session directory: setSessionWorktree(path: "/absolute/path/to/project-feature")
+
+This is useful for:
+- Working on features in isolation
+- Keeping the main branch clean
+- Allowing easy context switching
+
+Pass null or empty string to clear the worktree and return to the original directory.''',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute path to the worktree directory. Pass empty string to clear.',
+          },
+        },
+        required: ['path'],
+      ),
+      callback: ({args, extra}) async {
+        if (args == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
+        }
+
+        final pathArg = args['path'] as String;
+
+        try {
+          // Handle clearing the worktree
+          if (pathArg.isEmpty) {
+            await _networkManager.setWorktreePath(null);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Session worktree cleared. Agents will now use the original working directory: ${_networkManager.workingDirectory}',
+                ),
+              ],
+            );
+          }
+
+          // Convert to absolute path
+          final absolutePath = path.isAbsolute(pathArg)
+              ? pathArg
+              : Directory(pathArg).absolute.path;
+
+          // Validate directory exists
+          final directory = Directory(absolutePath);
+          if (!await directory.exists()) {
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: Directory does not exist: $absolutePath')],
+            );
+          }
+
+          await _networkManager.setWorktreePath(absolutePath);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Session worktree set to: $absolutePath\n\n'
+                    'All newly spawned agents will now work in this directory. '
+                    'Existing agents will continue using their original directory.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'setSessionWorktree');
+            scope.setContexts('mcp_context', {
+              'path': pathArg,
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await SentryService.captureException(e, stackTrace: stackTrace);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error setting session worktree: $e')],
           );
         }
       },

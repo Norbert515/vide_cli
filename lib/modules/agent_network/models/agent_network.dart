@@ -15,6 +15,7 @@ class AgentNetwork {
     required this.agents,
     required this.createdAt,
     this.lastActiveAt,
+    this.worktreePath,
   });
 
   final AgentNetworkId id;
@@ -22,6 +23,9 @@ class AgentNetwork {
   final List<AgentMetadata> agents;
   final DateTime createdAt;
   final DateTime? lastActiveAt;
+
+  /// Optional worktree path for the session. When set, all agents use this directory.
+  final String? worktreePath;
 
   /// Get just the agent IDs for convenience
   List<AgentId> get agentIds => agents.map((a) => a.id).toList();
@@ -32,6 +36,8 @@ class AgentNetwork {
     List<AgentMetadata>? agents,
     DateTime? createdAt,
     DateTime? lastActiveAt,
+    String? worktreePath,
+    bool clearWorktreePath = false,
   }) {
     return AgentNetwork(
       id: id ?? this.id,
@@ -39,6 +45,7 @@ class AgentNetwork {
       agents: agents ?? this.agents,
       createdAt: createdAt ?? this.createdAt,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
+      worktreePath: clearWorktreePath ? null : (worktreePath ?? this.worktreePath),
     );
   }
 
@@ -49,6 +56,7 @@ class AgentNetwork {
       'agents': agents.map((a) => a.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
       'lastActiveAt': lastActiveAt?.toIso8601String(),
+      if (worktreePath != null) 'worktreePath': worktreePath,
     };
   }
 
@@ -78,6 +86,7 @@ class AgentNetwork {
       lastActiveAt: json['lastActiveAt'] != null
           ? DateTime.parse(json['lastActiveAt'] as String)
           : null,
+      worktreePath: json['worktreePath'] as String?,
     );
   }
 }

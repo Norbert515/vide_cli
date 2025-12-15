@@ -271,15 +271,18 @@ class PermissionService {
         return;
       }
 
-      // Auto-approve all vide MCP tools and TodoWrite
+      // Auto-approve all vide MCP tools, TodoWrite, and safe internal tools
       if (hookRequest.toolName.startsWith('mcp__vide-') ||
           hookRequest.toolName.startsWith('mcp__flutter-runtime__') ||
-          hookRequest.toolName == 'TodoWrite') {
+          hookRequest.toolName == 'TodoWrite' ||
+          hookRequest.toolName == 'BashOutput' ||
+          hookRequest.toolName == 'KillShell' ||
+          hookRequest.toolName == 'KillBash') {
         request.response
           ..statusCode = 200
           ..write(jsonEncode({
             'decision': 'allow',
-            'reason': 'Auto-approved vide MCP tool',
+            'reason': 'Auto-approved internal tool',
             'remember': false,
           }))
           ..close();

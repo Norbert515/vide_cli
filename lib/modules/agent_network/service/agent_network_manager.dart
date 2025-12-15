@@ -64,6 +64,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final String workingDirectory;
   final Ref ref;
 
+  /// Get the effective working directory (worktree if set, else original).
+  String get effectiveWorkingDirectory =>
+      state.currentNetwork?.worktreePath ?? workingDirectory;
+
   /// Counter for generating "Task X" names
   static int _taskCounter = 0;
 
@@ -232,6 +236,18 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
 
+  /// Set worktree path for the current session. All new agents will use this directory.
+  Future<void> setWorktreePath(String? worktreePath) async {
+    final network = state.currentNetwork;
+    if (network == null) return;
+
+    final updated = worktreePath == null
+        ? network.copyWith(clearWorktreePath: true, lastActiveAt: DateTime.now())
+        : network.copyWith(worktreePath: worktreePath, lastActiveAt: DateTime.now());
+    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updated);
+    state = state.copyWith(currentNetwork: updated);
+  }
+
   void sendMessage(AgentId agentId, Message message) {
     final claudeManager = ref.read(claudeProvider(agentId));
     claudeManager?.sendMessage(message);
@@ -388,7 +404,7 @@ $message''';
 
   Future<ClaudeClient> _inflateClaudeClient(AgentIdAndClaudeConfig config) async {
     final claudeConfig = config.config.toClaudeConfig(
-      workingDirectory: workingDirectory,
+      workingDirectory: effectiveWorkingDirectory,
       sessionId: config.agentId.toString(),
     );
     final mcpServers = config.config.mcpServers!
