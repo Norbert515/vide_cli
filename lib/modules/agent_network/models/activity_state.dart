@@ -123,11 +123,19 @@ ActivityState extractActivityState(ConversationMessage? message) {
   final activeTools = <String, ToolUseResponse>{};
   final completedToolIds = <String>{};
 
+  // Track thinking status - look for StatusResponse with thinking status
+  DateTime? thinkingStartTime;
+  bool hasThinkingStatus = false;
+
   for (final response in message.responses) {
     if (response is ToolUseResponse && response.toolUseId != null) {
       activeTools[response.toolUseId!] = response;
     } else if (response is ToolResultResponse) {
       completedToolIds.add(response.toolUseId);
+    } else if (response is StatusResponse && response.status == ClaudeStatus.thinking) {
+      // Found a thinking status - track when it started
+      hasThinkingStatus = true;
+      thinkingStartTime ??= response.timestamp;
     }
   }
 
@@ -139,23 +147,18 @@ ActivityState extractActivityState(ConversationMessage? message) {
     }
   }
 
-  if (pendingTools.isEmpty) {
-    // No active tools - agent is thinking
-    // Find when the last tool completed or when streaming started
-    DateTime? thinkingStart;
-
-    // If we have responses, thinking started after the last one
-    if (message.responses.isNotEmpty) {
-      final lastResponse = message.responses.last;
-      thinkingStart = lastResponse.timestamp;
-    }
-
-    return ActivityState.thinking(startTime: thinkingStart);
+  // If we have pending tools, show tool activity (not thinking)
+  if (pendingTools.isNotEmpty) {
+    final currentTool = pendingTools.last;
+    final pendingCount = pendingTools.length - 1;
+    return ActivityState.forTool(currentTool, pendingCount: pendingCount);
   }
 
-  // Return the most recent pending tool with count of others
-  final currentTool = pendingTools.last;
-  final pendingCount = pendingTools.length - 1;
+  // If we detected thinking status, show thinking
+  if (hasThinkingStatus && thinkingStartTime != null) {
+    return ActivityState.thinking(startTime: thinkingStartTime);
+  }
 
-  return ActivityState.forTool(currentTool, pendingCount: pendingCount);
+  // No tools, no thinking status - return idle for random fun messages
+  return const ActivityState.idle();
 }

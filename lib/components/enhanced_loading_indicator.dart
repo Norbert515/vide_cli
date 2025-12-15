@@ -10,7 +10,18 @@ class EnhancedLoadingIndicator extends StatefulComponent {
   /// If null, falls back to random funny messages.
   final ActivityState? activityState;
 
-  const EnhancedLoadingIndicator({super.key, this.activityState});
+  /// When the current response started (for elapsed time display)
+  final DateTime? responseStartTime;
+
+  /// Current output token count (for token counter display)
+  final int? outputTokens;
+
+  const EnhancedLoadingIndicator({
+    super.key,
+    this.activityState,
+    this.responseStartTime,
+    this.outputTokens,
+  });
 
   @override
   State<EnhancedLoadingIndicator> createState() =>
@@ -19,16 +30,16 @@ class EnhancedLoadingIndicator extends StatefulComponent {
 
 class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
   static final _brailleFrames = [
-    '\u28cb', // ⠋
-    '\u2899', // ⠙
-    '\u28b9', // ⠹
-    '\u28b8', // ⠸
-    '\u28bc', // ⠼
-    '\u28b4', // ⠴
-    '\u28a6', // ⠦
-    '\u28a7', // ⠧
-    '\u2887', // ⠇
-    '\u288f', // ⠏
+    '\u280b', // ⠋
+    '\u2819', // ⠙
+    '\u2839', // ⠹
+    '\u2838', // ⠸
+    '\u283c', // ⠼
+    '\u2834', // ⠴
+    '\u2826', // ⠦
+    '\u2827', // ⠧
+    '\u2807', // ⠇
+    '\u280f', // ⠏
   ];
 
   Timer? _animationTimer;
@@ -113,11 +124,45 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
     return _fallbackMessage ?? 'Processing...';
   }
 
+  String _formatElapsedTime() {
+    if (component.responseStartTime == null) return '';
+    final elapsed = DateTime.now().difference(component.responseStartTime!);
+    final seconds = elapsed.inSeconds;
+    if (seconds < 60) {
+      return '${seconds}s';
+    } else {
+      final minutes = elapsed.inMinutes;
+      final remainingSeconds = seconds % 60;
+      return '${minutes}m ${remainingSeconds}s';
+    }
+  }
+
+  String _formatTokens(int tokens) {
+    if (tokens >= 1000) {
+      final k = tokens / 1000;
+      return '${k.toStringAsFixed(1)}k';
+    }
+    return tokens.toString();
+  }
+
   @override
   Component build(BuildContext context) {
     final braille = _brailleFrames[_frameIndex];
     final message = _getCurrentMessage();
     final state = component.activityState;
+
+    // Build the status info parts
+    final statusParts = <String>[];
+
+    // Add elapsed time if we have a start time
+    if (component.responseStartTime != null) {
+      statusParts.add(_formatElapsedTime());
+    }
+
+    // Add token count if available
+    if (component.outputTokens != null && component.outputTokens! > 0) {
+      statusParts.add('\u2193 ${_formatTokens(component.outputTokens!)} tokens');
+    }
 
     return Row(
       children: [
@@ -136,6 +181,16 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
           SizedBox(width: 1),
           Text(
             '(+${state.pendingToolCount} more)',
+            style: TextStyle(
+              color: Colors.white.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
+        ],
+        // Show elapsed time and tokens
+        if (statusParts.isNotEmpty) ...[
+          SizedBox(width: 1),
+          Text(
+            '(${statusParts.join(' \u00b7 ')})',
             style: TextStyle(
               color: Colors.white.withOpacity(TextOpacity.tertiary),
             ),

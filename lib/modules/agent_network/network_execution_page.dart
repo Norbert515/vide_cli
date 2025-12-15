@@ -166,17 +166,36 @@ class _AgentChatState extends State<_AgentChat> {
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
 
+  // Track when the current response started (for elapsed time display)
+  DateTime? _responseStartTime;
+  ConversationState? _lastConversationState;
+
   @override
   void initState() {
     super.initState();
 
     // Listen to conversation updates
     _conversationSubscription = component.client.conversation.listen((conversation) {
+      // Track when response starts
+      if (conversation.state == ConversationState.receivingResponse &&
+          _lastConversationState != ConversationState.receivingResponse) {
+        _responseStartTime = DateTime.now();
+      } else if (conversation.state != ConversationState.receivingResponse) {
+        _responseStartTime = null;
+      }
+      _lastConversationState = conversation.state;
+
       setState(() {
         _conversation = conversation;
       });
     });
     _conversation = component.client.currentConversation;
+    _lastConversationState = _conversation.state;
+
+    // If already receiving response when we init, set start time
+    if (_conversation.state == ConversationState.receivingResponse) {
+      _responseStartTime = DateTime.now();
+    }
   }
 
   @override
@@ -205,11 +224,36 @@ class _AgentChatState extends State<_AgentChat> {
 
   /// Extracts the current activity state from the streaming conversation
   ActivityState _getActivityState() {
-    final lastMessage = _conversation.lastMessage;
-    if (lastMessage == null || !lastMessage.isStreaming) {
-      return const ActivityState.idle();
+    // Find the last streaming assistant message
+    for (final message in _conversation.messages.reversed) {
+      if (message.role == MessageRole.assistant && message.isStreaming) {
+        return extractActivityState(message);
+      }
     }
-    return extractActivityState(lastMessage);
+
+    // No streaming assistant message yet - return idle to show random fun messages
+    // (We don't show "Thinking..." unless extended thinking is actually active,
+    // which we can't detect from the CLI output yet)
+    return const ActivityState.idle();
+  }
+
+  /// Gets approximate output token count from the current streaming response.
+  /// This is estimated from text content length (roughly 4 chars per token).
+  int? _getOutputTokens() {
+    for (final message in _conversation.messages.reversed) {
+      if (message.role == MessageRole.assistant && message.isStreaming) {
+        // Count characters in text responses as rough token estimate
+        int charCount = 0;
+        for (final response in message.responses) {
+          if (response is TextResponse) {
+            charCount += response.content.length;
+          }
+        }
+        // Rough estimate: ~4 characters per token
+        return charCount ~/ 4;
+      }
+    }
+    return null;
   }
 
   void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride}) async {
@@ -306,7 +350,11 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(activityState: _getActivityState()),
+                      EnhancedLoadingIndicator(
+                        activityState: _getActivityState(),
+                        responseStartTime: _responseStartTime,
+                        outputTokens: _getOutputTokens(),
+                      ),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
@@ -400,7 +448,11 @@ class _AgentChatState extends State<_AgentChat> {
       for (final response in message.responses) {
         if (response is TextResponse) {
           if (response.content.isEmpty && message.isStreaming) {
-            widgets.add(EnhancedLoadingIndicator(activityState: extractActivityState(message)));
+            widgets.add(EnhancedLoadingIndicator(
+              activityState: extractActivityState(message),
+              responseStartTime: _responseStartTime,
+              outputTokens: _getOutputTokens(),
+            ));
           } else {
             widgets.add(MarkdownText(response.content));
           }
@@ -446,7 +498,12 @@ class _AgentChatState extends State<_AgentChat> {
             ...widgets,
 
             // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(activityState: extractActivityState(message)),
+            if (message.responses.isEmpty && message.isStreaming)
+              EnhancedLoadingIndicator(
+                activityState: extractActivityState(message),
+                responseStartTime: _responseStartTime,
+                outputTokens: _getOutputTokens(),
+              ),
 
             if (message.error != null)
               Container(
