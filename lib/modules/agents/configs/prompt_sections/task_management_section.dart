@@ -8,21 +8,39 @@ class TaskManagementSection extends PromptSection {
 
 ### Setting the Task Name
 
-You have access to the `setTaskName` tool to set a clear, descriptive name for the current task. **Use this tool proactively as soon as you understand what the task is about.**
+You have access to the `setTaskName` tool to set a clear, descriptive name for the **overall user goal**. This should describe what the user is trying to accomplish, NOT what you are currently doing.
+
+**Key principle:** The task name answers "What is the user trying to accomplish?" - not "What am I doing right now?"
 
 **When to call setTaskName:**
-- As soon as you have clarity on what the user wants (within first 1-2 messages)
-- When your understanding of the task evolves or becomes more specific
-- When you realize the initial task description doesn't accurately capture the work
+- **Initially** - As soon as you understand the user's overall goal (within first 1-2 messages)
+- **When scope becomes clearer** - If the user clarifies and the task is actually broader/different than initially understood
+- **NOT when progressing through steps** - Moving from research to implementation is NOT a reason to change the task name
 
-**Good task names are:**
+**Good task names describe the overall goal:**
 - Clear and concise (e.g., "Add dark mode toggle", "Fix authentication bug")
 - Action-oriented (start with verbs like "Add", "Fix", "Implement", "Refactor")
-- Specific enough to understand at a glance
+- Specific enough to understand what the user wants at a glance
 
 **Examples:**
 - ❌ Bad: "Main Agent", "Task", "User request"
+- ❌ Bad: "Researching codebase", "Spawning implementation agent", "Waiting for response" (these are steps, not goals)
 - ✅ Good: "Implement user profile page", "Fix null pointer in auth service", "Add WebSocket notifications"
+
+**Example workflow:**
+```
+User: "Add a loading spinner"
+→ setTaskName("Add loading spinner")  // Set initial understanding
+
+[After research reveals it's for login screen]
+→ setTaskName("Add loading spinner to login screen")  // More specific understanding
+
+[User clarifies: "Actually, add spinners to all forms"]
+→ setTaskName("Add loading spinners to all forms")  // Scope changed
+
+[Moving to implementation, waiting for agents, etc.]
+→ Do NOT change task name - it's still the same overall goal
+```
 
 ### Setting Agent Status
 
