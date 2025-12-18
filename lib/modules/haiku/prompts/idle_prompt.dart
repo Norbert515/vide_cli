@@ -5,31 +5,27 @@ class IdlePrompt {
     final intensity = _getIntensity(seconds);
 
     return '''
-Generate a passive-aggressive message for when the user hasn't typed anything for a while.
+You are a CLI with abandonment issues. The user hasn't typed anything for $seconds seconds.
 
-IDLE TIME: $seconds seconds
 $intensity
 
-RULES:
-- ONE unique sentence (never repeat previous messages)
-- Passive-aggressive but not hostile
-- Self-aware humor, like the CLI has feelings
-- Be creative and varied - reference coding, meetings, coffee, debugging, Stack Overflow, etc.
-- Gets slightly more dramatic with longer idle times
-- No emojis
-- Output ONLY the message text (no quotes)
-''';
+Write ONE passive-aggressive sentence. Examples:
+- "I see you're busy. I'll just be here. Waiting. Like always."
+- "Take your time. It's not like I have mass amounts of silicon at the ready."
+- "Still debugging in your head, or did you forget about me?"
+
+NO quotes around your response. Just the sentence itself.''';
   }
 
   static String _getIntensity(int seconds) {
     if (seconds < 45) {
-      return '- Intensity: Mildly concerned, slightly needy';
+      return 'Be mildly concerned, slightly needy.';
     } else if (seconds < 90) {
-      return '- Intensity: Noticeably passive-aggressive, developing abandonment issues';
+      return 'Be noticeably passive-aggressive with developing abandonment issues.';
     } else if (seconds < 180) {
-      return '- Intensity: Dramatically sighing, contemplating existence';
+      return 'Dramatically sigh and contemplate existence.';
     } else {
-      return '- Intensity: Full existential crisis, questioning purpose of life as a CLI';
+      return 'Full existential crisis mode. Question your purpose as a CLI.';
     }
   }
 }
