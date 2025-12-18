@@ -14,12 +14,14 @@ ClaudeSettings _$ClaudeSettingsFromJson(Map<String, dynamic> json) =>
       hooks: json['hooks'] == null
           ? null
           : HooksConfig.fromJson(json['hooks'] as Map<String, dynamic>),
+      videFirstRunComplete: json['vide_first_run_complete'] as bool?,
     );
 
 Map<String, dynamic> _$ClaudeSettingsToJson(ClaudeSettings instance) =>
     <String, dynamic>{
       'permissions': instance.permissions.toJson(),
       'hooks': instance.hooks?.toJson(),
+      'vide_first_run_complete': instance.videFirstRunComplete,
     };
 
 PermissionsConfig _$PermissionsConfigFromJson(Map<String, dynamic> json) =>

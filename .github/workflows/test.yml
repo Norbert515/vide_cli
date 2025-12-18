@@ -21,7 +21,7 @@ jobs:
         run: dart pub get
 
       - name: Analyze
-        run: dart analyze lib bin test
+        run: dart analyze
 
       - name: Run tests
         run: dart test

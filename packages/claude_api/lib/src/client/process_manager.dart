@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import '../models/config.dart';
@@ -17,9 +16,6 @@ class ProcessManager {
 
     final args = <String>[];
 
-    // Collect all MCP tool names to add to allowed tools
-    final mcpToolNames = <String>[];
-
     // Add MCP server configurations
     if (mcpServers.isNotEmpty) {
       print('[ProcessManager] VERBOSE: Processing ${mcpServers.length} MCP servers...');
@@ -37,15 +33,7 @@ class ProcessManager {
           final serverConfig = server.toClaudeConfig();
           print('[ProcessManager] VERBOSE: ${server.name} config: ${jsonEncode(serverConfig)}');
           mcpServersConfig[server.name] = serverConfig;
-
-          // Add MCP server's tools to the allowed list
-          // Format: mcp_<server-name>_<tool-name>
           print('[ProcessManager] VERBOSE: ${server.name} tools: ${server.toolNames.join(", ")}');
-          for (final toolName in server.toolNames) {
-            final qualifiedName = 'mcp__${server.name}__$toolName';
-            print('[ProcessManager] VERBOSE: Adding tool: $qualifiedName');
-            mcpToolNames.add(qualifiedName);
-          }
           print('[ProcessManager] VERBOSE: ✓ Successfully processed ${server.name}');
         } catch (e, stackTrace) {
           print('[ProcessManager] VERBOSE: ❌ Failed to get config for ${server.name}: $e');
@@ -61,72 +49,19 @@ class ProcessManager {
       };
       print('[ProcessManager] VERBOSE: ✓ Added Dart MCP server');
 
-      // Add Dart MCP tool names to allowed tools
-      final dartMcpToolNames = [
-        'add_roots',
-        // 'analyze_files' removed - floods context with too much output (all lint hints, no filtering)
-        'connect_dart_tooling_daemon',
-        'create_project',
-        'dart_fix',
-        'dart_format',
-        'flutter_driver',
-        'get_active_location',
-        'get_app_logs',
-        'get_runtime_errors',
-        'get_selected_widget',
-        'get_widget_tree',
-        'hot_reload',
-        'hot_restart',
-        'hover',
-        'launch_app',
-        'list_devices',
-        'list_running_apps',
-        'pub',
-        'pub_dev_search',
-        'read_package_uris',
-        'remove_roots',
-        'resolve_workspace_symbol',
-        'run_tests',
-        'set_widget_selection_mode',
-        'signature_help',
-        'stop_app',
-      ];
-      for (final toolName in dartMcpToolNames) {
-        mcpToolNames.add('mcp__dart__$toolName');
-      }
-      print('[ProcessManager] VERBOSE: Added ${dartMcpToolNames.length} Dart MCP tools to allowed list');
-
       // Create the complete configuration with mcpServers wrapper
       final fullConfig = {'mcpServers': mcpServersConfig};
       print('[ProcessManager] VERBOSE: Full MCP config: ${jsonEncode(fullConfig)}');
+      print('[ProcessManager] VERBOSE: Using inline MCP config');
 
-      // Write config to a temporary file
-      final tempFile = File(
-        '${Directory.systemTemp.path}/vide_mcp_config_${DateTime.now().millisecondsSinceEpoch}.json',
-      );
-      await tempFile.writeAsString(jsonEncode(fullConfig));
-      print('[ProcessManager] VERBOSE: Written MCP config to: ${tempFile.path}');
+      args.addAll(['--mcp-config', jsonEncode(fullConfig)]);
 
-      args.addAll(['--mcp-config', tempFile.path]);
-
-      // Add MCP tools to allowed tools list (comma-separated)
-      if (mcpToolNames.isNotEmpty) {
-        args.addAll(['--allowed-tools', mcpToolNames.join(',')]);
-        print('[ProcessManager] VERBOSE: Added ${mcpToolNames.length} tools to allowed-tools');
-      }
+      // Note: We do NOT add --allowed-tools here. Adding only MCP tools to
+      // --allowed-tools would RESTRICT Claude to ONLY those tools, blocking
+      // native tools like Bash, Read, Edit, etc. The permission mode
+      // (acceptEdits/default) handles tool permissions appropriately.
 
       print('[ProcessManager] VERBOSE: MCP args: ${args.join(" ")}');
-      print('[ProcessManager] VERBOSE: Allowed tools (${mcpToolNames.length}): ${mcpToolNames.join(", ")}');
-
-      // Schedule cleanup after a reasonable delay
-      Timer(const Duration(seconds: 10), () {
-        try {
-          if (tempFile.existsSync()) {
-            tempFile.deleteSync();
-            print('[ProcessManager] VERBOSE: Cleaned up temp config file: ${tempFile.path}');
-          }
-        } catch (_) {}
-      });
     } else {
       print('[ProcessManager] VERBOSE: No MCP servers to configure');
     }

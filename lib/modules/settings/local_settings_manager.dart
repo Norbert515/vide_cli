@@ -217,6 +217,19 @@ to request permission through the Vide CLI UI.
     await _writeSettings(diff.after);
   }
 
+  /// Check if this is the first run of Vide CLI
+  Future<bool> isFirstRun() async {
+    final settings = await readSettings();
+    return settings.videFirstRunComplete != true;
+  }
+
+  /// Mark the first run as complete
+  Future<void> markFirstRunComplete() async {
+    final settings = await readSettings();
+    final updatedSettings = settings.copyWith(videFirstRunComplete: true);
+    await _writeSettings(updatedSettings);
+  }
+
   /// Add permission to allow list
   Future<void> addToAllowList(String pattern) async {
     final settings = await readSettings();

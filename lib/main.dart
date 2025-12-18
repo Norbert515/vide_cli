@@ -3,6 +3,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
 import 'package:vide_cli/modules/setup/setup_scope.dart';
+import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/services/vide_config_manager.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
@@ -61,7 +62,9 @@ class VideApp extends StatelessComponent {
       title: context.watch(consoleTitleProvider),
       child: Padding(
         padding: EdgeInsets.all(1),
-        child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
+        child: WelcomeScope(
+          child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
+        ),
       ),
     );
   }
