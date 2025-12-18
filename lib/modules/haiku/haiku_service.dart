@@ -71,7 +71,14 @@ class HaikuService {
       final text = stdout.trim();
       _log('Haiku response: ${_truncate(text, 200)}');
 
-      return text.isEmpty ? null : text;
+      // Filter out error messages that come through stdout
+      if (text.isEmpty) return null;
+      if (text.startsWith('Error:')) return null;
+      if (text.contains('Reached max turns')) return null;
+      if (text.contains('rate limit')) return null;
+      if (text.contains('API error')) return null;
+
+      return text;
     } on TimeoutException {
       _log('Haiku timed out');
       return null;
@@ -102,7 +109,8 @@ class HaikuService {
     final lines = result
         .split('\n')
         .map((line) => line.trim())
-        .where((line) => line.isNotEmpty && line.endsWith(lineEnding))
+        .where((line) => line.isNotEmpty)
+        .map((line) => line.endsWith(lineEnding) ? line : '$line$lineEnding')
         .take(maxItems)
         .toList();
 

@@ -9,6 +9,8 @@ import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifi
 import 'package:vide_cli/hook_handler.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 import 'package:vide_cli/services/posthog_service.dart';
+import 'package:vide_cli/modules/haiku/fact_source_service.dart';
+import 'package:vide_cli/services/vide_settings.dart';
 
 void main(List<String> args) async {
   // Check for --hook flag - run hook handler and exit
@@ -24,12 +26,18 @@ void main(List<String> args) async {
   // Initialize global config manager (must be before PostHog)
   VideConfigManager().initialize();
 
+  // Load Vide settings
+  await VideSettingsManager.instance.load();
+
   // Initialize PostHog analytics
   await PostHogService.init();
   PostHogService.appStarted();
 
   // Clean up stale hook files from previous sessions
   await PermissionService.cleanupStaleFiles();
+
+  // Initialize fact sources in background (non-blocking)
+  FactSourceService.instance.initialize();
 
   final container = ProviderContainer();
   await container.read(agentNetworksStateNotifierProvider.notifier).init();

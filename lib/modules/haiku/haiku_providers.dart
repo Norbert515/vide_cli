@@ -38,3 +38,22 @@ final complexityEstimateProvider = StateProvider<String?>((ref) => null);
 
 /// Long response TL;DR
 final tldrProvider = StateProvider<String?>((ref) => null);
+
+/// Session token usage tracking
+class SessionTokenUsage {
+  final int inputTokens;
+  final int outputTokens;
+
+  const SessionTokenUsage({this.inputTokens = 0, this.outputTokens = 0});
+
+  int get totalTokens => inputTokens + outputTokens;
+
+  SessionTokenUsage add({int input = 0, int output = 0}) {
+    return SessionTokenUsage(
+      inputTokens: inputTokens + input,
+      outputTokens: outputTokens + output,
+    );
+  }
+}
+
+final sessionTokenUsageProvider = StateProvider<SessionTokenUsage>((ref) => const SessionTokenUsage());

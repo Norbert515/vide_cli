@@ -10,16 +10,20 @@ import 'package:vide_cli/modules/haiku/haiku_service.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/prompts/loading_words_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/idle_prompt.dart';
-import 'package:vide_cli/modules/haiku/prompts/activity_tip_prompt.dart';
+import 'package:vide_cli/modules/haiku/fact_source_service.dart';
 import 'package:vide_cli/modules/haiku/prompts/fortune_prompt.dart';
+import 'package:vide_cli/modules/haiku/prompts/code_sommelier_prompt.dart';
+import 'package:vide_cli/utils/code_detector.dart';
+import 'package:vide_cli/services/vide_settings.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_cli/modules/agent_network/models/agent_status.dart';
 import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/local_settings_manager.dart';
 import 'package:vide_cli/modules/settings/pattern_inference.dart';
@@ -76,14 +80,26 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     );
   }
 
-  void _handleCtrlC() {
+  void _handleCtrlC(BuildContext context) {
     final now = DateTime.now();
 
     if (_lastCtrlCPress != null && now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
       // Second press within time window - quit app
       shutdownApp();
     } else {
-      // First press - show warning
+      // First press - abort current agent session if it's processing
+      final networkState = context.read(agentNetworkManagerProvider);
+      if (networkState.agentIds.isNotEmpty) {
+        final safeIndex = selectedAgentIndex.clamp(0, networkState.agentIds.length - 1);
+        final agentId = networkState.agentIds[safeIndex];
+        final client = context.read(claudeProvider(agentId));
+        if (client != null && client.currentConversation.isProcessing) {
+          // Abort the current agent session
+          client.abort();
+        }
+      }
+
+      // Show warning for second press
       setState(() {
         _showQuitWarning = true;
         _lastCtrlCPress = now;
@@ -121,9 +137,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             return true;
           }
 
-          // Ctrl+C: Show quit warning (double press to quit)
+          // Ctrl+C: Abort current session (first press) or quit app (double press)
           if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-            _handleCtrlC();
+            _handleCtrlC(context);
             return true;
           }
 
@@ -184,11 +200,18 @@ class _AgentChatState extends State<_AgentChat> {
   Timer? _activityTipTimer;
   static const _activityTipThreshold = Duration(seconds: 10);
   bool _isGeneratingActivityTip = false;
-  String? _currentToolName;
+
+  // Token tracking - track last known values to compute deltas
+  int _lastInputTokens = 0;
+  int _lastOutputTokens = 0;
+
+  // Message input controller - persists across permission dialog appearances
+  late final AttachmentTextEditingController _inputController;
 
   @override
   void initState() {
     super.initState();
+    _inputController = AttachmentTextEditingController();
 
     // Listen to conversation updates
     _conversationSubscription = component.client.conversation.listen((conversation) {
@@ -202,8 +225,6 @@ class _AgentChatState extends State<_AgentChat> {
         context.read(idleMessageProvider.notifier).state = null;
         // Start activity tip timer
         _startActivityTipTimer();
-        // Track current tool being used
-        _trackCurrentTool(conversation);
       } else if (conversation.state != ConversationState.receivingResponse) {
         AgentResponseTimes.clear(component.client.sessionId);
         // Stop activity tip timer when not receiving response
@@ -217,11 +238,8 @@ class _AgentChatState extends State<_AgentChat> {
         _preGenerateWordsForNextMessage(conversation);
         // Start idle timer when agent becomes idle
         _startIdleTimer();
-      }
-
-      // Track current tool while receiving response
-      if (conversation.state == ConversationState.receivingResponse) {
-        _trackCurrentTool(conversation);
+        // Update session token usage
+        _updateSessionTokens(conversation);
       }
 
       _lastConversationState = conversation.state;
@@ -238,6 +256,11 @@ class _AgentChatState extends State<_AgentChat> {
     if (_conversation.state == ConversationState.receivingResponse) {
       AgentResponseTimes.startIfNeeded(component.client.sessionId);
     }
+
+    // If conversation is already idle (e.g., resumed session), start idle timer
+    if (_conversation.state == ConversationState.idle) {
+      _startIdleTimer();
+    }
   }
 
   @override
@@ -245,17 +268,50 @@ class _AgentChatState extends State<_AgentChat> {
     _conversationSubscription?.cancel();
     _idleTimer?.cancel();
     _activityTipTimer?.cancel();
+    _inputController.dispose();
     super.dispose();
   }
 
   void _sendMessage(Message message) {
+    // Log immediately to confirm _sendMessage is called
+    try {
+      File('/tmp/vide_haiku.log').writeAsStringSync(
+        '[${DateTime.now().toIso8601String()}] [_sendMessage] called, textLen=${message.text.length}\n',
+        mode: FileMode.append,
+      );
+    } catch (e) {
+      // ignore
+    }
+
     // Stop idle timer and clear idle message when user sends a message
     _stopIdleTimer();
     context.read(idleMessageProvider.notifier).state = null;
 
+    // Clear any previous sommelier commentary
+    context.read(codeSommelierProvider.notifier).state = null;
+
     // Generate creative loading words with Haiku in the background
     // Don't clear existing words - keep showing them until new ones arrive
     _generateLoadingWords(message.text);
+
+    // Check for code and trigger sommelier if enabled (delayed to avoid race with loading words)
+    final textToCheck = message.text;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      final sommelierEnabled = VideSettingsManager.instance.settings.codeSommelierEnabled;
+      final hasCode = CodeDetector.containsCode(textToCheck);
+      // Log to haiku log file for debugging
+      try {
+        File('/tmp/vide_haiku.log').writeAsStringSync(
+          '[${DateTime.now().toIso8601String()}] [Sommelier] enabled=$sommelierEnabled, hasCode=$hasCode, textLen=${textToCheck.length}\n',
+          mode: FileMode.append,
+        );
+      } catch (e) {
+        // ignore
+      }
+      if (mounted && sommelierEnabled && hasCode) {
+        _generateSommelierCommentary(textToCheck);
+      }
+    });
 
     // Send the actual message
     component.client.sendMessage(message);
@@ -275,6 +331,36 @@ class _AgentChatState extends State<_AgentChat> {
     if (!mounted) return;
     if (words != null) {
       context.read(loadingWordsProvider.notifier).state = words;
+    }
+  }
+
+  /// Generate wine-tasting style commentary for pasted code
+  void _generateSommelierCommentary(String text) async {
+    final code = CodeDetector.extractCode(text);
+    if (code.isEmpty) return;
+
+    // Limit code length to avoid huge prompts
+    final truncatedCode = code.length > 2000 ? '${code.substring(0, 2000)}...' : code;
+
+    final systemPrompt = CodeSommelierPrompt.build(truncatedCode);
+    final result = await HaikuService.invoke(
+      systemPrompt: systemPrompt,
+      userMessage: 'Analyze this code.',
+      delay: Duration.zero,
+      timeout: const Duration(seconds: 15),
+    );
+
+    if (!mounted) return;
+
+    if (result != null) {
+      context.read(codeSommelierProvider.notifier).state = result;
+
+      // Auto-clear after 30 seconds
+      Future.delayed(const Duration(seconds: 30), () {
+        if (mounted) {
+          context.read(codeSommelierProvider.notifier).state = null;
+        }
+      });
     }
   }
 
@@ -377,39 +463,29 @@ class _AgentChatState extends State<_AgentChat> {
     _isGeneratingActivityTip = false;
   }
 
-  void _trackCurrentTool(Conversation conversation) {
-    // Find the most recent tool being used
-    for (final message in conversation.messages.reversed) {
-      if (message.role == MessageRole.assistant) {
-        for (final response in message.responses.reversed) {
-          if (response is ToolUseResponse) {
-            _currentToolName = response.toolName;
-            return;
-          }
-        }
-      }
-    }
+  /// Check if we should show activity tips.
+  /// Tips show when: agent is receiving response OR waiting for subagents.
+  bool _shouldShowActivityTips() {
+    final isReceiving = _conversation.state == ConversationState.receivingResponse;
+    final agentStatus = context.read(agentStatusProvider(component.client.sessionId));
+    final isWaitingForAgent = agentStatus == AgentStatus.waitingForAgent;
+    return isReceiving || isWaitingForAgent;
   }
 
-  void _onActivityTipThresholdReached() async {
+  void _onActivityTipThresholdReached() {
     if (!mounted || _isGeneratingActivityTip) return;
-    if (_conversation.state != ConversationState.receivingResponse) return;
+    if (!_shouldShowActivityTips()) return;
 
     _isGeneratingActivityTip = true;
 
-    final activity = _currentToolName ?? 'working';
-    final systemPrompt = ActivityTipPrompt.build(activity);
-    final result = await HaikuService.invoke(
-      systemPrompt: systemPrompt,
-      userMessage: 'Generate a helpful tip for: $activity',
-      delay: Duration.zero,
-    );
+    // Get a random pre-generated fact directly (no Haiku needed)
+    final fact = FactSourceService.instance.getRandomFact();
 
     _isGeneratingActivityTip = false;
     if (!mounted) return;
 
-    if (result != null && _conversation.state == ConversationState.receivingResponse) {
-      context.read(activityTipProvider.notifier).state = result;
+    if (fact != null && _shouldShowActivityTips()) {
+      context.read(activityTipProvider.notifier).state = fact;
     }
   }
 
@@ -449,6 +525,26 @@ class _AgentChatState extends State<_AgentChat> {
   int? _getOutputTokens() {
     final total = _conversation.totalOutputTokens;
     return total > 0 ? total : null;
+  }
+
+  /// Update session-wide token usage by computing delta from last known values
+  void _updateSessionTokens(Conversation conversation) {
+    final currentInput = conversation.totalInputTokens;
+    final currentOutput = conversation.totalOutputTokens;
+
+    final inputDelta = currentInput - _lastInputTokens;
+    final outputDelta = currentOutput - _lastOutputTokens;
+
+    if (inputDelta > 0 || outputDelta > 0) {
+      final current = context.read(sessionTokenUsageProvider);
+      context.read(sessionTokenUsageProvider.notifier).state = current.add(
+        input: inputDelta,
+        output: outputDelta,
+      );
+    }
+
+    _lastInputTokens = currentInput;
+    _lastOutputTokens = currentOutput;
   }
 
   void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride}) async {
@@ -518,6 +614,32 @@ class _AgentChatState extends State<_AgentChat> {
     // Get idle message and activity tip from providers
     final idleMessage = context.watch(idleMessageProvider);
     final activityTip = context.watch(activityTipProvider);
+    final sommelierCommentary = context.watch(codeSommelierProvider);
+
+    // Watch agent status to show activity tips when waiting for subagents
+    final agentStatus = context.watch(agentStatusProvider(component.client.sessionId));
+    final isActivelyWorking = _conversation.isProcessing || _conversation.lastAssistantMessage?.isStreaming == true;
+    final shouldShowTips = isActivelyWorking || agentStatus == AgentStatus.waitingForAgent;
+
+    // Manage activity tip timer based on agent status
+    // Start timer when waiting for agent (if not already running)
+    if (agentStatus == AgentStatus.waitingForAgent && _activityTipTimer == null && !_isGeneratingActivityTip) {
+      // Use Future.microtask to avoid setState during build
+      Future.microtask(() {
+        if (mounted) _startActivityTipTimer();
+      });
+    }
+    // Stop timer when no longer waiting for agent and not receiving response
+    else if (agentStatus != AgentStatus.waitingForAgent &&
+        _conversation.state != ConversationState.receivingResponse &&
+        _activityTipTimer != null) {
+      Future.microtask(() {
+        if (mounted) {
+          _stopActivityTipTimer();
+          context.read(activityTipProvider.notifier).state = null;
+        }
+      });
+    }
 
     return Focusable(
       onKeyEvent: _handleKeyEvent,
@@ -546,8 +668,9 @@ class _AgentChatState extends State<_AgentChat> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Show typing indicator with hint
-                if (_conversation.state == ConversationState.receivingResponse)
+                // Show typing indicator with hint when processing or last message still streaming
+                // isProcessing covers active states, isStreaming handles gap between tool result and next turn
+                if (_conversation.isProcessing || _conversation.lastAssistantMessage?.isStreaming == true)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -600,8 +723,18 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Show code sommelier commentary when available
+                      if (sommelierCommentary != null)
+                        Container(
+                          padding: EdgeInsets.symmetric(vertical: 1),
+                          child: Text(
+                            '🍷 $sommelierCommentary',
+                            style: TextStyle(color: Colors.magenta.withOpacity(0.8), fontStyle: FontStyle.italic),
+                          ),
+                        ),
                       AttachmentTextField(
-                        enabled: !_conversation.isProcessing,
+                        controller: _inputController,
+                        enabled: true,
                         placeholder: 'Type a message...',
                         onSubmit: _sendMessage,
                         onChanged: (_) => _resetIdleTimer(),
@@ -618,12 +751,15 @@ class _AgentChatState extends State<_AgentChat> {
                     ],
                   ),
 
-                // Show activity tip below the input field when agent is working
-                if (activityTip != null && _conversation.state == ConversationState.receivingResponse)
+                // Show activity tip below the input field when agent is working or waiting for subagent
+                if (activityTip != null && shouldShowTips)
                   Text(
                     activityTip,
                     style: TextStyle(color: Colors.green.withOpacity(0.7)),
                   ),
+
+                // Session token usage - bottom right
+                _SessionTokenCounter(),
               ],
             ),
           ],
@@ -739,5 +875,37 @@ class _AgentChatState extends State<_AgentChat> {
         ),
       );
     }
+  }
+}
+
+/// Displays session token usage in the bottom right corner
+class _SessionTokenCounter extends StatelessComponent {
+  const _SessionTokenCounter();
+
+  String _formatTokens(int tokens) {
+    if (tokens >= 1000000) {
+      return '${(tokens / 1000000).toStringAsFixed(1)}M';
+    } else if (tokens >= 1000) {
+      return '${(tokens / 1000).toStringAsFixed(1)}k';
+    }
+    return tokens.toString();
+  }
+
+  @override
+  Component build(BuildContext context) {
+    final usage = context.watch(sessionTokenUsageProvider);
+
+    // Don't show if no tokens used yet
+    if (usage.totalTokens == 0) return SizedBox();
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        Text(
+          '↑${_formatTokens(usage.inputTokens)} ↓${_formatTokens(usage.outputTokens)}',
+          style: TextStyle(color: Colors.white.withOpacity(0.3)),
+        ),
+      ],
+    );
   }
 }

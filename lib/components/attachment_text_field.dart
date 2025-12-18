@@ -27,6 +27,10 @@ class AttachmentTextField extends StatefulComponent {
   /// Called when the text content changes.
   final void Function(String text)? onChanged;
 
+  /// Optional external controller. If provided, the caller is responsible for
+  /// its lifecycle. If not provided, an internal controller is created and managed.
+  final AttachmentTextEditingController? controller;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -36,6 +40,7 @@ class AttachmentTextField extends StatefulComponent {
     this.agentTag,
     this.onEscape,
     this.onChanged,
+    this.controller,
     super.key,
   });
 
@@ -44,12 +49,20 @@ class AttachmentTextField extends StatefulComponent {
 }
 
 class _AttachmentTextFieldState extends State<AttachmentTextField> {
-  late final _AttachmentTextEditingController _controller;
+  AttachmentTextEditingController? _internalController;
+
+  AttachmentTextEditingController get _controller => component.controller ?? _internalController!;
+
+  /// Whether we own the controller (and should dispose it)
+  bool get _ownsController => component.controller == null;
 
   @override
   void initState() {
     super.initState();
-    _controller = _AttachmentTextEditingController();
+    // Only create internal controller if no external one provided
+    if (component.controller == null) {
+      _internalController = AttachmentTextEditingController();
+    }
     _controller.onAttachmentsChanged = (attachments) {
       setState(() {}); // Rebuild to show attachment indicators
       component.onAttachmentsChanged?.call(attachments);
@@ -64,7 +77,10 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
   @override
   void dispose() {
     _controller.removeListener(_onTextChanged);
-    _controller.dispose();
+    // Only dispose if we created the controller
+    if (_ownsController) {
+      _internalController?.dispose();
+    }
     super.dispose();
   }
 
@@ -187,8 +203,9 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
   }
 }
 
-/// Custom TextEditingController that manages attachments and text updates natively
-class _AttachmentTextEditingController extends TextEditingController {
+/// Custom TextEditingController that manages attachments and text updates natively.
+/// Can be used externally to preserve input state across widget rebuilds.
+class AttachmentTextEditingController extends TextEditingController {
   final List<Attachment> attachments = [];
   final Map<int, String> _placeholderToPath = {};
   final Map<int, String> _placeholderToContent = {}; // Store full text content
