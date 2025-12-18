@@ -1,23 +1,20 @@
 /// Prompt builder for summarizing sub-agent activities
 class ProgressSummaryPrompt {
   static String build(List<String> recentActivities) {
-    final activitiesText = recentActivities.take(5).join('\n');
+    final activitiesText = recentActivities.take(8).join('\n');
 
     return '''
-You are summarizing what an AI agent is currently doing based on its recent activities.
+Summarize what AI sub-agents are currently doing based on their recent tool calls.
 
-RECENT ACTIVITIES:
+RECENT ACTIVITIES (format: [AgentName] tool: params):
 $activitiesText
 
 RULES:
-- ONE short sentence, 10 words max
+- ONE short sentence, 12 words max
 - Present tense, action-focused
-- Examples:
-  - "Searching for authentication files..."
-  - "Reading and analyzing test results..."
-  - "Writing new component code..."
+- If multiple agents, briefly mention what each is doing
 - No emojis
-- Output ONLY the summary
+- Output ONLY the summary text
 ''';
   }
 }

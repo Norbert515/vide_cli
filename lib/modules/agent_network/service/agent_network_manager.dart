@@ -4,7 +4,6 @@ import 'package:vide_cli/modules/agent_network/service/claude_manager.dart';
 import 'package:vide_cli/modules/haiku/haiku_service.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/prompts/loading_words_prompt.dart';
-import 'package:vide_cli/modules/haiku/prompts/complexity_prompt.dart';
 import 'package:vide_cli/services/posthog_service.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_metadata.dart';
@@ -112,9 +111,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     state = AgentNetworkState(currentNetwork: network);
 
-    // Generate loading words and complexity estimate in the background (don't await)
+    // Generate loading words in the background (don't await)
     _generateLoadingWords(ref, initialMessage.text);
-    _generateComplexityEstimate(ref, initialMessage.text);
 
     // Send the initial message (preserves attachments)
     ref.read(claudeProvider(mainAgentId))?.sendMessage(initialMessage);
@@ -424,21 +422,6 @@ $message''';
     );
     if (words != null) {
       ref.read(loadingWordsProvider.notifier).state = words;
-    }
-  }
-
-  /// Generates a complexity estimate in the background and updates the provider.
-  void _generateComplexityEstimate(Ref ref, String taskDescription) async {
-    final systemPrompt = ComplexityPrompt.build(taskDescription);
-
-    final estimate = await HaikuService.invoke(
-      systemPrompt: systemPrompt,
-      userMessage: 'Estimate the complexity of this task',
-      delay: Duration.zero,
-      timeout: const Duration(seconds: 5),
-    );
-    if (estimate != null) {
-      ref.read(complexityEstimateProvider.notifier).state = estimate.trim();
     }
   }
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -7,12 +8,9 @@ import 'package:vide_cli/modules/agent_network/pages/networks_list_page.dart';
 import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
-import 'package:vide_cli/components/startup_banner.dart';
 import 'package:vide_cli/modules/haiku/haiku_service.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/prompts/loading_words_prompt.dart';
-import 'package:vide_cli/modules/haiku/prompts/horoscope_prompt.dart';
-import 'package:vide_cli/modules/haiku/prompts/startup_tip_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/placeholder_prompt.dart';
 import 'package:vide_cli/utils/project_detector.dart';
 import 'package:path/path.dart' as path;
@@ -26,13 +24,49 @@ class NetworksOverviewPage extends StatefulComponent {
 
 class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   ProjectType? projectType;
-  final _bannerKey = GlobalKey<StartupBannerState>();
+
+  // Placeholder animation state
+  Timer? _placeholderTimer;
+  bool _isLoadingPlaceholder = true;
+  bool _isTypingPlaceholder = false;
+  String _fullPlaceholder = '';
+  String _displayedPlaceholder = '';
+  int _typingIndex = 0;
 
   @override
   void initState() {
     super.initState();
     _loadProjectInfo();
     _generateStartupContent();
+  }
+
+  void _startTypingAnimation(String text) {
+    _placeholderTimer?.cancel();
+    _fullPlaceholder = text;
+    _typingIndex = 0;
+    _displayedPlaceholder = '';
+    _isTypingPlaceholder = true;
+
+    _placeholderTimer = Timer.periodic(const Duration(milliseconds: 30), (_) {
+      if (mounted && _typingIndex < _fullPlaceholder.length) {
+        setState(() {
+          _typingIndex++;
+          _displayedPlaceholder = _fullPlaceholder.substring(0, _typingIndex);
+        });
+      } else {
+        _placeholderTimer?.cancel();
+        setState(() {
+          _isTypingPlaceholder = false;
+          _displayedPlaceholder = _fullPlaceholder;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _placeholderTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProjectInfo() async {
@@ -46,7 +80,7 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
     }
   }
 
-  /// Generate all startup content using HaikuService
+  /// Generate startup content using HaikuService
   void _generateStartupContent() {
     final now = DateTime.now();
 
@@ -61,45 +95,24 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
       }
     });
 
-    // Generate horoscope
-    HaikuService.invoke(
-      systemPrompt: HoroscopePrompt.build(now),
-      userMessage: 'Generate a developer horoscope',
-      delay: Duration.zero,
-    ).then((horoscope) {
-      if (mounted && horoscope != null) {
-        context.read(horoscopeProvider.notifier).state = horoscope;
-      }
-    });
-
-    // Generate startup tip (project-aware)
-    final projectTypeStr = projectType?.name;
-    HaikuService.invoke(
-      systemPrompt: StartupTipPrompt.build(projectType: projectTypeStr),
-      userMessage: 'Generate a startup tip',
-      delay: Duration.zero,
-    ).then((tip) {
-      if (mounted && tip != null) {
-        context.read(startupTipProvider.notifier).state = tip;
-      }
-    });
-
-    // Generate dynamic placeholder
+    // Generate dynamic placeholder text
     HaikuService.invoke(
       systemPrompt: PlaceholderPrompt.build(now),
       userMessage: 'Generate placeholder text',
       delay: Duration.zero,
     ).then((placeholder) {
-      if (mounted && placeholder != null) {
-        context.read(placeholderTextProvider.notifier).state = placeholder;
+      if (mounted) {
+        setState(() {
+          _isLoadingPlaceholder = false;
+        });
+        final text = placeholder?.trim() ?? 'Describe your goal (you can attach images)';
+        context.read(placeholderTextProvider.notifier).state = text;
+        _startTypingAnimation(text);
       }
     });
   }
 
   void _handleSubmit(Message message) async {
-    // Hide the startup banner when first message is sent
-    _bannerKey.currentState?.hide();
-
     // Start a new agent network with the full message (preserves attachments)
     final network = await context.read(agentNetworkManagerProvider.notifier).startNew(message);
 
@@ -116,9 +129,17 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
     final currentDir = Directory.current.path;
     final dirName = path.basename(currentDir);
 
-    // Get dynamic placeholder or use default
-    final dynamicPlaceholder = context.watch(placeholderTextProvider);
-    final placeholder = dynamicPlaceholder ?? 'Describe your goal (you can attach images)';
+    // Get placeholder - empty while loading, then type in the text when ready
+    final String placeholder;
+    if (_isLoadingPlaceholder) {
+      placeholder = '';
+    } else if (_isTypingPlaceholder) {
+      placeholder = _displayedPlaceholder;
+    } else {
+      placeholder = _displayedPlaceholder.isNotEmpty
+          ? _displayedPlaceholder
+          : (context.watch(placeholderTextProvider) ?? 'Describe your goal (you can attach images)');
+    }
 
     return Focusable(
       focused: true,
@@ -147,8 +168,6 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                 _ProjectTypeBadge(projectType: projectType!),
                 const SizedBox(height: 1),
               ],
-              // Startup banner (horoscope and tip)
-              StartupBanner(key: _bannerKey),
               Container(
                 child: AttachmentTextField(
                   focused: true,

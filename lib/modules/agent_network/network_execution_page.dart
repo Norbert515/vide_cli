@@ -12,7 +12,6 @@ import 'package:vide_cli/modules/haiku/prompts/loading_words_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/idle_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/activity_tip_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/fortune_prompt.dart';
-import 'package:vide_cli/modules/haiku/prompts/tldr_prompt.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
@@ -110,9 +109,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     // Display the network goal
     final goalText = currentNetwork?.goal ?? 'Loading...';
 
-    // Get complexity estimate from provider
-    final complexityEstimate = context.watch(complexityEstimateProvider);
-
     return PermissionScope(
       child: Focusable(
         focused: true,
@@ -139,28 +135,10 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Display the network goal with typing animation and complexity estimate
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: TypingText(
-                        text: goalText,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (complexityEstimate != null)
-                      Container(
-                        padding: EdgeInsets.only(left: 2),
-                        child: Text(
-                          complexityEstimate,
-                          style: TextStyle(
-                            color: _getComplexityColor(complexityEstimate),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                  ],
+                // Display the network goal with typing animation
+                TypingText(
+                  text: goalText,
+                  style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Divider(),
                 RunningAgentsBar(agents: networkState.agents, selectedIndex: selectedAgentIndex),
@@ -174,14 +152,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         ),
       ),
     );
-  }
-
-  Color _getComplexityColor(String estimate) {
-    final upper = estimate.toUpperCase();
-    if (upper.startsWith('SMALL')) return Colors.green;
-    if (upper.startsWith('MEDIUM')) return Colors.yellow;
-    if (upper.startsWith('LARGE')) return Colors.red;
-    return Colors.white;
   }
 }
 
@@ -201,14 +171,13 @@ class _AgentChatState extends State<_AgentChat> {
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
 
-  // Track when the current response started (for elapsed time display)
-  DateTime? _responseStartTime;
+  // Track conversation state changes (response start time is in AgentResponseTimes)
   ConversationState? _lastConversationState;
 
   // Idle detection state
   Timer? _idleTimer;
   DateTime? _idleStartTime;
-  static const _idleThreshold = Duration(seconds: 30);
+  static const _idleThreshold = Duration(minutes: 2);
   bool _isGeneratingIdleMessage = false;
 
   // Activity tip state
@@ -216,10 +185,6 @@ class _AgentChatState extends State<_AgentChat> {
   static const _activityTipThreshold = Duration(seconds: 10);
   bool _isGeneratingActivityTip = false;
   String? _currentToolName;
-
-  // TL;DR state - tracks which responses have TL;DRs and their expanded state
-  final Map<String, String> _tldrByResponseId = {};
-  final Set<String> _expandedTldrs = {};
 
   @override
   void initState() {
@@ -230,7 +195,7 @@ class _AgentChatState extends State<_AgentChat> {
       // Track when response starts
       if (conversation.state == ConversationState.receivingResponse &&
           _lastConversationState != ConversationState.receivingResponse) {
-        _responseStartTime = DateTime.now();
+        AgentResponseTimes.startIfNeeded(component.client.sessionId);
         // Stop idle timer when agent is responding
         _stopIdleTimer();
         // Clear any idle message when agent starts responding
@@ -240,7 +205,7 @@ class _AgentChatState extends State<_AgentChat> {
         // Track current tool being used
         _trackCurrentTool(conversation);
       } else if (conversation.state != ConversationState.receivingResponse) {
-        _responseStartTime = null;
+        AgentResponseTimes.clear(component.client.sessionId);
         // Stop activity tip timer when not receiving response
         _stopActivityTipTimer();
         context.read(activityTipProvider.notifier).state = null;
@@ -268,9 +233,10 @@ class _AgentChatState extends State<_AgentChat> {
     _conversation = component.client.currentConversation;
     _lastConversationState = _conversation.state;
 
-    // If already receiving response when we init, set start time
+    // If already receiving response when we init, ensure start time is tracked
+    // (uses putIfAbsent so it won't reset if already set from another tab)
     if (_conversation.state == ConversationState.receivingResponse) {
-      _responseStartTime = DateTime.now();
+      AgentResponseTimes.startIfNeeded(component.client.sessionId);
     }
   }
 
@@ -365,6 +331,18 @@ class _AgentChatState extends State<_AgentChat> {
     if (!mounted || _isGeneratingIdleMessage) return;
     if (_conversation.state != ConversationState.idle) return;
 
+    // Check if ANY agent in the network is currently working
+    final networkState = context.read(agentNetworkManagerProvider);
+    for (final agentId in networkState.agentIds) {
+      final client = context.read(claudeProvider(agentId));
+      if (client != null && client.currentConversation.state != ConversationState.idle) {
+        // Some agent is still working, don't show idle message
+        // Restart timer to check again later
+        _startIdleTimer();
+        return;
+      }
+    }
+
     _isGeneratingIdleMessage = true;
 
     final idleTime = _idleStartTime != null
@@ -432,29 +410,6 @@ class _AgentChatState extends State<_AgentChat> {
 
     if (result != null && _conversation.state == ConversationState.receivingResponse) {
       context.read(activityTipProvider.notifier).state = result;
-    }
-  }
-
-  // ========== TL;DR Method ==========
-
-  void _generateTldr(String responseId, String content) async {
-    // Don't regenerate if already have one
-    if (_tldrByResponseId.containsKey(responseId)) return;
-
-    final systemPrompt = TldrPrompt.build(content);
-    final result = await HaikuService.invoke(
-      systemPrompt: systemPrompt,
-      userMessage: 'Generate a TL;DR summary.',
-      delay: Duration.zero,
-      timeout: const Duration(seconds: 8),
-    );
-
-    if (!mounted) return;
-
-    if (result != null) {
-      setState(() {
-        _tldrByResponseId[responseId] = result.trim();
-      });
     }
   }
 
@@ -593,35 +548,20 @@ class _AgentChatState extends State<_AgentChat> {
               children: [
                 // Show typing indicator with hint
                 if (_conversation.state == ConversationState.receivingResponse)
-                  Column(
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          EnhancedLoadingIndicator(
-                            responseStartTime: _responseStartTime,
-                            outputTokens: _getOutputTokens(),
-                            dynamicWords: dynamicLoadingWords,
-                          ),
-                          SizedBox(width: 2),
-                          Text(
-                            '(Press ESC to stop)',
-                            style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
-                          ),
-                        ],
+                      EnhancedLoadingIndicator(
+                        responseStartTime: AgentResponseTimes.get(component.client.sessionId),
+                        outputTokens: _getOutputTokens(),
+                        dynamicWords: dynamicLoadingWords,
                       ),
-                      // Show activity tip when agent has been working for a while
-                      if (activityTip != null)
-                        Container(
-                          padding: EdgeInsets.only(top: 0),
-                          child: Text(
-                            activityTip,
-                            style: TextStyle(color: Colors.cyan.withOpacity(0.7)),
-                          ),
-                        ),
+                      SizedBox(width: 2),
+                      Text(
+                        '(Press ESC to stop)',
+                        style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                      ),
                     ],
                   ),
 
@@ -678,8 +618,12 @@ class _AgentChatState extends State<_AgentChat> {
                     ],
                   ),
 
-                // Context usage bar below the text field
-                //ContextUsageBar(usedTokens: _conversation.totalInputTokens),
+                // Show activity tip below the input field when agent is working
+                if (activityTip != null && _conversation.state == ConversationState.receivingResponse)
+                  Text(
+                    activityTip,
+                    style: TextStyle(color: Colors.green.withOpacity(0.7)),
+                  ),
               ],
             ),
           ],
@@ -727,83 +671,12 @@ class _AgentChatState extends State<_AgentChat> {
         if (response is TextResponse) {
           if (response.content.isEmpty && message.isStreaming) {
             widgets.add(EnhancedLoadingIndicator(
-              responseStartTime: _responseStartTime,
+              responseStartTime: AgentResponseTimes.get(component.client.sessionId),
               outputTokens: _getOutputTokens(),
               dynamicWords: dynamicLoadingWords,
             ));
           } else {
-            // Check if this is a long response that needs a TL;DR
-            final responseId = response.id;
-            final isLongResponse = response.content.length > 2000;
-
-            if (isLongResponse && !message.isStreaming) {
-              // Trigger TL;DR generation in background
-              _generateTldr(responseId, response.content);
-
-              final tldr = _tldrByResponseId[responseId];
-              final isExpanded = _expandedTldrs.contains(responseId);
-
-              widgets.add(Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Show TL;DR section if available
-                  if (tldr != null)
-                    Container(
-                      padding: EdgeInsets.only(bottom: 1),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Focusable(
-                            focused: false,
-                            onKeyEvent: (event) {
-                              if (event.logicalKey == LogicalKey.enter ||
-                                  event.logicalKey == LogicalKey.space) {
-                                setState(() {
-                                  if (isExpanded) {
-                                    _expandedTldrs.remove(responseId);
-                                  } else {
-                                    _expandedTldrs.add(responseId);
-                                  }
-                                });
-                                return true;
-                              }
-                              return false;
-                            },
-                            child: MouseRegion(
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    if (isExpanded) {
-                                      _expandedTldrs.remove(responseId);
-                                    } else {
-                                      _expandedTldrs.add(responseId);
-                                    }
-                                  });
-                                },
-                                child: Text(
-                                  isExpanded ? '▼ TL;DR (click to collapse)' : '▶ TL;DR (click to expand full response)',
-                                  style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            padding: EdgeInsets.only(left: 2),
-                            child: Text(
-                              tldr,
-                              style: TextStyle(color: Colors.white.withOpacity(0.8)),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  // Show full response if expanded or if no TL;DR yet
-                  if (isExpanded || tldr == null) MarkdownText(response.content),
-                ],
-              ));
-            } else {
-              widgets.add(MarkdownText(response.content));
-            }
+            widgets.add(MarkdownText(response.content));
           }
         } else if (response is ToolUseResponse) {
           // Check if we have a result for this tool call
@@ -849,7 +722,7 @@ class _AgentChatState extends State<_AgentChat> {
             // If no responses yet but streaming, show loading
             if (message.responses.isEmpty && message.isStreaming)
               EnhancedLoadingIndicator(
-                responseStartTime: _responseStartTime,
+                responseStartTime: AgentResponseTimes.get(component.client.sessionId),
                 outputTokens: _getOutputTokens(),
                 dynamicWords: dynamicLoadingWords,
               ),

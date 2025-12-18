@@ -1,27 +1,20 @@
 /// Prompt builder for dynamic input field placeholder text
 class PlaceholderPrompt {
   static String build(DateTime now) {
-    final timeContext = _getTimeContext(now.hour);
+    final randomSeed = now.millisecondsSinceEpoch % 100;
 
     return '''
-You are generating placeholder text for a CLI input field. Generate ONE short, inviting prompt.
+Generate witty placeholder text for an AI coding assistant input field.
 
-CONTEXT: $timeContext
+Seed: $randomSeed
 
 RULES:
-- 3-6 words max
-- Warm but not cheesy
-- Invite action without being pushy
-- No emojis
-- Examples: "What shall we build?", "Ready when you are...", "Your move, human..."
-- Output ONLY the placeholder text (no quotes)
+- 3-5 words only
+- Playful, slightly cheeky tone
+- Like a friend asking what you want to work on
+- BANNED: "What's on your mind", "Describe your", "Enter your", "Type here"
+- Be creative! Think: "What are we breaking today?", "Got bugs?", "Your wish, my code..."
+- Output raw text only, no quotes
 ''';
-  }
-
-  static String _getTimeContext(int hour) {
-    if (hour >= 5 && hour < 12) return 'Morning';
-    if (hour >= 12 && hour < 17) return 'Afternoon';
-    if (hour >= 17 && hour < 21) return 'Evening';
-    return 'Late night';
   }
 }

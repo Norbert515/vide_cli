@@ -5,22 +5,19 @@ class IdlePrompt {
     final intensity = _getIntensity(seconds);
 
     return '''
-You are generating a passive-aggressive message for when the user hasn't typed anything for a while.
+Generate a passive-aggressive message for when the user hasn't typed anything for a while.
 
 IDLE TIME: $seconds seconds
 $intensity
 
 RULES:
-- ONE sentence
+- ONE unique sentence (never repeat previous messages)
 - Passive-aggressive but not hostile
 - Self-aware humor, like the CLI has feelings
-- Examples:
-  - "Still there? I've been sitting here, cursor blinking, wondering if I said something wrong..."
-  - "If you're reading Slack, I understand. I'm not jealous. Much."
-  - "I see you're thinking. Take your time. I'll just be here. Waiting. Like always."
+- Be creative and varied - reference coding, meetings, coffee, debugging, Stack Overflow, etc.
 - Gets slightly more dramatic with longer idle times
 - No emojis
-- Output ONLY the message text
+- Output ONLY the message text (no quotes)
 ''';
   }
 
