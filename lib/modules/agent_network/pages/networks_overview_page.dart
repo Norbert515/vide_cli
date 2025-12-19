@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -14,6 +15,9 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_cli/modules/commands/command.dart';
+import 'package:vide_cli/modules/haiku/haiku_providers.dart';
+import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
+import 'package:vide_cli/utils/project_detector.dart';
 
 class NetworksOverviewPage extends StatefulComponent {
   const NetworksOverviewPage({super.key});
@@ -27,10 +31,48 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   String? _commandResult;
   bool _commandResultIsError = false;
 
+  // Placeholder animation state
+  Timer? _placeholderTimer;
+  bool _isLoadingPlaceholder = true;
+  bool _isTypingPlaceholder = false;
+  String _fullPlaceholder = '';
+  String _displayedPlaceholder = '';
+  int _typingIndex = 0;
+
   @override
   void initState() {
     super.initState();
     _loadProjectInfo();
+    _generateStartupContent();
+  }
+
+  void _startTypingAnimation(String text) {
+    _placeholderTimer?.cancel();
+    _fullPlaceholder = text;
+    _typingIndex = 0;
+    _displayedPlaceholder = '';
+    _isTypingPlaceholder = true;
+
+    _placeholderTimer = Timer.periodic(const Duration(milliseconds: 30), (_) {
+      if (mounted && _typingIndex < _fullPlaceholder.length) {
+        setState(() {
+          _typingIndex++;
+          _displayedPlaceholder = _fullPlaceholder.substring(0, _typingIndex);
+        });
+      } else {
+        _placeholderTimer?.cancel();
+        setState(() {
+          _isTypingPlaceholder = false;
+          _displayedPlaceholder = _fullPlaceholder;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _placeholderTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadProjectInfo() async {
@@ -52,6 +94,25 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
       return '~${fullPath.substring(home.length)}';
     }
     return fullPath;
+  }
+
+  /// Generate startup content using Haiku
+  void _generateStartupContent() {
+    final now = DateTime.now();
+
+    // Generate dynamic placeholder text
+    MessageEnhancementService.generatePlaceholderText(
+      now,
+      (placeholder) {
+        if (mounted) {
+          setState(() {
+            _isLoadingPlaceholder = false;
+          });
+          context.read(placeholderTextProvider.notifier).state = placeholder;
+          _startTypingAnimation(placeholder);
+        }
+      },
+    );
   }
 
   void _handleSubmit(Message message) async {
@@ -137,6 +198,18 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
     // Watch sidebar focus state from app-level provider
     final sidebarFocused = context.watch(sidebarFocusProvider);
 
+    // Get placeholder - empty while loading, then type in the text when ready
+    final String placeholder;
+    if (_isLoadingPlaceholder) {
+      placeholder = '';
+    } else if (_isTypingPlaceholder) {
+      placeholder = _displayedPlaceholder;
+    } else {
+      placeholder = _displayedPlaceholder.isNotEmpty
+          ? _displayedPlaceholder
+          : (context.watch(placeholderTextProvider) ?? 'Describe your goal (you can attach images)');
+    }
+
     return Focusable(
       focused: !sidebarFocused,
       onKeyEvent: (event) {
@@ -201,7 +274,7 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
               Container(
                 child: AttachmentTextField(
                   focused: !sidebarFocused,
-                  placeholder: 'Describe your goal (you can attach images)',
+                  placeholder: placeholder ?? 'Describe your goal (you can attach images)',
                   onSubmit: _handleSubmit,
                   onCommand: _handleCommand,
                   commandSuggestions: _getCommandSuggestions,
