@@ -19,6 +19,8 @@ import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/local_settings_manager.dart';
 import 'package:vide_cli/modules/settings/pattern_inference.dart';
+import 'package:vide_cli/modules/agent_network/mixins/activity_tip_mixin.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
 import 'service/claude_manager.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
@@ -162,13 +164,20 @@ class _AgentChat extends StatefulComponent {
   State<_AgentChat> createState() => _AgentChatState();
 }
 
-class _AgentChatState extends State<_AgentChat> {
+class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
   StreamSubscription<Conversation>? _conversationSubscription;
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
 
   // Track conversation state changes for response timing
   ConversationState? _lastConversationState;
+
+  // ActivityTipMixin required getters
+  @override
+  Conversation get activityTipConversation => _conversation;
+
+  @override
+  String get activityTipAgentId => component.client.sessionId;
 
   @override
   void initState() {
@@ -180,9 +189,11 @@ class _AgentChatState extends State<_AgentChat> {
       if (conversation.state == ConversationState.receivingResponse &&
           _lastConversationState != ConversationState.receivingResponse) {
         AgentResponseTimes.startIfNeeded(component.client.sessionId);
+        startActivityTipTimer();
       } else if (_lastConversationState == ConversationState.receivingResponse &&
           conversation.state != ConversationState.receivingResponse) {
         AgentResponseTimes.clear(component.client.sessionId);
+        stopActivityTipTimer();
       }
 
       _lastConversationState = conversation.state;
@@ -198,11 +209,15 @@ class _AgentChatState extends State<_AgentChat> {
     if (_conversation.state == ConversationState.receivingResponse) {
       AgentResponseTimes.startIfNeeded(component.client.sessionId);
     }
+
+    // Initialize activity tips
+    initActivityTips();
   }
 
   @override
   void dispose() {
     _conversationSubscription?.cancel();
+    disposeActivityTips();
     super.dispose();
   }
 
@@ -310,6 +325,13 @@ class _AgentChatState extends State<_AgentChat> {
     // Get dynamic loading words from provider
     final dynamicLoadingWords = context.watch(loadingWordsProvider);
 
+    // Watch activity tip and agent status for activity tips feature
+    final activityTip = context.watch(activityTipProvider);
+    final agentStatus = context.watch(agentStatusProvider(component.client.sessionId));
+
+    // Handle agent status changes for activity tip timer
+    handleAgentStatusChange(agentStatus, _conversation.state);
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -399,6 +421,13 @@ class _AgentChatState extends State<_AgentChat> {
                     enabled: true,
                     placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
+                  ),
+
+                // Show activity tip below prompt (shown for minimum duration even after agent finishes)
+                if (activityTip != null)
+                  Text(
+                    activityTip,
+                    style: TextStyle(color: Colors.green.withOpacity(0.7)),
                   ),
               ],
             ),
