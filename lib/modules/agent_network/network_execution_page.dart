@@ -7,13 +7,15 @@ import 'package:claude_api/claude_api.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
-import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
+import 'package:vide_cli/modules/agent_network/components/message_renderer.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_response_times.dart';
+import 'package:vide_cli/modules/haiku/haiku_providers.dart';
+import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/local_settings_manager.dart';
 import 'package:vide_cli/modules/settings/pattern_inference.dart';
@@ -165,17 +167,37 @@ class _AgentChatState extends State<_AgentChat> {
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
 
+  // Track conversation state changes for response timing
+  ConversationState? _lastConversationState;
+
   @override
   void initState() {
     super.initState();
 
     // Listen to conversation updates
     _conversationSubscription = component.client.conversation.listen((conversation) {
+      // Track when response starts
+      if (conversation.state == ConversationState.receivingResponse &&
+          _lastConversationState != ConversationState.receivingResponse) {
+        AgentResponseTimes.startIfNeeded(component.client.sessionId);
+      } else if (_lastConversationState == ConversationState.receivingResponse &&
+          conversation.state != ConversationState.receivingResponse) {
+        AgentResponseTimes.clear(component.client.sessionId);
+      }
+
+      _lastConversationState = conversation.state;
+
       setState(() {
         _conversation = conversation;
       });
     });
     _conversation = component.client.currentConversation;
+    _lastConversationState = _conversation.state;
+
+    // If already receiving response when we init, ensure start time is tracked
+    if (_conversation.state == ConversationState.receivingResponse) {
+      AgentResponseTimes.startIfNeeded(component.client.sessionId);
+    }
   }
 
   @override
@@ -185,7 +207,29 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(Message message) {
+    // Generate creative loading words with Haiku in the background
+    _generateLoadingWords(message.text);
+
+    // Send the actual message
     component.client.sendMessage(message);
+  }
+
+  /// Helper to generate loading words using MessageEnhancementService
+  void _generateLoadingWords(String userMessage) async {
+    await MessageEnhancementService.generateLoadingWords(
+      userMessage,
+      (words) {
+        if (mounted) {
+          context.read(loadingWordsProvider.notifier).state = words;
+        }
+      },
+    );
+  }
+
+  /// Gets cumulative output token count across the conversation.
+  int? _getOutputTokens() {
+    final total = _conversation.totalOutputTokens;
+    return total > 0 ? total : null;
   }
 
   List<Map<String, dynamic>>? _getLatestTodos() {
@@ -263,6 +307,9 @@ class _AgentChatState extends State<_AgentChat> {
     final permissionQueueState = context.watch(permissionStateProvider);
     final currentPermissionRequest = permissionQueueState.current;
 
+    // Get dynamic loading words from provider
+    final dynamicLoadingWords = context.watch(loadingWordsProvider);
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -280,7 +327,15 @@ class _AgentChatState extends State<_AgentChat> {
                 children: [
                   // Todo list at the end (first in reversed list)
                   if (_getLatestTodos() case final todos? when todos.isNotEmpty) TodoListComponent(todos: todos),
-                  for (final message in _conversation.messages.reversed) _buildMessage(message),
+                  for (final message in _conversation.messages.reversed)
+                    MessageRenderer(
+                      message: message,
+                      dynamicLoadingWords: dynamicLoadingWords,
+                      agentSessionId: component.client.sessionId,
+                      workingDirectory: component.client.workingDirectory,
+                      executionId: component.networkId,
+                      outputTokens: _getOutputTokens(),
+                    ),
                 ],
               ),
             ),
@@ -290,13 +345,17 @@ class _AgentChatState extends State<_AgentChat> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Show typing indicator with hint
-                if (_conversation.state == ConversationState.receivingResponse)
+                // Show typing indicator with hint when processing or last message still streaming
+                if (_conversation.isProcessing || _conversation.lastAssistantMessage?.isStreaming == true)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(),
+                      EnhancedLoadingIndicator(
+                        responseStartTime: AgentResponseTimes.get(component.client.sessionId),
+                        outputTokens: _getOutputTokens(),
+                        dynamicWords: dynamicLoadingWords,
+                      ),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
@@ -337,118 +396,15 @@ class _AgentChatState extends State<_AgentChat> {
                   )
                 else
                   AttachmentTextField(
-                    enabled: !_conversation.isProcessing,
+                    enabled: true,
                     placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
                   ),
-
-                // Context usage bar below the text field
-                //ContextUsageBar(usedTokens: _conversation.totalInputTokens),
               ],
             ),
           ],
         ),
       ),
     );
-  }
-
-  Component _buildMessage(ConversationMessage message) {
-    if (message.role == MessageRole.user) {
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('> ${message.content}', style: TextStyle(color: Colors.white)),
-            if (message.attachments != null && message.attachments!.isNotEmpty)
-              for (var attachment in message.attachments!)
-                Text(
-                  '  📎 ${attachment.path ?? "image"}',
-                  style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
-                ),
-          ],
-        ),
-      );
-    } else {
-      // Build tool invocations by pairing calls with their results
-      final toolCallsById = <String, ToolUseResponse>{};
-      final toolResultsById = <String, ToolResultResponse>{};
-
-      // First pass: collect all tool calls and results by ID
-      for (final response in message.responses) {
-        if (response is ToolUseResponse && response.toolUseId != null) {
-          toolCallsById[response.toolUseId!] = response;
-        } else if (response is ToolResultResponse) {
-          toolResultsById[response.toolUseId] = response;
-        }
-      }
-
-      // Second pass: render responses in order, combining tool calls with their results
-      final widgets = <Component>[];
-      final renderedToolResults = <String>{};
-
-      for (final response in message.responses) {
-        if (response is TextResponse) {
-          if (response.content.isEmpty && message.isStreaming) {
-            widgets.add(EnhancedLoadingIndicator());
-          } else {
-            widgets.add(MarkdownText(response.content));
-          }
-        } else if (response is ToolUseResponse) {
-          // Check if we have a result for this tool call
-          final result = response.toolUseId != null ? toolResultsById[response.toolUseId] : null;
-
-          String? subagentSessionId;
-
-          // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(response, result, sessionId: subagentSessionId);
-
-          widgets.add(
-            ToolInvocationRouter(
-              key: ValueKey(response.toolUseId ?? response.id),
-              invocation: invocation,
-              workingDirectory: component.client.workingDirectory,
-              executionId: component.networkId,
-              agentId: component.client.sessionId,
-            ),
-          );
-          if (result != null && response.toolUseId != null) {
-            renderedToolResults.add(response.toolUseId!);
-          }
-        } else if (response is ToolResultResponse) {
-          // Only show tool result if it wasn't already paired with its call
-          if (!renderedToolResults.contains(response.toolUseId)) {
-            // This is an orphaned tool result (shouldn't normally happen)
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text('[orphaned result: ${response.content}]', style: TextStyle(color: Colors.red)),
-              ),
-            );
-          }
-        }
-      }
-
-      return Container(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...widgets,
-
-            // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(),
-
-            if (message.error != null)
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[error: ${message.error}]',
-                  style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
   }
 }

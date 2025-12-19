@@ -1,6 +1,8 @@
 import 'package:claude_api/claude_api.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/modules/agent_network/service/claude_manager.dart';
+import 'package:vide_cli/modules/haiku/haiku_providers.dart';
+import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
 import 'package:vide_cli/services/posthog_service.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_metadata.dart';
@@ -111,6 +113,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     ref.read(claudeManagerProvider.notifier).addAgent(mainAgentId, mainAgentClaudeClient);
 
     state = AgentNetworkState(currentNetwork: network);
+
+    // Generate loading words in the background (don't await)
+    MessageEnhancementService.generateLoadingWords(
+      initialMessage.text,
+      (words) => ref.read(loadingWordsProvider.notifier).state = words,
+    );
 
     // Send the initial message (preserves attachments)
     ref.read(claudeProvider(mainAgentId))?.sendMessage(initialMessage);
