@@ -24,6 +24,7 @@ import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/modules/agent_network/mixins/activity_tip_mixin.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
 
@@ -237,7 +238,7 @@ class _AgentChat extends StatefulComponent {
   State<_AgentChat> createState() => _AgentChatState();
 }
 
-class _AgentChatState extends State<_AgentChat> {
+class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
   StreamSubscription<Conversation>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
   Conversation _conversation = Conversation.empty();
@@ -248,6 +249,13 @@ class _AgentChatState extends State<_AgentChat> {
 
   // Track conversation state changes for response timing
   ConversationState? _lastConversationState;
+
+  // ActivityTipMixin required getters
+  @override
+  Conversation get activityTipConversation => _conversation;
+
+  @override
+  String get activityTipAgentId => component.client.sessionId;
 
   @override
   void initState() {
@@ -261,9 +269,11 @@ class _AgentChatState extends State<_AgentChat> {
       if (conversation.state == ConversationState.receivingResponse &&
           _lastConversationState != ConversationState.receivingResponse) {
         AgentResponseTimes.startIfNeeded(component.client.sessionId);
+        startActivityTipTimer();
       } else if (_lastConversationState == ConversationState.receivingResponse &&
           conversation.state != ConversationState.receivingResponse) {
         AgentResponseTimes.clear(component.client.sessionId);
+        stopActivityTipTimer();
       }
 
       _lastConversationState = conversation.state;
@@ -288,6 +298,9 @@ class _AgentChatState extends State<_AgentChat> {
       setState(() => _queuedMessage = text);
     });
     _queuedMessage = component.client.currentQueuedMessage;
+
+    // Initialize activity tips
+    initActivityTips();
   }
 
   void _syncTokenStats(Conversation conversation) {
@@ -308,6 +321,7 @@ class _AgentChatState extends State<_AgentChat> {
   void dispose() {
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
+    disposeActivityTips();
     super.dispose();
   }
 
@@ -570,6 +584,16 @@ class _AgentChatState extends State<_AgentChat> {
     // Get dynamic loading words from provider
     final dynamicLoadingWords = context.watch(loadingWordsProvider);
 
+    // Watch activity tip and agent status for activity tips feature
+    final activityTip = context.watch(activityTipProvider);
+    final agentStatus = context.watch(agentStatusProvider(component.client.sessionId));
+
+    // Handle agent status changes for activity tip timer
+    handleAgentStatusChange(agentStatus, _conversation.state);
+
+    // Check if actively working (for activity tip display)
+    final isActivelyWorking = _conversation.state == ConversationState.receivingResponse;
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -637,6 +661,14 @@ class _AgentChatState extends State<_AgentChat> {
                   )
                 else
                   Text(' '), // Reserve 1 line when loading indicator is hidden
+
+                // Show activity tip during long operations
+                if (activityTip != null && (isActivelyWorking || agentStatus == AgentStatus.waitingForAgent))
+                  Text(
+                    activityTip,
+                    style: TextStyle(color: Colors.green.withOpacity(0.7)),
+                  ),
+
                 // Show quit warning if active
                 if (component.showQuitWarning)
                   Text(
