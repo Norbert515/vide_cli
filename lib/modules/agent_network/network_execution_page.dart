@@ -212,6 +212,16 @@ class _AgentChatState extends State<_AgentChat> {
   // Message input controller - persists across permission dialog appearances
   late final AttachmentTextEditingController _inputController;
 
+  void _debugLog(String message) {
+    if (Platform.environment['VIDE_DEBUG_HAIKU'] == '1') {
+      final timestamp = DateTime.now().toIso8601String();
+      File('/tmp/vide_haiku.log').writeAsStringSync(
+        '[$timestamp] [ActivityTip] $message\n',
+        mode: FileMode.append,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -219,9 +229,11 @@ class _AgentChatState extends State<_AgentChat> {
 
     // Listen to conversation updates
     _conversationSubscription = component.client.conversation.listen((conversation) {
+      _debugLog('conversation listener: state=${conversation.state}, lastState=$_lastConversationState');
       // Track when response starts
       if (conversation.state == ConversationState.receivingResponse &&
           _lastConversationState != ConversationState.receivingResponse) {
+        _debugLog('  -> transitioning INTO receivingResponse, starting timer');
         AgentResponseTimes.startIfNeeded(component.client.sessionId);
         // Stop idle timer when agent is responding
         _stopIdleTimer();
@@ -229,9 +241,10 @@ class _AgentChatState extends State<_AgentChat> {
         context.read(idleMessageProvider.notifier).state = null;
         // Start activity tip timer
         _startActivityTipTimer();
-      } else if (conversation.state != ConversationState.receivingResponse) {
+      } else if (_lastConversationState == ConversationState.receivingResponse &&
+          conversation.state != ConversationState.receivingResponse) {
         AgentResponseTimes.clear(component.client.sessionId);
-        // Stop activity tip timer when not receiving response
+        // Stop activity tip timer when response ends (not just when not receiving)
         _stopActivityTipTimer();
         // Only clear the fact immediately if minimum display duration has elapsed
         // Otherwise, let the _factDisplayTimer handle cleanup
@@ -274,6 +287,8 @@ class _AgentChatState extends State<_AgentChat> {
     // (uses putIfAbsent so it won't reset if already set from another tab)
     if (_conversation.state == ConversationState.receivingResponse) {
       AgentResponseTimes.startIfNeeded(component.client.sessionId);
+      // Also start activity tip timer since we missed the transition
+      _startActivityTipTimer();
     }
 
     // If conversation is already idle (e.g., resumed session), start idle timer
@@ -473,11 +488,13 @@ class _AgentChatState extends State<_AgentChat> {
   // ========== Activity Tip Methods ==========
 
   void _startActivityTipTimer() {
+    _debugLog('_startActivityTipTimer() called');
     _stopActivityTipTimer();
     _activityTipTimer = Timer(_activityTipThreshold, _onActivityTipThresholdReached);
   }
 
   void _stopActivityTipTimer() {
+    _debugLog('_stopActivityTipTimer() called, hadTimer=${_activityTipTimer != null}');
     _activityTipTimer?.cancel();
     _activityTipTimer = null;
     _isGeneratingActivityTip = false;
@@ -489,22 +506,35 @@ class _AgentChatState extends State<_AgentChat> {
     final isReceiving = _conversation.state == ConversationState.receivingResponse;
     final agentStatus = context.read(agentStatusProvider(component.client.sessionId));
     final isWaitingForAgent = agentStatus == AgentStatus.waitingForAgent;
+    _debugLog('_shouldShowActivityTips: isReceiving=$isReceiving, agentStatus=$agentStatus, isWaitingForAgent=$isWaitingForAgent');
     return isReceiving || isWaitingForAgent;
   }
 
   void _onActivityTipThresholdReached() {
-    if (!mounted || _isGeneratingActivityTip) return;
-    if (!_shouldShowActivityTips()) return;
+    _debugLog('_onActivityTipThresholdReached() called');
+    if (!mounted || _isGeneratingActivityTip) {
+      _debugLog('  -> early return: mounted=$mounted, isGenerating=$_isGeneratingActivityTip');
+      return;
+    }
+
+    final shouldShow = _shouldShowActivityTips();
+    _debugLog('  -> shouldShowActivityTips=$shouldShow');
+    if (!shouldShow) return;
 
     _isGeneratingActivityTip = true;
 
     // Get a random pre-generated fact directly (no Haiku needed)
     final fact = FactSourceService.instance.getRandomFact();
+    _debugLog('  -> getRandomFact returned: ${fact != null ? "fact (${fact.length} chars)" : "null"}');
 
     _isGeneratingActivityTip = false;
     if (!mounted) return;
 
-    if (fact != null && _shouldShowActivityTips()) {
+    final shouldShowNow = _shouldShowActivityTips();
+    _debugLog('  -> shouldShowActivityTips (2nd check)=$shouldShowNow');
+
+    if (fact != null && shouldShowNow) {
+      _debugLog('  -> Setting activityTip!');
       context.read(activityTipProvider.notifier).state = fact;
       // Record when fact was shown and start timer to clear after minimum duration
       _factShownAt = DateTime.now();

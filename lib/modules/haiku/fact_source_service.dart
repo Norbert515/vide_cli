@@ -27,9 +27,20 @@ class FactSourceService {
   /// Whether the service has been initialized
   bool get initialized => _initialized;
 
+  void _debugLog(String message) {
+    if (Platform.environment['VIDE_DEBUG_HAIKU'] == '1') {
+      final timestamp = DateTime.now().toIso8601String();
+      File('/tmp/vide_haiku.log').writeAsStringSync(
+        '[$timestamp] [FactSourceService] $message\n',
+        mode: FileMode.append,
+      );
+    }
+  }
+
   /// Initialize by fetching facts from the curated pipeline.
   Future<void> initialize() async {
     if (_initialized) return;
+    _debugLog('initialize() called');
 
     try {
       final client = HttpClient();
@@ -37,6 +48,7 @@ class FactSourceService {
 
       final request = await client.getUrl(Uri.parse(_factsUrl));
       final response = await request.close();
+      _debugLog('HTTP status: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final body = await response.transform(utf8.decoder).join();
@@ -50,8 +62,10 @@ class FactSourceService {
             _facts.add(text);
           }
         }
+        _debugLog('Loaded ${_facts.length} facts');
       }
     } catch (e) {
+      _debugLog('Error: $e');
       // Graceful degradation - facts list stays empty
     }
 
@@ -61,6 +75,7 @@ class FactSourceService {
   /// Get a random fact. Returns null if no facts available.
   /// Tracks shown facts to avoid repeats within a session.
   String? getRandomFact() {
+    _debugLog('getRandomFact() called, facts.length=${_facts.length}, initialized=$_initialized');
     if (!_initialized || _facts.isEmpty) return null;
 
     // Reset shown indices if we've shown all facts
