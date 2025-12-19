@@ -591,9 +591,6 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
     // Handle agent status changes for activity tip timer
     handleAgentStatusChange(agentStatus, _conversation.state);
 
-    // Check if actively working (for activity tip display)
-    final isActivelyWorking = _conversation.state == ConversationState.receivingResponse;
-
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -661,13 +658,6 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
                   )
                 else
                   Text(' '), // Reserve 1 line when loading indicator is hidden
-
-                // Show activity tip during long operations
-                if (activityTip != null && (isActivelyWorking || agentStatus == AgentStatus.waitingForAgent))
-                  Text(
-                    activityTip,
-                    style: TextStyle(color: Colors.green.withOpacity(0.7)),
-                  ),
 
                 // Show quit warning if active
                 if (component.showQuitWarning)
@@ -798,6 +788,13 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
 
                 // Context usage bar with compact button
                 _buildContextUsageSection(theme),
+
+                // Show activity tip below prompt (shown for minimum duration even after agent finishes)
+                if (activityTip != null)
+                  Text(
+                    activityTip,
+                    style: TextStyle(color: Colors.green.withOpacity(0.7)),
+                  ),
               ],
             ),
           ],

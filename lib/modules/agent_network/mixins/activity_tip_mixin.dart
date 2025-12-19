@@ -28,7 +28,7 @@ mixin ActivityTipMixin<T extends StatefulComponent> on State<T> {
   // Minimum fact display duration tracking
   DateTime? _factShownAt;
   Timer? _factDisplayTimer;
-  static const _minimumFactDisplayDuration = Duration(seconds: 8);
+  static const _minimumFactDisplayDuration = Duration(seconds: 10);
 
   /// Override this to provide the current conversation state
   Conversation get activityTipConversation;
