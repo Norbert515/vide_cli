@@ -24,6 +24,9 @@ class AttachmentTextField extends StatefulComponent {
   /// Called when Escape is pressed and the text field is empty.
   final void Function()? onEscape;
 
+  /// Called when the text content changes (for idle detection, etc.)
+  final void Function(String text)? onChanged;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -32,6 +35,7 @@ class AttachmentTextField extends StatefulComponent {
     this.onAttachmentsChanged,
     this.agentTag,
     this.onEscape,
+    this.onChanged,
     super.key,
   });
 
@@ -50,10 +54,16 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       setState(() {}); // Rebuild to show attachment indicators
       component.onAttachmentsChanged?.call(attachments);
     };
+    _controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    component.onChanged?.call(_controller.text);
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     super.dispose();
   }

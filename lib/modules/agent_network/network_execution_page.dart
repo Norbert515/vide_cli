@@ -16,6 +16,7 @@ import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dar
 import 'package:vide_cli/modules/agent_network/state/agent_response_times.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
+import 'package:vide_cli/modules/agent_network/mixins/idle_detection_mixin.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/local_settings_manager.dart';
 import 'package:vide_cli/modules/settings/pattern_inference.dart';
@@ -162,13 +163,17 @@ class _AgentChat extends StatefulComponent {
   State<_AgentChat> createState() => _AgentChatState();
 }
 
-class _AgentChatState extends State<_AgentChat> {
+class _AgentChatState extends State<_AgentChat> with IdleDetectionMixin {
   StreamSubscription<Conversation>? _conversationSubscription;
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
 
   // Track conversation state changes for response timing
   ConversationState? _lastConversationState;
+
+  // Implement IdleDetectionMixin required getter
+  @override
+  Conversation get idleDetectionConversation => _conversation;
 
   @override
   void initState() {
@@ -180,9 +185,19 @@ class _AgentChatState extends State<_AgentChat> {
       if (conversation.state == ConversationState.receivingResponse &&
           _lastConversationState != ConversationState.receivingResponse) {
         AgentResponseTimes.startIfNeeded(component.client.sessionId);
+        // Stop idle timer when agent is responding
+        stopIdleTimer();
+        // Clear any idle message when agent starts responding
+        context.read(idleMessageProvider.notifier).state = null;
       } else if (_lastConversationState == ConversationState.receivingResponse &&
           conversation.state != ConversationState.receivingResponse) {
         AgentResponseTimes.clear(component.client.sessionId);
+      }
+
+      // When response completes and becomes idle, start idle timer
+      if (_lastConversationState == ConversationState.receivingResponse &&
+          conversation.state == ConversationState.idle) {
+        startIdleTimer();
       }
 
       _lastConversationState = conversation.state;
@@ -198,15 +213,23 @@ class _AgentChatState extends State<_AgentChat> {
     if (_conversation.state == ConversationState.receivingResponse) {
       AgentResponseTimes.startIfNeeded(component.client.sessionId);
     }
+
+    // Initialize idle detection (starts timer if conversation is already idle)
+    initIdleDetection();
   }
 
   @override
   void dispose() {
     _conversationSubscription?.cancel();
+    disposeIdleDetection();
     super.dispose();
   }
 
   void _sendMessage(Message message) {
+    // Stop idle timer and clear idle message when user sends a message
+    stopIdleTimer();
+    context.read(idleMessageProvider.notifier).state = null;
+
     // Generate creative loading words with Haiku in the background
     _generateLoadingWords(message.text);
 
@@ -310,6 +333,9 @@ class _AgentChatState extends State<_AgentChat> {
     // Get dynamic loading words from provider
     final dynamicLoadingWords = context.watch(loadingWordsProvider);
 
+    // Get idle message from provider
+    final idleMessage = context.watch(idleMessageProvider);
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -395,10 +421,26 @@ class _AgentChatState extends State<_AgentChat> {
                     ],
                   )
                 else
-                  AttachmentTextField(
-                    enabled: true,
-                    placeholder: 'Type a message...',
-                    onSubmit: _sendMessage,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AttachmentTextField(
+                        enabled: true,
+                        placeholder: 'Type a message...',
+                        onSubmit: _sendMessage,
+                        onChanged: (_) => resetIdleTimer(),
+                      ),
+                      // Show idle message when agent has been waiting for user input
+                      if (idleMessage != null && _conversation.state == ConversationState.idle)
+                        Container(
+                          padding: EdgeInsets.only(top: 0),
+                          child: Text(
+                            idleMessage,
+                            style: TextStyle(color: Colors.white.withOpacity(0.5), fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                    ],
                   ),
               ],
             ),
