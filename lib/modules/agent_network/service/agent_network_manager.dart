@@ -120,6 +120,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       (words) => ref.read(loadingWordsProvider.notifier).state = words,
     );
 
+    // Generate code sommelier commentary if enabled (delayed to avoid race with loading words)
+    Future.delayed(const Duration(seconds: 2), () {
+      MessageEnhancementService.generateSommelierCommentary(
+        initialMessage.text,
+        (commentary) => ref.read(codeSommelierProvider.notifier).state = commentary,
+      );
+    });
+
     // Send the initial message (preserves attachments)
     ref.read(claudeProvider(mainAgentId))?.sendMessage(initialMessage);
 

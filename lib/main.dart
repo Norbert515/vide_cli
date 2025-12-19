@@ -10,6 +10,7 @@ import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifi
 import 'package:vide_cli/hook_handler.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 import 'package:vide_cli/services/posthog_service.dart';
+import 'package:vide_cli/services/vide_settings.dart';
 
 void main(List<String> args) async {
   // Check for --hook flag - run hook handler and exit
@@ -28,6 +29,9 @@ void main(List<String> args) async {
   // Initialize PostHog analytics
   await PostHogService.init();
   PostHogService.appStarted();
+
+  // Load app settings
+  await VideSettingsManager.instance.load();
 
   // Clean up stale hook files from previous sessions
   await PermissionService.cleanupStaleFiles();

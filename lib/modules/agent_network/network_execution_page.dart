@@ -207,8 +207,20 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(Message message) {
+    // Clear any previous sommelier commentary
+    context.read(codeSommelierProvider.notifier).state = null;
+
     // Generate creative loading words with Haiku in the background
     _generateLoadingWords(message.text);
+
+    // Check for code and trigger sommelier if enabled (delayed to avoid race with loading words)
+    // Loading words takes ~4-5 seconds, so wait 6 seconds before starting sommelier
+    final textToCheck = message.text;
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        _generateSommelierCommentary(textToCheck);
+      }
+    });
 
     // Send the actual message
     component.client.sendMessage(message);
@@ -222,6 +234,24 @@ class _AgentChatState extends State<_AgentChat> {
         if (mounted) {
           context.read(loadingWordsProvider.notifier).state = words;
         }
+      },
+    );
+  }
+
+  /// Generate wine-tasting style commentary for pasted code
+  void _generateSommelierCommentary(String text) async {
+    await MessageEnhancementService.generateSommelierCommentary(
+      text,
+      (commentary) {
+        if (!mounted) return;
+        context.read(codeSommelierProvider.notifier).state = commentary;
+
+        // Auto-clear after 30 seconds
+        Future.delayed(const Duration(seconds: 30), () {
+          if (mounted) {
+            context.read(codeSommelierProvider.notifier).state = null;
+          }
+        });
       },
     );
   }
@@ -246,7 +276,8 @@ class _AgentChatState extends State<_AgentChat> {
     return null;
   }
 
-  void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride}) async {
+  void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember,
+      {String? patternOverride}) async {
     final permissionService = context.read(permissionServiceProvider);
 
     // If remember and granted, decide where to store based on tool type
@@ -309,6 +340,7 @@ class _AgentChatState extends State<_AgentChat> {
 
     // Get dynamic loading words from provider
     final dynamicLoadingWords = context.watch(loadingWordsProvider);
+    final sommelierCommentary = context.watch(codeSommelierProvider);
 
     return Focusable(
       onKeyEvent: _handleKeyEvent,
@@ -364,6 +396,16 @@ class _AgentChatState extends State<_AgentChat> {
                     ],
                   ),
 
+                // Show code sommelier commentary when available
+                if (sommelierCommentary != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(vertical: 1),
+                    child: Text(
+                      '🍷 $sommelierCommentary',
+                      style: TextStyle(color: Colors.magenta.withOpacity(0.8), fontStyle: FontStyle.italic),
+                    ),
+                  ),
+
                 // Show quit warning if active
                 if (component.showQuitWarning)
                   Text(
@@ -388,8 +430,9 @@ class _AgentChatState extends State<_AgentChat> {
                         ),
                       PermissionDialog.fromRequest(
                         request: currentPermissionRequest,
-                        onResponse: (granted, remember, {String? patternOverride}) =>
-                            _handlePermissionResponse(currentPermissionRequest, granted, remember, patternOverride: patternOverride),
+                        onResponse: (granted, remember, {String? patternOverride}) => _handlePermissionResponse(
+                            currentPermissionRequest, granted, remember,
+                            patternOverride: patternOverride),
                         key: Key('permission_${currentPermissionRequest.requestId}'),
                       ),
                     ],
