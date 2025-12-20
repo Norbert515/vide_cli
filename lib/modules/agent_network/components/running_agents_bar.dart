@@ -13,12 +13,68 @@ class RunningAgentsBar extends StatelessComponent {
   final List<AgentMetadata> agents;
   final int selectedIndex;
 
+  /// Calculate the display width of an agent item (status indicator + name + padding).
+  int _calculateAgentWidth(AgentMetadata agent) {
+    final displayName = agent.taskName != null && agent.taskName!.isNotEmpty
+        ? '${agent.name} - ${agent.taskName}'
+        : agent.name;
+    // Status indicator: 3 chars (1 char + 2 horizontal padding)
+    // Name container: displayName.length + 2 horizontal padding
+    // Right padding: 1
+    return 3 + displayName.length + 2 + 1;
+  }
+
   @override
   Component build(BuildContext context) {
-    return Row(
-      children: [
-        for (int i = 0; i < agents.length; i++) _RunningAgentBarItem(agent: agents[i], isSelected: i == selectedIndex),
-      ],
+    if (agents.isEmpty) {
+      return Container();
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth = constraints.maxWidth;
+        final rows = <List<int>>[];
+        var currentRow = <int>[];
+        var currentRowWidth = 0;
+
+        for (int i = 0; i < agents.length; i++) {
+          final agentWidth = _calculateAgentWidth(agents[i]);
+
+          // Check if this agent fits in the current row
+          if (currentRowWidth + agentWidth <= maxWidth || currentRow.isEmpty) {
+            currentRow.add(i);
+            currentRowWidth += agentWidth;
+          } else {
+            // Start a new row
+            rows.add(currentRow);
+            currentRow = [i];
+            currentRowWidth = agentWidth;
+          }
+        }
+
+        // Add the last row if not empty
+        if (currentRow.isNotEmpty) {
+          rows.add(currentRow);
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final row in rows)
+              Row(
+                children: [
+                  for (final i in row)
+                    Expanded(
+                      child: _RunningAgentBarItem(
+                        agent: agents[i],
+                        isSelected: i == selectedIndex,
+                      ),
+                    ),
+                ],
+              ),
+          ],
+        );
+      },
     );
   }
 }
