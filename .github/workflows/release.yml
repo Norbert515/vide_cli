@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  DART_SDK: "3.8.0"
+
+jobs:
+  build-macos-arm64:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Compile binary
+        run: dart compile exe bin/vide.dart -o vide-macos-arm64
+
+      - name: Codesign binary
+        run: codesign --sign - --force vide-macos-arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vide-macos-arm64
+          path: vide-macos-arm64
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Compile binary
+        run: dart compile exe bin/vide.dart -o vide-macos-x64
+
+      - name: Codesign binary
+        run: codesign --sign - --force vide-macos-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vide-macos-x64
+          path: vide-macos-x64
+
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Compile binary
+        run: dart compile exe bin/vide.dart -o vide-linux-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vide-linux-x64
+          path: vide-linux-x64
+
+  build-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: ${{ env.DART_SDK }}
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Compile binary
+        run: dart compile exe bin/vide.dart -o vide-windows-x64.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vide-windows-x64
+          path: vide-windows-x64.exe
+
+  create-macos-universal:
+    needs: [build-macos-arm64, build-macos-x64]
+    runs-on: macos-14
+    steps:
+      - name: Download arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-macos-arm64
+
+      - name: Download x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-macos-x64
+
+      - name: Create universal binary
+        run: lipo -create vide-macos-arm64 vide-macos-x64 -output vide-macos
+
+      - name: Codesign universal binary
+        run: codesign --sign - --force vide-macos
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vide-macos
+          path: vide-macos
+
+  release:
+    needs: [create-macos-universal, build-linux-x64, build-windows-x64]
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Download macOS universal binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-macos
+
+      - name: Download Linux binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-linux-x64
+
+      - name: Download Windows binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-windows-x64
+
+      - name: Create SHA256SUMS
+        run: |
+          sha256sum vide-macos vide-linux-x64 vide-windows-x64.exe > SHA256SUMS.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            vide-macos
+            vide-linux-x64
+            vide-windows-x64.exe
+            SHA256SUMS.txt
+          generate_release_notes: true
+
+  update-homebrew:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update Homebrew formula
+        uses: mislav/bump-homebrew-formula-action@v3
+        with:
+          formula-name: vide
+          homebrew-tap: Norbert515/homebrew-tap
+          download-url: https://github.com/Norbert515/vide_cli/releases/download/v${{ needs.release.outputs.version }}/vide-macos
+        env:
+          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

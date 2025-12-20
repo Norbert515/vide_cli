@@ -99,12 +99,43 @@ Agents come with deep Flutter knowledge baked in:
 
 ## Installation
 
+### Homebrew (macOS)
+
+```bash
+brew tap Norbert515/tap
+brew install vide
+```
+
+### Quick Install (macOS/Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash
+```
+
+### Quick Install (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.ps1 | iex
+```
+
+### Manual Download
+
+Download the latest binary from [GitHub Releases](https://github.com/Norbert515/vide_cli/releases):
+
+| Platform | Binary |
+|----------|--------|
+| macOS (Universal) | `vide-macos` |
+| Linux (x64) | `vide-linux-x64` |
+| Windows (x64) | `vide-windows-x64.exe` |
+
+### From Source
+
 ```bash
 git clone https://github.com/Norbert515/vide_cli.git
 cd vide_cli
 dart pub get
 dart compile exe bin/vide.dart -o vide
-cp vide ~/.pub-cache/bin/
+cp vide ~/.local/bin/
 ```
 
 Then run from any directory:
@@ -125,10 +156,10 @@ vide
                       │ spawns
         ┌─────────────┼─────────────┬─────────────┐
         ▼             ▼             ▼             ▼
-   ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │ Context │  │  Impl   │  │ Flutter │  │Planning │
+   ┌──────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
+   │ Context  │  │  Impl   │  │ Flutter │  │Planning │
    │Collection│  │  Agent  │  │ Tester  │  │  Agent  │
-   └─────────┘  └─────────┘  └─────────┘  └─────────┘
+   └──────────┘  └─────────┘  └─────────┘  └─────────┘
     Research     Write code   Run & test   Plan complex
     codebase     & edit       the app      changes
 ```
