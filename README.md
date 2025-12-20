@@ -2,6 +2,10 @@
 # Vide CLI
 
 <p align="center">
+  <img src="docs/logo.png" alt="Vide Logo" width="140"/>
+</p>
+
+<p align="center">
   <img src="docs/hero.png" alt="Vide CLI" width="800"/>
 </p>
 

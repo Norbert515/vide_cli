@@ -4,6 +4,8 @@ analyzer:
     - packages/runtime_ai_dev_tools/**
     - packages/flutter_runtime_mcp/test_app/**
     - packages/flutter_runtime_mcp/tui_test_app/**
+    # Packages with their own analysis options
+    - packages/moondream_api/**
     # Generated files
     - "**/*.g.dart"
     - "**/*.freezed.dart"
