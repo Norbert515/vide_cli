@@ -10,7 +10,6 @@ import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
 import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';

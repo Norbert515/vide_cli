@@ -166,7 +166,6 @@ class _SetupPageState extends State<SetupPage> {
                   return true;
                 } else if (key == LogicalKey.keyN || key == LogicalKey.escape) {
                   exit(0);
-                  return true;
                 }
                 return false;
               },

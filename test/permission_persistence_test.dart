@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:vide_cli/modules/settings/local_settings_manager.dart';
-import 'package:vide_cli/modules/settings/models/claude_settings.dart';
 
 void main() {
   group('Permission Persistence - LocalSettingsManager.addToAllowList', () {

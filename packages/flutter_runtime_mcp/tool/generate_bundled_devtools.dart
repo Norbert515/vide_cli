@@ -34,11 +34,6 @@ final _removePatterns = [
   RegExp(r"print\([^;]*\);[ \t]*\n?", multiLine: true),
 ];
 
-/// Import patterns to remove (internal package imports)
-final _internalImportPatterns = [
-  RegExp(r"^import\s+'src/[^']+';.*$", multiLine: true),
-  RegExp(r"^import\s+'package:runtime_ai_dev_tools/[^']+';.*$", multiLine: true),
-];
 
 /// Required imports that might be aliased
 const _requiredImports = [

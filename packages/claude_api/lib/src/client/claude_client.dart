@@ -168,8 +168,6 @@ class ClaudeClientImpl implements ClaudeClient {
   }
 
   void _processMessageFromInbox(Message message) {
-    final hasAttachments = message.attachments != null && message.attachments!.isNotEmpty;
-
     // Add user message to conversation
     final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
     _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
@@ -208,8 +206,6 @@ class ClaudeClientImpl implements ClaudeClient {
 
       final mcpArgs = await processManager.getMcpArgs();
       if (mcpArgs.isNotEmpty) {
-        // Only log MCP server count, not full args
-        final mcpServerCount = mcpServers.length;
         args.insertAll(0, mcpArgs);
       }
 

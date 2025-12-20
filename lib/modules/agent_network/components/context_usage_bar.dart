@@ -1,5 +1,3 @@
-import 'package:nocterm/nocterm.dart';
-
 /// Default context window size for Claude models (200k tokens).
 const int kClaudeContextWindowSize = 200000;
 

@@ -78,15 +78,7 @@ class DemoPage extends StatelessComponent {
         ),
 
         // Loading indicator
-        EnhancedLoadingIndicator(
-          responseStartTime: DateTime.now().subtract(Duration(seconds: 8)),
-          outputTokens: 2341,
-          dynamicWords: [
-            'Implementing refresh tokens...',
-            'Writing secure code...',
-            'Validating token flow...',
-          ],
-        ),
+        EnhancedLoadingIndicator(),
 
         // Input text field at the bottom
         _DemoInputField(),

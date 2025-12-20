@@ -122,7 +122,7 @@ class VmServiceEvaluator {
         ''',
         scope: {'id': inspectorId},
       );
-    } catch (e, stackTrace) {
+    } catch (e) {
       throw VmServiceEvaluationException(
         'Failed to hide cursor overlay at ($x, $y): $e',
         originalError: e,
@@ -139,7 +139,7 @@ class VmServiceEvaluator {
       );
 
       _overlayInspectorIds.clear();
-    } catch (e, stackTrace) {
+    } catch (e) {
       throw VmServiceEvaluationException(
         'Failed to dispose cursor overlays: $e',
         originalError: e,

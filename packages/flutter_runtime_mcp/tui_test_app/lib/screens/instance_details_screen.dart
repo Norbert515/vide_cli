@@ -525,7 +525,7 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
       setState(() {
         _statusMessage = null;
       });
-    } catch (e, stack) {
+    } catch (e) {
       setState(() {
         _statusMessage = '✗ Diagnostics failed: $e';
       });
