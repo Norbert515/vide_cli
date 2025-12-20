@@ -37,7 +37,7 @@ jobs:
           path: vide-macos-arm64
 
   build-macos-x64:
-    runs-on: macos-13
+    runs-on: macos-15-large
     steps:
       - uses: actions/checkout@v4
 
