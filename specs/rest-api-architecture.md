@@ -160,14 +160,22 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 
 **Changes**:
 - Replace `package:nocterm_riverpod/nocterm_riverpod.dart` with `package:riverpod/riverpod.dart`
-- Move AS-IS including all Riverpod code!
+- Update `startNew()` signature to accept optional `workingDirectory` parameter:
+  ```dart
+  Future<AgentNetwork> startNew(Message initialMessage, {String? workingDirectory}) async {
+    // ... create network ...
+    // If workingDirectory provided, set worktreePath in the network
+    final network = AgentNetwork(
+      // ... other fields ...
+      worktreePath: workingDirectory, // Set working directory atomically
+    );
+    // ... persist and return ...
+  }
+  ```
+- This defaults to null (uses `effectiveWorkingDirectory` fallback to `workingDirectory` from provider)
+- Both TUI and REST use the same API: TUI omits parameter (uses CWD), REST passes user's directory
 
-**workingDirProvider handling**:
-- Provider definition moved in step 1.8
-- TUI overrides with its working directory
-- REST overrides only when creating a network; resume uses persisted `worktreePath`
-
-**Rationale**: Zero changes to AgentNetworkManager logic! UI-specific behavior injected via provider overrides.
+**Rationale**: Single atomic operation prevents errors and simplifies API. No separate `setWorktreePath()` call needed after creation.
 
 **Note**: nocterm_riverpod is safe to replace - it's a wrapper that adds nocterm-specific BuildContext extensions. The core Riverpod features (Provider, StateNotifierProvider, ProviderContainer) are identical to standard riverpod.
 
@@ -206,6 +214,11 @@ dependencies:
 - Replace `package:vide_cli/services/vide_config_manager.dart` with `package:vide_core/services/vide_config_manager.dart`
 - Etc.
 
+**Update calls to `startNew()`**:
+- TUI currently calls `startNew(initialMessage)`
+- Can keep as-is (omit `workingDirectory`, uses default)
+- Or explicitly pass working directory: `startNew(initialMessage, workingDirectory: path.current)`
+
 **Create TUI Permission Adapter**:
 - Create `apps/vide_cli/lib/modules/permissions/permission_service_adapter.dart`
 - Implement `PermissionProvider` interface by wrapping existing `PermissionService`
@@ -219,11 +232,14 @@ dependencies:
       overrides: [
         videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: '~/.vide')),
         permissionProvider.overrideWithValue(TUIPermissionProvider(permissionService)),
-        // workingDirProvider is likely overridden here or in a scope closer to execution
+        // workingDirProvider uses default (path.current) - not overridden
       ],
       child: VideApp(),
     )
     ```
+- Update TUI calls to `startNew()`:
+  - TUI can omit `workingDirectory` parameter (defaults to null, uses `path.current` from provider)
+  - Or explicitly pass `path.current` for clarity: `startNew(message, workingDirectory: path.current)`
 
 #### 1.14 Add Refactoring Verification Tests
 **Purpose**: Ensure the new `vide_core` abstraction and dependency injection work correctly.
@@ -269,7 +285,10 @@ dependencies:
 
 **Responsibilities**:
 - Parse CLI arguments (port only, optional)
-- Create ProviderContainer with overrides
+- Create ProviderContainer with overrides:
+  - VideConfigManager (configRoot = ~/.vide/api)
+  - SimplePermissionService (auto-approve/deny rules)
+  - workingDirProvider throws error (defensive - catches missing workingDirectory param)
 - Create shelf HTTP server (bind loopback only)
 - Set up middleware pipeline (CORS, logging only - no auth!)
 - Mount routes
@@ -285,6 +304,16 @@ void main(List<String> args) async {
     videConfigManagerProvider.overrideWithValue(
       VideConfigManager(configRoot: '~/.vide/api'),
     ),
+    permissionProvider.overrideWithValue(
+      SimplePermissionService(),
+    ),
+    // Defensive override: Fail fast if workingDirectory not passed to startNew()
+    workingDirProvider.overrideWith((ref) {
+      throw StateError(
+        'workingDirProvider should never be called in REST API! '
+        'Always pass workingDirectory parameter to startNew()'
+      );
+    }),
   ]);
 
   final handler = createHandler(container);
@@ -327,19 +356,44 @@ void main(List<String> args) async {
 3. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (SSE)
    ```
    Response: Server-Sent Events stream
-   Event format:
-   data: {"type":"message","content":"I'll help you..."}
-   data: {"type":"tool_use","tool":"Write","params":{...}}
-   data: {"type":"tool_result","result":"..."}
-   data: {"type":"done"}
-   data: {"type":"error","message":"..."}
+   Event format (includes agent context for multiplexing):
+   data: {
+     "agentId": "uuid",
+     "agentType": "main",
+     "agentName": "Main Orchestrator",
+     "taskName": null,
+     "type": "message",
+     "content": "I'll help you...",
+     "timestamp": "2025-12-21T10:00:00Z"
+   }
+   data: {
+     "agentId": "uuid2",
+     "agentType": "implementation",
+     "agentName": "Auth Fix",
+     "taskName": "Implementing login flow",
+     "type": "tool_use",
+     "tool": "Write",
+     "params": {...},
+     "timestamp": "2025-12-21T10:00:01Z"
+   }
+   data: {
+     "agentId": "uuid2",
+     "agentType": "implementation",
+     "agentName": "Auth Fix",
+     "taskName": "Implementing login flow",
+     "type": "tool_result",
+     "result": "...",
+     "timestamp": "2025-12-21T10:00:02Z"
+   }
+   data: {"agentId": "uuid", "type": "done", "timestamp": "..."}
+   data: {"agentId": "uuid", "type": "error", "message": "...", "timestamp": "..."}
    ```
-   **Sub-agent Streaming**: Main agent stream includes ALL network activity (multiplexed). When main agent spawns sub-agents (implementation, context collection, etc.), their activity appears in the main stream. Client subscribes to one stream and sees complete network activity.
+   **Sub-agent Streaming**: Main agent stream includes ALL network activity (multiplexed). When main agent spawns sub-agents (implementation, context collection, etc.), their activity appears in the main stream. Each event includes `agentId`, `agentType`, `agentName`, and `taskName` so the client can correctly attribute output and display agent-specific UI (e.g., collapsible sections per agent).
 
 **Implementation note**: Endpoints run actual ClaudeClient instances. SSE streams real-time agent responses.
 **Working directory behavior**:
-- On `POST /networks`, override `workingDirProvider` with `workingDirectory`, then call `setWorktreePath(workingDirectory)` so it persists in `AgentNetwork.worktreePath`.
-- On `/messages` and `/stream`, load the network from persistence, call `resume(network)`, and rely on `worktreePath` for the effective working directory.
+- On `POST /networks`, call `startNew(initialMessage, workingDirectory: userRequestedDirectory)` which atomically creates the network with the working directory set. This is stored in `worktreePath` and persisted immediately.
+- On `/messages` and `/stream`, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
 
 #### 2.5 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
@@ -362,14 +416,26 @@ void main(List<String> args) async {
 **Note**: For MVP testing on localhost. Post-MVP will add webhook callbacks.
 
 #### 2.7 Implement DTOs (Data Transfer Objects)
-**New file**: `packages/vide_server/lib/dto/network_dto.dart` (~100 lines)
+**New file**: `packages/vide_server/lib/dto/network_dto.dart` (~150 lines)
 
 **Purpose**: Request/response schemas
 
 **Key DTOs**:
 - `CreateNetworkRequest` - { initialMessage, workingDirectory (required) }
 - `SendMessageRequest` - { content }
-- `SSEEvent` - { type, data }
+- `SSEEvent` - Enhanced for multiplexing:
+  ```dart
+  class SSEEvent {
+    final String agentId;       // Which agent produced this event
+    final String agentType;     // "main", "implementation", "planning", etc.
+    final String? agentName;    // Human-readable name (e.g., "Auth Fix")
+    final String? taskName;     // Current task (optional, set via MCP tool)
+    final String type;          // "message", "tool_use", "tool_result", "done", "error"
+    final dynamic data;         // Event-specific data (content, tool params, etc.)
+    final DateTime timestamp;   // When this event occurred
+  }
+  ```
+  This allows the REST client to correctly attribute events to agents and display agent-specific UI.
 
 ---
 
@@ -406,14 +472,14 @@ void main(List<String> args) async {
 - `test/posthog_refactor_test.dart`
 - `test/provider_override_test.dart`
 
-**packages/vide_server/** (~700 lines total for MVP)
+**packages/vide_server/** (~750 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
 - `lib/routes/network_routes.dart` - 3 core endpoints with SSE (200 lines)
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
 - `lib/services/network_cache_manager.dart` - Hybrid caching for networks (40 lines)
-- `lib/dto/network_dto.dart` - Request/response schemas (100 lines)
+- `lib/dto/network_dto.dart` - Request/response schemas including enhanced SSEEvent (150 lines)
 - `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
 
 **apps/vide_cli/** (TUI-specific)
@@ -490,9 +556,11 @@ void main(List<String> args) async {
 │  ├─ AgentNetworkManager (Riverpod)      │
 │  ├─ ClaudeManager, AgentStatusManager   │
 │  ├─ MemoryService, Persistence          │
-│  ├─ ALL MCP Servers (Memory, Agent,     │
-│  │   TaskManagement, Git, Flutter)      │
-│  └─ VideConfigManager, Agent Configs    │
+│  ├─ MCP Servers (Memory, Agent,         │
+│  │   TaskManagement, Git)               │
+│  ├─ VideConfigManager, Agent Configs    │
+│  └─ Depends on: flutter_runtime_mcp     │
+│      (workspace dependency in packages/)│
 └──────────────┬──────────────────────────┘
                │
                │  Used by TUI
@@ -545,11 +613,11 @@ void main(List<String> args) async {
 22. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
 23. Implement network cache manager (hybrid caching strategy)
 24. Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
-25. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); override workingDirProvider only when starting a new network
+25. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); workingDirProvider overridden to throw error (defensive programming - ensures workingDirectory always passed to startNew())
 26. Implement CORS middleware (allow all origins for localhost MVP)
 27. Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
 28. Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, SSEEvent)
-29. Implement POST /api/v1/networks - uses AgentNetworkManager from vide_core, returns mainAgentId for streaming
+29. Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
 30. Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
 31. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming with multiplexed sub-agent activity
 32. **Test MVP end-to-end**: create network → get mainAgentId → open stream → send message → watch agent + sub-agent responses
