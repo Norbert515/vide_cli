@@ -5,10 +5,7 @@ import 'package:claude_api/claude_api.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 import '../../permissions/permission_scope.dart';
-import '../models/agent_status.dart';
-import '../service/agent_network_manager.dart';
-import '../service/claude_manager.dart';
-import 'agent_status_manager.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Provides the project name from the current working directory.
 final projectNameProvider = Provider<String>((ref) {

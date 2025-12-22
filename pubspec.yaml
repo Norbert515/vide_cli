@@ -23,6 +23,8 @@ dependencies:
     path: ./packages/claude_api
   flutter_runtime_mcp:
     path: ./packages/flutter_runtime_mcp
+  vide_core:
+    path: ./packages/vide_core
   riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
   freezed_annotation: ^2.4.1

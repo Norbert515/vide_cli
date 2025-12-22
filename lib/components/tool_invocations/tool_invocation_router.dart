@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_api/claude_api.dart';
-import 'package:vide_cli/modules/agent_network/models/agent_id.dart';
+import 'package:vide_core/vide_core.dart';
 import 'flutter_output_renderer.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';

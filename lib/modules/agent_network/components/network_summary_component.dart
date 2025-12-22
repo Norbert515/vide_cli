@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_cli/modules/agent_network/models/agent_network.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
 class NetworkSummaryComponent extends StatefulComponent {

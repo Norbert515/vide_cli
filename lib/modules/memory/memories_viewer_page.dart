@@ -1,8 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_cli/modules/memory/memory_service.dart';
-import 'package:vide_cli/modules/memory/model/memory_entry.dart';
-import 'package:vide_cli/utils/working_dir_provider.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Page to view memories stored for the current project
 class MemoriesViewerPage extends StatefulComponent {

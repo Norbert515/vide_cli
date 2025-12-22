@@ -2,10 +2,7 @@ import 'dart:async';
 import 'package:claude_api/claude_api.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_cli/modules/agent_network/models/agent_metadata.dart';
-import 'package:vide_cli/modules/agent_network/models/agent_status.dart';
-import 'package:vide_cli/modules/agent_network/service/claude_manager.dart';
-import 'package:vide_cli/modules/agent_network/state/agent_status_manager.dart';
+import 'package:vide_core/vide_core.dart';
 
 class RunningAgentsBar extends StatelessComponent {
   const RunningAgentsBar({super.key, required this.agents, this.selectedIndex = 0});

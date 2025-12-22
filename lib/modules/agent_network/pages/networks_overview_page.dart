@@ -4,10 +4,9 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:claude_api/claude_api.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_list_page.dart';
-import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
-import 'package:vide_cli/utils/project_detector.dart';
 import 'package:path/path.dart' as path;
 
 class NetworksOverviewPage extends StatefulComponent {

@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_cli/modules/mcp/git/git_client.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
 class GitBranchIndicator extends StatefulComponent {
