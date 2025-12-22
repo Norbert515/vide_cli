@@ -119,14 +119,22 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 **Purpose**: Create an abstraction for permission requests that works for both TUI (dialogs) and REST (auto-approve rules)
 
 **Key Classes**:
-- `PermissionRequest` - Tool invocation request data
-- `PermissionDecision` - Allow/deny decision with optional reason
-- `PermissionProvider` - Abstract interface for permission handling
+- `PermissionRequest` - Tool invocation request data (reuse from `apps/vide_cli/lib/modules/permissions/permission_service.dart`)
+- `PermissionResponse` - Allow/deny decision with optional reason (reuse from same file)
+- `PermissionProvider` - Abstract interface:
+  ```dart
+  abstract class PermissionProvider {
+    /// Request permission for a tool invocation
+    Future<PermissionResponse> requestPermission(PermissionRequest request);
+  }
+  ```
 - `permissionProvider` - Riverpod provider (must be overridden by UI)
 
+**Note**: `PermissionRequest` and `PermissionResponse` already exist in the TUI codebase. Move them to vide_core as-is, then delete from TUI.
+
 **Implementation Strategy**:
-- TUI: Create adapter that wraps existing `PermissionService` HTTP server + dialog UI
-- REST: Create `SimplePermissionService` with auto-approve/deny rules
+- TUI: Create adapter that wraps existing `PermissionService` HTTP server + dialog UI, implements `requestPermission()` method
+- REST: Create `SimplePermissionService` with auto-approve/deny rules, implements `requestPermission()` method
 
 **Rationale**: Allows vide_core to request permissions without knowing how they're granted. Each UI implements the provider differently.
 
@@ -163,19 +171,28 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 - Update `startNew()` signature to accept optional `workingDirectory` parameter:
   ```dart
   Future<AgentNetwork> startNew(Message initialMessage, {String? workingDirectory}) async {
-    // ... create network ...
-    // If workingDirectory provided, set worktreePath in the network
+    final networkId = const Uuid().v4();
+    final mainAgentId = const Uuid().v4();
+
+    // ... create agent metadata ...
+
     final network = AgentNetwork(
-      // ... other fields ...
-      worktreePath: workingDirectory, // Set working directory atomically
+      id: networkId,
+      goal: taskDisplayName,
+      agents: [mainAgentMetadata],
+      createdAt: DateTime.now(),
+      lastActiveAt: DateTime.now(),
+      worktreePath: workingDirectory, // Atomically set working directory from parameter
     );
-    // ... persist and return ...
+
+    // ... persist, start agent, and return ...
   }
   ```
-- This defaults to null (uses `effectiveWorkingDirectory` fallback to `workingDirectory` from provider)
-- Both TUI and REST use the same API: TUI omits parameter (uses CWD), REST passes user's directory
+- When `workingDirectory` is provided (REST API), it's atomically set as `worktreePath` in the network
+- When `workingDirectory` is null (TUI default), `worktreePath` is null and `effectiveWorkingDirectory` falls back to `workingDirectory` from provider
+- Both TUI and REST use the same API: TUI omits parameter (uses CWD from provider), REST passes user's directory explicitly
 
-**Rationale**: Single atomic operation prevents errors and simplifies API. No separate `setWorktreePath()` call needed after creation.
+**Rationale**: Single atomic operation during network creation. REST always provides working directory explicitly; TUI relies on provider fallback. Clean separation of concerns.
 
 **Note**: nocterm_riverpod is safe to replace - it's a wrapper that adds nocterm-specific BuildContext extensions. The core Riverpod features (Provider, StateNotifierProvider, ProviderContainer) are identical to standard riverpod.
 
@@ -215,14 +232,15 @@ dependencies:
 - Etc.
 
 **Update calls to `startNew()`**:
-- TUI currently calls `startNew(initialMessage)`
-- Can keep as-is (omit `workingDirectory`, uses default)
-- Or explicitly pass working directory: `startNew(initialMessage, workingDirectory: path.current)`
+- TUI keeps existing calls as-is: `startNew(initialMessage)`
+- The `workingDirectory` parameter is optional and defaults to null
+- When null, `effectiveWorkingDirectory` uses the `workingDirectory` from provider (current directory)
 
 **Create TUI Permission Adapter**:
 - Create `apps/vide_cli/lib/modules/permissions/permission_service_adapter.dart`
 - Implement `PermissionProvider` interface by wrapping existing `PermissionService`
-- This adapter converts between vide_core's `PermissionRequest` and TUI's permission dialog system
+- The adapter implements `requestPermission()` method using the existing HTTP server + dialog stream system
+- Note: `PermissionRequest` and `PermissionResponse` are now in vide_core, so update TUI to use those
 
 **Update TUI Entry Point**:
 - Modify `apps/vide_cli/bin/vide.dart`:
@@ -231,15 +249,13 @@ dependencies:
     ProviderScope(
       overrides: [
         videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: '~/.vide')),
-        permissionProvider.overrideWithValue(TUIPermissionProvider(permissionService)),
+        permissionProvider.overrideWithValue(TUIPermissionAdapter(permissionService)),
         // workingDirProvider uses default (path.current) - not overridden
       ],
       child: VideApp(),
     )
     ```
-- Update TUI calls to `startNew()`:
-  - TUI can omit `workingDirectory` parameter (defaults to null, uses `path.current` from provider)
-  - Or explicitly pass `path.current` for clarity: `startNew(message, workingDirectory: path.current)`
+  - Note: TUI calls to `startNew()` remain unchanged (omit `workingDirectory` parameter)
 
 #### 1.14 Add Refactoring Verification Tests
 **Purpose**: Ensure the new `vide_core` abstraction and dependency injection work correctly.
@@ -591,12 +607,12 @@ void main(List<String> args) async {
 2. **Move** models to vide_core - AS-IS
 3. **Move** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
 4. **Move** PostHogService to vide_core - update init method to use ref.read(videConfigManagerProvider)
-5. **Create** permission provider abstraction (PermissionProvider interface)
+5. **Move** PermissionRequest and PermissionResponse from `apps/vide_cli/lib/modules/permissions/permission_service.dart` to vide_core, then **create** PermissionProvider abstract interface with Riverpod provider
 6. **Move** MemoryService to vide_core - AS-IS
 7. **Move** AgentNetworkPersistenceManager to vide_core - AS-IS
 8. **Move** all agent configs (and prompt_sections) to vide_core - AS-IS
 9. **Move** shared utilities (project_detector, system_prompt_builder, working_dir_provider) to vide_core
-10. **Move** AgentNetworkManager to vide_core - AS-IS (replace nocterm_riverpod with riverpod)
+10. **Move** AgentNetworkManager to vide_core - replace nocterm_riverpod with riverpod, update `startNew()` signature to add optional `workingDirectory` parameter (atomically sets `worktreePath` in network)
 11. **Move** MCP servers from `apps/vide_cli/lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place with workspace dependency
 12. **Move** ClaudeManager and AgentStatusManager to vide_core - AS-IS
 13. Update `apps/vide_cli/pubspec.yaml` to depend on vide_core (workspace resolution)
