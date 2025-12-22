@@ -65,9 +65,29 @@ This prevents any conflicts between CLI and web users working on the same projec
 **New Files:**
 - `packages/vide_core/pubspec.yaml`
 - `packages/vide_core/lib/vide_core.dart` (barrel export - exports all models, services, agents, mcp, utils, state)
-- `packages/vide_core/analysis_options.yaml` (inherits from root)
 
-**Dependencies**: Core Dart packages + Riverpod ^3.0.3 only (replace `nocterm_riverpod` imports with `riverpod` when moving files to vide_core)
+**Dependencies** (replace `nocterm_riverpod` imports with `riverpod` when moving files to vide_core):
+```yaml
+dependencies:
+  claude_api:
+    path: ../claude_api
+  flutter_runtime_mcp:
+    path: ../flutter_runtime_mcp
+  riverpod: ^3.0.3
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  uuid: ^4.0.0
+  path: ^1.8.3
+  http: ^1.1.0
+
+dev_dependencies:
+  build_runner: ^2.4.6
+  freezed: ^2.4.5
+  json_serializable: ^6.7.1
+  test: ^1.24.9
+```
+
+**Note**: No separate analysis_options.yaml needed - root analysis_options.yaml applies to all packages
 
 #### 1.2 Move Models to `vide_core`
 **Move these files** using `git mv` to preserve history:
@@ -336,20 +356,19 @@ dependencies:
 **Purpose**: Ensure the refactored code compiles and follows best practices
 
 **Steps**:
-1. Run analysis on vide_core:
+1. Run analysis on vide_core (from repo root):
    ```bash
-   cd packages/vide_core
-   dart analyze
+   dart analyze packages/vide_core
    ```
 2. Fix all errors and warnings by addressing root causes (per CLAUDE.md - don't paper over issues)
-3. Run analysis on vide_cli (from repo root):
+3. Run analysis on entire project (from repo root):
    ```bash
    dart analyze
    ```
 4. Fix all errors and warnings by addressing root causes
 5. Verify both vide_core and vide_cli are error-free before proceeding
 
-**Note**: This is a critical checkpoint. The project must be in a consistent, compilable state before moving to testing.
+**Note**: This is a critical checkpoint. The project must be in a consistent, compilable state before moving to testing. Root analysis_options.yaml applies to all packages.
 
 #### 1.14 Add Refactoring Verification Tests
 **Purpose**: Ensure the new `vide_core` abstraction and dependency injection work correctly.
@@ -358,6 +377,36 @@ dependencies:
 - `test/config_isolation_test.dart`: Verify that `VideConfigManager` respects the injected `configRoot` path.
 - `test/posthog_refactor_test.dart`: Verify that `PostHogService` initializes correctly with a provided config path (no singleton usage).
 - `test/provider_override_test.dart`: Basic test to verify that `videConfigManagerProvider` throws `UnimplementedError` if not overridden, and works if overridden.
+
+**Test Setup Pattern** (for all vide_core tests):
+```dart
+// Example test setup in vide_core/test/
+import 'package:riverpod/riverpod.dart';
+import 'package:test/test.dart';
+import 'package:vide_core/vide_core.dart';
+
+void main() {
+  test('example test with provider overrides', () {
+    final container = ProviderContainer(
+      overrides: [
+        videConfigManagerProvider.overrideWithValue(
+          VideConfigManager(configRoot: '/tmp/test-vide'),
+        ),
+        workingDirProvider.overrideWith((ref) => '/tmp/test-project'),
+        permissionProvider.overrideWithValue(
+          MockPermissionProvider(), // Test mock implementing PermissionProvider
+        ),
+      ],
+    );
+
+    // Test code using container.read(someProvider)
+
+    container.dispose();
+  });
+}
+```
+
+**Note**: All providers in vide_core throw `UnimplementedError` by default, so tests MUST override them in a `ProviderContainer`.
 
 ---
 
@@ -473,7 +522,9 @@ void main(List<String> args) async {
      "agentName": "Main Orchestrator",
      "taskName": null,
      "type": "message",
-     "content": "I'll help you...",
+     "data": {
+       "content": "I'll help you..."
+     },
      "timestamp": "2025-12-21T10:00:00Z"
    }
    data: {
@@ -482,8 +533,10 @@ void main(List<String> args) async {
      "agentName": "Auth Fix",
      "taskName": "Implementing login flow",
      "type": "tool_use",
-     "tool": "Write",
-     "params": {...},
+     "data": {
+       "tool": "Write",
+       "params": {...}
+     },
      "timestamp": "2025-12-21T10:00:01Z"
    }
    data: {
@@ -492,11 +545,31 @@ void main(List<String> args) async {
      "agentName": "Auth Fix",
      "taskName": "Implementing login flow",
      "type": "tool_result",
-     "result": "...",
+     "data": {
+       "result": "..."
+     },
      "timestamp": "2025-12-21T10:00:02Z"
    }
-   data: {"agentId": "uuid", "type": "done", "timestamp": "..."}
-   data: {"agentId": "uuid", "type": "error", "message": "...", "timestamp": "..."}
+   data: {
+     "agentId": "uuid",
+     "agentType": "main",
+     "agentName": "Main Orchestrator",
+     "taskName": null,
+     "type": "done",
+     "data": null,
+     "timestamp": "2025-12-21T10:00:03Z"
+   }
+   data: {
+     "agentId": "uuid",
+     "agentType": "main",
+     "agentName": "Main Orchestrator",
+     "taskName": null,
+     "type": "error",
+     "data": {
+       "message": "..."
+     },
+     "timestamp": "2025-12-21T10:00:04Z"
+   }
    ```
    **Sub-agent Streaming**: Main agent stream includes ALL network activity (multiplexed). When main agent spawns sub-agents (implementation, context collection, etc.), their activity appears in the main stream. Each event includes `agentId`, `agentType`, `agentName`, and `taskName` so the client can correctly attribute output and display agent-specific UI (e.g., collapsible sections per agent).
 
@@ -553,20 +626,19 @@ void main(List<String> args) async {
 **Purpose**: Ensure vide_server compiles and has no errors before testing
 
 **Steps**:
-1. Run analysis on vide_server:
+1. Run analysis on vide_server (from repo root):
    ```bash
-   cd packages/vide_server
-   dart analyze
+   dart analyze packages/vide_server
    ```
 2. Fix all errors and warnings by addressing root causes
-3. Run analysis on all packages to ensure everything still works together:
+3. Run analysis on all packages to ensure everything still works together (from repo root):
    ```bash
-   cd packages/vide_core && dart analyze
-   cd ../.. && dart analyze
+   dart analyze packages/vide_core
+   dart analyze
    ```
 4. Verify all three packages (vide_core, vide_server, vide_cli) are error-free before manual testing
 
-**Note**: This checkpoint ensures the REST server is in a good state before we start integration testing.
+**Note**: This checkpoint ensures the REST server is in a good state before we start integration testing. Root analysis_options.yaml applies to all packages.
 
 ---
 
@@ -590,17 +662,18 @@ void main(List<String> args) async {
 
 ## Critical Files Summary
 
-### Files to CREATE (~11 new files, ~700 lines)
+### Files to CREATE (16 new files, ~820 lines)
 
-**packages/vide_core/**
+**packages/vide_core/** (7 files)
 - `pubspec.yaml` - Core package definition (includes Riverpod)
 - `lib/vide_core.dart` - Barrel export
-- `lib/services/permission_provider.dart` - Permission abstraction interface (60 lines)
-- `test/config_isolation_test.dart`
-- `test/posthog_refactor_test.dart`
-- `test/provider_override_test.dart`
+- `lib/models/permission.dart` - PermissionRequest and PermissionResponse data classes extracted from TUI (40 lines)
+- `lib/services/permission_provider.dart` - Permission abstraction interface (20 lines)
+- `test/config_isolation_test.dart` - Verify config isolation
+- `test/posthog_refactor_test.dart` - Verify PostHog refactor
+- `test/provider_override_test.dart` - Verify provider overrides work
 
-**packages/vide_server/** (~750 lines total for MVP)
+**packages/vide_server/** (8 files, ~750 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
 - `lib/routes/network_routes.dart` - 3 core endpoints with SSE (200 lines)
@@ -610,7 +683,7 @@ void main(List<String> args) async {
 - `lib/dto/network_dto.dart` - Request/response schemas including enhanced SSEEvent (150 lines)
 - `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
 
-**vide_cli (root)** (TUI-specific)
+**vide_cli (root)** (1 file, TUI-specific)
 - `lib/modules/permissions/permission_service_adapter.dart` - Adapter wrapping PermissionService to implement PermissionProvider interface (40 lines)
 
 ### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
@@ -721,7 +794,7 @@ void main(List<String> args) async {
 2. **git mv** models to vide_core - AS-IS
 3. **git mv** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
 4. **git mv** PostHogService to vide_core - update init method to use ref.read(videConfigManagerProvider)
-5. **git mv** PermissionRequest and PermissionResponse from `lib/modules/permissions/permission_service.dart` to vide_core, then **create** PermissionProvider abstract interface with Riverpod provider
+5. **Extract** PermissionRequest and PermissionResponse from `lib/modules/permissions/permission_service.dart` to new `packages/vide_core/lib/models/permission.dart` (copy, not git mv - they're within a file), then **create** PermissionProvider abstract interface with Riverpod provider in `packages/vide_core/lib/services/permission_provider.dart`
 6. **git mv** MemoryService to vide_core - AS-IS
 7. **git mv** AgentNetworkPersistenceManager to vide_core - AS-IS
 8. **git mv** all agent configs (and prompt_sections) to vide_core - AS-IS
@@ -731,10 +804,10 @@ void main(List<String> args) async {
 12. **git mv** ClaudeManager and AgentStatusManager to vide_core - AS-IS
 13. Update `pubspec.yaml` (root) to depend on vide_core (path dependency)
 14. Update all imports in vide_cli to use `package:vide_core/...`
-15. **RUN DART ANALYSIS**: `cd packages/vide_core && dart analyze` then `cd ../.. && dart analyze` - fix all errors/warnings at root cause
+15. **RUN DART ANALYSIS**: `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings at root cause (root analysis_options.yaml applies to all packages)
 16. **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
 17. **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
-18. **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart`
+18. **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart` (tests must override providers in ProviderContainer)
 19. **Test TUI still works - STOP HERE FOR CHECKPOINT**
 20. Run full TUI test suite (from repo root): `dart test`
 21. Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
@@ -750,8 +823,8 @@ void main(List<String> args) async {
 29. Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, SSEEvent)
 30. Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
 31. Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
-32. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming with multiplexed sub-agent activity
-33. **RUN DART ANALYSIS**: `cd packages/vide_server && dart analyze` - fix all errors/warnings; then verify vide_core and vide_cli still clean
+32. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming with multiplexed sub-agent activity (events nest data under `data` field)
+33. **RUN DART ANALYSIS**: `dart analyze packages/vide_server` then `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings; verify all three packages are clean
 34. **Test MVP end-to-end**: create network → get mainAgentId → open stream → send message → watch agent + sub-agent responses
 35. **Verify TUI still works after Phase 2 changes**
 
@@ -872,7 +945,7 @@ When deploying beyond localhost (post-MVP):
   - GET /networks (list all networks)
   - GET /networks/:id (get network details)
   - DELETE /networks/:id (delete network)
-  - GET /networks/:id (delete network)
+  - GET /networks/:id/status (get current status without streaming)
   - GET /networks/:id/agents (list agents in network)
 
 ### Phase 6: Production Readiness
