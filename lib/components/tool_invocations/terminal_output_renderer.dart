@@ -28,6 +28,12 @@ class TerminalOutputRenderer extends StatefulComponent {
 class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   bool isExpanded = false;
 
+  /// Regex to match ANSI escape sequences (color codes, etc.)
+  static final _ansiRegex = RegExp(r'\x1b\[[0-9;]*m');
+
+  /// Strip ANSI escape codes from text to prevent incorrect width calculations
+  String _stripAnsi(String text) => text.replaceAll(_ansiRegex, '');
+
   @override
   Component build(BuildContext context) {
     // Fallback to DefaultRenderer if no result or error
@@ -138,7 +144,7 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
   Component _buildLine(String line) {
     return Text(
-      line,
+      _stripAnsi(line),
       style: TextStyle(
         color: Color(0xFFD4D4D4), // Terminal text color
       ),
