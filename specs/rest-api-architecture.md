@@ -8,6 +8,7 @@ Transform Vide CLI from a pure TUI application into a dual-interface architectur
 - **Security**: None for MVP (localhost testing only) - add authentication post-MVP
 - **Sessions**: Separate agent network sessions - REST and TUI don't share state
 - **Scope**: Minimal MVP - Start session with prompt, get agent response via SSE streaming
+- **Server binding**: Bind to loopback only and auto-select an unused port; print full URL on startup
 
 ## Architecture Strategy
 
@@ -15,18 +16,25 @@ Transform Vide CLI from a pure TUI application into a dual-interface architectur
 Create shared core package and refactor both CLI and server to use it:
 
 ```
+apps/
+├── vide_cli/              # MOVED: TUI app
+└── (future vide_flutter)
+
 packages/
-├── vide_core/          # NEW: Shared business logic (models, services)
-├── vide_server/        # NEW: REST API server
-└── (vide_cli moves to packages/vide_cli)
+├── vide_core/             # NEW: Shared business logic (models, services)
+├── vide_server/           # NEW: REST API server
+├── flutter_runtime_mcp/   # EXISTING: stays here
+└── (other internal packages)
 ```
+
+**Workspace note**: Repo root becomes workspace tooling only (build/test scripts, docs); update `just` scripts to point at `apps/vide_cli`.
 
 **Rationale**: Single source of truth for business logic. Both TUI and REST API depend on vide_core. Bug fixes and features benefit both implementations immediately.
 
 **Key principle**: DRY (Don't Repeat Yourself). Shared code lives in vide_core, UI-specific code stays in each package.
 
 ### Session Isolation Strategy
-Use user-scoped persistence directories to completely isolate REST and TUI sessions:
+Use UI-scoped persistence directories to completely isolate REST and TUI sessions:
 
 ```
 TUI:  ~/.vide/projects/{encoded-path}/
@@ -46,24 +54,24 @@ This prevents any conflicts between CLI and web users working on the same projec
 - `packages/vide_core/pubspec.yaml`
 - `packages/vide_core/lib/vide_core.dart` (barrel export)
 
-**Dependencies**: Core Dart packages + Riverpod (no nocterm - that's TUI-specific)
+**Dependencies**: Core Dart packages + Riverpod only (replace nocterm_riverpod imports when moving)
 
 #### 1.2 Move Models to `vide_core`
-**Move these files** from `lib/` to `packages/vide_core/lib/models/`:
-- `lib/modules/agent_network/models/agent_network.dart` → `packages/vide_core/lib/models/agent_network.dart`
-- `lib/modules/agent_network/models/agent_metadata.dart` → `packages/vide_core/lib/models/agent_metadata.dart`
-- `lib/modules/agent_network/models/agent_id.dart` → `packages/vide_core/lib/models/agent_id.dart`
-- `lib/modules/memory/model/memory_entry.dart` → `packages/vide_core/lib/models/memory_entry.dart`
+**Move these files** from `apps/vide_cli/lib/` to `packages/vide_core/lib/models/`:
+- `apps/vide_cli/lib/modules/agent_network/models/agent_network.dart` → `packages/vide_core/lib/models/agent_network.dart`
+- `apps/vide_cli/lib/modules/agent_network/models/agent_metadata.dart` → `packages/vide_core/lib/models/agent_metadata.dart`
+- `apps/vide_cli/lib/modules/agent_network/models/agent_id.dart` → `packages/vide_core/lib/models/agent_id.dart`
+- `apps/vide_cli/lib/modules/memory/model/memory_entry.dart` → `packages/vide_core/lib/models/memory_entry.dart`
 
 **Changes required**: None to the models themselves - they're already pure data classes with freezed.
 
 #### 1.3 Move MemoryService to `vide_core`
-**Move file**: `lib/modules/memory/memory_service.dart` → `packages/vide_core/lib/services/memory_service.dart`
+**Move file**: `apps/vide_cli/lib/modules/memory/memory_service.dart` → `packages/vide_core/lib/services/memory_service.dart`
 
 **Changes required**: None - move AS-IS including the Riverpod provider
 
 #### 1.4 Move VideConfigManager to `vide_core`
-**Move file**: `lib/services/vide_config_manager.dart` → `packages/vide_core/lib/services/vide_config_manager.dart`
+**Move file**: `apps/vide_cli/lib/services/vide_config_manager.dart` → `packages/vide_core/lib/services/vide_config_manager.dart`
 
 **Changes**: Convert from singleton to Riverpod provider
 - Remove singleton pattern (factory constructor → normal constructor)
@@ -83,12 +91,12 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 **Rationale**: Uses Riverpod dependency injection instead of modifying core logic. Zero changes to business logic!
 
 #### 1.5 Move AgentNetworkPersistenceManager to `vide_core`
-**Move file**: `lib/modules/agent_network/service/agent_network_persistence_manager.dart` → `packages/vide_core/lib/services/agent_network_persistence_manager.dart`
+**Move file**: `apps/vide_cli/lib/modules/agent_network/service/agent_network_persistence_manager.dart` → `packages/vide_core/lib/services/agent_network_persistence_manager.dart`
 
 **Changes**: None - move AS-IS including the Riverpod provider
 
 #### 1.6 Move Agent Configurations to `vide_core`
-**Move files** from `lib/modules/agents/` to `packages/vide_core/lib/agents/`:
+**Move files** from `apps/vide_cli/lib/modules/agents/` to `packages/vide_core/lib/agents/`:
 - `models/agent_configuration.dart` → `packages/vide_core/lib/agents/agent_configuration.dart`
 - `configs/main_agent_config.dart` → `packages/vide_core/lib/agents/main_agent_config.dart`
 - `configs/implementation_agent_config.dart` → `packages/vide_core/lib/agents/implementation_agent_config.dart`
@@ -99,7 +107,7 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 **Changes**: Remove any nocterm-specific imports. These are pure data classes.
 
 #### 1.7 Move AgentNetworkManager to `vide_core`
-**Move file**: `lib/modules/agent_network/service/agent_network_manager.dart` → `packages/vide_core/lib/services/agent_network_manager.dart`
+**Move file**: `apps/vide_cli/lib/modules/agent_network/service/agent_network_manager.dart` → `packages/vide_core/lib/services/agent_network_manager.dart`
 
 **Changes**: NONE - move AS-IS including all Riverpod code!
 
@@ -107,37 +115,37 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 - Provider already exists and reads from `workingDirProvider`
 - Move `workingDirProvider` definition to vide_core
 - TUI overrides with its working directory
-- REST overrides with request-specific working directory
+- REST overrides only when creating a network; resume uses persisted `worktreePath`
 
 **Rationale**: Zero changes to AgentNetworkManager! UI-specific behavior injected via provider overrides.
 
-#### 1.8 Move ALL MCP Servers to vide_core
+#### 1.8 Move MCP Servers to vide_core (keep flutter_runtime_mcp)
 **Move files**:
-- `lib/modules/mcp/memory/` → `packages/vide_core/lib/mcp/memory/` (entire directory)
-- `lib/modules/mcp/agent/` → `packages/vide_core/lib/mcp/agent/` (entire directory)
-- `lib/modules/mcp/task_management/` → `packages/vide_core/lib/mcp/task_management/` (entire directory)
-- `lib/modules/mcp/git/` → `packages/vide_core/lib/mcp/git/` (entire directory)
-- `packages/flutter_runtime_mcp/` → `packages/vide_core/packages/flutter_runtime_mcp/` (entire package)
+- `apps/vide_cli/lib/modules/mcp/memory/` → `packages/vide_core/lib/mcp/memory/` (entire directory)
+- `apps/vide_cli/lib/modules/mcp/agent/` → `packages/vide_core/lib/mcp/agent/` (entire directory)
+- `apps/vide_cli/lib/modules/mcp/task_management/` → `packages/vide_core/lib/mcp/task_management/` (entire directory)
+- `apps/vide_cli/lib/modules/mcp/git/` → `packages/vide_core/lib/mcp/git/` (entire directory)
+- `packages/flutter_runtime_mcp/` stays in place; add a path dependency from `packages/vide_core` to `../flutter_runtime_mcp`
 
-**Changes**: None - move AS-IS including any Riverpod providers
+**Changes**: Move MCP servers AS-IS; add a path dependency to `flutter_runtime_mcp` in vide_core.
 
-**Rationale**: Moving EVERYTHING non-TUI now avoids future refactoring. Goal is feature-for-feature equivalent web UI eventually.
+**Rationale**: Centralize non-TUI MCP logic in vide_core while keeping `flutter_runtime_mcp` as a sibling package. Goal is feature-for-feature equivalent web UI eventually.
 
 #### 1.9 Move ClaudeManager and AgentStatusManager to vide_core
 **Move files**:
-- `lib/modules/agent_network/service/claude_manager.dart` → `packages/vide_core/lib/services/claude_manager.dart`
-- `lib/modules/agent_network/state/agent_status_manager.dart` → `packages/vide_core/lib/state/agent_status_manager.dart`
+- `apps/vide_cli/lib/modules/agent_network/service/claude_manager.dart` → `packages/vide_core/lib/services/claude_manager.dart`
+- `apps/vide_cli/lib/modules/agent_network/state/agent_status_manager.dart` → `packages/vide_core/lib/state/agent_status_manager.dart`
 
 **Changes**: None - move AS-IS including Riverpod providers
 
 **Rationale**: These are core orchestration services used by AgentNetworkManager. Need them in vide_core for the REST API.
 
 #### 1.10 Update vide_cli to use vide_core
-**Modify**: `pubspec.yaml` - Add dependency:
+**Modify**: `apps/vide_cli/pubspec.yaml` - Add dependency:
 ```yaml
 dependencies:
   vide_core:
-    path: packages/vide_core
+    path: ../../packages/vide_core
 ```
 
 **Update imports** in all files that used moved code:
@@ -147,7 +155,8 @@ dependencies:
 - Replace `package:vide_cli/services/vide_config_manager.dart` with `package:vide_core/services/vide_config_manager.dart`
 - Etc.
 
-**No provider changes needed** - providers moved with their services
+Providers moved with their services, but `vide_cli` and `vide_server` must override
+`videConfigManagerProvider` and `workingDirProvider`.
 
 ---
 
@@ -161,6 +170,7 @@ dependencies:
 dependencies:
   shelf: ^1.4.1
   shelf_router: ^1.1.4
+  riverpod: ^2.5.1
   vide_core:
     path: ../vide_core
 ```
@@ -171,21 +181,27 @@ dependencies:
 **New file**: `packages/vide_server/bin/vide_server.dart` (~100 lines)
 
 **Responsibilities**:
-- Parse CLI arguments (port, host)
-- Initialize VideConfigManager
-- Create shelf HTTP server
+- Parse CLI arguments (port only, optional)
+- Create ProviderContainer with overrides
+- Create shelf HTTP server (bind loopback only)
 - Set up middleware pipeline (CORS, logging only - no auth!)
 - Mount routes
 - Handle graceful shutdown
+**Port selection**: If no port is provided, bind to port 0 and let the OS pick an unused port. Print the full URL (host:port) once bound.
+**CLI option**: Support `--port` to request a specific port; otherwise default to ephemeral.
 
 **Entry point**:
 ```dart
 void main(List<String> args) async {
-  final config = parseServerConfig(args);  // Just port and host
-  VideConfigManager().initialize();
+  final config = parseServerConfig(args);  // port only (optional)
+  final container = ProviderContainer(overrides: [
+    videConfigManagerProvider.overrideWithValue(
+      VideConfigManager(configRoot: '~/.vide/api'),
+    ),
+  ]);
 
-  final handler = createHandler();
-  final server = await serve(handler, config.host, config.port);
+  final handler = createHandler(container);
+  final server = await serve(handler, InternetAddress.loopbackIPv4, config.port ?? 0);
 
   print('Vide API Server: http://${server.address.host}:${server.port}');
   print('WARNING: No authentication - localhost only!');
@@ -209,6 +225,7 @@ void main(List<String> args) async {
      "createdAt": "2025-12-21T10:00:00Z"
    }
    ```
+   **Requirement**: `workingDirectory` is required for MVP.
 
 2. **POST /api/v1/networks/:networkId/messages** - Send message to agent
    ```
@@ -223,9 +240,14 @@ void main(List<String> args) async {
    data: {"type":"message","content":"I'll help you..."}
    data: {"type":"tool_use","tool":"Write","params":{...}}
    data: {"type":"tool_result","result":"..."}
+   data: {"type":"done"}
+   data: {"type":"error","message":"..."}
    ```
 
 **Implementation note**: Endpoints run actual ClaudeClient instances. SSE streams real-time agent responses.
+**Working directory behavior**:
+- On `POST /networks`, override `workingDirProvider` with `workingDirectory`, then call `setWorktreePath(workingDirectory)` so it persists in `AgentNetwork.worktreePath`.
+- On `/messages` and `/stream`, load the network from persistence, call `resume(network)`, and rely on `worktreePath` for the effective working directory.
 
 #### 2.4 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
@@ -253,7 +275,7 @@ void main(List<String> args) async {
 **Purpose**: Request/response schemas
 
 **Key DTOs**:
-- `CreateNetworkRequest` - { initialMessage, workingDirectory }
+- `CreateNetworkRequest` - { initialMessage, workingDirectory (required) }
 - `SendMessageRequest` - { content }
 - `SSEEvent` - { type, data }
 
@@ -263,10 +285,10 @@ void main(List<String> args) async {
 
 #### 3.1 Manual Testing
 **Test scenario**: End-to-end chat flow
-1. Start server: `dart run bin/vide_server.dart`
-2. Create network: `curl -X POST localhost:3000/api/v1/networks -d '{"initialMessage":"Hello","workingDirectory":"."}'`
+1. Start server (from `packages/vide_server`): `dart run bin/vide_server.dart`
+2. Create network (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/networks -d '{"initialMessage":"Hello","workingDirectory":"."}'`
 3. Open SSE stream in browser or curl
-4. Send message: `curl -X POST localhost:3000/api/v1/networks/{id}/messages -d '{"content":"Write hello.dart"}'`
+4. Send message: `curl -X POST http://127.0.0.1:<port>/api/v1/networks/{id}/messages -d '{"content":"Write hello.dart"}'`
 5. Watch agent response in SSE stream
 
 #### 3.2 Documentation
@@ -292,45 +314,45 @@ void main(List<String> args) async {
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
 - `lib/dto/network_dto.dart` - Request/response schemas (100 lines)
-- `lib/config/server_config.dart` - CLI arg parsing (40 lines)
+- `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
 
-### Files to MOVE to vide_core (everything non-TUI)
+### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
 
-**Move from lib/ to packages/vide_core/** (ALL AS-IS, keeping Riverpod):
+**Move from apps/vide_cli/lib/ to packages/vide_core/** (ALL AS-IS, keeping Riverpod):
 
 **Models:**
-- `lib/modules/agent_network/models/*.dart` → `packages/vide_core/lib/models/`
-- `lib/modules/memory/model/memory_entry.dart` → `packages/vide_core/lib/models/`
+- `apps/vide_cli/lib/modules/agent_network/models/*.dart` → `packages/vide_core/lib/models/`
+- `apps/vide_cli/lib/modules/memory/model/memory_entry.dart` → `packages/vide_core/lib/models/`
 
 **Core Services:**
-- `lib/modules/agent_network/service/agent_network_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
-- `lib/modules/agent_network/service/claude_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
-- `lib/modules/agent_network/service/agent_network_persistence_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
-- `lib/modules/agent_network/state/agent_status_manager.dart` → `packages/vide_core/lib/state/` (AS-IS)
-- `lib/modules/memory/memory_service.dart` → `packages/vide_core/lib/services/` (AS-IS)
-- `lib/services/vide_config_manager.dart` → `packages/vide_core/lib/services/` (convert singleton → Riverpod provider)
+- `apps/vide_cli/lib/modules/agent_network/service/agent_network_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
+- `apps/vide_cli/lib/modules/agent_network/service/claude_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
+- `apps/vide_cli/lib/modules/agent_network/service/agent_network_persistence_manager.dart` → `packages/vide_core/lib/services/` (AS-IS)
+- `apps/vide_cli/lib/modules/agent_network/state/agent_status_manager.dart` → `packages/vide_core/lib/state/` (AS-IS)
+- `apps/vide_cli/lib/modules/memory/memory_service.dart` → `packages/vide_core/lib/services/` (AS-IS)
+- `apps/vide_cli/lib/services/vide_config_manager.dart` → `packages/vide_core/lib/services/` (convert singleton → Riverpod provider)
 
 **MCP Servers (entire directories):**
-- `lib/modules/mcp/memory/` → `packages/vide_core/lib/mcp/memory/`
-- `lib/modules/mcp/agent/` → `packages/vide_core/lib/mcp/agent/`
-- `lib/modules/mcp/task_management/` → `packages/vide_core/lib/mcp/task_management/`
-- `lib/modules/mcp/git/` → `packages/vide_core/lib/mcp/git/`
-- `packages/flutter_runtime_mcp/` → `packages/vide_core/packages/flutter_runtime_mcp/`
+- `apps/vide_cli/lib/modules/mcp/memory/` → `packages/vide_core/lib/mcp/memory/`
+- `apps/vide_cli/lib/modules/mcp/agent/` → `packages/vide_core/lib/mcp/agent/`
+- `apps/vide_cli/lib/modules/mcp/task_management/` → `packages/vide_core/lib/mcp/task_management/`
+- `apps/vide_cli/lib/modules/mcp/git/` → `packages/vide_core/lib/mcp/git/`
+- `packages/flutter_runtime_mcp/` stays in place; add a path dependency from `packages/vide_core` to `../flutter_runtime_mcp`
 
 **Agent Configurations:**
-- `lib/modules/agents/models/agent_configuration.dart` → `packages/vide_core/lib/agents/`
-- `lib/modules/agents/configs/*.dart` → `packages/vide_core/lib/agents/`
+- `apps/vide_cli/lib/modules/agents/models/agent_configuration.dart` → `packages/vide_core/lib/agents/`
+- `apps/vide_cli/lib/modules/agents/configs/*.dart` → `packages/vide_core/lib/agents/`
 
-### Files to UPDATE in vide_cli
+### Files to UPDATE in vide_cli (apps/vide_cli)
 
 **vide_cli changes**:
-- `pubspec.yaml` - Add vide_core dependency
+- `apps/vide_cli/pubspec.yaml` - Add vide_core dependency (`path: ../../packages/vide_core`)
 - Update imports in ~20-30 files to use `package:vide_core/...`
 
 **What STAYS in vide_cli:**
-- TUI pages and components (`lib/modules/agent_network/pages/`, `lib/components/`) - all nocterm UI
-- Permission Service (`lib/modules/permissions/`) - shows permission dialogs to user
-- Entry point (`bin/vide.dart`)
+- TUI pages and components (`apps/vide_cli/lib/modules/agent_network/pages/`, `apps/vide_cli/lib/components/`) - all nocterm UI
+- Permission Service (`apps/vide_cli/lib/modules/permissions/`) - shows permission dialogs to user
+- Entry point (`apps/vide_cli/bin/vide.dart`)
 
 ---
 
@@ -365,7 +387,7 @@ void main(List<String> args) async {
                │  Used by TUI
                │
 ┌──────────────▼──────────────────────────┐
-│  vide_cli (REFACTORED - TUI only)       │
+│  vide_cli (apps/ - TUI only)            │
 │  ├─ TUI Pages & Components (nocterm)    │
 │  ├─ Permission Service (dialog UI)      │
 │  ├─ Entry point (bin/vide.dart)         │
@@ -378,6 +400,7 @@ void main(List<String> args) async {
 ## Implementation Sequence
 
 ### Phase 1: Foundation - Extract vide_core (Day 1-2) **CHECKPOINT PHASE**
+0. Move `vide_cli` into `apps/vide_cli` and update workspace tooling references (`just` scripts, docs)
 1. Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_api, riverpod, freezed, json_serializable, etc.)
 2. **Move** models to vide_core - AS-IS
 3. **Move** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
@@ -388,19 +411,19 @@ void main(List<String> args) async {
 8. **Move** workingDirProvider to vide_core (just the provider definition)
 9. **Move** ClaudeManager to vide_core - AS-IS
 10. **Move** AgentStatusManager to vide_core - AS-IS
-11. **Move** ALL MCP servers to vide_core - AS-IS
-12. Update vide_cli pubspec.yaml to depend on vide_core
+11. **Move** MCP servers from `apps/vide_cli/lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place
+12. Update `apps/vide_cli/pubspec.yaml` to depend on vide_core (`path: ../../packages/vide_core`)
 13. Update all imports in vide_cli
 14. **Add provider overrides in TUI**: VideConfigManager (configRoot = ~/.vide), workingDirProvider
 15. **Test TUI still works - STOP HERE FOR CHECKPOINT**
-16. Run full TUI test suite: `dart test`
+16. Run full TUI test suite (from `apps/vide_cli`): `dart test`
 17. Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
 18. **Only proceed to Phase 2 after TUI is 100% verified working**
 
 ### Phase 2: Build MVP REST Server (Day 3) **AFTER PHASE 1 CHECKPOINT**
 19. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
 20. Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
-21. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), workingDirProvider (from request)
+21. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api); override workingDirProvider only when starting a new network
 22. Implement CORS middleware (allow all origins for localhost MVP)
 23. Implement simple permission service (auto-approve safe ops, deny dangerous ops)
 24. Implement network DTOs (CreateNetworkRequest, SendMessageRequest, SSEEvent)
@@ -442,8 +465,8 @@ void main(List<String> args) async {
 **Why**: Existing services already use Riverpod, REST API can use it too (it's not TUI-specific)
 **Trade-off**: None - Riverpod is just a Dart package for dependency injection
 
-### 5. Move Everything Non-TUI in Phase 1
-**Decision**: One big refactor now, not incremental refactoring later
+### 5. Move All Non-TUI `apps/vide_cli/lib/` Code in Phase 1
+**Decision**: Move non-TUI code from `apps/vide_cli/lib/` into vide_core in one pass; keep standalone packages (like `flutter_runtime_mcp`) in `packages/`
 **Why**: Goal is feature-for-feature equivalent web UI eventually
 **Trade-off**: Bigger Phase 1, but avoids future refactoring pain
 
@@ -454,6 +477,11 @@ void main(List<String> args) async {
 - VideConfigManager: TUI overrides with `configRoot = ~/.vide`, REST with `~/.vide/api`
 - workingDirProvider: Each UI provides its own implementation
 **Trade-off**: None - this is how Riverpod is meant to be used!
+
+### 7. Loopback-Only Binding with Ephemeral Port (MVP)
+**Decision**: Bind to loopback only and auto-select an unused port
+**Why**: Prevents accidental exposure while auth is absent; no host config needed
+**Trade-off**: Harder to front with a reverse proxy without changing config behavior
 
 ---
 
@@ -476,6 +504,7 @@ When deploying beyond localhost (post-MVP):
 ✅ **TUI continues to work after refactoring to use vide_core**
 ✅ **Both TUI and REST API share the same business logic (single source of truth)**
 ✅ **REST server starts on localhost (no auth - testing only)**
+✅ **REST server auto-selects an unused port and prints the full URL**
 ✅ **Can create network with initial prompt via POST /api/v1/networks**
 ✅ **Can send messages via POST .../messages**
 ✅ **Can receive agent responses in real-time via SSE stream**
