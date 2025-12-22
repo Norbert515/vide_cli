@@ -10,6 +10,16 @@ Transform Vide CLI from a pure TUI application into a dual-interface architectur
 - **Scope**: Minimal MVP - Start session with prompt, get agent response via SSE streaming
 - **Server binding**: Bind to loopback only and auto-select an unused port; print full URL on startup
 
+## Implementation Decisions (from user Q&A)
+- **Network tracking**: Hybrid approach - cache loaded networks in memory for performance
+- **Agent ID exposure**: Return `mainAgentId` in POST /networks response for immediate streaming
+- **Permission system**: Create `PermissionProvider` interface in vide_core (abstraction layer)
+- **PostHogService init**: Pass `VideConfigManager` instance via provider (not String)
+- **Sub-agent streaming**: Multiplex all network activity into main agent's stream
+- **Message concurrency**: Queue messages (already built-in to ClaudeClient's `_inbox`)
+- **Workspace dependencies**: Use workspace resolution for flutter_runtime_mcp
+- **nocterm_riverpod**: Confirmed safe to replace in vide_core (just a wrapper with TUI-specific extensions)
+
 ## Architecture Strategy
 
 ### Package Structure
@@ -100,14 +110,32 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 **Move file**: `apps/vide_cli/lib/services/posthog_service.dart` → `packages/vide_core/lib/services/posthog_service.dart`
 
 **Changes**:
-- Update `init()` to accept `configRoot` string (or the `VideConfigManager` instance) so it doesn't need to instantiate `VideConfigManager` directly (which is now a provider).
+- Update `init()` to accept `Ref` parameter and use `ref.read(videConfigManagerProvider)` to access config (instead of singleton)
+- This allows PostHogService to use dependency injection via Riverpod providers
 
-#### 1.6 Move AgentNetworkPersistenceManager to `vide_core`
+#### 1.6 Create Permission Provider Abstraction
+**New file**: `packages/vide_core/lib/services/permission_provider.dart` (~60 lines)
+
+**Purpose**: Create an abstraction for permission requests that works for both TUI (dialogs) and REST (auto-approve rules)
+
+**Key Classes**:
+- `PermissionRequest` - Tool invocation request data
+- `PermissionDecision` - Allow/deny decision with optional reason
+- `PermissionProvider` - Abstract interface for permission handling
+- `permissionProvider` - Riverpod provider (must be overridden by UI)
+
+**Implementation Strategy**:
+- TUI: Create adapter that wraps existing `PermissionService` HTTP server + dialog UI
+- REST: Create `SimplePermissionService` with auto-approve/deny rules
+
+**Rationale**: Allows vide_core to request permissions without knowing how they're granted. Each UI implements the provider differently.
+
+#### 1.7 Move AgentNetworkPersistenceManager to `vide_core`
 **Move file**: `apps/vide_cli/lib/modules/agent_network/service/agent_network_persistence_manager.dart` → `packages/vide_core/lib/services/agent_network_persistence_manager.dart`
 
 **Changes**: None - move AS-IS including the Riverpod provider
 
-#### 1.7 Move Agent Configurations to `vide_core`
+#### 1.8 Move Agent Configurations to `vide_core`
 **Move files** from `apps/vide_cli/lib/modules/agents/` to `packages/vide_core/lib/agents/`:
 - `models/agent_configuration.dart` → `packages/vide_core/lib/agents/agent_configuration.dart`
 - `configs/main_agent_config.dart` → `packages/vide_core/lib/agents/main_agent_config.dart`
@@ -119,7 +147,7 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 
 **Changes**: Remove any nocterm-specific imports. These are pure data classes.
 
-#### 1.8 Move Shared Utilities to `vide_core`
+#### 1.9 Move Shared Utilities to `vide_core`
 **Move these files** from `apps/vide_cli/lib/utils/` to `packages/vide_core/lib/utils/`:
 - `project_detector.dart`
 - `system_prompt_builder.dart`
@@ -127,7 +155,7 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 
 **Changes**: Update imports in files that use these.
 
-#### 1.9 Move AgentNetworkManager to `vide_core`
+#### 1.10 Move AgentNetworkManager to `vide_core`
 **Move file**: `apps/vide_cli/lib/modules/agent_network/service/agent_network_manager.dart` → `packages/vide_core/lib/services/agent_network_manager.dart`
 
 **Changes**:
@@ -141,19 +169,21 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 
 **Rationale**: Zero changes to AgentNetworkManager logic! UI-specific behavior injected via provider overrides.
 
-#### 1.10 Move MCP Servers to vide_core (keep flutter_runtime_mcp)
+**Note**: nocterm_riverpod is safe to replace - it's a wrapper that adds nocterm-specific BuildContext extensions. The core Riverpod features (Provider, StateNotifierProvider, ProviderContainer) are identical to standard riverpod.
+
+#### 1.11 Move MCP Servers to vide_core (keep flutter_runtime_mcp)
 **Move files**:
 - `apps/vide_cli/lib/modules/mcp/memory/` → `packages/vide_core/lib/mcp/memory/` (entire directory)
 - `apps/vide_cli/lib/modules/mcp/agent/` → `packages/vide_core/lib/mcp/agent/` (entire directory)
 - `apps/vide_cli/lib/modules/mcp/task_management/` → `packages/vide_core/lib/mcp/task_management/` (entire directory)
 - `apps/vide_cli/lib/modules/mcp/git/` → `packages/vide_core/lib/mcp/git/` (entire directory)
-- `packages/flutter_runtime_mcp/` stays in place; add `flutter_runtime_mcp: ^0.1.0` in `packages/vide_core/pubspec.yaml`
+- `packages/flutter_runtime_mcp/` stays in place; add workspace dependency in `packages/vide_core/pubspec.yaml`
 
-**Changes**: Move MCP servers AS-IS; add `flutter_runtime_mcp: ^0.1.0` in vide_core.
+**Changes**: Move MCP servers AS-IS; add `flutter_runtime_mcp: ^0.1.0` with workspace resolution in vide_core.
 
 **Rationale**: Centralize non-TUI MCP logic in vide_core while keeping `flutter_runtime_mcp` as a sibling package. Goal is feature-for-feature equivalent web UI eventually.
 
-#### 1.11 Move ClaudeManager and AgentStatusManager to vide_core
+#### 1.12 Move ClaudeManager and AgentStatusManager to vide_core
 **Move files**:
 - `apps/vide_cli/lib/modules/agent_network/service/claude_manager.dart` → `packages/vide_core/lib/services/claude_manager.dart`
 - `apps/vide_cli/lib/modules/agent_network/state/agent_status_manager.dart` → `packages/vide_core/lib/state/agent_status_manager.dart`
@@ -162,7 +192,7 @@ final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
 
 **Rationale**: These are core orchestration services used by AgentNetworkManager. Need them in vide_core for the REST API.
 
-#### 1.12 Update vide_cli to use vide_core
+#### 1.13 Update vide_cli to use vide_core
 **Modify**: `apps/vide_cli/pubspec.yaml` - Add dependency (workspace resolution):
 ```yaml
 dependencies:
@@ -176,6 +206,11 @@ dependencies:
 - Replace `package:vide_cli/services/vide_config_manager.dart` with `package:vide_core/services/vide_config_manager.dart`
 - Etc.
 
+**Create TUI Permission Adapter**:
+- Create `apps/vide_cli/lib/modules/permissions/permission_service_adapter.dart`
+- Implement `PermissionProvider` interface by wrapping existing `PermissionService`
+- This adapter converts between vide_core's `PermissionRequest` and TUI's permission dialog system
+
 **Update TUI Entry Point**:
 - Modify `apps/vide_cli/bin/vide.dart`:
   - Initialize the `ProviderScope` with overrides:
@@ -183,13 +218,14 @@ dependencies:
     ProviderScope(
       overrides: [
         videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: '~/.vide')),
+        permissionProvider.overrideWithValue(TUIPermissionProvider(permissionService)),
         // workingDirProvider is likely overridden here or in a scope closer to execution
       ],
       child: VideApp(),
     )
     ```
 
-#### 1.13 Add Refactoring Verification Tests
+#### 1.14 Add Refactoring Verification Tests
 **Purpose**: Ensure the new `vide_core` abstraction and dependency injection work correctly.
 
 **New Tests in `packages/vide_core/test/`**:
@@ -215,7 +251,20 @@ dependencies:
 
 **Note**: No JWT, bcrypt, or auth dependencies for MVP!
 
-#### 2.2 Implement Server Entry Point
+#### 2.2 Implement Network Cache Manager
+**New file**: `packages/vide_server/lib/services/network_cache_manager.dart` (~40 lines)
+
+**Purpose**: Hybrid caching strategy - load networks from persistence on first access, then cache in memory
+
+**Strategy**:
+- Check in-memory cache first (O(1) lookup)
+- If not cached, load from persistence
+- Cache the loaded network for future requests
+- Provides `invalidate()` method for cache clearing
+
+**Rationale**: Balances performance (cached lookups) with statelessness (can restart server without losing state).
+
+#### 2.3 Implement Server Entry Point
 **New file**: `packages/vide_server/bin/vide_server.dart` (~100 lines)
 
 **Responsibilities**:
@@ -246,7 +295,7 @@ void main(List<String> args) async {
 }
 ```
 
-#### 2.3 Implement Core Network API Endpoints (MVP)
+#### 2.4 Implement Core Network API Endpoints (MVP)
 **New file**: `packages/vide_server/lib/routes/network_routes.dart` (~200 lines)
 
 **3 Core MVP Endpoints** (NO authentication for MVP):
@@ -263,13 +312,17 @@ void main(List<String> args) async {
      "createdAt": "2025-12-21T10:00:00Z"
    }
    ```
-   **Requirement**: `workingDirectory` is required for MVP.
+   **Requirements**:
+   - `workingDirectory` is required for MVP
+   - Response MUST include `mainAgentId` so client can open SSE stream immediately
+   - `mainAgentId` is the first agent in the network (the orchestrator agent)
 
 2. **POST /api/v1/networks/:networkId/messages** - Send message to agent
    ```
    Request:  {"content": "Now make it print goodbye too"}
    Response: {"status": "sent"}
    ```
+   **Note**: Messages are automatically queued if agent is busy. ClaudeClient has built-in FIFO message queue (`_inbox`), so concurrent requests are handled sequentially.
 
 3. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (SSE)
    ```
@@ -281,20 +334,21 @@ void main(List<String> args) async {
    data: {"type":"done"}
    data: {"type":"error","message":"..."}
    ```
+   **Sub-agent Streaming**: Main agent stream includes ALL network activity (multiplexed). When main agent spawns sub-agents (implementation, context collection, etc.), their activity appears in the main stream. Client subscribes to one stream and sees complete network activity.
 
 **Implementation note**: Endpoints run actual ClaudeClient instances. SSE streams real-time agent responses.
 **Working directory behavior**:
 - On `POST /networks`, override `workingDirProvider` with `workingDirectory`, then call `setWorktreePath(workingDirectory)` so it persists in `AgentNetwork.worktreePath`.
 - On `/messages` and `/stream`, load the network from persistence, call `resume(network)`, and rely on `worktreePath` for the effective working directory.
 
-#### 2.4 Implement Middleware
+#### 2.5 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
 
 **Responsibilities**:
 - Add CORS headers (allow all origins for MVP - localhost only anyway)
 - Handle preflight OPTIONS requests
 
-#### 2.5 Implement Simple Permission System for MVP
+#### 2.6 Implement Simple Permission System for MVP
 **New file**: `packages/vide_server/lib/services/simple_permission_service.dart` (~80 lines)
 
 **Purpose**: Simple auto-approve/deny permission rules for MVP
@@ -307,7 +361,7 @@ void main(List<String> args) async {
 
 **Note**: For MVP testing on localhost. Post-MVP will add webhook callbacks.
 
-#### 2.6 Implement DTOs (Data Transfer Objects)
+#### 2.7 Implement DTOs (Data Transfer Objects)
 **New file**: `packages/vide_server/lib/dto/network_dto.dart` (~100 lines)
 
 **Purpose**: Request/response schemas
@@ -339,7 +393,7 @@ void main(List<String> args) async {
 
 ## Critical Files Summary
 
-### Files to CREATE (~9 new files, ~600 lines)
+### Files to CREATE (~12 new files, ~700 lines)
 
 **workspace root**
 - `pubspec.yaml` - Workspace config (`publish_to: none`, `workspace: [apps/vide_cli, packages/vide_core, packages/vide_server, packages/flutter_runtime_mcp]`)
@@ -347,18 +401,23 @@ void main(List<String> args) async {
 **packages/vide_core/**
 - `pubspec.yaml` - Core package definition (includes Riverpod)
 - `lib/vide_core.dart` - Barrel export
+- `lib/services/permission_provider.dart` - Permission abstraction interface (60 lines)
 - `test/config_isolation_test.dart`
 - `test/posthog_refactor_test.dart`
 - `test/provider_override_test.dart`
 
-**packages/vide_server/** (~600 lines total for MVP)
+**packages/vide_server/** (~700 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
 - `lib/routes/network_routes.dart` - 3 core endpoints with SSE (200 lines)
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
+- `lib/services/network_cache_manager.dart` - Hybrid caching for networks (40 lines)
 - `lib/dto/network_dto.dart` - Request/response schemas (100 lines)
 - `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
+
+**apps/vide_cli/** (TUI-specific)
+- `lib/modules/permissions/permission_service_adapter.dart` - Adapter wrapping PermissionService to implement PermissionProvider interface (40 lines)
 
 ### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
 
@@ -452,47 +511,56 @@ void main(List<String> args) async {
 ## Implementation Sequence
 
 ### Phase 1: Foundation - Extract vide_core (Day 1-2) **CHECKPOINT PHASE**
+
+**Pre-Investigation (COMPLETED)**:
+- ✅ Confirmed nocterm_riverpod is safe to replace in vide_core (it's a wrapper with nocterm-specific BuildContext extensions)
+- ✅ Explored permission system architecture (HTTP server + TUI dialogs, needs abstraction)
+- ✅ Analyzed AgentNetworkManager (has built-in message queue, persistence via JSON, resume() flow)
+
+**Implementation Steps**:
 0. Move `vide_cli` into `apps/vide_cli`, add workspace root `pubspec.yaml` with explicit app/package `workspace` lists, set `resolution: workspace` in all app/package pubspecs, and update `just` scripts
 1. Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_api, riverpod ^3.0.3, freezed, json_serializable, etc.)
 2. **Move** models to vide_core - AS-IS
 3. **Move** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
-4. **Move** PostHogService to vide_core - update init method
-5. **Move** MemoryService to vide_core - AS-IS
-6. **Move** AgentNetworkPersistenceManager to vide_core - AS-IS
-7. **Move** all agent configs (and prompt_sections) to vide_core - AS-IS
-8. **Move** shared utilities (project_detector, system_prompt_builder, working_dir_provider) to vide_core
-9. **Move** AgentNetworkManager to vide_core - AS-IS (NO changes to logic!)
-10. **Move** ClaudeManager to vide_core - AS-IS
-11. **Move** AgentStatusManager to vide_core - AS-IS
-12. **Move** MCP servers from `apps/vide_cli/lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place
+4. **Move** PostHogService to vide_core - update init method to use ref.read(videConfigManagerProvider)
+5. **Create** permission provider abstraction (PermissionProvider interface)
+6. **Move** MemoryService to vide_core - AS-IS
+7. **Move** AgentNetworkPersistenceManager to vide_core - AS-IS
+8. **Move** all agent configs (and prompt_sections) to vide_core - AS-IS
+9. **Move** shared utilities (project_detector, system_prompt_builder, working_dir_provider) to vide_core
+10. **Move** AgentNetworkManager to vide_core - AS-IS (replace nocterm_riverpod with riverpod)
+11. **Move** MCP servers from `apps/vide_cli/lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place with workspace dependency
+12. **Move** ClaudeManager and AgentStatusManager to vide_core - AS-IS
 13. Update `apps/vide_cli/pubspec.yaml` to depend on vide_core (workspace resolution)
 14. Update all imports in vide_cli
-15. **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager and workingDirProvider
-16. **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart`
-17. **Test TUI still works - STOP HERE FOR CHECKPOINT**
-18. Run full TUI test suite (from `apps/vide_cli`): `dart test`
-19. Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
-20. **Only proceed to Phase 2 after TUI is 100% verified working**
+15. **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
+16. **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
+17. **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart`
+18. **Test TUI still works - STOP HERE FOR CHECKPOINT**
+19. Run full TUI test suite (from `apps/vide_cli`): `dart test`
+20. Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
+21. **Only proceed to Phase 2 after TUI is 100% verified working**
 
 ### Phase 2: Build MVP REST Server (Day 3) **AFTER PHASE 1 CHECKPOINT**
-21. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
-22. Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
-23. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api); override workingDirProvider only when starting a new network
-24. Implement CORS middleware (allow all origins for localhost MVP)
-25. Implement simple permission service (auto-approve safe ops, deny dangerous ops)
-26. Implement network DTOs (CreateNetworkRequest, SendMessageRequest, SSEEvent)
-27. Implement POST /api/v1/networks - uses AgentNetworkManager from vide_core
-28. Implement POST /api/v1/networks/:id/messages - uses AgentNetworkManager
-29. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming from ClaudeClient
-30. **Test MVP end-to-end**: create network → send message → watch agent response in SSE stream
-31. **Verify TUI still works after Phase 2 changes**
+22. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
+23. Implement network cache manager (hybrid caching strategy)
+24. Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
+25. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); override workingDirProvider only when starting a new network
+26. Implement CORS middleware (allow all origins for localhost MVP)
+27. Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
+28. Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, SSEEvent)
+29. Implement POST /api/v1/networks - uses AgentNetworkManager from vide_core, returns mainAgentId for streaming
+30. Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
+31. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming with multiplexed sub-agent activity
+32. **Test MVP end-to-end**: create network → get mainAgentId → open stream → send message → watch agent + sub-agent responses
+33. **Verify TUI still works after Phase 2 changes**
 
 ### Phase 3: Testing & Documentation (Day 4)
-32. Manual testing with curl and browser (full chat conversation workflow)
-33. Add error handling for common cases (network errors, invalid requests)
-34. Write API documentation with curl examples (packages/vide_server/API.md)
-35. Create simple HTML test client for testing SSE streaming
-36. Update root README.md to explain dual-interface architecture
+34. Manual testing with curl and browser (full chat conversation workflow)
+35. Add error handling for common cases (network errors, invalid requests)
+36. Write API documentation with curl examples (packages/vide_server/API.md)
+37. Create simple HTML test client for testing SSE streaming
+38. Update root README.md to explain dual-interface architecture
 
 ---
 
@@ -536,6 +604,26 @@ void main(List<String> args) async {
 **Decision**: Bind to loopback only and auto-select an unused port
 **Why**: Prevents accidental exposure while auth is absent; no host config needed
 **Trade-off**: Harder to front with a reverse proxy without changing config behavior
+
+### 8. Permission Provider Abstraction
+**Decision**: Create `PermissionProvider` interface in vide_core
+**Why**: Allows business logic to request permissions without knowing implementation (TUI dialogs vs REST auto-rules)
+**Implementation**:
+- TUI: Adapter wraps existing HTTP server + dialog system
+- REST: SimplePermissionService with auto-approve/deny rules
+**Trade-off**: None - clean separation of concerns
+
+### 9. Hybrid Network Caching
+**Decision**: In-memory cache with persistence fallback
+**Why**: Fast lookups (O(1)) while maintaining stateless server (can restart without losing networks)
+**Implementation**: `NetworkCacheManager` checks cache first, loads from persistence if needed, caches result
+**Trade-off**: Minimal - small memory overhead, but improves performance significantly
+
+### 10. Multiplex Sub-Agent Activity
+**Decision**: Main agent stream includes all sub-agent activity
+**Why**: Client subscribes to one stream and sees complete network activity (main + implementation + context collection agents)
+**Implementation**: Stream from main agent's ClaudeClient conversation feed
+**Trade-off**: More complex stream parsing for client, but simpler subscription model
 
 ---
 
