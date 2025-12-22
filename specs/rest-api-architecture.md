@@ -1,5 +1,20 @@
 # REST API Architecture Plan for Vide CLI
 
+## 🎯 Current Status
+
+**Phase 1: COMPLETE ✅** (Completed: December 21, 2025)
+- Extracted `vide_core` package with all shared business logic
+- Updated TUI to use `vide_core` via provider overrides
+- All 225 tests passing
+- `dart analyze` clean (no issues)
+- TUI compiles and runs successfully
+
+**Phase 2: NOT STARTED** (Next: Build REST API server)
+
+**Phase 3: NOT STARTED** (Final: Testing & Documentation)
+
+---
+
 ## Overview
 Transform Vide CLI from a pure TUI application into a dual-interface architecture supporting both CLI (text UI) and Web (REST API backend). The REST API server will run as a separate process, exposing core functionality via HTTP endpoints for building a web frontend.
 
@@ -790,28 +805,28 @@ void main(List<String> args) async {
 - ✅ Analyzed AgentNetworkManager (has built-in message queue, persistence via JSON, resume() flow)
 
 **Implementation Steps** (Use `git mv` for ALL file moves!):
-1. Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_api via path, riverpod ^3.0.3, freezed, json_serializable, etc.)
-2. **git mv** models to vide_core - AS-IS
-3. **git mv** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
-4. **git mv** PostHogService to vide_core - update init method to use ref.read(videConfigManagerProvider)
-5. **Extract** PermissionRequest and PermissionResponse from `lib/modules/permissions/permission_service.dart` to new `packages/vide_core/lib/models/permission.dart` (copy, not git mv - they're within a file), then **create** PermissionProvider abstract interface with Riverpod provider in `packages/vide_core/lib/services/permission_provider.dart`
-6. **git mv** MemoryService to vide_core - AS-IS
-7. **git mv** AgentNetworkPersistenceManager to vide_core - AS-IS
-8. **git mv** all agent configs (and prompt_sections) to vide_core - AS-IS
-9. **git mv** shared utilities (project_detector, system_prompt_builder, working_dir_provider) to vide_core
-10. **git mv** AgentNetworkManager to vide_core - replace nocterm_riverpod with riverpod, update `startNew()` signature to add optional `workingDirectory` parameter (atomically sets `worktreePath` in network)
-11. **git mv** MCP servers from `lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place with path dependency
-12. **git mv** ClaudeManager and AgentStatusManager to vide_core - AS-IS
-13. Update `pubspec.yaml` (root) to depend on vide_core (path dependency)
-14. Update all imports in vide_cli to use `package:vide_core/...`
-15. **RUN DART ANALYSIS**: `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings at root cause (root analysis_options.yaml applies to all packages)
-16. **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
-17. **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
-18. **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart` (tests must override providers in ProviderContainer)
-19. **Test TUI still works - STOP HERE FOR CHECKPOINT**
-20. Run full TUI test suite (from repo root): `dart test`
-21. Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
-22. **Only proceed to Phase 2 after TUI is 100% verified working**
+1. ✅ Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_api via path, riverpod ^2.5.1, freezed, json_serializable, etc.)
+2. ✅ **git mv** models to vide_core - AS-IS
+3. ✅ **git mv** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
+4. ✅ **git mv** PostHogService to vide_core - update init method to accept VideConfigManager directly
+5. ✅ **Extract** PermissionRequest and PermissionResponse from `lib/modules/permissions/permission_service.dart` to new `packages/vide_core/lib/models/permission.dart` (copy, not git mv - they're within a file), then **create** PermissionProvider abstract interface with Riverpod provider in `packages/vide_core/lib/services/permission_provider.dart`
+6. ✅ **git mv** MemoryService to vide_core - AS-IS
+7. ✅ **git mv** AgentNetworkPersistenceManager to vide_core - AS-IS
+8. ✅ **git mv** all agent configs (and prompt_sections) to vide_core - AS-IS
+9. ✅ **git mv** shared utilities (project_detector, system_prompt_builder, working_dir_provider) to vide_core
+10. ✅ **git mv** AgentNetworkManager to vide_core - replace nocterm_riverpod with riverpod, update `startNew()` signature to add optional `workingDirectory` parameter (atomically sets `worktreePath` in network)
+11. ✅ **git mv** MCP servers from `lib/modules/mcp` to vide_core - AS-IS; keep `flutter_runtime_mcp` in place with path dependency
+12. ✅ **git mv** ClaudeManager and AgentStatusManager to vide_core - AS-IS
+13. ✅ Update `pubspec.yaml` (root) to depend on vide_core (path dependency)
+14. ✅ Update all imports in vide_cli to use `package:vide_core/...`
+15. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings at root cause (root analysis_options.yaml applies to all packages)
+16. ✅ **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
+17. ✅ **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
+18. ✅ **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart` (tests must override providers in ProviderContainer)
+19. ✅ **Test TUI still works - STOP HERE FOR CHECKPOINT**
+20. ✅ Run full TUI test suite (from repo root): `dart test` - All 225 tests passing
+21. ✅ Manually test: agent spawning, memory persistence, all MCP servers, Git operations, Flutter runtime
+22. ✅ **Phase 1 COMPLETE - Ready to proceed to Phase 2**
 
 ### Phase 2: Build MVP REST Server (Day 3) **AFTER PHASE 1 CHECKPOINT**
 23. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
@@ -916,17 +931,23 @@ When deploying beyond localhost (post-MVP):
 
 ## MVP Success Criteria
 
+**Phase 1 - COMPLETE:**
 ✅ **TUI continues to work after refactoring to use vide_core**
 ✅ **Both TUI and REST API share the same business logic (single source of truth)**
-✅ **REST server starts on localhost (no auth - testing only)**
-✅ **REST server auto-selects an unused port and prints the full URL**
-✅ **Can create network with initial prompt via POST /api/v1/networks**
-✅ **Can send messages via POST .../messages**
-✅ **Can receive agent responses in real-time via SSE stream**
-✅ **Full chat conversation works end-to-end via REST API**
-✅ **Agent can spawn sub-agents (implementation, context collection, etc.)**
-✅ **Permissions auto-approve safe operations, deny dangerous ones**
-✅ **Bug fixes in vide_core automatically benefit both TUI and REST API**
+✅ **All 225 tests passing**
+✅ **dart analyze shows no issues**
+✅ **TUI compiles and runs successfully**
+
+**Phase 2 - PENDING:**
+⬜ **REST server starts on localhost (no auth - testing only)**
+⬜ **REST server auto-selects an unused port and prints the full URL**
+⬜ **Can create network with initial prompt via POST /api/v1/networks**
+⬜ **Can send messages via POST .../messages**
+⬜ **Can receive agent responses in real-time via SSE stream**
+⬜ **Full chat conversation works end-to-end via REST API**
+⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)**
+⬜ **Permissions auto-approve safe operations, deny dangerous ones**
+⬜ **Bug fixes in vide_core automatically benefit both TUI and REST API**
 
 ---
 
