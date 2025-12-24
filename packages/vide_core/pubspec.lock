@@ -336,7 +336,7 @@ packages:
     source: hosted
     version: "2.0.0"
   moondream_api:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../moondream_api"
       relative: true

@@ -1,0 +1,61 @@
+name: vide_cli
+repository: https://github.com/Norbert515/vide_cli
+
+packages:
+  - packages/*
+  - .
+
+ignore:
+  - packages/flutter_runtime_mcp/test_app
+  - packages/flutter_runtime_mcp/tui_test_app
+  - packages/runtime_ai_dev_tools
+
+command:
+  bootstrap:
+    usePubspecOverrides: true
+
+ide:
+  intellij: false
+
+scripts:
+  analyze:
+    run: dart analyze --fatal-infos
+    exec:
+      concurrency: 1
+    description: Run dart analyze in all packages
+
+  test:
+    run: dart test
+    exec:
+      concurrency: 1
+    packageFilters:
+      dirExists: test
+    description: Run tests in all packages
+
+  build_runner:
+    run: dart run build_runner build --delete-conflicting-outputs
+    exec:
+      concurrency: 1
+    packageFilters:
+      dependsOn: build_runner
+    description: Run build_runner in packages that need code generation
+
+  format:
+    run: dart format .
+    exec:
+      concurrency: 1
+    description: Format all Dart files
+
+  format:check:
+    run: dart format --set-exit-if-changed .
+    exec:
+      concurrency: 1
+    description: Check formatting in all packages
+
+  clean:
+    run: |
+      rm -rf .dart_tool
+      rm -rf build
+    exec:
+      concurrency: 5
+    description: Clean build artifacts
