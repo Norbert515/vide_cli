@@ -27,4 +27,4 @@ jobs:
         run: melos exec -- dart analyze
 
       - name: Run tests in all packages
-        run: melos exec --fail-fast -- dart test --exclude-tags e2e
+        run: melos run test --no-select
