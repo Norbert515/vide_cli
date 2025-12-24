@@ -1,9 +1,18 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'package:claude_api/claude_api.dart';
 import 'package:uuid/uuid.dart';
+
+import '../models/config.dart';
+import '../models/message.dart';
+import '../models/response.dart';
+import '../models/conversation.dart';
+import '../mcp/server/mcp_server_base.dart';
 import '../protocol/json_decoder.dart';
+import '../control/control_protocol.dart';
+import '../control/control_types.dart';
+import 'conversation_loader.dart';
+import 'process_manager.dart';
 
 abstract class ClaudeClient {
   Stream<Conversation> get conversation;
@@ -24,8 +33,24 @@ abstract class ClaudeClient {
 
   factory ClaudeClient({ClaudeConfig? config, List<McpServerBase>? mcpServers}) = ClaudeClientImpl;
 
-  static Future<ClaudeClient> create({ClaudeConfig? config, List<McpServerBase>? mcpServers}) async {
-    final client = ClaudeClientImpl(config: config ?? ClaudeConfig.defaults(), mcpServers: mcpServers);
+  static Future<ClaudeClient> create({
+    ClaudeConfig? config,
+    List<McpServerBase>? mcpServers,
+    Map<HookEvent, List<HookMatcher>>? hooks,
+    CanUseToolCallback? canUseTool,
+  }) async {
+    // Auto-enable control protocol if hooks or canUseTool are provided
+    var effectiveConfig = config ?? ClaudeConfig.defaults();
+    if ((hooks != null && hooks.isNotEmpty) || canUseTool != null) {
+      effectiveConfig = effectiveConfig.copyWith(useControlProtocol: true);
+    }
+
+    final client = ClaudeClientImpl(
+      config: effectiveConfig,
+      mcpServers: mcpServers,
+      hooks: hooks,
+      canUseTool: canUseTool,
+    );
     await client.init();
     return client;
   }
@@ -37,6 +62,15 @@ class ClaudeClientImpl implements ClaudeClient {
   @override
   final String sessionId;
   final JsonDecoder _decoder = JsonDecoder();
+
+  /// Hook configuration for control protocol
+  final Map<HookEvent, List<HookMatcher>>? hooks;
+
+  /// Permission callback for control protocol
+  final CanUseToolCallback? canUseTool;
+
+  /// Control protocol handler (when using control protocol mode)
+  ControlProtocol? _controlProtocol;
 
   bool _isInitialized = false;
   bool _isFirstMessage = true;
@@ -69,10 +103,14 @@ class ClaudeClientImpl implements ClaudeClient {
   @override
   Conversation get currentConversation => _currentConversation;
 
-  ClaudeClientImpl({ClaudeConfig? config, List<McpServerBase>? mcpServers})
-    : config = config ?? ClaudeConfig.defaults(),
-      mcpServers = mcpServers ?? [],
-      sessionId = config?.sessionId ?? const Uuid().v4() {
+  ClaudeClientImpl({
+    ClaudeConfig? config,
+    List<McpServerBase>? mcpServers,
+    this.hooks,
+    this.canUseTool,
+  })  : config = config ?? ClaudeConfig.defaults(),
+        mcpServers = mcpServers ?? [],
+        sessionId = config?.sessionId ?? const Uuid().v4() {
     // Update config with session ID if not already set
     if (this.config.sessionId == null) {
       this.config = this.config.copyWith(sessionId: sessionId);
@@ -111,6 +149,150 @@ class ClaudeClientImpl implements ClaudeClient {
 
       await server.start();
     }
+
+    // Start control protocol if enabled
+    if (config.useControlProtocol) {
+      await _startControlProtocol();
+    }
+  }
+
+  /// Start a persistent process with control protocol
+  Future<void> _startControlProtocol() async {
+    print('[ClaudeClient] Starting control protocol mode...');
+
+    final processManager = ProcessManager(config: config, mcpServers: mcpServers);
+    final args = config.toCliArgs(isFirstMessage: _isFirstMessage);
+
+    final mcpArgs = await processManager.getMcpArgs();
+    if (mcpArgs.isNotEmpty) {
+      args.insertAll(0, mcpArgs);
+    }
+
+    print('[ClaudeClient] Starting persistent process with control protocol');
+
+    // Start persistent process
+    final process = await Process.start(
+      'claude',
+      args,
+      environment: <String, String>{'MCP_TOOL_TIMEOUT': '30000000'},
+      runInShell: true,
+      includeParentEnvironment: true,
+      workingDirectory: config.workingDirectory,
+    );
+    _activeProcess = process;
+    print('[ClaudeClient] Control protocol process started with PID: ${process.pid}');
+
+    // Create control protocol handler
+    _controlProtocol = ControlProtocol(process);
+
+    // Listen to messages from control protocol
+    _controlProtocol!.messages.listen(_handleControlProtocolMessage);
+
+    // Listen to stderr
+    process.stderr.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+      if (line.isNotEmpty) {
+        print('[ClaudeClient] CLI stderr: $line');
+      }
+    });
+
+    // Initialize with hooks
+    await _controlProtocol!.initialize(
+      hooks: hooks,
+      canUseTool: canUseTool,
+    );
+
+    print('[ClaudeClient] Control protocol initialized');
+  }
+
+  /// Handle messages from the control protocol
+  void _handleControlProtocolMessage(Map<String, dynamic> json) {
+    try {
+      final response = _decoder.decodeSingle(jsonEncode(json));
+      if (response == null) return;
+
+      // Track session ID
+      if (json['session_id'] != null) {
+        _latestConversationUuid = json['session_id'] as String;
+      }
+
+      _processResponse(response);
+    } catch (e) {
+      print('[ClaudeClient] Error processing control protocol message: $e');
+    }
+  }
+
+  /// Process a response and update conversation state
+  void _processResponse(ClaudeResponse response) {
+    // Get or create current assistant message
+    final assistantId = DateTime.now().millisecondsSinceEpoch.toString();
+    final existingMessage = _currentConversation.messages.lastOrNull;
+    final isAssistantMessage = existingMessage?.role == MessageRole.assistant && existingMessage?.isStreaming == true;
+
+    List<ClaudeResponse> responses;
+    if (isAssistantMessage) {
+      responses = [...existingMessage!.responses, response];
+    } else {
+      responses = [response];
+    }
+
+    if (response is TextResponse) {
+      final message = ConversationMessage.assistant(
+        id: isAssistantMessage ? existingMessage!.id : assistantId,
+        responses: responses,
+        isStreaming: true,
+      );
+
+      if (isAssistantMessage) {
+        _updateConversation(_currentConversation.updateLastMessage(message));
+      } else {
+        _updateConversation(_currentConversation.addMessage(message).withState(ConversationState.receivingResponse));
+      }
+    } else if (response is ToolUseResponse || response is ToolResultResponse) {
+      final message = ConversationMessage.assistant(
+        id: isAssistantMessage ? existingMessage!.id : assistantId,
+        responses: responses,
+        isStreaming: true,
+      );
+
+      if (isAssistantMessage) {
+        _updateConversation(_currentConversation.updateLastMessage(message));
+      } else {
+        _updateConversation(_currentConversation.addMessage(message).withState(ConversationState.processing));
+      }
+    } else if (response is CompletionResponse) {
+      final message = ConversationMessage.assistant(
+        id: isAssistantMessage ? existingMessage!.id : assistantId,
+        responses: responses,
+        isStreaming: false,
+        isComplete: true,
+      );
+
+      final updatedConversation = (isAssistantMessage
+              ? _currentConversation.updateLastMessage(message)
+              : _currentConversation.addMessage(message))
+          .withState(ConversationState.idle)
+          .copyWith(
+            totalInputTokens: _currentConversation.totalInputTokens + (response.inputTokens ?? 0),
+            totalOutputTokens: _currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
+          );
+
+      _updateConversation(updatedConversation);
+      _turnCompleteController.add(null);
+    } else if (response is ErrorResponse) {
+      final message = ConversationMessage.assistant(
+        id: isAssistantMessage ? existingMessage!.id : assistantId,
+        responses: responses,
+        isStreaming: false,
+        isComplete: true,
+      ).copyWith(error: response.error);
+
+      if (isAssistantMessage) {
+        _updateConversation(_currentConversation.updateLastMessage(message).withError(response.error));
+      } else {
+        _updateConversation(_currentConversation.addMessage(message).withError(response.error));
+      }
+      _turnCompleteController.add(null);
+    }
   }
 
   @override
@@ -138,7 +320,13 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
 
-    // Queue message in inbox if a process is already active.
+    // Use control protocol if enabled
+    if (config.useControlProtocol && _controlProtocol != null) {
+      _sendMessageViaControlProtocol(message);
+      return;
+    }
+
+    // Legacy mode: Queue message in inbox if a process is already active.
     // This prevents race conditions when multiple sub-agents report back simultaneously.
     // Messages will be processed in order when the current turn completes.
     if (_activeProcess != null) {
@@ -148,6 +336,25 @@ class ClaudeClientImpl implements ClaudeClient {
     }
 
     _processMessageFromInbox(message);
+  }
+
+  /// Send message via control protocol (bidirectional mode)
+  void _sendMessageViaControlProtocol(Message message) {
+    // Add user message to conversation
+    final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
+    _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+
+    // Send via control protocol
+    if (message.attachments != null && message.attachments!.isNotEmpty) {
+      // Build content array with attachments
+      final content = <Map<String, dynamic>>[
+        {'type': 'text', 'text': message.text},
+        ...message.attachments!.map((a) => a.toClaudeJson()),
+      ];
+      _controlProtocol!.sendUserMessageWithContent(content);
+    } else {
+      _controlProtocol!.sendUserMessage(message.text);
+    }
   }
 
   /// Process the next message from the inbox when a turn completes.
@@ -533,6 +740,20 @@ class ClaudeClientImpl implements ClaudeClient {
     print('[ClaudeClient] VERBOSE: Closing ClaudeClient');
     print('[ClaudeClient] VERBOSE: Session ID: $sessionId');
     print('[ClaudeClient] VERBOSE: MCP servers to stop: ${mcpServers.length}');
+
+    // Close control protocol if active
+    if (_controlProtocol != null) {
+      print('[ClaudeClient] VERBOSE: Closing control protocol...');
+      await _controlProtocol!.close();
+      _controlProtocol = null;
+    }
+
+    // Kill active process if any
+    if (_activeProcess != null) {
+      print('[ClaudeClient] VERBOSE: Killing active process...');
+      _activeProcess!.kill();
+      _activeProcess = null;
+    }
 
     // Stop all MCP servers
     if (mcpServers.isNotEmpty) {

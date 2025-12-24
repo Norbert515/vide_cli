@@ -14,6 +14,9 @@ export 'src/models/complete_response.dart';
 export 'src/models/conversation.dart';
 export 'src/models/tool_invocation.dart';
 
+// Control Protocol (hooks, permissions)
+export 'src/control/control.dart';
+
 // Configurations
 export 'src/configs/clarification_agent_config.dart';
 

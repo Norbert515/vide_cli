@@ -17,6 +17,12 @@ class ClaudeConfig {
   final String? permissionMode;
   final String? workingDirectory;
   final List<String>? allowedTools;
+  final List<String>? disallowedTools;
+  final int? maxTurns;
+
+  /// Enable control protocol mode for hooks and permission callbacks.
+  /// When true, uses bidirectional stream-json communication.
+  final bool useControlProtocol;
 
   const ClaudeConfig({
     this.model,
@@ -32,6 +38,9 @@ class ClaudeConfig {
     this.permissionMode,
     this.workingDirectory,
     this.allowedTools,
+    this.disallowedTools,
+    this.maxTurns,
+    this.useControlProtocol = false,
   });
 
   factory ClaudeConfig.defaults() => const ClaudeConfig();
@@ -57,14 +66,22 @@ class ClaudeConfig {
       }
     }
 
-    // Use pipe mode with JSON streaming output
-    // Input format depends on whether we're using attachments
-    args.addAll([
-      '-p', // Pipe mode
-      '--output-format=stream-json',
-      '--input-format=${useJsonInput ? 'stream-json' : 'text'}',
-      '--verbose', // Required for stream-json with -p
-    ]);
+    // Control protocol mode uses bidirectional stream-json
+    if (useControlProtocol) {
+      args.addAll([
+        '--output-format=stream-json',
+        '--input-format=stream-json',
+        '--verbose',
+      ]);
+    } else {
+      // Legacy mode: pipe mode with optional JSON input
+      args.addAll([
+        '-p', // Pipe mode
+        '--output-format=stream-json',
+        '--input-format=${useJsonInput ? 'stream-json' : 'text'}',
+        '--verbose', // Required for stream-json with -p
+      ]);
+    }
 
     if (model != null) {
       args.addAll(['--model', model!]);
@@ -90,12 +107,20 @@ class ClaudeConfig {
       args.addAll(['--allowed-tools', allowedTools!.join(',')]);
     }
 
+    if (disallowedTools != null && disallowedTools!.isNotEmpty) {
+      args.addAll(['--disallowed-tools', disallowedTools!.join(',')]);
+    }
+
+    if (maxTurns != null) {
+      args.addAll(['--max-turns', maxTurns.toString()]);
+    }
+
     if (additionalFlags != null) {
       args.addAll(additionalFlags!);
     }
 
-    // Add message as last argument if provided
-    if (message != null) {
+    // Add message as last argument if provided (only for non-control mode)
+    if (message != null && !useControlProtocol) {
       args.add(message);
     }
 
@@ -116,6 +141,9 @@ class ClaudeConfig {
     String? permissionMode,
     String? workingDirectory,
     List<String>? allowedTools,
+    List<String>? disallowedTools,
+    int? maxTurns,
+    bool? useControlProtocol,
   }) {
     return ClaudeConfig(
       model: model ?? this.model,
@@ -131,6 +159,9 @@ class ClaudeConfig {
       permissionMode: permissionMode ?? this.permissionMode,
       workingDirectory: workingDirectory ?? this.workingDirectory,
       allowedTools: allowedTools ?? this.allowedTools,
+      disallowedTools: disallowedTools ?? this.disallowedTools,
+      maxTurns: maxTurns ?? this.maxTurns,
+      useControlProtocol: useControlProtocol ?? this.useControlProtocol,
     );
   }
 }
