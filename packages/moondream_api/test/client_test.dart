@@ -120,7 +120,14 @@ void main() {
         final body = jsonDecode(request.body);
         expect(body['object'], equals('person'));
 
-        return http.Response(jsonEncode({'x': 123.0, 'y': 456.0}), 200);
+        return http.Response(
+          jsonEncode({
+            'points': [
+              {'x': 123.0, 'y': 456.0},
+            ],
+          }),
+          200,
+        );
       });
 
       final client = MoondreamClient(
@@ -135,6 +142,7 @@ void main() {
 
       expect(response.x, equals(123.0));
       expect(response.y, equals(456.0));
+      expect(response.points, hasLength(1));
 
       client.dispose();
     });

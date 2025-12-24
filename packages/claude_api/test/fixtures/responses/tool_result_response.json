@@ -1,0 +1,14 @@
+{
+  "type": "user",
+  "uuid": "msg_test_result",
+  "message": {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "tool_test_789",
+        "content": "File contents here"
+      }
+    ]
+  }
+}

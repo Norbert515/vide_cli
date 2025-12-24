@@ -13,7 +13,7 @@ sealed class MoondreamResponse {
       return CaptionResponse.fromJson(json);
     } else if (json.containsKey('objects')) {
       return DetectResponse.fromJson(json);
-    } else if (json.containsKey('x') && json.containsKey('y')) {
+    } else if (json.containsKey('points')) {
       return PointResponse.fromJson(json);
     } else if (json.containsKey('error')) {
       return ErrorResponse.fromJson(json);

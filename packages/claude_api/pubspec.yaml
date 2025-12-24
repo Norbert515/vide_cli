@@ -17,3 +17,4 @@ dev_dependencies:
   json_serializable: ^6.7.1
   build_runner: ^2.4.0
   lints: ^3.0.0
+  coverage: ^1.7.0

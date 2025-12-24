@@ -1,0 +1,16 @@
+{
+  "type": "assistant",
+  "uuid": "msg_test_456",
+  "message": {
+    "id": "msg_test_456",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "tool_test_789",
+        "name": "Read",
+        "input": {"file_path": "/path/to/file.txt"}
+      }
+    ]
+  }
+}

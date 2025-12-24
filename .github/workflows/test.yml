@@ -17,11 +17,14 @@ jobs:
         with:
           sdk: "3.9.0"
 
-      - name: Install dependencies
-        run: dart pub get
+      - name: Install melos
+        run: dart pub global activate melos
 
-      - name: Analyze
-        run: dart analyze
+      - name: Bootstrap workspace
+        run: melos bootstrap
 
-      - name: Run tests
-        run: dart test
+      - name: Analyze all packages
+        run: melos exec -- dart analyze
+
+      - name: Run tests in all packages
+        run: melos exec --fail-fast -- dart test --exclude-tags e2e

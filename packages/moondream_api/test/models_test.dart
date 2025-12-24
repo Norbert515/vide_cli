@@ -120,11 +120,16 @@ void main() {
     });
 
     test('PointResponse parses correctly', () {
-      final json = {'x': 123.0, 'y': 456.0};
+      final json = {
+        'points': [
+          {'x': 123.0, 'y': 456.0},
+        ],
+      };
       final response = PointResponse.fromJson(json);
 
       expect(response.x, equals(123.0));
       expect(response.y, equals(456.0));
+      expect(response.points, hasLength(1));
     });
 
     test('BoundingBox calculates dimensions correctly', () {
@@ -163,10 +168,16 @@ void main() {
     });
 
     test('creates PointResponse from JSON', () {
-      final json = {'x': 1.0, 'y': 2.0};
+      final json = {
+        'points': [
+          {'x': 1.0, 'y': 2.0},
+        ],
+      };
       final response = MoondreamResponse.fromJson(json);
 
       expect(response, isA<PointResponse>());
+      expect((response as PointResponse).x, equals(1.0));
+      expect(response.y, equals(2.0));
     });
 
     test('throws on unknown response format', () {

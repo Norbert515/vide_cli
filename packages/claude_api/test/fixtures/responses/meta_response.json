@@ -1,0 +1,6 @@
+{
+  "type": "system",
+  "subtype": "init",
+  "conversation_id": "conv_test_123",
+  "metadata": {"version": "1.0"}
+}

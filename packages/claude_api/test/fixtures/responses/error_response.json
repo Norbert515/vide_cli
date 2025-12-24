@@ -1,0 +1,7 @@
+{
+  "type": "error",
+  "error": "Something went wrong",
+  "details": "More information here",
+  "code": "ERR_001",
+  "id": "err_test_123"
+}

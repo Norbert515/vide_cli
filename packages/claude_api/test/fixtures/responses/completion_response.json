@@ -1,0 +1,6 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "uuid": "result_test_123",
+  "usage": {"input_tokens": 100, "output_tokens": 50}
+}
