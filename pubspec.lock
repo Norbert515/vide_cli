@@ -161,13 +161,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.4"
-  claude_api:
-    dependency: "direct main"
-    description:
-      path: "packages/claude_api"
-      relative: true
-    source: path
-    version: "0.1.0"
   cli_config:
     dependency: transitive
     description:
@@ -288,13 +281,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
-  flutter_runtime_mcp:
-    dependency: "direct main"
-    description:
-      path: "packages/flutter_runtime_mcp"
-      relative: true
-    source: path
-    version: "0.1.0"
   freezed:
     dependency: "direct dev"
     description:
@@ -407,6 +393,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.9.5"
+  lints:
+    dependency: transitive
+    description:
+      name: lints
+      sha256: cbf8d4b858bb0134ef3ef87841abdf8d63bfc255c266b7bf6b39daa1085c4290
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.0"
   logging:
     dependency: transitive
     description:
@@ -443,10 +437,10 @@ packages:
     dependency: "direct dev"
     description:
       name: melos
-      sha256: "4280dc46bd5b741887cce1e67e5c1a6aaf3c22310035cf5bd33dceeeda62ed22"
+      sha256: ff2da25990d83b0db883eb257e4fa25eb78150a329e7bfab7a379499d0f5f6f7
       url: "https://pub.dev"
     source: hosted
-    version: "6.3.3"
+    version: "7.3.0"
   meta:
     dependency: transitive
     description:
@@ -463,13 +457,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
-  moondream_api:
-    dependency: "direct overridden"
-    description:
-      path: "packages/moondream_api"
-      relative: true
-    source: path
-    version: "0.1.0"
   mustache_template:
     dependency: transitive
     description:
@@ -516,6 +503,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.9.1"
+  petitparser:
+    dependency: transitive
+    description:
+      name: petitparser
+      sha256: "1a97266a94f7350d30ae522c0af07890c70b8e62c71e8e3920d1db4d23c057d1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.0.1"
   platform:
     dependency: transitive
     description:
@@ -796,13 +791,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.5.2"
-  vide_core:
-    dependency: "direct main"
-    description:
-      path: "packages/vide_core"
-      relative: true
-    source: path
-    version: "1.0.0"
   vm_service:
     dependency: transitive
     description:
@@ -851,6 +839,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.2.1"
+  xml:
+    dependency: transitive
+    description:
+      name: xml
+      sha256: "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.6.1"
   yaml:
     dependency: "direct main"
     description:
@@ -876,4 +872,4 @@ packages:
     source: hosted
     version: "0.0.6"
 sdks:
-  dart: ">=3.8.0 <4.0.0"
+  dart: ">=3.9.0 <4.0.0"
