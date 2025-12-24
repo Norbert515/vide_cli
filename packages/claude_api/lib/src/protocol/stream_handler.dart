@@ -4,40 +4,39 @@ import 'dart:io';
 import '../models/response.dart';
 import 'json_decoder.dart';
 
+/// Handles streaming responses from a Claude CLI process.
+///
+/// This class parses JSON responses from the process stdout and
+/// converts them into typed [ClaudeResponse] objects.
 class StreamHandler {
   final JsonDecoder _decoder = JsonDecoder();
   final StreamController<ClaudeResponse> _responseController =
       StreamController<ClaudeResponse>.broadcast();
 
+  /// Stream of parsed responses from the process.
   Stream<ClaudeResponse> get responses => _responseController.stream;
 
   StreamSubscription<String>? _subscription;
 
+  /// Attach to a process and start parsing its output.
   void attachToProcess(Process process) {
-    print('[StreamHandler] Attaching to process PID: ${process.pid}');
-
     // Handle stdout
     _subscription = process.stdout
         .transform(utf8.decoder)
         .listen(
           _handleLine,
           onError: _handleError,
-          onDone: () {
-            print('[StreamHandler] stdout stream done');
-            _handleDone();
-          },
+          onDone: _handleDone,
         );
 
     // Handle stderr for errors
     process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
-        .listen(
-          _handleStderr,
-          onDone: () => print('[StreamHandler] stderr stream done'),
-        );
+        .listen(_handleStderr);
   }
 
+  /// Attach to a logged process (line-by-line output).
   void attachToLoggedProcess(Process process) {
     // Handle stdout
     _subscription = process.stdout
@@ -57,26 +56,14 @@ class StreamHandler {
       return;
     }
 
-    print(
-      '[StreamHandler] Received line: ${line.substring(0, line.length > 100 ? 100 : line.length)}${line.length > 100 ? '...' : ''}',
-    );
-
-    try {
-      final response = _decoder.decodeSingle(line);
-      if (response != null) {
-        print('[StreamHandler] Parsed response type: ${response.runtimeType}');
-        _responseController.add(response);
-      } else {
-        print('[StreamHandler] Could not parse line as response');
-      }
-    } catch (e) {
-      print('[StreamHandler] Parse error: $e');
+    final response = _decoder.decodeSingle(line);
+    if (response != null) {
+      _responseController.add(response);
     }
   }
 
   void _handleStderr(String line) {
     if (line.isNotEmpty) {
-      print('[StreamHandler] STDERR: $line');
       _responseController.add(
         ErrorResponse(
           id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -89,7 +76,6 @@ class StreamHandler {
   }
 
   void _handleError(Object error) {
-    print('[StreamHandler] Stream error: $error');
     _responseController.add(
       ErrorResponse(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -101,7 +87,6 @@ class StreamHandler {
   }
 
   void _handleDone() {
-    print('[StreamHandler] Stream completed, sending completion response');
     // Send completion when the process ends
     _responseController.add(
       CompletionResponse(
@@ -112,8 +97,8 @@ class StreamHandler {
     );
   }
 
+  /// Dispose of resources and close the response stream.
   Future<void> dispose() async {
-    print('[StreamHandler] Disposing stream handler');
     await _subscription?.cancel();
     await _responseController.close();
   }

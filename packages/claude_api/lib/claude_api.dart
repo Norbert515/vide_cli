@@ -6,11 +6,13 @@ export 'src/client/mock_claude_client.dart';
 export 'src/client/process_manager.dart';
 export 'src/client/conversation_loader.dart';
 
+// Errors
+export 'src/errors/claude_errors.dart';
+
 // Models
 export 'src/models/config.dart';
 export 'src/models/message.dart';
 export 'src/models/response.dart';
-export 'src/models/complete_response.dart';
 export 'src/models/conversation.dart';
 export 'src/models/tool_invocation.dart';
 

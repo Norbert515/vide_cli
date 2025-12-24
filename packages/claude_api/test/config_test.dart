@@ -23,12 +23,13 @@ void main() {
 
       final args = config.toCliArgs();
 
-      expect(args, contains('-p'));
+      // Control protocol args (always used)
       expect(args, contains('--output-format=stream-json'));
-      expect(args, contains('--input-format=text'));
+      expect(args, contains('--input-format=stream-json'));
+      expect(args, contains('--verbose'));
+      // Model and other params
       expect(args, contains('--model'));
       expect(args, contains('claude-3-opus'));
-      expect(args, contains('--verbose'));
       expect(args, contains('--append-system-prompt'));
       expect(args, contains('You are helpful'));
       expect(args, contains('--temperature'));

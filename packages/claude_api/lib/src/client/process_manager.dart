@@ -3,96 +3,55 @@ import 'dart:convert';
 import '../models/config.dart';
 import '../mcp/server/mcp_server_base.dart';
 
+/// Manages MCP server configuration for Claude CLI processes.
 class ProcessManager {
   final ClaudeConfig config;
   final List<McpServerBase> mcpServers;
 
   ProcessManager({required this.config, this.mcpServers = const []});
 
+  /// Generate CLI arguments for MCP server configuration.
+  ///
+  /// Returns a list of arguments to pass to the Claude CLI, including
+  /// the --mcp-config flag with JSON configuration for all registered servers.
   Future<List<String>> getMcpArgs() async {
-    print('[ProcessManager] VERBOSE: ========================================');
-    print('[ProcessManager] VERBOSE: Generating MCP args');
-    print('[ProcessManager] VERBOSE: Total MCP servers: ${mcpServers.length}');
-
-    final args = <String>[];
-
-    // Add MCP server configurations
-    if (mcpServers.isNotEmpty) {
-      print('[ProcessManager] VERBOSE: Processing ${mcpServers.length} MCP servers...');
-
-      // Create the proper mcpServers configuration object
-      final mcpServersConfig = <String, dynamic>{};
-
-      for (int i = 0; i < mcpServers.length; i++) {
-        final server = mcpServers[i];
-        print('[ProcessManager] VERBOSE: Processing server ${i + 1}/${mcpServers.length}: ${server.name}');
-        print('[ProcessManager] VERBOSE: Server ${server.name} isRunning: ${server.isRunning}');
-
-        try {
-          print('[ProcessManager] VERBOSE: Getting config for ${server.name}...');
-          final serverConfig = server.toClaudeConfig();
-          print('[ProcessManager] VERBOSE: ${server.name} config: ${jsonEncode(serverConfig)}');
-          mcpServersConfig[server.name] = serverConfig;
-          print('[ProcessManager] VERBOSE: ${server.name} tools: ${server.toolNames.join(", ")}');
-          print('[ProcessManager] VERBOSE: ✓ Successfully processed ${server.name}');
-        } catch (e, stackTrace) {
-          print('[ProcessManager] VERBOSE: ❌ Failed to get config for ${server.name}: $e');
-          print('[ProcessManager] VERBOSE: Stack trace: $stackTrace');
-        }
-      }
-
-      // Add Dart MCP server (uses stdio transport, Claude handles it)
-      print('[ProcessManager] VERBOSE: Adding Dart MCP server configuration...');
-      mcpServersConfig['dart'] = {
-        'command': 'dart',
-        'args': ['mcp-server']
-      };
-      print('[ProcessManager] VERBOSE: ✓ Added Dart MCP server');
-
-      // Create the complete configuration with mcpServers wrapper
-      final fullConfig = {'mcpServers': mcpServersConfig};
-      print('[ProcessManager] VERBOSE: Full MCP config: ${jsonEncode(fullConfig)}');
-      print('[ProcessManager] VERBOSE: Using inline MCP config');
-
-      args.addAll(['--mcp-config', jsonEncode(fullConfig)]);
-
-      // Note: We do NOT add --allowed-tools here. Adding only MCP tools to
-      // --allowed-tools would RESTRICT Claude to ONLY those tools, blocking
-      // native tools like Bash, Read, Edit, etc. The permission mode
-      // (acceptEdits/default) handles tool permissions appropriately.
-
-      print('[ProcessManager] VERBOSE: MCP args: ${args.join(" ")}');
-    } else {
-      print('[ProcessManager] VERBOSE: No MCP servers to configure');
+    if (mcpServers.isEmpty) {
+      return [];
     }
 
-    print('[ProcessManager] VERBOSE: ========================================');
-    return args;
+    // Create the proper mcpServers configuration object
+    final mcpServersConfig = <String, dynamic>{};
+
+    for (final server in mcpServers) {
+      final serverConfig = server.toClaudeConfig();
+      mcpServersConfig[server.name] = serverConfig;
+    }
+
+    // Add Dart MCP server (uses stdio transport, Claude handles it)
+    mcpServersConfig['dart'] = {
+      'command': 'dart',
+      'args': ['mcp-server']
+    };
+
+    // Create the complete configuration with mcpServers wrapper
+    final fullConfig = {'mcpServers': mcpServersConfig};
+
+    // Note: We do NOT add --allowed-tools here. Adding only MCP tools to
+    // --allowed-tools would RESTRICT Claude to ONLY those tools, blocking
+    // native tools like Bash, Read, Edit, etc. The permission mode
+    // (acceptEdits/default) handles tool permissions appropriately.
+
+    return ['--mcp-config', jsonEncode(fullConfig)];
   }
 
+  /// Check if the Claude CLI is available in the system PATH.
   static Future<bool> isClaudeAvailable() async {
     try {
       final result = await Process.run('which', ['claude']);
-      final available = result.exitCode == 0;
-      return available;
+      return result.exitCode == 0;
     } catch (e) {
       return false;
     }
   }
 }
 
-class ClaudeNotFoundError extends Error {
-  final String message;
-  ClaudeNotFoundError(this.message);
-
-  @override
-  String toString() => 'ClaudeNotFoundError: $message';
-}
-
-class ClaudeProcessError extends Error {
-  final String message;
-  ClaudeProcessError(this.message);
-
-  @override
-  String toString() => 'ClaudeProcessError: $message';
-}

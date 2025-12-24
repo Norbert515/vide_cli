@@ -187,11 +187,7 @@ lib/
 
 ## Error Handling
 
-The client handles various error scenarios:
-
-- `ClaudeNotFoundError` - Claude CLI not found in PATH
-- `ClaudeProcessError` - Process management errors
-- `ErrorResponse` - API-level errors
+The client handles various error scenarios through `ErrorResponse` - API-level errors returned in the response stream.
 
 ## Contributing
 

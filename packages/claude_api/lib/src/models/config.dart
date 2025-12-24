@@ -20,10 +20,6 @@ class ClaudeConfig {
   final List<String>? disallowedTools;
   final int? maxTurns;
 
-  /// Enable control protocol mode for hooks and permission callbacks.
-  /// When true, uses bidirectional stream-json communication.
-  final bool useControlProtocol;
-
   const ClaudeConfig({
     this.model,
     this.timeout = const Duration(seconds: 120),
@@ -40,7 +36,6 @@ class ClaudeConfig {
     this.allowedTools,
     this.disallowedTools,
     this.maxTurns,
-    this.useControlProtocol = false,
   });
 
   factory ClaudeConfig.defaults() => const ClaudeConfig();
@@ -52,8 +47,6 @@ class ClaudeConfig {
 
   List<String> toCliArgs({
     bool isFirstMessage = false,
-    String? message,
-    bool useJsonInput = false,
   }) {
     final args = <String>[];
 
@@ -66,22 +59,12 @@ class ClaudeConfig {
       }
     }
 
-    // Control protocol mode uses bidirectional stream-json
-    if (useControlProtocol) {
-      args.addAll([
-        '--output-format=stream-json',
-        '--input-format=stream-json',
-        '--verbose',
-      ]);
-    } else {
-      // Legacy mode: pipe mode with optional JSON input
-      args.addAll([
-        '-p', // Pipe mode
-        '--output-format=stream-json',
-        '--input-format=${useJsonInput ? 'stream-json' : 'text'}',
-        '--verbose', // Required for stream-json with -p
-      ]);
-    }
+    // Control protocol mode: bidirectional stream-json communication
+    args.addAll([
+      '--output-format=stream-json',
+      '--input-format=stream-json',
+      '--verbose',
+    ]);
 
     if (model != null) {
       args.addAll(['--model', model!]);
@@ -119,11 +102,6 @@ class ClaudeConfig {
       args.addAll(additionalFlags!);
     }
 
-    // Add message as last argument if provided (only for non-control mode)
-    if (message != null && !useControlProtocol) {
-      args.add(message);
-    }
-
     return args;
   }
 
@@ -143,7 +121,6 @@ class ClaudeConfig {
     List<String>? allowedTools,
     List<String>? disallowedTools,
     int? maxTurns,
-    bool? useControlProtocol,
   }) {
     return ClaudeConfig(
       model: model ?? this.model,
@@ -161,7 +138,6 @@ class ClaudeConfig {
       allowedTools: allowedTools ?? this.allowedTools,
       disallowedTools: disallowedTools ?? this.disallowedTools,
       maxTurns: maxTurns ?? this.maxTurns,
-      useControlProtocol: useControlProtocol ?? this.useControlProtocol,
     );
   }
 }

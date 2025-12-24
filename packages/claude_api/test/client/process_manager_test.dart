@@ -247,20 +247,6 @@ void main() {
       );
     });
 
-    group('error classes', () {
-      test('ClaudeNotFoundError has correct message', () {
-        final error = ClaudeNotFoundError('Claude CLI not found');
-        expect(error.message, 'Claude CLI not found');
-        expect(error.toString(), 'ClaudeNotFoundError: Claude CLI not found');
-      });
-
-      test('ClaudeProcessError has correct message', () {
-        final error = ClaudeProcessError('Process failed');
-        expect(error.message, 'Process failed');
-        expect(error.toString(), 'ClaudeProcessError: Process failed');
-      });
-    });
-
     group('edge cases', () {
       test('handles server with empty tool list', () async {
         final server = TestMcpServer(name: 'empty-tools-server', tools: []);

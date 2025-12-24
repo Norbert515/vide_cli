@@ -1,5 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
+import '../utils/html_entity_decoder.dart';
+
 part 'response.g.dart';
 
 sealed class ClaudeResponse {
@@ -93,7 +95,7 @@ class TextResponse extends ClaudeResponse {
     final role = json['role'] as String?;
 
     // Decode HTML entities that may come from Claude CLI
-    final decodedContent = _decodeHtmlEntities(
+    final decodedContent = HtmlEntityDecoder.decode(
       content is String ? content : content.toString(),
     );
 
@@ -121,7 +123,7 @@ class TextResponse extends ClaudeResponse {
     }
 
     // Decode HTML entities that may come from Claude CLI
-    final decodedText = _decodeHtmlEntities(text);
+    final decodedText = HtmlEntityDecoder.decode(text);
 
     return TextResponse(
       id:
@@ -134,46 +136,6 @@ class TextResponse extends ClaudeResponse {
       role: message['role'],
       rawData: json,
     );
-  }
-
-  static String _decodeHtmlEntities(String text) {
-    // Decode &amp; last to handle cases like &amp;quot;
-    return text
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&amp;', '&');
-  }
-
-  /// Recursively decodes HTML entities in a Map<String, dynamic> structure
-  static Map<String, dynamic> _decodeHtmlEntitiesInMap(
-    Map<String, dynamic> map,
-  ) {
-    return map.map((key, value) {
-      if (value is String) {
-        return MapEntry(key, _decodeHtmlEntities(value));
-      } else if (value is Map<String, dynamic>) {
-        return MapEntry(key, _decodeHtmlEntitiesInMap(value));
-      } else if (value is List) {
-        return MapEntry(key, _decodeHtmlEntitiesInList(value));
-      }
-      return MapEntry(key, value);
-    });
-  }
-
-  /// Recursively decodes HTML entities in a List
-  static List _decodeHtmlEntitiesInList(List list) {
-    return list.map((item) {
-      if (item is String) {
-        return _decodeHtmlEntities(item);
-      } else if (item is Map<String, dynamic>) {
-        return _decodeHtmlEntitiesInMap(item);
-      } else if (item is List) {
-        return _decodeHtmlEntitiesInList(item);
-      }
-      return item;
-    }).toList();
   }
 
   Map<String, dynamic> toJson() => _$TextResponseToJson(this);
@@ -201,8 +163,8 @@ class ToolUseResponse extends ClaudeResponse {
     return ToolUseResponse(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
-      toolName: TextResponse._decodeHtmlEntities(toolName),
-      parameters: TextResponse._decodeHtmlEntitiesInMap(parameters),
+      toolName: HtmlEntityDecoder.decode(toolName),
+      parameters: HtmlEntityDecoder.decodeMap(parameters),
       toolUseId: json['tool_use_id'],
       rawData: json,
     );
@@ -220,8 +182,8 @@ class ToolUseResponse extends ClaudeResponse {
       return ToolUseResponse(
         id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
         timestamp: DateTime.now(),
-        toolName: TextResponse._decodeHtmlEntities(toolName),
-        parameters: TextResponse._decodeHtmlEntitiesInMap(parameters),
+        toolName: HtmlEntityDecoder.decode(toolName),
+        parameters: HtmlEntityDecoder.decodeMap(parameters),
         toolUseId: toolUse['id'],
         rawData: json,
       );
@@ -285,7 +247,7 @@ class ToolResultResponse extends ClaudeResponse {
     }
 
     // Decode HTML entities that may come from Claude CLI
-    final decodedContent = TextResponse._decodeHtmlEntities(content);
+    final decodedContent = HtmlEntityDecoder.decode(content);
 
     return ToolResultResponse(
       id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),

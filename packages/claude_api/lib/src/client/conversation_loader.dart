@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import '../errors/claude_errors.dart';
 import '../models/conversation.dart';
 import '../models/response.dart';
 import '../models/message.dart';
+import '../utils/html_entity_decoder.dart';
 
 /// Loads historical conversations from Claude Code's storage format.
 ///
@@ -33,7 +35,10 @@ class ConversationLoader {
     );
 
     if (!await conversationFile.exists()) {
-      throw Exception('Conversation file not found: ${conversationFile.path}');
+      throw ConversationLoadException(
+        'Conversation file not found: ${conversationFile.path}',
+        sessionId: sessionId,
+      );
     }
 
     // Parse JSONL file line by line
@@ -141,7 +146,7 @@ class ConversationLoader {
       List<Attachment>? attachments;
 
       if (content is String) {
-        textContent = _decodeHtmlEntities(content);
+        textContent = HtmlEntityDecoder.decode(content);
       } else if (content is List) {
         // First check if this is a tool_result message
         final toolResults = <ToolResultResponse>[];
@@ -177,7 +182,7 @@ class ConversationLoader {
                       DateTime.now().millisecondsSinceEpoch.toString(),
                   timestamp: timestamp ?? DateTime.now(),
                   toolUseId: toolUseId,
-                  content: _decodeHtmlEntities(resultContent),
+                  content: HtmlEntityDecoder.decode(resultContent),
                   isError: isError,
                 ),
               );
@@ -217,7 +222,7 @@ class ConversationLoader {
           }
         }
 
-        textContent = _decodeHtmlEntities(textParts.join('\n'));
+        textContent = HtmlEntityDecoder.decode(textParts.join('\n'));
         if (imageAttachments.isNotEmpty) {
           attachments = imageAttachments;
         }
@@ -267,7 +272,7 @@ class ConversationLoader {
                         block['id'] as String? ??
                         DateTime.now().millisecondsSinceEpoch.toString(),
                     timestamp: DateTime.now(),
-                    content: _decodeHtmlEntities(text),
+                    content: HtmlEntityDecoder.decode(text),
                   ),
                 );
               }
@@ -280,8 +285,8 @@ class ConversationLoader {
                       block['id'] as String? ??
                       DateTime.now().millisecondsSinceEpoch.toString(),
                   timestamp: DateTime.now(),
-                  toolName: _decodeHtmlEntities(toolName),
-                  parameters: _decodeHtmlEntitiesInMap(parameters),
+                  toolName: HtmlEntityDecoder.decode(toolName),
+                  parameters: HtmlEntityDecoder.decodeMap(parameters),
                   toolUseId: block['id'] as String?,
                 ),
               );
@@ -319,49 +324,10 @@ class ConversationLoader {
     final home =
         Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home == null) {
-      throw Exception('Could not determine home directory');
+      throw ConversationLoadException(
+        'Could not determine home directory: HOME and USERPROFILE environment variables are not set',
+      );
     }
     return '$home/.claude';
-  }
-
-  /// Decode HTML entities in text content
-  static String _decodeHtmlEntities(String text) {
-    // Decode &amp; last to handle cases like &amp;quot;
-    return text
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&amp;', '&');
-  }
-
-  /// Recursively decode HTML entities in a Map structure
-  static Map<String, dynamic> _decodeHtmlEntitiesInMap(
-    Map<String, dynamic> map,
-  ) {
-    return map.map((key, value) {
-      if (value is String) {
-        return MapEntry(key, _decodeHtmlEntities(value));
-      } else if (value is Map<String, dynamic>) {
-        return MapEntry(key, _decodeHtmlEntitiesInMap(value));
-      } else if (value is List) {
-        return MapEntry(key, _decodeHtmlEntitiesInList(value));
-      }
-      return MapEntry(key, value);
-    });
-  }
-
-  /// Recursively decode HTML entities in a List
-  static List _decodeHtmlEntitiesInList(List list) {
-    return list.map((item) {
-      if (item is String) {
-        return _decodeHtmlEntities(item);
-      } else if (item is Map<String, dynamic>) {
-        return _decodeHtmlEntitiesInMap(item);
-      } else if (item is List) {
-        return _decodeHtmlEntitiesInList(item);
-      }
-      return item;
-    }).toList();
   }
 }

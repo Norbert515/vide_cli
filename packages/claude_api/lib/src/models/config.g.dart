@@ -28,6 +28,10 @@ ClaudeConfig _$ClaudeConfigFromJson(Map<String, dynamic> json) => ClaudeConfig(
   allowedTools: (json['allowedTools'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  disallowedTools: (json['disallowedTools'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  maxTurns: (json['maxTurns'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
@@ -45,4 +49,6 @@ Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
       'permissionMode': instance.permissionMode,
       'workingDirectory': instance.workingDirectory,
       'allowedTools': instance.allowedTools,
+      'disallowedTools': instance.disallowedTools,
+      'maxTurns': instance.maxTurns,
     };
