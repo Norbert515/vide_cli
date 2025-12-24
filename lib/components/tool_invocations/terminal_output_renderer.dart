@@ -34,6 +34,30 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   /// Strip ANSI escape codes from text to prevent incorrect width calculations
   String _stripAnsi(String text) => text.replaceAll(_ansiRegex, '');
 
+  /// Process carriage returns to simulate terminal behavior.
+  /// When a line contains \r, only the text after the last \r is shown
+  /// (simulating how terminals overwrite the current line).
+  String _processCarriageReturns(String text) {
+    // Split by newlines first, then process each line for carriage returns
+    final lines = text.split('\n');
+    final processedLines = <String>[];
+
+    for (final line in lines) {
+      if (line.contains('\r')) {
+        // Take only the content after the last carriage return
+        final segments = line.split('\r');
+        final lastSegment = segments.last;
+        if (lastSegment.trim().isNotEmpty) {
+          processedLines.add(lastSegment);
+        }
+      } else if (line.trim().isNotEmpty) {
+        processedLines.add(line);
+      }
+    }
+
+    return processedLines.join('\n');
+  }
+
   @override
   Component build(BuildContext context) {
     // Fallback to DefaultRenderer if no result or error
@@ -46,9 +70,10 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
       );
     }
 
-    // Parse output
+    // Parse output - process carriage returns first to handle terminal overwrites
     final resultContent = component.invocation.resultContent ?? '';
-    final lines = resultContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    final processedContent = _processCarriageReturns(resultContent);
+    final lines = processedContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     // If no lines, fallback to default
     if (lines.isEmpty) {
