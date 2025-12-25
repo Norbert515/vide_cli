@@ -2,4 +2,5 @@
 library;
 
 export 'mock_vide_config_manager.dart';
+export 'mock_claude_client.dart';
 export 'test_fixtures.dart';
