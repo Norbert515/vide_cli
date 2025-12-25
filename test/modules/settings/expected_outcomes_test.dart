@@ -1,6 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_cli/modules/settings/permission_matcher.dart';
-import 'package:vide_cli/modules/settings/pattern_inference.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Verify the expected outcomes from the requirements
 void main() {

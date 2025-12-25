@@ -14,11 +14,10 @@ import '../agents/agent_configuration.dart';
 import '../utils/project_detector.dart';
 import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
+import 'claude_client_factory.dart';
 import 'claude_manager.dart';
 import 'posthog_service.dart';
 import '../state/agent_status_manager.dart';
-import '../mcp/mcp_provider.dart';
-import 'permission_provider.dart';
 
 /// Agent types that can be spawned via the agent network.
 enum SpawnableAgentType { implementation, contextCollection, flutterTester, planning }
@@ -61,10 +60,18 @@ final agentNetworkManagerProvider = StateNotifierProvider<AgentNetworkManager, A
 });
 
 class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
-  AgentNetworkManager({required this.workingDirectory, required this.ref}) : super(AgentNetworkState());
+  AgentNetworkManager({required this.workingDirectory, required Ref ref})
+      : _ref = ref,
+        super(AgentNetworkState()) {
+    _clientFactory = ClaudeClientFactoryImpl(
+      getWorkingDirectory: () => effectiveWorkingDirectory,
+      ref: _ref,
+    );
+  }
 
   final String workingDirectory;
-  final Ref ref;
+  final Ref _ref;
+  late final ClaudeClientFactory _clientFactory;
 
   /// Get the effective working directory (worktree if set, else original).
   String get effectiveWorkingDirectory =>
@@ -109,17 +116,18 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Create and add client SYNCHRONOUSLY so UI has it immediately
     final mainAgentConfig = MainAgentConfig.create();
-    final mainAgentClaudeClient = _inflateClaudeClientSync(
-      AgentIdAndClaudeConfig(agentId: mainAgentId, config: mainAgentConfig),
+    final mainAgentClaudeClient = _clientFactory.createSync(
+      agentId: mainAgentId,
+      config: mainAgentConfig,
     );
-    ref.read(claudeManagerProvider.notifier).addAgent(mainAgentId, mainAgentClaudeClient);
+    _ref.read(claudeManagerProvider.notifier).addAgent(mainAgentId, mainAgentClaudeClient);
 
     // Track analytics
     PostHogService.conversationStarted();
 
     // Do persistence in background
     () async {
-      await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(network);
+      await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(network);
     }();
 
     // Send the initial message - it will be queued until client is ready
@@ -137,21 +145,22 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
     // Persist in background - UI already has the data
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     // Recreate ClaudeClients for each agent in the network
     // Use sync version to avoid blocking on init (same as startNew)
     for (final agentMetadata in updatedNetwork.agents) {
       final config = _getConfigurationForType(agentMetadata.type);
-      final client = _inflateClaudeClientSync(
-        AgentIdAndClaudeConfig(agentId: agentMetadata.id, config: config),
+      final client = _clientFactory.createSync(
+        agentId: agentMetadata.id,
+        config: config,
       );
-      ref.read(claudeManagerProvider.notifier).addAgent(agentMetadata.id, client);
+      _ref.read(claudeManagerProvider.notifier).addAgent(agentMetadata.id, client);
     }
 
     // Restore persisted status for each agent
     for (final agent in updatedNetwork.agents) {
-      ref.read(agentStatusProvider(agent.id).notifier).setStatus(agent.status);
+      _ref.read(agentStatusProvider(agent.id).notifier).setStatus(agent.status);
     }
   }
 
@@ -176,22 +185,29 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }
 
   /// Add a new agent to the current network
-  Future<AgentId> addAgent(AgentIdAndClaudeConfig config, AgentMetadata metadata) async {
+  Future<AgentId> addAgent({
+    required AgentId agentId,
+    required AgentConfiguration config,
+    required AgentMetadata metadata,
+  }) async {
     final network = state.currentNetwork;
     if (network == null) {
       throw StateError('No active network to add agent to');
     }
 
-    final client = await _inflateClaudeClient(config);
-    ref.read(claudeManagerProvider.notifier).addAgent(config.agentId, client);
+    final client = await _clientFactory.create(
+      agentId: agentId,
+      config: config,
+    );
+    _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
 
     // Update network with new agent metadata
     final updatedNetwork = network.copyWith(agents: [...network.agents, metadata], lastActiveAt: DateTime.now());
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
-    return config.agentId;
+    return agentId;
   }
 
   /// Update the goal of the current network
@@ -202,7 +218,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }
 
     final updatedNetwork = network.copyWith(goal: newGoal, lastActiveAt: DateTime.now());
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -222,7 +238,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }).toList();
 
     final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -242,7 +258,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }).toList();
 
     final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -255,12 +271,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final updated = worktreePath == null
         ? network.copyWith(clearWorktreePath: true, lastActiveAt: DateTime.now())
         : network.copyWith(worktreePath: worktreePath, lastActiveAt: DateTime.now());
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updated);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updated);
     state = state.copyWith(currentNetwork: updated);
   }
 
   void sendMessage(AgentId agentId, Message message) {
-    final claudeManager = ref.read(claudeProvider(agentId));
+    final claudeManager = _ref.read(claudeProvider(agentId));
     claudeManager?.sendMessage(message);
   }
 
@@ -302,7 +318,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     );
 
     // Add agent to network with metadata
-    await addAgent(AgentIdAndClaudeConfig(agentId: newAgentId, config: config), metadata);
+    await addAgent(agentId: newAgentId, config: config, metadata: metadata);
 
     // Track analytics
     PostHogService.agentSpawned(agentType.name);
@@ -353,14 +369,14 @@ $initialPrompt''';
     }
 
     // Get and abort the ClaudeClient
-    final claudeClients = ref.read(claudeManagerProvider);
+    final claudeClients = _ref.read(claudeManagerProvider);
     final client = claudeClients[targetAgentId];
     if (client != null) {
       await client.abort();
     }
 
     // Remove from ClaudeManager
-    ref.read(claudeManagerProvider.notifier).removeAgent(targetAgentId);
+    _ref.read(claudeManagerProvider.notifier).removeAgent(targetAgentId);
 
     // Remove from network agents list
     final updatedAgents = network.agents.where((a) => a.id != targetAgentId).toList();
@@ -370,7 +386,7 @@ $initialPrompt''';
     );
 
     // Persist
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     // Update state
     state = AgentNetworkState(currentNetwork: updatedNetwork);
@@ -394,7 +410,7 @@ $initialPrompt''';
   /// [message] - The message to send
   /// [sentBy] - The ID of the agent sending the message (for context)
   void sendMessageToAgent({required AgentId targetAgentId, required String message, required AgentId sentBy}) {
-    final claudeClients = ref.read(claudeManagerProvider);
+    final claudeClients = _ref.read(claudeManagerProvider);
 
     // Check if target agent exists
     final targetClient = claudeClients[targetAgentId];
@@ -411,57 +427,5 @@ $message''';
     targetClient.sendMessage(Message.text(contextualMessage));
 
     print('[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId');
-  }
-
-  /// Creates a ClaudeClient synchronously (init happens in background).
-  /// This allows the UI to show the client immediately while it connects.
-  ClaudeClient _inflateClaudeClientSync(AgentIdAndClaudeConfig config) {
-    final cwd = effectiveWorkingDirectory;
-    final claudeConfig = config.config.toClaudeConfig(
-      workingDirectory: cwd,
-      sessionId: config.agentId.toString(),
-    );
-    final mcpServers = config.config.mcpServers!
-        .map(
-          (server) => ref.watch(
-            genericMcpServerProvider(AgentIdAndMcpServerType(agentId: config.agentId, mcpServerType: server)),
-          ),
-        )
-        .toList();
-
-    // Get the canUseTool callback factory (if provided by the UI)
-    final callbackFactory = ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(cwd);
-
-    return ClaudeClient.createAndInitInBackground(
-      config: claudeConfig,
-      mcpServers: mcpServers,
-      canUseTool: canUseTool,
-    );
-  }
-
-  Future<ClaudeClient> _inflateClaudeClient(AgentIdAndClaudeConfig config) async {
-    final cwd = effectiveWorkingDirectory;
-    final claudeConfig = config.config.toClaudeConfig(
-      workingDirectory: cwd,
-      sessionId: config.agentId.toString(),
-    );
-    final mcpServers = config.config.mcpServers!
-        .map(
-          (server) => ref.watch(
-            genericMcpServerProvider(AgentIdAndMcpServerType(agentId: config.agentId, mcpServerType: server)),
-          ),
-        )
-        .toList();
-
-    // Get the canUseTool callback factory (if provided by the UI)
-    final callbackFactory = ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(cwd);
-
-    return await ClaudeClient.create(
-      config: claudeConfig,
-      mcpServers: mcpServers,
-      canUseTool: canUseTool,
-    );
   }
 }

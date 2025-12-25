@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_cli/modules/settings/bash_command_parser.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('BashCommandParser.parse', () {
