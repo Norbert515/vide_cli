@@ -103,9 +103,7 @@ class ConversationMessage {
     );
 
     // Convert to typed invocation based on tool name
-    if (toolName.contains('spawnagent')) {
-      return SubagentToolInvocation.fromToolInvocation(baseInvocation);
-    } else if (toolName == 'write') {
+    if (toolName == 'write') {
       return WriteToolInvocation.fromToolInvocation(baseInvocation);
     } else if (toolName == 'edit' || toolName == 'multiedit') {
       return EditToolInvocation.fromToolInvocation(baseInvocation);

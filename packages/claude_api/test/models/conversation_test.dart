@@ -285,11 +285,9 @@ void main() {
       expect(editInv.oldString, equals('old'));
       expect(editInv.newString, equals('new'));
 
-      // spawnAgent becomes SubagentToolInvocation
-      expect(invocations[2], isA<SubagentToolInvocation>());
-      final agentInv = invocations[2] as SubagentToolInvocation;
-      expect(agentInv.agentType, equals('implementation'));
-      expect(agentInv.initialPrompt, equals('Do stuff'));
+      // spawnAgent returns base ToolInvocation (no longer special-cased)
+      expect(invocations[2].runtimeType, equals(ToolInvocation));
+      expect(invocations[2].toolName, equals('mcp__vide-agent__spawnAgent'));
     });
 
     test('handles tool calls without toolUseId', () {

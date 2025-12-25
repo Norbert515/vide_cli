@@ -109,14 +109,14 @@ void main() {
         expect(invocation.displayName, equals('Flutter Runtime: flutterStart'));
       });
 
-      test('includes agent type for spawnAgent calls', () {
+      test('handles spawnAgent like any other tool', () {
         final toolCall = createToolUseResponse(
           'mcp__vide-agent__spawnAgent',
           {'agentType': 'implementation', 'name': 'Bug Fix'},
         );
         final invocation = ToolInvocation(toolCall: toolCall);
 
-        expect(invocation.displayName, equals('Vide Agent: spawnAgent (implementation)'));
+        expect(invocation.displayName, equals('Vide Agent: spawnAgent'));
       });
 
       test('handles malformed MCP tool names gracefully', () {
@@ -170,7 +170,7 @@ void main() {
   });
 
   group('ConversationMessage.createTypedInvocation', () {
-    test('returns SubagentToolInvocation for spawnAgent', () {
+    test('returns base ToolInvocation for spawnAgent (not special-cased)', () {
       final toolCall = createToolUseResponse('spawnAgent', {
         'agentType': 'contextCollection',
         'name': 'Researcher',
@@ -179,22 +179,8 @@ void main() {
 
       final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
 
-      expect(invocation, isA<SubagentToolInvocation>());
-      final subagent = invocation as SubagentToolInvocation;
-      expect(subagent.agentType, equals('contextCollection'));
-      expect(subagent.initialPrompt, equals('Find auth patterns'));
-    });
-
-    test('returns SubagentToolInvocation for MCP spawnAgent', () {
-      final toolCall = createToolUseResponse('mcp__vide-agent__spawnAgent', {
-        'agentType': 'implementation',
-        'name': 'Fixer',
-        'initialPrompt': 'Fix the bug',
-      });
-
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
-
-      expect(invocation, isA<SubagentToolInvocation>());
+      // spawnAgent is no longer special-cased - returns base ToolInvocation
+      expect(invocation.runtimeType, equals(ToolInvocation));
     });
 
     test('returns WriteToolInvocation for Write tool', () {
@@ -335,89 +321,6 @@ void main() {
 
       expect(invocation.hasResult, isTrue);
       expect(invocation.resultContent, equals('file content here'));
-    });
-  });
-
-  group('SubagentToolInvocation', () {
-    test('extracts agentType from parameters', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'agentType': 'flutterTester',
-        'name': 'UI Tester',
-        'initialPrompt': 'Test the login',
-      });
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      expect(subagent.agentType, equals('flutterTester'));
-    });
-
-    test('extracts name from parameters through toolCall', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'agentType': 'implementation',
-        'name': 'Feature Builder',
-        'initialPrompt': 'Build the feature',
-      });
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      // name is accessed via the parameters
-      expect(subagent.parameters['name'], equals('Feature Builder'));
-    });
-
-    test('extracts initialPrompt from parameters', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'agentType': 'contextCollection',
-        'name': 'Researcher',
-        'initialPrompt': 'Research the auth system in depth',
-      });
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      expect(subagent.initialPrompt, equals('Research the auth system in depth'));
-    });
-
-    test('handles missing agentType gracefully', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'name': 'No Type',
-        'initialPrompt': 'Do something',
-      });
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      expect(subagent.agentType, equals('unknown'));
-    });
-
-    test('handles missing initialPrompt gracefully', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'agentType': 'implementation',
-        'name': 'No Prompt',
-      });
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      expect(subagent.initialPrompt, equals(''));
-    });
-
-    test('copyWith preserves agentType and initialPrompt', () {
-      final toolCall = createToolUseResponse('spawnAgent', {
-        'agentType': 'planning',
-        'initialPrompt': 'Plan the feature',
-      }, toolUseId: 'id1');
-      final baseInvocation = ToolInvocation(toolCall: toolCall);
-      final subagent = SubagentToolInvocation.fromToolInvocation(baseInvocation);
-
-      final toolResult = createToolResultResponse('id1', 'Agent spawned');
-      final updated = subagent.copyWith(toolResult: toolResult);
-
-      expect(updated, isA<SubagentToolInvocation>());
-      expect(updated.agentType, equals('planning'));
-      expect(updated.initialPrompt, equals('Plan the feature'));
-      expect(updated.hasResult, isTrue);
     });
   });
 

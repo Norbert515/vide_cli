@@ -27,7 +27,6 @@ class ToolInvocation {
   ///
   /// For MCP tools (format: `mcp__server-name__toolName`):
   /// - Formats as "Server Name: toolName"
-  /// - Special handling for `spawnAgent` to include agent type from parameters
   ///
   /// For non-MCP tools: returns the tool name as-is.
   String get displayName {
@@ -51,11 +50,6 @@ class ToolInvocation {
         )
         .join(' ');
 
-    // Special handling for spawnAgent to show agent type
-    if (tool == 'spawnAgent' && parameters['agentType'] != null) {
-      return '$formattedServer: $tool (${parameters['agentType']})';
-    }
-
     return '$formattedServer: $tool';
   }
 
@@ -70,51 +64,6 @@ class ToolInvocation {
       toolResult: toolResult ?? this.toolResult,
       isExpanded: isExpanded ?? this.isExpanded,
       sessionId: sessionId ?? this.sessionId,
-    );
-  }
-}
-
-/// Specialized subclass for spawnAgent tool invocations
-class SubagentToolInvocation extends ToolInvocation {
-  final String agentType;
-  final String initialPrompt;
-
-  const SubagentToolInvocation({
-    required super.toolCall,
-    super.toolResult,
-    super.isExpanded,
-    super.sessionId,
-    required this.agentType,
-    required this.initialPrompt,
-  });
-
-  /// Factory to create from a regular ToolInvocation if it's a spawnAgent call
-  factory SubagentToolInvocation.fromToolInvocation(ToolInvocation invocation) {
-    final params = invocation.parameters;
-    return SubagentToolInvocation(
-      toolCall: invocation.toolCall,
-      toolResult: invocation.toolResult,
-      isExpanded: invocation.isExpanded,
-      sessionId: invocation.sessionId,
-      agentType: params['agentType'] as String? ?? 'unknown',
-      initialPrompt: params['initialPrompt'] as String? ?? '',
-    );
-  }
-
-  @override
-  SubagentToolInvocation copyWith({
-    ToolUseResponse? toolCall,
-    ToolResultResponse? toolResult,
-    bool? isExpanded,
-    String? sessionId,
-  }) {
-    return SubagentToolInvocation(
-      toolCall: toolCall ?? this.toolCall,
-      toolResult: toolResult ?? this.toolResult,
-      isExpanded: isExpanded ?? this.isExpanded,
-      sessionId: sessionId ?? this.sessionId,
-      agentType: agentType,
-      initialPrompt: initialPrompt,
     );
   }
 }
