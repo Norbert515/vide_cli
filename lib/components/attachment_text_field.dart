@@ -14,6 +14,8 @@ import 'package:vide_cli/theme/theme.dart';
 /// - Deletion handling (removes attachments when placeholders are deleted)
 /// - Visual feedback (shows attached images above the text field)
 /// - Clean output (strips placeholders from final message text)
+/// - Command detection (routes /commands to onCommand callback)
+/// - Command autocomplete (shows suggestions when typing /)
 class AttachmentTextField extends StatefulComponent {
   final bool enabled;
   final bool focused;
@@ -25,6 +27,14 @@ class AttachmentTextField extends StatefulComponent {
   /// Called when Escape is pressed and the text field is empty.
   final void Function()? onEscape;
 
+  /// Called when a command is submitted (text starting with /).
+  /// If null, commands are treated as regular messages.
+  final void Function(String command)? onCommand;
+
+  /// Provides command suggestions based on current input.
+  /// Called with the text after "/" and should return matching command names.
+  final List<CommandSuggestion> Function(String prefix)? commandSuggestions;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -33,6 +43,8 @@ class AttachmentTextField extends StatefulComponent {
     this.onAttachmentsChanged,
     this.agentTag,
     this.onEscape,
+    this.onCommand,
+    this.commandSuggestions,
     super.key,
   });
 
@@ -40,8 +52,17 @@ class AttachmentTextField extends StatefulComponent {
   State<AttachmentTextField> createState() => _AttachmentTextFieldState();
 }
 
+/// A command suggestion for autocomplete.
+class CommandSuggestion {
+  final String name;
+  final String description;
+
+  const CommandSuggestion({required this.name, required this.description});
+}
+
 class _AttachmentTextFieldState extends State<AttachmentTextField> {
   late final _AttachmentTextEditingController _controller;
+  int _selectedSuggestionIndex = 0;
 
   @override
   void initState() {
@@ -51,10 +72,68 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       setState(() {}); // Rebuild to show attachment indicators
       component.onAttachmentsChanged?.call(attachments);
     };
+    _controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    // Reset selection when text changes
+    setState(() {
+      _selectedSuggestionIndex = 0;
+    });
+  }
+
+  List<CommandSuggestion> _getSuggestions() {
+    if (component.commandSuggestions == null) return [];
+
+    final text = _controller.text.trim();
+    if (!text.startsWith('/')) return [];
+
+    // Get prefix after /
+    final prefix = text.substring(1).toLowerCase();
+    return component.commandSuggestions!(prefix);
+  }
+
+  void _applySuggestion(CommandSuggestion suggestion) {
+    _controller.text = '/${suggestion.name} ';
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    setState(() {
+      _selectedSuggestionIndex = 0;
+    });
+  }
+
+  Component _buildSuggestionItem(VideThemeData theme, CommandSuggestion suggestion, bool isSelected) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      decoration: isSelected
+          ? BoxDecoration(color: theme.base.primary.withOpacity(0.3))
+          : null,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '/${suggestion.name}',
+            style: TextStyle(
+              color: isSelected ? theme.base.primary : theme.base.onSurface,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          SizedBox(width: 2),
+          Text(
+            suggestion.description,
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onTextChanged);
     _controller.dispose();
     super.dispose();
   }
@@ -63,6 +142,16 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     final text = _controller.text.trim();
 
     if (text.isEmpty && _controller.attachments.isEmpty) {
+      return;
+    }
+
+    // Check if this is a command (starts with / and no attachments)
+    if (text.startsWith('/') &&
+        text.length > 1 &&
+        _controller.attachments.isEmpty &&
+        component.onCommand != null) {
+      component.onCommand!(text);
+      _controller.clear();
       return;
     }
 
@@ -101,6 +190,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
+    final suggestions = _getSuggestions();
 
     return Focusable(
       focused: component.focused,
@@ -119,12 +209,59 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           return true;
         }
 
+        // Tab: Apply selected suggestion or cycle through suggestions
+        if (event.logicalKey == LogicalKey.tab && suggestions.isNotEmpty) {
+          if (event.isShiftPressed) {
+            // Shift+Tab: Move selection up
+            setState(() {
+              _selectedSuggestionIndex =
+                  (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+            });
+          } else {
+            // Tab: Apply suggestion
+            _applySuggestion(suggestions[_selectedSuggestionIndex]);
+          }
+          return true;
+        }
+
+        // Arrow keys: Navigate suggestions
+        if (suggestions.isNotEmpty) {
+          if (event.logicalKey == LogicalKey.arrowUp) {
+            setState(() {
+              _selectedSuggestionIndex =
+                  (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+            });
+            return true;
+          }
+          if (event.logicalKey == LogicalKey.arrowDown) {
+            setState(() {
+              _selectedSuggestionIndex =
+                  (_selectedSuggestionIndex + 1) % suggestions.length;
+            });
+            return true;
+          }
+        }
+
         return false;
       },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Command suggestions
+          if (suggestions.isNotEmpty)
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 1),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < suggestions.length; i++)
+                    _buildSuggestionItem(theme, suggestions[i], i == _selectedSuggestionIndex),
+                ],
+              ),
+            ),
+
           // Attachments row
           if (_controller.attachments.isNotEmpty)
             Container(

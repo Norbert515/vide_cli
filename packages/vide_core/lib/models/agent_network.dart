@@ -30,6 +30,30 @@ class AgentNetwork {
   /// Get just the agent IDs for convenience
   List<AgentId> get agentIds => agents.map((a) => a.id).toList();
 
+  /// Total input tokens across all agents in the network
+  int get networkTotalInputTokens =>
+      agents.fold(0, (sum, agent) => sum + agent.totalInputTokens);
+
+  /// Total output tokens across all agents in the network
+  int get networkTotalOutputTokens =>
+      agents.fold(0, (sum, agent) => sum + agent.totalOutputTokens);
+
+  /// Total cache read input tokens across all agents in the network
+  int get networkTotalCacheReadInputTokens =>
+      agents.fold(0, (sum, agent) => sum + agent.totalCacheReadInputTokens);
+
+  /// Total cache creation input tokens across all agents in the network
+  int get networkTotalCacheCreationInputTokens =>
+      agents.fold(0, (sum, agent) => sum + agent.totalCacheCreationInputTokens);
+
+  /// Total context tokens across all agents (input + cache).
+  int get networkTotalContextTokens =>
+      agents.fold(0, (sum, agent) => sum + agent.totalContextTokens);
+
+  /// Total cost in USD across all agents in the network
+  double get networkTotalCostUsd =>
+      agents.fold(0.0, (sum, agent) => sum + agent.totalCostUsd);
+
   AgentNetwork copyWith({
     AgentNetworkId? id,
     String? goal,
