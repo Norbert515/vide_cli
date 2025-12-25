@@ -47,6 +47,7 @@ class ClaudeConfig {
 
   List<String> toCliArgs({
     bool isFirstMessage = false,
+    bool hasPermissionCallback = false,
   }) {
     final args = <String>[];
 
@@ -65,6 +66,11 @@ class ClaudeConfig {
       '--input-format=stream-json',
       '--verbose',
     ]);
+
+    // If we have a permission callback, tell CLI to send permission requests via stdio
+    if (hasPermissionCallback) {
+      args.addAll(['--permission-prompt-tool', 'stdio']);
+    }
 
     if (model != null) {
       args.addAll(['--model', model!]);

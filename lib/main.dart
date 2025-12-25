@@ -8,25 +8,35 @@ import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
-import 'package:vide_cli/hook_handler.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
-void main(List<String> args, {List<Override> overrides = const []}) async {
-  // Check for --hook flag - run hook handler and exit
-  // Hook handler has its own Sentry initialization
-  if (args.isNotEmpty && args.first == '--hook') {
-    await runHook();
-    return;
-  }
+/// Provider override for canUseToolCallbackFactory that bridges PermissionService to ClaudeClient.
+///
+/// This provider creates callbacks that can be passed to ClaudeClient.create() for
+/// permission checking via the control protocol.
+final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.overrideWith((ref) {
+  final permissionService = ref.read(permissionServiceProvider);
+  return (String cwd) {
+    return (toolName, input, context) async {
+      return permissionService.checkToolPermission(
+        toolName,
+        input,
+        context,
+        cwd: cwd,
+      );
+    };
+  };
+});
 
+void main(List<String> args, {List<Override> overrides = const []}) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
-  // Clean up stale hook files from previous sessions
-  await PermissionService.cleanupStaleFiles();
-
-  // Create provider container with overrides from entry point
-  final container = ProviderContainer(overrides: overrides);
+  // Create provider container with overrides from entry point and permission callback
+  final container = ProviderContainer(overrides: [
+    _canUseToolCallbackFactoryOverride,
+    ...overrides,
+  ]);
 
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);

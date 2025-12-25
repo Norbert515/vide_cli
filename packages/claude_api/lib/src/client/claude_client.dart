@@ -10,6 +10,7 @@ import '../models/conversation.dart';
 import '../mcp/server/mcp_server_base.dart';
 import '../protocol/json_decoder.dart';
 import '../control/control_types.dart';
+import '../control/control_protocol.dart';
 import 'conversation_loader.dart';
 import 'process_manager.dart';
 import 'response_processor.dart';
@@ -49,6 +50,26 @@ abstract class ClaudeClient {
     await client.init();
     return client;
   }
+
+  /// Create a client and initialize in background.
+  /// Returns immediately - the client will be in "connecting" state until init completes.
+  /// Messages sent before init completes will be queued.
+  static ClaudeClient createAndInitInBackground({
+    ClaudeConfig? config,
+    List<McpServerBase>? mcpServers,
+    Map<HookEvent, List<HookMatcher>>? hooks,
+    CanUseToolCallback? canUseTool,
+  }) {
+    final client = ClaudeClientImpl(
+      config: config ?? ClaudeConfig.defaults(),
+      mcpServers: mcpServers,
+      hooks: hooks,
+      canUseTool: canUseTool,
+    );
+    // Initialize in background - don't await
+    client.init();
+    return client;
+  }
 }
 
 class ClaudeClientImpl implements ClaudeClient {
@@ -72,6 +93,9 @@ class ClaudeClientImpl implements ClaudeClient {
 
   bool _isInitialized = false;
   bool _isFirstMessage = true;
+
+  /// Queue for messages sent before init completes
+  final List<Message> _pendingMessages = [];
 
   @override
   bool get isAborting => _lifecycleManager.isAborting;
@@ -136,12 +160,31 @@ class ClaudeClientImpl implements ClaudeClient {
 
     // Control protocol is always required
     await _startControlProtocol();
+
+    // Flush any messages that were queued before init completed
+    _flushPendingMessages();
+  }
+
+  /// Send any messages that were queued before init completed
+  void _flushPendingMessages() {
+    if (_pendingMessages.isEmpty) return;
+
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) return;
+
+    for (final message in _pendingMessages) {
+      _sendMessageViaProtocol(message, controlProtocol);
+    }
+    _pendingMessages.clear();
   }
 
   /// Start a persistent process with control protocol
   Future<void> _startControlProtocol() async {
     final processManager = ProcessManager(config: config, mcpServers: mcpServers);
-    final args = config.toCliArgs(isFirstMessage: _isFirstMessage);
+    final args = config.toCliArgs(
+      isFirstMessage: _isFirstMessage,
+      hasPermissionCallback: canUseTool != null,
+    );
 
     final mcpArgs = await processManager.getMcpArgs();
     if (mcpArgs.isNotEmpty) {
@@ -184,11 +227,6 @@ class ClaudeClientImpl implements ClaudeClient {
   }
 
   void _updateConversation(Conversation newConversation) {
-    final oldState = _currentConversation.state;
-    final newState = newConversation.state;
-
-    if (oldState != newState) {}
-
     _currentConversation = newConversation;
     _conversationController.add(_currentConversation);
   }
@@ -199,13 +237,14 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
 
-    // Control protocol is always required
+    // If not initialized, queue the message and update UI optimistically
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) {
-      throw StateError(
-        'Control protocol is not initialized. '
-        'Ensure init() was called before sendMessage().',
-      );
+      _pendingMessages.add(message);
+      // Update conversation optimistically so UI shows the message
+      final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
+      _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+      return;
     }
 
     // Add user message to conversation
@@ -213,6 +252,10 @@ class ClaudeClientImpl implements ClaudeClient {
     _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
 
     // Send via control protocol
+    _sendMessageViaProtocol(message, controlProtocol);
+  }
+
+  void _sendMessageViaProtocol(Message message, ControlProtocol controlProtocol) {
     if (message.attachments != null && message.attachments!.isNotEmpty) {
       // Build content array with attachments
       final content = <Map<String, dynamic>>[

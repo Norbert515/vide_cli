@@ -40,12 +40,13 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
 
   void _handleSubmit(Message message) async {
     // Start a new agent network with the full message (preserves attachments)
+    // This returns immediately - client creation happens in background
     final network = await context.read(agentNetworkManagerProvider.notifier).startNew(message);
 
     // Update the networks list
     context.read(agentNetworksStateNotifierProvider.notifier).upsertNetwork(network);
 
-    // Navigate to the execution page
+    // Navigate to the execution page immediately
     await NetworkExecutionPage.push(context, network.id);
   }
 

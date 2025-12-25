@@ -18,6 +18,7 @@ import 'claude_manager.dart';
 import 'posthog_service.dart';
 import '../state/agent_status_manager.dart';
 import '../mcp/mcp_provider.dart';
+import 'permission_provider.dart';
 
 /// Agent types that can be spawned via the agent network.
 enum SpawnableAgentType { implementation, contextCollection, flutterTester, planning }
@@ -103,23 +104,26 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       worktreePath: workingDirectory, // Atomically set working directory from parameter
     );
 
-    // Persist the network
-    await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(network);
+    // Set state IMMEDIATELY so UI can navigate right away
+    state = AgentNetworkState(currentNetwork: network);
 
-    // Track analytics
-    PostHogService.conversationStarted();
-
-    // Start the main agent
+    // Create and add client SYNCHRONOUSLY so UI has it immediately
     final mainAgentConfig = MainAgentConfig.create();
-    final mainAgentClaudeClient = await _inflateClaudeClient(
+    final mainAgentClaudeClient = _inflateClaudeClientSync(
       AgentIdAndClaudeConfig(agentId: mainAgentId, config: mainAgentConfig),
     );
     ref.read(claudeManagerProvider.notifier).addAgent(mainAgentId, mainAgentClaudeClient);
 
-    state = AgentNetworkState(currentNetwork: network);
+    // Track analytics
+    PostHogService.conversationStarted();
 
-    // Send the initial message (preserves attachments)
-    ref.read(claudeProvider(mainAgentId))?.sendMessage(initialMessage);
+    // Do persistence in background
+    () async {
+      await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(network);
+    }();
+
+    // Send the initial message - it will be queued until client is ready
+    mainAgentClaudeClient.sendMessage(initialMessage);
 
     return network;
   }
@@ -408,9 +412,12 @@ $message''';
     print('[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId');
   }
 
-  Future<ClaudeClient> _inflateClaudeClient(AgentIdAndClaudeConfig config) async {
+  /// Creates a ClaudeClient synchronously (init happens in background).
+  /// This allows the UI to show the client immediately while it connects.
+  ClaudeClient _inflateClaudeClientSync(AgentIdAndClaudeConfig config) {
+    final cwd = effectiveWorkingDirectory;
     final claudeConfig = config.config.toClaudeConfig(
-      workingDirectory: effectiveWorkingDirectory,
+      workingDirectory: cwd,
       sessionId: config.agentId.toString(),
     );
     final mcpServers = config.config.mcpServers!
@@ -420,6 +427,40 @@ $message''';
           ),
         )
         .toList();
-    return await ClaudeClient.create(config: claudeConfig, mcpServers: mcpServers);
+
+    // Get the canUseTool callback factory (if provided by the UI)
+    final callbackFactory = ref.read(canUseToolCallbackFactoryProvider);
+    final canUseTool = callbackFactory?.call(cwd);
+
+    return ClaudeClient.createAndInitInBackground(
+      config: claudeConfig,
+      mcpServers: mcpServers,
+      canUseTool: canUseTool,
+    );
+  }
+
+  Future<ClaudeClient> _inflateClaudeClient(AgentIdAndClaudeConfig config) async {
+    final cwd = effectiveWorkingDirectory;
+    final claudeConfig = config.config.toClaudeConfig(
+      workingDirectory: cwd,
+      sessionId: config.agentId.toString(),
+    );
+    final mcpServers = config.config.mcpServers!
+        .map(
+          (server) => ref.watch(
+            genericMcpServerProvider(AgentIdAndMcpServerType(agentId: config.agentId, mcpServerType: server)),
+          ),
+        )
+        .toList();
+
+    // Get the canUseTool callback factory (if provided by the UI)
+    final callbackFactory = ref.read(canUseToolCallbackFactoryProvider);
+    final canUseTool = callbackFactory?.call(cwd);
+
+    return await ClaudeClient.create(
+      config: claudeConfig,
+      mcpServers: mcpServers,
+      canUseTool: canUseTool,
+    );
   }
 }

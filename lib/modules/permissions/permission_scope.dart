@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:collection';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/vide_core.dart' hide PermissionRequest, PermissionResponse;
 import 'permission_service.dart';
 
 /// State for permission requests - includes queue and current request
@@ -56,7 +55,6 @@ class PermissionScope extends StatefulComponent {
 class _PermissionScopeState extends State<PermissionScope> {
   StreamSubscription<PermissionRequest>? _permissionSub;
   bool _listenerSetup = false;
-  Set<String> _registeredSessionIds = {};
 
   @override
   void initState() {
@@ -71,38 +69,8 @@ class _PermissionScopeState extends State<PermissionScope> {
     if (!_listenerSetup) {
       _listenerSetup = true;
       _permissionSub = permissionService.requests.listen((request) {
-        // Enqueue the permission request
         context.read(permissionStateProvider.notifier).enqueueRequest(request);
       });
-    }
-
-    // Get ALL agent IDs from the network - each agent is a separate Claude process
-    // with its own session ID, so we need to register port files for all of them
-    final networkState = context.read(agentNetworkManagerProvider);
-    final allAgentIds = networkState.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-
-    // Find new agents that aren't registered yet
-    final newAgentIds = allAgentIds.difference(_registeredSessionIds);
-
-    if (newAgentIds.isNotEmpty) {
-      // Start service with first agent if not started yet
-      if (_registeredSessionIds.isEmpty && newAgentIds.isNotEmpty) {
-        final firstAgentId = newAgentIds.first;
-        permissionService.start(sessionId: firstAgentId, permissionMode: 'acceptEdits');
-        _registeredSessionIds.add(firstAgentId);
-
-        // Register remaining new agents
-        for (final agentId in newAgentIds.skip(1)) {
-          permissionService.registerAdditionalSession(agentId);
-          _registeredSessionIds.add(agentId);
-        }
-      } else {
-        // Service already running, just register new agents
-        for (final agentId in newAgentIds) {
-          permissionService.registerAdditionalSession(agentId);
-          _registeredSessionIds.add(agentId);
-        }
-      }
     }
   }
 
@@ -114,10 +82,7 @@ class _PermissionScopeState extends State<PermissionScope> {
 
   @override
   Component build(BuildContext context) {
-    // Watch network state so we rebuild when it changes
-    context.watch(agentNetworkManagerProvider);
-
-    // Set up/update permission handling
+    // Set up permission handling (subscribes to requests stream)
     _setupPermissionHandling(context);
 
     // Just return the child - no more Stack overlay

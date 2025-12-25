@@ -56,7 +56,31 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     final agentId = networkState.agentIds[safeIndex];
     final client = context.watch(claudeProvider(agentId));
     if (client == null) {
-      return Expanded(child: Center(child: Text('Agent disconnected')));
+      // Client still being created - show optimistic loading state
+      // This looks the same as when we're waiting for a response
+      final theme = VideTheme.of(context);
+      return Expanded(
+        child: Container(
+          decoration: BoxDecoration(title: BorderTitle(text: 'Main')),
+          child: Column(
+            children: [
+              Expanded(child: SizedBox()),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  EnhancedLoadingIndicator(),
+                  SizedBox(width: 2),
+                  Text(
+                    '(Press ESC to stop)',
+                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return Expanded(
       child: _AgentChat(
@@ -290,8 +314,8 @@ class _AgentChatState extends State<_AgentChat> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Show typing indicator with hint
-                if (_conversation.state == ConversationState.receivingResponse)
+                // Show typing indicator with hint when processing
+                if (_conversation.isProcessing)
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,

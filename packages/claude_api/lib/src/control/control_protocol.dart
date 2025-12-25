@@ -166,7 +166,10 @@ class ControlProtocol {
   Future<Map<String, dynamic>> _handleCanUseTool(CanUseToolRequest request) async {
     if (_canUseToolCallback == null) {
       // No callback registered, allow by default
-      return const PermissionResultAllow().toJson();
+      return {
+        'behavior': 'allow',
+        'updatedInput': request.input,
+      };
     }
 
     final result = await _canUseToolCallback!(
@@ -175,7 +178,12 @@ class ControlProtocol {
       request.context,
     );
 
-    return result.toJson();
+    // Build response - always include updatedInput for allow responses
+    final json = result.toJson();
+    if (result is PermissionResultAllow && json['updatedInput'] == null) {
+      json['updatedInput'] = request.input;
+    }
+    return json;
   }
 
   /// Handle a hook_callback request
