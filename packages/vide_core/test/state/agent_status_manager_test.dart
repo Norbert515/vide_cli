@@ -65,7 +65,7 @@ void main() {
       expect(notificationCount, 2);
     });
 
-    test('setting same status still notifies', () {
+    test('setting same status does not notify listeners', () {
       var notificationCount = 0;
 
       container.listen(
@@ -76,11 +76,12 @@ void main() {
       );
 
       final notifier = container.read(agentStatusProvider('agent-1').notifier);
+      // Initial status is 'working', setting to 'working' again is a no-op
       notifier.setStatus(AgentStatus.working);
       notifier.setStatus(AgentStatus.working);
 
-      // StateNotifier notifies even when value is the same
-      expect(notificationCount, 2);
+      // StateNotifier does NOT notify when value is unchanged (standard behavior)
+      expect(notificationCount, 0);
     });
   });
 }

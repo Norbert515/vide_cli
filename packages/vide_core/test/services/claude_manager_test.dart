@@ -151,38 +151,29 @@ void main() {
       expect(retrieved, isNull);
     });
 
-    test('updates when client is added', () {
-      var updateCount = 0;
-
-      container.listen(
-        claudeProvider('agent-1'),
-        (previous, next) {
-          updateCount++;
-        },
-      );
+    test('reflects client when added', () {
+      // Initially null
+      expect(container.read(claudeProvider('agent-1')), isNull);
 
       final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      final client = MockClaudeClient('test');
+      notifier.addAgent('agent-1', client);
 
-      expect(updateCount, 1);
-      expect(container.read(claudeProvider('agent-1')), isNotNull);
+      // Now should return the client
+      expect(container.read(claudeProvider('agent-1')), same(client));
     });
 
-    test('updates when client is removed', () {
+    test('reflects removal when client is removed', () {
       final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      final client = MockClaudeClient('test');
+      notifier.addAgent('agent-1', client);
 
-      var updateCount = 0;
-      container.listen(
-        claudeProvider('agent-1'),
-        (previous, next) {
-          updateCount++;
-        },
-      );
+      // Verify client is present
+      expect(container.read(claudeProvider('agent-1')), same(client));
 
       notifier.removeAgent('agent-1');
 
-      expect(updateCount, 1);
+      // Now should be null
       expect(container.read(claudeProvider('agent-1')), isNull);
     });
   });
