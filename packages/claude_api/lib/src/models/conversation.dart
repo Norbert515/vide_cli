@@ -66,6 +66,8 @@ class ConversationMessage {
         usage = TokenUsage(
           inputTokens: response.inputTokens ?? 0,
           outputTokens: response.outputTokens ?? 0,
+          cacheReadInputTokens: response.cacheReadInputTokens ?? 0,
+          cacheCreationInputTokens: response.cacheCreationInputTokens ?? 0,
         );
       }
     }
@@ -183,10 +185,32 @@ class ConversationMessage {
 class TokenUsage {
   final int inputTokens;
   final int outputTokens;
+  final int cacheReadInputTokens;
+  final int cacheCreationInputTokens;
 
-  const TokenUsage({required this.inputTokens, required this.outputTokens});
+  const TokenUsage({
+    required this.inputTokens,
+    required this.outputTokens,
+    this.cacheReadInputTokens = 0,
+    this.cacheCreationInputTokens = 0,
+  });
 
   int get totalTokens => inputTokens + outputTokens;
+
+  /// Total context tokens (input + cache read + cache creation).
+  /// This represents the actual context window usage.
+  int get totalContextTokens =>
+      inputTokens + cacheReadInputTokens + cacheCreationInputTokens;
+
+  TokenUsage operator +(TokenUsage other) {
+    return TokenUsage(
+      inputTokens: inputTokens + other.inputTokens,
+      outputTokens: outputTokens + other.outputTokens,
+      cacheReadInputTokens: cacheReadInputTokens + other.cacheReadInputTokens,
+      cacheCreationInputTokens:
+          cacheCreationInputTokens + other.cacheCreationInputTokens,
+    );
+  }
 }
 
 class Conversation {
@@ -195,6 +219,9 @@ class Conversation {
   final String? currentError;
   final int totalInputTokens;
   final int totalOutputTokens;
+  final int totalCacheReadInputTokens;
+  final int totalCacheCreationInputTokens;
+  final double totalCostUsd;
 
   const Conversation({
     required this.messages,
@@ -202,6 +229,9 @@ class Conversation {
     this.currentError,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
   });
 
   factory Conversation.empty() =>
@@ -209,6 +239,11 @@ class Conversation {
 
   // Helper methods
   int get totalTokens => totalInputTokens + totalOutputTokens;
+
+  /// Total context tokens (input + cache read + cache creation).
+  /// This represents the actual context window usage.
+  int get totalContextTokens =>
+      totalInputTokens + totalCacheReadInputTokens + totalCacheCreationInputTokens;
 
   bool get isProcessing =>
       state == ConversationState.sendingMessage ||
@@ -240,6 +275,9 @@ class Conversation {
     String? currentError,
     int? totalInputTokens,
     int? totalOutputTokens,
+    int? totalCacheReadInputTokens,
+    int? totalCacheCreationInputTokens,
+    double? totalCostUsd,
   }) {
     return Conversation(
       messages: messages ?? this.messages,
@@ -247,6 +285,11 @@ class Conversation {
       currentError: currentError ?? this.currentError,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
+      totalCacheReadInputTokens:
+          totalCacheReadInputTokens ?? this.totalCacheReadInputTokens,
+      totalCacheCreationInputTokens:
+          totalCacheCreationInputTokens ?? this.totalCacheCreationInputTokens,
+      totalCostUsd: totalCostUsd ?? this.totalCostUsd,
     );
   }
 

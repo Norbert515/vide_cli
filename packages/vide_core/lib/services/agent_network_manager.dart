@@ -263,6 +263,39 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
 
+  /// Update token usage stats for an agent.
+  ///
+  /// Call this when conversation token totals change to keep agent metadata in sync.
+  /// Does NOT persist immediately - call is synchronous for performance.
+  /// Token stats will be persisted on the next network save (e.g., when agent terminates).
+  void updateAgentTokenStats(
+    AgentId agentId, {
+    required int totalInputTokens,
+    required int totalOutputTokens,
+    required int totalCacheReadInputTokens,
+    required int totalCacheCreationInputTokens,
+    required double totalCostUsd,
+  }) {
+    final network = state.currentNetwork;
+    if (network == null) return;
+
+    final updatedAgents = network.agents.map((agent) {
+      if (agent.id == agentId) {
+        return agent.copyWith(
+          totalInputTokens: totalInputTokens,
+          totalOutputTokens: totalOutputTokens,
+          totalCacheReadInputTokens: totalCacheReadInputTokens,
+          totalCacheCreationInputTokens: totalCacheCreationInputTokens,
+          totalCostUsd: totalCostUsd,
+        );
+      }
+      return agent;
+    }).toList();
+
+    final updatedNetwork = network.copyWith(agents: updatedAgents);
+    state = AgentNetworkState(currentNetwork: updatedNetwork);
+  }
+
   /// Set worktree path for the current session. All new agents will use this directory.
   Future<void> setWorktreePath(String? worktreePath) async {
     final network = state.currentNetwork;

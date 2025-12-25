@@ -348,6 +348,9 @@ class CompletionResponse extends ClaudeResponse {
   final String? stopReason;
   final int? inputTokens;
   final int? outputTokens;
+  final int? cacheReadInputTokens;
+  final int? cacheCreationInputTokens;
+  final double? totalCostUsd;
 
   const CompletionResponse({
     required super.id,
@@ -355,8 +358,18 @@ class CompletionResponse extends ClaudeResponse {
     this.stopReason,
     this.inputTokens,
     this.outputTokens,
+    this.cacheReadInputTokens,
+    this.cacheCreationInputTokens,
+    this.totalCostUsd,
     super.rawData,
   });
+
+  /// Total context tokens (input + cache read + cache creation).
+  /// This represents the actual context window usage.
+  int get totalContextTokens =>
+      (inputTokens ?? 0) +
+      (cacheReadInputTokens ?? 0) +
+      (cacheCreationInputTokens ?? 0);
 
   factory CompletionResponse.fromJson(Map<String, dynamic> json) {
     return CompletionResponse(
@@ -365,6 +378,9 @@ class CompletionResponse extends ClaudeResponse {
       stopReason: json['stop_reason'],
       inputTokens: json['usage']?['input_tokens'],
       outputTokens: json['usage']?['output_tokens'],
+      cacheReadInputTokens: json['usage']?['cache_read_input_tokens'],
+      cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
+      totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       rawData: json,
     );
   }
@@ -376,6 +392,9 @@ class CompletionResponse extends ClaudeResponse {
       stopReason: json['subtype'] == 'success' ? 'completed' : 'error',
       inputTokens: json['usage']?['input_tokens'],
       outputTokens: json['usage']?['output_tokens'],
+      cacheReadInputTokens: json['usage']?['cache_read_input_tokens'],
+      cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
+      totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       rawData: json,
     );
   }
