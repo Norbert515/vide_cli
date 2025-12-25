@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
@@ -37,7 +38,7 @@ void main() {
         ),
       );
       final file = File('$cwd/.claude/settings.local.json');
-      await file.writeAsString('${settings.toJson()}');
+      await file.writeAsString(jsonEncode(settings.toJson()));
     }
 
     group('internal tools auto-approval', () {

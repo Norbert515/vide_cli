@@ -38,6 +38,7 @@ export 'mcp/mcp_provider.dart';
 export 'mcp/memory_mcp_server.dart';
 export 'mcp/git/git_client.dart';
 export 'mcp/git/git_models.dart';
+export 'mcp/git/git_exception.dart';
 
 // Utilities
 export 'utils/project_detector.dart';
