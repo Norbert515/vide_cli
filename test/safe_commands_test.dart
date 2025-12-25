@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_cli/modules/settings/safe_commands.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('SafeCommands - Basic read-only commands', () {

@@ -11,10 +11,8 @@ import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
-import 'package:vide_core/vide_core.dart' hide PermissionRequest, PermissionResponse;
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
-import 'package:vide_cli/modules/settings/local_settings_manager.dart';
-import 'package:vide_cli/modules/settings/pattern_inference.dart';
 import 'package:vide_cli/theme/theme.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';

@@ -10,7 +10,6 @@ export 'models/agent_metadata.dart';
 export 'models/agent_id.dart';
 export 'models/agent_status.dart';
 export 'models/memory_entry.dart';
-export 'models/permission.dart';
 export 'models/vide_global_settings.dart';
 
 // Services
@@ -20,6 +19,7 @@ export 'services/posthog_service.dart';
 export 'services/permission_provider.dart';
 export 'services/agent_network_persistence_manager.dart';
 export 'services/agent_network_manager.dart';
+export 'services/claude_client_factory.dart';
 export 'services/claude_manager.dart';
 
 // Agents
@@ -36,8 +36,8 @@ export 'agents/flutter_tester_agent_config.dart';
 export 'mcp/mcp_server_type.dart';
 export 'mcp/mcp_provider.dart';
 export 'mcp/memory_mcp_server.dart';
-export 'mcp/git/git/git_client.dart';
-export 'mcp/git/git/git_models.dart';
+export 'mcp/git/git_client.dart';
+export 'mcp/git/git_models.dart';
 
 // Utilities
 export 'utils/project_detector.dart';
@@ -46,3 +46,15 @@ export 'utils/working_dir_provider.dart';
 
 // State Management
 export 'state/agent_status_manager.dart';
+
+// Permissions
+export 'services/permissions/permission_matcher.dart';
+export 'services/permissions/bash_command_parser.dart';
+export 'services/permissions/safe_commands.dart';
+export 'services/permissions/pattern_inference.dart';
+export 'services/permissions/gitignore_matcher.dart';
+export 'services/permissions/permission_checker.dart';
+
+// Settings
+export 'services/settings/local_settings_manager.dart';
+export 'models/claude_settings.dart';

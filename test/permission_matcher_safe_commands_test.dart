@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_cli/modules/settings/permission_matcher.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('PermissionMatcher.isSafeBashCommand - Integration tests', () {

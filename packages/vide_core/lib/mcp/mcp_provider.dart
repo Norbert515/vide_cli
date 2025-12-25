@@ -1,9 +1,9 @@
 import 'package:claude_api/claude_api.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
-import 'agent/agent/agent_mcp_server.dart';
-import 'git/git/git_server.dart';
+import 'agent/agent_mcp_server.dart';
+import 'git/git_server.dart';
 import 'mcp_server_type.dart';
-import 'task_management/task_management/task_management_server.dart';
+import 'task_management/task_management_server.dart';
 import 'memory_mcp_server.dart';
 import 'package:riverpod/riverpod.dart';
 
