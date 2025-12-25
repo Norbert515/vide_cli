@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:path/path.dart' as path;
 import 'package:vide_core/vide_core.dart';
 
 /// A test-friendly VideConfigManager that uses a temporary directory.
