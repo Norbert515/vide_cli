@@ -14,6 +14,11 @@ class AgentMetadata {
     required this.createdAt,
     this.status = AgentStatus.idle,
     this.taskName,
+    this.totalInputTokens = 0,
+    this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
   });
 
   /// The unique identifier for this agent
@@ -37,6 +42,26 @@ class AgentMetadata {
   /// The current task name for this agent (set via setAgentTaskName MCP tool)
   final String? taskName;
 
+  /// Total input tokens used by this agent
+  final int totalInputTokens;
+
+  /// Total output tokens used by this agent
+  final int totalOutputTokens;
+
+  /// Total cache read input tokens used by this agent
+  final int totalCacheReadInputTokens;
+
+  /// Total cache creation input tokens used by this agent
+  final int totalCacheCreationInputTokens;
+
+  /// Total cost in USD for this agent
+  final double totalCostUsd;
+
+  /// Total context tokens (input + cache read + cache creation).
+  /// This represents the actual context window usage.
+  int get totalContextTokens =>
+      totalInputTokens + totalCacheReadInputTokens + totalCacheCreationInputTokens;
+
   AgentMetadata copyWith({
     AgentId? id,
     String? name,
@@ -45,6 +70,11 @@ class AgentMetadata {
     DateTime? createdAt,
     AgentStatus? status,
     String? taskName,
+    int? totalInputTokens,
+    int? totalOutputTokens,
+    int? totalCacheReadInputTokens,
+    int? totalCacheCreationInputTokens,
+    double? totalCostUsd,
   }) {
     return AgentMetadata(
       id: id ?? this.id,
@@ -54,6 +84,13 @@ class AgentMetadata {
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       taskName: taskName ?? this.taskName,
+      totalInputTokens: totalInputTokens ?? this.totalInputTokens,
+      totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
+      totalCacheReadInputTokens:
+          totalCacheReadInputTokens ?? this.totalCacheReadInputTokens,
+      totalCacheCreationInputTokens:
+          totalCacheCreationInputTokens ?? this.totalCacheCreationInputTokens,
+      totalCostUsd: totalCostUsd ?? this.totalCostUsd,
     );
   }
 
@@ -66,6 +103,11 @@ class AgentMetadata {
       'createdAt': createdAt.toIso8601String(),
       'status': status.toStringValue(),
       'taskName': taskName,
+      'totalInputTokens': totalInputTokens,
+      'totalOutputTokens': totalOutputTokens,
+      'totalCacheReadInputTokens': totalCacheReadInputTokens,
+      'totalCacheCreationInputTokens': totalCacheCreationInputTokens,
+      'totalCostUsd': totalCostUsd,
     };
   }
 
@@ -78,6 +120,13 @@ class AgentMetadata {
       createdAt: DateTime.parse(json['createdAt'] as String),
       status: _parseStatus(json['status'] as String?),
       taskName: json['taskName'] as String?,
+      totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
+      totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
+      totalCacheReadInputTokens:
+          (json['totalCacheReadInputTokens'] as int?) ?? 0,
+      totalCacheCreationInputTokens:
+          (json['totalCacheCreationInputTokens'] as int?) ?? 0,
+      totalCostUsd: (json['totalCostUsd'] as num?)?.toDouble() ?? 0.0,
     );
   }
 

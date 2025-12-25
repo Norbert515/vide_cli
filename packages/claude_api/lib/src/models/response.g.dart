@@ -137,6 +137,10 @@ CompletionResponse _$CompletionResponseFromJson(Map<String, dynamic> json) =>
       stopReason: json['stopReason'] as String?,
       inputTokens: (json['inputTokens'] as num?)?.toInt(),
       outputTokens: (json['outputTokens'] as num?)?.toInt(),
+      cacheReadInputTokens: (json['cacheReadInputTokens'] as num?)?.toInt(),
+      cacheCreationInputTokens: (json['cacheCreationInputTokens'] as num?)
+          ?.toInt(),
+      totalCostUsd: (json['totalCostUsd'] as num?)?.toDouble(),
       rawData: json['rawData'] as Map<String, dynamic>?,
     );
 
@@ -148,6 +152,9 @@ Map<String, dynamic> _$CompletionResponseToJson(CompletionResponse instance) =>
       'stopReason': instance.stopReason,
       'inputTokens': instance.inputTokens,
       'outputTokens': instance.outputTokens,
+      'cacheReadInputTokens': instance.cacheReadInputTokens,
+      'cacheCreationInputTokens': instance.cacheCreationInputTokens,
+      'totalCostUsd': instance.totalCostUsd,
     };
 
 UnknownResponse _$UnknownResponseFromJson(Map<String, dynamic> json) =>

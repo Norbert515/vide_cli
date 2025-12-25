@@ -11,6 +11,9 @@ import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
+import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
+import 'package:vide_cli/modules/commands/command.dart';
+import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
@@ -184,6 +187,8 @@ class _AgentChatState extends State<_AgentChat> {
   StreamSubscription<Conversation>? _conversationSubscription;
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
+  String? _commandResult;
+  bool _commandResultIsError = false;
 
   @override
   void initState() {
@@ -206,6 +211,48 @@ class _AgentChatState extends State<_AgentChat> {
 
   void _sendMessage(Message message) {
     component.client.sendMessage(message);
+  }
+
+  Future<void> _handleCommand(String commandInput) async {
+    final dispatcher = context.read(commandDispatcherProvider);
+    final commandContext = CommandContext(
+      agentId: component.client.sessionId,
+      workingDirectory: component.client.workingDirectory,
+    );
+
+    final result = await dispatcher.dispatch(commandInput, commandContext);
+
+    setState(() {
+      _commandResult = result.success ? result.message : result.error;
+      _commandResultIsError = !result.success;
+    });
+
+    // Auto-clear command result after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _commandResult = null;
+        });
+      }
+    });
+  }
+
+  List<CommandSuggestion> _getCommandSuggestions(String prefix) {
+    final registry = context.read(commandRegistryProvider);
+    final allCommands = registry.allCommands;
+
+    // Filter commands that match the prefix
+    final matching = allCommands.where((cmd) {
+      return cmd.name.toLowerCase().startsWith(prefix.toLowerCase());
+    }).toList();
+
+    // Convert to CommandSuggestion
+    return matching.map((cmd) {
+      return CommandSuggestion(
+        name: cmd.name,
+        description: cmd.description,
+      );
+    }).toList();
   }
 
   List<Map<String, dynamic>>? _getLatestTodos() {
@@ -275,6 +322,60 @@ class _AgentChatState extends State<_AgentChat> {
       return true;
     }
     return false;
+  }
+
+  Component _buildContextUsageSection(VideThemeData theme) {
+    final usedTokens = _conversation.totalContextTokens;
+    final percentage = kClaudeContextWindowSize > 0
+        ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
+        : 0.0;
+    final isWarningZone = percentage >= kContextWarningThreshold;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Row(
+        children: [
+          // Context usage indicator
+          ContextUsageIndicator(usedTokens: usedTokens),
+          SizedBox(width: 1),
+          Text(
+            'context',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
+
+          // Compact button appears in warning zone
+          if (isWarningZone) ...[
+            SizedBox(width: 2),
+            GestureDetector(
+              onTap: () => _handleCommand('/compact'),
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(
+                  border: BoxBorder.all(color: theme.base.error),
+                ),
+                child: Text(
+                  'Compact',
+                  style: TextStyle(color: theme.base.error),
+                ),
+              ),
+            ),
+          ],
+
+          // Cost display
+          if (_conversation.totalCostUsd > 0) ...[
+            Expanded(child: SizedBox()),
+            Text(
+              '\$${_conversation.totalCostUsd.toStringAsFixed(4)}',
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -360,12 +461,28 @@ class _AgentChatState extends State<_AgentChat> {
                 else
                   AttachmentTextField(
                     enabled: !_conversation.isProcessing,
-                    placeholder: 'Type a message...',
+                    placeholder: 'Type a message... (use /help for commands)',
                     onSubmit: _sendMessage,
+                    onCommand: _handleCommand,
+                    commandSuggestions: _getCommandSuggestions,
                   ),
 
-                // Context usage bar below the text field
-                //ContextUsageBar(usedTokens: _conversation.totalInputTokens),
+                // Command result feedback
+                if (_commandResult != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 1),
+                    child: Text(
+                      _commandResult!,
+                      style: TextStyle(
+                        color: _commandResultIsError
+                            ? theme.base.error
+                            : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                      ),
+                    ),
+                  ),
+
+                // Context usage bar with compact button
+                _buildContextUsageSection(theme),
               ],
             ),
           ],

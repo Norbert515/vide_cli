@@ -179,6 +179,13 @@ class ResponseProcessor {
               currentConversation.totalInputTokens + (response.inputTokens ?? 0),
           totalOutputTokens:
               currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
+          totalCacheReadInputTokens: currentConversation.totalCacheReadInputTokens +
+              (response.cacheReadInputTokens ?? 0),
+          totalCacheCreationInputTokens:
+              currentConversation.totalCacheCreationInputTokens +
+                  (response.cacheCreationInputTokens ?? 0),
+          totalCostUsd:
+              currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
         );
 
     return ProcessResult(

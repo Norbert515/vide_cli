@@ -1,0 +1,65 @@
+/// Result of executing a command.
+class CommandResult {
+  /// Create a successful result with optional message.
+  const CommandResult.success([this.message])
+      : success = true,
+        error = null;
+
+  /// Create a failure result with error message.
+  const CommandResult.error(this.error)
+      : success = false,
+        message = null;
+
+  /// Whether the command executed successfully.
+  final bool success;
+
+  /// Optional success message to display.
+  final String? message;
+
+  /// Error message if the command failed.
+  final String? error;
+
+  @override
+  String toString() {
+    if (success) {
+      return 'CommandResult.success(${message ?? ''})';
+    }
+    return 'CommandResult.error($error)';
+  }
+}
+
+/// Context provided to commands during execution.
+class CommandContext {
+  const CommandContext({
+    required this.agentId,
+    required this.workingDirectory,
+  });
+
+  /// The ID of the agent in whose context the command is executing.
+  final String agentId;
+
+  /// The current working directory.
+  final String workingDirectory;
+}
+
+/// Base interface for all slash commands.
+///
+/// Commands are invoked when users type `/commandName [arguments]` in the chat.
+abstract class Command {
+  /// The command name without the leading slash (e.g., "compact", "help").
+  String get name;
+
+  /// Short description of what the command does (shown in /help).
+  String get description;
+
+  /// Usage example (e.g., "/compact [instructions]").
+  String get usage;
+
+  /// Execute the command with optional arguments.
+  ///
+  /// [context] provides information about the current agent and environment.
+  /// [arguments] is the text after the command name (may be null or empty).
+  ///
+  /// Returns a [CommandResult] indicating success or failure.
+  Future<CommandResult> execute(CommandContext context, String? arguments);
+}
