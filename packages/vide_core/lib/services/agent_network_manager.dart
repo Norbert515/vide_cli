@@ -140,9 +140,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     await ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
 
     // Recreate ClaudeClients for each agent in the network
+    // Use sync version to avoid blocking on init (same as startNew)
     for (final agentMetadata in updatedNetwork.agents) {
       final config = _getConfigurationForType(agentMetadata.type);
-      final client = await _inflateClaudeClient(
+      final client = _inflateClaudeClientSync(
         AgentIdAndClaudeConfig(agentId: agentMetadata.id, config: config),
       );
       ref.read(claudeManagerProvider.notifier).addAgent(agentMetadata.id, client);
