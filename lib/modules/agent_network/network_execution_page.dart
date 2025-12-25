@@ -325,7 +325,10 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   Component _buildContextUsageSection(VideThemeData theme) {
-    final usedTokens = _conversation.totalContextTokens;
+    // Use totalInputTokens for context window percentage, not totalContextTokens
+    // Cache tokens (cacheReadInputTokens, cacheCreationInputTokens) are for billing,
+    // not actual context window usage
+    final usedTokens = _conversation.totalInputTokens;
     final percentage = kClaudeContextWindowSize > 0
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;
@@ -461,7 +464,7 @@ class _AgentChatState extends State<_AgentChat> {
                 else
                   AttachmentTextField(
                     enabled: !_conversation.isProcessing,
-                    placeholder: 'Type a message... (use /help for commands)',
+                    placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
                     onCommand: _handleCommand,
                     commandSuggestions: _getCommandSuggestions,
