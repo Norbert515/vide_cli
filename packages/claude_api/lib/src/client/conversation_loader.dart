@@ -46,6 +46,11 @@ class ConversationLoader {
     final messages = <ConversationMessage>[];
     String? lastAssistantMessageId;
 
+    // Track the latest usage data for context window display
+    int lastInputTokens = 0;
+    int lastCacheReadTokens = 0;
+    int lastCacheCreationTokens = 0;
+
     for (final line in lines) {
       if (line.trim().isEmpty) continue;
 
@@ -84,6 +89,21 @@ class ConversationLoader {
             final messageData = json['message'] as Map<String, dynamic>?;
             final currentMessageId = messageData?['id'] as String?;
 
+            // Extract usage data for context window tracking
+            final usage = messageData?['usage'] as Map<String, dynamic>?;
+            if (usage != null) {
+              final inputTokens = usage['input_tokens'] as int? ?? 0;
+              final cacheRead = usage['cache_read_input_tokens'] as int? ?? 0;
+              final cacheCreation =
+                  usage['cache_creation_input_tokens'] as int? ?? 0;
+              // Only update if we have meaningful data (not all zeros)
+              if (inputTokens > 0 || cacheRead > 0 || cacheCreation > 0) {
+                lastInputTokens = inputTokens;
+                lastCacheReadTokens = cacheRead;
+                lastCacheCreationTokens = cacheCreation;
+              }
+            }
+
             // Check if this is a continuation of the previous assistant message
             if (currentMessageId != null &&
                 currentMessageId == lastAssistantMessageId &&
@@ -108,7 +128,14 @@ class ConversationLoader {
       }
     }
 
-    return Conversation(messages: messages, state: ConversationState.idle);
+    return Conversation(
+      messages: messages,
+      state: ConversationState.idle,
+      // Set current context from the last assistant message's usage data
+      currentContextInputTokens: lastInputTokens,
+      currentContextCacheReadTokens: lastCacheReadTokens,
+      currentContextCacheCreationTokens: lastCacheCreationTokens,
+    );
   }
 
   /// Checks if a conversation file exists for the given session ID and project path.
