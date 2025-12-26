@@ -199,8 +199,22 @@ class _AgentChatState extends State<_AgentChat> {
       setState(() {
         _conversation = conversation;
       });
+
+      // Sync token stats to AgentMetadata for persistence and network-wide tracking
+      _syncTokenStats(conversation);
     });
     _conversation = component.client.currentConversation;
+  }
+
+  void _syncTokenStats(Conversation conversation) {
+    context.read(agentNetworkManagerProvider.notifier).updateAgentTokenStats(
+      component.client.sessionId,
+      totalInputTokens: conversation.totalInputTokens,
+      totalOutputTokens: conversation.totalOutputTokens,
+      totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
+      totalCostUsd: conversation.totalCostUsd,
+    );
   }
 
   @override
@@ -325,10 +339,11 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   Component _buildContextUsageSection(VideThemeData theme) {
-    // Use totalInputTokens for context window percentage, not totalContextTokens
-    // Cache tokens (cacheReadInputTokens, cacheCreationInputTokens) are for billing,
-    // not actual context window usage
-    final usedTokens = _conversation.totalInputTokens;
+    // Use currentContextWindowTokens for context window percentage.
+    // This is the CURRENT context size (from latest turn), which includes:
+    // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+    // Cache tokens DO count towards context window - they're just read from cache.
+    final usedTokens = _conversation.currentContextWindowTokens;
     final percentage = kClaudeContextWindowSize > 0
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;

@@ -99,6 +99,93 @@ void main() {
           expect(result.updatedConversation.messages.last.content, equals('New message'));
           expect(result.updatedConversation.messages.last.isStreaming, isTrue);
         });
+
+        test('extracts and accumulates usage from rawData with end_turn', () {
+          final conversation = Conversation(
+            messages: [],
+            state: ConversationState.idle,
+            totalInputTokens: 100,
+            totalOutputTokens: 50,
+            totalCacheReadInputTokens: 10,
+            totalCacheCreationInputTokens: 20,
+          );
+
+          // Simulate Claude CLI format with usage in message.usage
+          final response = TextResponse(
+            id: 'text-1',
+            timestamp: DateTime.now(),
+            content: 'Hello!',
+            rawData: {
+              'type': 'assistant',
+              'message': {
+                'stop_reason': 'end_turn',
+                'usage': {
+                  'input_tokens': 50,
+                  'output_tokens': 30,
+                  'cache_read_input_tokens': 5,
+                  'cache_creation_input_tokens': 10,
+                },
+              },
+            },
+          );
+
+          final result = processor.processResponse(response, conversation);
+
+          // Verify tokens are accumulated (totals)
+          expect(result.updatedConversation.totalInputTokens, equals(150));
+          expect(result.updatedConversation.totalOutputTokens, equals(80));
+          expect(result.updatedConversation.totalCacheReadInputTokens, equals(15));
+          expect(result.updatedConversation.totalCacheCreationInputTokens, equals(30));
+
+          // Verify current context values are set (replaced, not accumulated)
+          expect(result.updatedConversation.currentContextInputTokens, equals(50));
+          expect(result.updatedConversation.currentContextCacheReadTokens, equals(5));
+          expect(result.updatedConversation.currentContextCacheCreationTokens, equals(10));
+          expect(result.updatedConversation.currentContextWindowTokens, equals(65)); // 50 + 5 + 10
+
+          // Verify turn is complete
+          expect(result.turnComplete, isTrue);
+          expect(result.updatedConversation.messages.last.isStreaming, isFalse);
+          expect(result.updatedConversation.messages.last.isComplete, isTrue);
+          expect(result.updatedConversation.state, equals(ConversationState.idle));
+        });
+
+        test('does not mark turn complete for tool_use stop_reason', () {
+          final conversation = Conversation(
+            messages: [],
+            state: ConversationState.idle,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+          );
+
+          // Simulate Claude CLI format with tool_use stop_reason
+          final response = TextResponse(
+            id: 'text-1',
+            timestamp: DateTime.now(),
+            content: 'Let me check that file...',
+            rawData: {
+              'type': 'assistant',
+              'message': {
+                'stop_reason': 'tool_use',
+                'usage': {
+                  'input_tokens': 50,
+                  'output_tokens': 30,
+                },
+              },
+            },
+          );
+
+          final result = processor.processResponse(response, conversation);
+
+          // Verify tokens are still accumulated
+          expect(result.updatedConversation.totalInputTokens, equals(50));
+          expect(result.updatedConversation.totalOutputTokens, equals(30));
+
+          // Verify turn is NOT complete (tool_use means more coming)
+          expect(result.turnComplete, isFalse);
+          expect(result.updatedConversation.messages.last.isStreaming, isTrue);
+          expect(result.updatedConversation.messages.last.isComplete, isFalse);
+        });
       });
 
       group('ToolUseResponse', () {

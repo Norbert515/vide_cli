@@ -99,10 +99,20 @@ class ResponseProcessor {
     bool isAssistantMessage,
     List<ClaudeResponse> responses,
   ) {
+    // Extract usage if available
+    final usage = _extractUsageFromRawData(response.rawData);
+
+    // Check if this is truly a complete turn (end_turn stop_reason)
+    // stop_reason="tool_use" means Claude wants to use a tool - turn is NOT complete
+    // stop_reason="end_turn" means Claude is done - turn IS complete
+    final stopReason = response.rawData?['message']?['stop_reason'] as String?;
+    final isTurnComplete = stopReason == 'end_turn';
+
     final message = ConversationMessage.assistant(
       id: isAssistantMessage ? existingMessage!.id : assistantId,
       responses: responses,
-      isStreaming: true,
+      isStreaming: !isTurnComplete,
+      isComplete: isTurnComplete,
     );
 
     Conversation updatedConversation;
@@ -114,9 +124,35 @@ class ResponseProcessor {
           .withState(ConversationState.receivingResponse);
     }
 
+    // Update tokens whenever usage is available
+    if (usage != null) {
+      updatedConversation = updatedConversation.copyWith(
+        // Accumulate totals (for billing/stats)
+        totalInputTokens:
+            updatedConversation.totalInputTokens + usage.inputTokens,
+        totalOutputTokens:
+            updatedConversation.totalOutputTokens + usage.outputTokens,
+        totalCacheReadInputTokens:
+            updatedConversation.totalCacheReadInputTokens +
+                usage.cacheReadInputTokens,
+        totalCacheCreationInputTokens:
+            updatedConversation.totalCacheCreationInputTokens +
+                usage.cacheCreationInputTokens,
+        // Replace current context values (for context window %)
+        currentContextInputTokens: usage.inputTokens,
+        currentContextCacheReadTokens: usage.cacheReadInputTokens,
+        currentContextCacheCreationTokens: usage.cacheCreationInputTokens,
+      );
+    }
+
+    // Set state to idle only if turn is complete
+    if (isTurnComplete) {
+      updatedConversation = updatedConversation.withState(ConversationState.idle);
+    }
+
     return ProcessResult(
       updatedConversation: updatedConversation,
-      turnComplete: false,
+      turnComplete: isTurnComplete,
     );
   }
 
@@ -128,10 +164,13 @@ class ResponseProcessor {
     bool isAssistantMessage,
     List<ClaudeResponse> responses,
   ) {
+    // Extract usage if available - this indicates the response has stop_reason set
+    final usage = _extractUsageFromRawData(response.rawData);
+
     final message = ConversationMessage.assistant(
       id: isAssistantMessage ? existingMessage!.id : assistantId,
       responses: responses,
-      isStreaming: true,
+      isStreaming: true, // Tool operations always continue (waiting for result)
     );
 
     Conversation updatedConversation;
@@ -149,9 +188,30 @@ class ResponseProcessor {
           updatedConversation.withState(ConversationState.processing);
     }
 
+    // Update usage if available (even during tool use, Claude reports usage)
+    if (usage != null) {
+      updatedConversation = updatedConversation.copyWith(
+        // Accumulate totals (for billing/stats)
+        totalInputTokens:
+            updatedConversation.totalInputTokens + usage.inputTokens,
+        totalOutputTokens:
+            updatedConversation.totalOutputTokens + usage.outputTokens,
+        totalCacheReadInputTokens:
+            updatedConversation.totalCacheReadInputTokens +
+                usage.cacheReadInputTokens,
+        totalCacheCreationInputTokens:
+            updatedConversation.totalCacheCreationInputTokens +
+                usage.cacheCreationInputTokens,
+        // Replace current context values (for context window %)
+        currentContextInputTokens: usage.inputTokens,
+        currentContextCacheReadTokens: usage.cacheReadInputTokens,
+        currentContextCacheCreationTokens: usage.cacheCreationInputTokens,
+      );
+    }
+
     return ProcessResult(
       updatedConversation: updatedConversation,
-      turnComplete: false,
+      turnComplete: false, // Tool responses are never turn-complete, we wait for result
     );
   }
 
@@ -224,4 +284,54 @@ class ResponseProcessor {
       turnComplete: true,
     );
   }
+
+  /// Extracts usage data from the raw JSON data of an assistant message.
+  ///
+  /// The usage is typically at `rawData['message']['usage']` for Claude CLI output.
+  /// Returns null if no usage data is found.
+  _UsageData? _extractUsageFromRawData(Map<String, dynamic>? rawData) {
+    if (rawData == null) return null;
+
+    // Try message.usage first (Claude CLI format)
+    final messageUsage = rawData['message']?['usage'] as Map<String, dynamic>?;
+    if (messageUsage != null) {
+      return _UsageData(
+        inputTokens: messageUsage['input_tokens'] as int? ?? 0,
+        outputTokens: messageUsage['output_tokens'] as int? ?? 0,
+        cacheReadInputTokens:
+            messageUsage['cache_read_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens:
+            messageUsage['cache_creation_input_tokens'] as int? ?? 0,
+      );
+    }
+
+    // Fallback: try top-level usage (direct API format)
+    final usage = rawData['usage'] as Map<String, dynamic>?;
+    if (usage != null) {
+      return _UsageData(
+        inputTokens: usage['input_tokens'] as int? ?? 0,
+        outputTokens: usage['output_tokens'] as int? ?? 0,
+        cacheReadInputTokens: usage['cache_read_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens:
+            usage['cache_creation_input_tokens'] as int? ?? 0,
+      );
+    }
+
+    return null;
+  }
+}
+
+/// Internal class to hold extracted usage data.
+class _UsageData {
+  final int inputTokens;
+  final int outputTokens;
+  final int cacheReadInputTokens;
+  final int cacheCreationInputTokens;
+
+  const _UsageData({
+    required this.inputTokens,
+    required this.outputTokens,
+    required this.cacheReadInputTokens,
+    required this.cacheCreationInputTokens,
+  });
 }

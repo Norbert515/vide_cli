@@ -217,11 +217,19 @@ class Conversation {
   final List<ConversationMessage> messages;
   final ConversationState state;
   final String? currentError;
+
+  // Accumulated totals across all turns (for billing/stats)
   final int totalInputTokens;
   final int totalOutputTokens;
   final int totalCacheReadInputTokens;
   final int totalCacheCreationInputTokens;
   final double totalCostUsd;
+
+  // Current context window usage (from latest turn, for context % display)
+  // These are REPLACED each turn, not accumulated.
+  final int currentContextInputTokens;
+  final int currentContextCacheReadTokens;
+  final int currentContextCacheCreationTokens;
 
   const Conversation({
     required this.messages,
@@ -232,6 +240,9 @@ class Conversation {
     this.totalCacheReadInputTokens = 0,
     this.totalCacheCreationInputTokens = 0,
     this.totalCostUsd = 0.0,
+    this.currentContextInputTokens = 0,
+    this.currentContextCacheReadTokens = 0,
+    this.currentContextCacheCreationTokens = 0,
   });
 
   factory Conversation.empty() =>
@@ -240,10 +251,17 @@ class Conversation {
   // Helper methods
   int get totalTokens => totalInputTokens + totalOutputTokens;
 
-  /// Total context tokens (input + cache read + cache creation).
-  /// This represents the actual context window usage.
+  /// Total context tokens accumulated across all turns.
+  /// Note: This is for billing/stats, NOT for context window percentage.
   int get totalContextTokens =>
       totalInputTokens + totalCacheReadInputTokens + totalCacheCreationInputTokens;
+
+  /// Current context window usage (from the latest turn).
+  /// This is what should be used for context window percentage display.
+  int get currentContextWindowTokens =>
+      currentContextInputTokens +
+      currentContextCacheReadTokens +
+      currentContextCacheCreationTokens;
 
   bool get isProcessing =>
       state == ConversationState.sendingMessage ||
@@ -278,6 +296,9 @@ class Conversation {
     int? totalCacheReadInputTokens,
     int? totalCacheCreationInputTokens,
     double? totalCostUsd,
+    int? currentContextInputTokens,
+    int? currentContextCacheReadTokens,
+    int? currentContextCacheCreationTokens,
   }) {
     return Conversation(
       messages: messages ?? this.messages,
@@ -290,6 +311,12 @@ class Conversation {
       totalCacheCreationInputTokens:
           totalCacheCreationInputTokens ?? this.totalCacheCreationInputTokens,
       totalCostUsd: totalCostUsd ?? this.totalCostUsd,
+      currentContextInputTokens:
+          currentContextInputTokens ?? this.currentContextInputTokens,
+      currentContextCacheReadTokens:
+          currentContextCacheReadTokens ?? this.currentContextCacheReadTokens,
+      currentContextCacheCreationTokens: currentContextCacheCreationTokens ??
+          this.currentContextCacheCreationTokens,
     );
   }
 
