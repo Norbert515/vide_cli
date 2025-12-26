@@ -4,6 +4,9 @@ import '../command.dart';
 ///
 /// Compaction summarizes the conversation history to free up context window
 /// space while preserving key information.
+///
+/// This command sends `/compact` to the Claude Code CLI which handles the
+/// actual compaction process.
 class CompactCommand extends Command {
   @override
   String get name => 'compact';
@@ -16,16 +19,20 @@ class CompactCommand extends Command {
 
   @override
   Future<CommandResult> execute(CommandContext context, String? arguments) async {
-    // TODO: Implement actual compaction by sending to ClaudeClient
-    // For now, return a placeholder message indicating the command was received
+    if (context.sendMessage == null) {
+      return CommandResult.error(
+        'Cannot compact: message sending not available',
+      );
+    }
 
-    final instructionsNote = arguments != null
-        ? ' with instructions: "$arguments"'
-        : '';
+    // Build the /compact command with optional instructions
+    final compactMessage = arguments != null && arguments.isNotEmpty
+        ? '/compact $arguments'
+        : '/compact';
 
-    return CommandResult.success(
-      'Compaction triggered for agent ${context.agentId}$instructionsNote. '
-      '(Full implementation pending)',
-    );
+    // Send /compact to Claude Code CLI which handles the compaction
+    context.sendMessage!(compactMessage);
+
+    return CommandResult.success('Compacting conversation...');
   }
 }

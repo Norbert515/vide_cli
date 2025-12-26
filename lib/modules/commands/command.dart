@@ -33,6 +33,7 @@ class CommandContext {
   const CommandContext({
     required this.agentId,
     required this.workingDirectory,
+    this.sendMessage,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -40,6 +41,10 @@ class CommandContext {
 
   /// The current working directory.
   final String workingDirectory;
+
+  /// Callback to send a message to the Claude client.
+  /// Used by commands that need to interact with Claude (e.g., /compact).
+  final void Function(String message)? sendMessage;
 }
 
 /// Base interface for all slash commands.

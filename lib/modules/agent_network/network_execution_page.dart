@@ -232,6 +232,9 @@ class _AgentChatState extends State<_AgentChat> {
     final commandContext = CommandContext(
       agentId: component.client.sessionId,
       workingDirectory: component.client.workingDirectory,
+      sendMessage: (message) {
+        component.client.sendMessage(Message(text: message));
+      },
     );
 
     final result = await dispatcher.dispatch(commandInput, commandContext);
@@ -344,10 +347,6 @@ class _AgentChatState extends State<_AgentChat> {
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
     final usedTokens = _conversation.currentContextWindowTokens;
-    final percentage = kClaudeContextWindowSize > 0
-        ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
-        : 0.0;
-    final isWarningZone = percentage >= kContextWarningThreshold;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
@@ -362,24 +361,6 @@ class _AgentChatState extends State<_AgentChat> {
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),
-
-          // Compact button appears in warning zone
-          if (isWarningZone) ...[
-            SizedBox(width: 2),
-            GestureDetector(
-              onTap: () => _handleCommand('/compact'),
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(
-                  border: BoxBorder.all(color: theme.base.error),
-                ),
-                child: Text(
-                  'Compact',
-                  style: TextStyle(color: theme.base.error),
-                ),
-              ),
-            ),
-          ],
 
           // Cost display
           if (_conversation.totalCostUsd > 0) ...[
