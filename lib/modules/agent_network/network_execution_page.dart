@@ -347,6 +347,10 @@ class _AgentChatState extends State<_AgentChat> {
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
     final usedTokens = _conversation.currentContextWindowTokens;
+    final percentage = kClaudeContextWindowSize > 0
+        ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
+        : 0.0;
+    final isWarningZone = percentage >= kContextWarningThreshold;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
@@ -361,6 +365,17 @@ class _AgentChatState extends State<_AgentChat> {
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),
+
+          // Show /compact hint when in warning zone
+          if (isWarningZone) ...[
+            SizedBox(width: 1),
+            Text(
+              '(/compact)',
+              style: TextStyle(
+                color: theme.base.error.withOpacity(0.7),
+              ),
+            ),
+          ],
 
           // Cost display
           if (_conversation.totalCostUsd > 0) ...[
@@ -402,7 +417,10 @@ class _AgentChatState extends State<_AgentChat> {
                 children: [
                   // Todo list at the end (first in reversed list)
                   if (_getLatestTodos() case final todos? when todos.isNotEmpty) TodoListComponent(todos: todos),
-                  for (final message in _conversation.messages.reversed) _buildMessage(context, message),
+                  for (final message in _conversation.messages.reversed)
+                    // Skip slash commands - they're handled internally
+                    if (!(message.role == MessageRole.user && message.content.startsWith('/')))
+                      _buildMessage(context, message),
                 ],
               ),
             ),
@@ -532,7 +550,24 @@ class _AgentChatState extends State<_AgentChat> {
           if (response.content.isEmpty && message.isStreaming) {
             widgets.add(EnhancedLoadingIndicator());
           } else {
+            // Check for context-full errors and add helpful hint
+            final isContextFullError = response.content.toLowerCase().contains('prompt is too long') ||
+                response.content.toLowerCase().contains('context window') ||
+                response.content.toLowerCase().contains('token limit');
+
             widgets.add(MarkdownText(response.content));
+
+            if (isContextFullError) {
+              widgets.add(
+                Container(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    '💡 Tip: Type /compact to free up context space',
+                    style: TextStyle(color: theme.base.primary),
+                  ),
+                ),
+              );
+            }
           }
         } else if (response is ToolUseResponse) {
           // Check if we have a result for this tool call
