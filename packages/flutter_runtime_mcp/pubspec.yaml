@@ -5,7 +5,7 @@ publish_to: none
 resolution: workspace
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.8.0
 
 dependencies:
   mcp_dart: ^0.6.0
