@@ -22,7 +22,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
   /// Current question index (for multi-question support)
   int _currentQuestionIndex = 0;
 
-  /// Selected option index for current question
+  /// Selected option index for current question (includes "Type something" at the end)
   int _selectedOptionIndex = 0;
 
   /// For multi-select questions: which options are selected
@@ -31,13 +31,37 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
   /// Collected answers so far (question text -> answer)
   final Map<String, String> _answers = {};
 
+  /// Whether we're in text input mode for "Type something"
+  bool _isTypingCustom = false;
+
+  /// Controller for custom text input
+  final _textController = TextEditingController();
+
   AskUserQuestion get _currentQuestion => component.request.questions[_currentQuestionIndex];
   bool get _isLastQuestion => _currentQuestionIndex >= component.request.questions.length - 1;
+
+  /// Total options including "Type something"
+  int get _totalOptions => _currentQuestion.options.length + 1;
+
+  /// Whether the "Type something" option is selected
+  bool get _isTypeSomethingSelected => _selectedOptionIndex == _currentQuestion.options.length;
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
 
   void _selectOption() {
     if (_hasResponded) return;
 
     final question = _currentQuestion;
+
+    if (_isTypeSomethingSelected) {
+      // Enter text input mode
+      setState(() => _isTypingCustom = true);
+      return;
+    }
 
     if (question.multiSelect) {
       // Toggle selection
@@ -53,6 +77,26 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     }
   }
 
+  void _confirmCustomText() {
+    if (_hasResponded) return;
+
+    final question = _currentQuestion;
+    final text = _textController.text;
+    _answers[question.question] = text.isEmpty ? '(empty)' : text;
+    setState(() {
+      _isTypingCustom = false;
+      _textController.clear();
+    });
+    _moveToNextQuestion();
+  }
+
+  void _cancelCustomText() {
+    setState(() {
+      _isTypingCustom = false;
+      _textController.clear();
+    });
+  }
+
   void _confirmMultiSelect() {
     if (_hasResponded) return;
 
@@ -60,9 +104,8 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     if (!question.multiSelect) return;
 
     // Build comma-separated list of selected options
-    final selectedLabels = _multiSelectedIndices
-        .map((i) => question.options[i].label)
-        .join(', ');
+    final selectedLabels =
+        _multiSelectedIndices.map((i) => question.options[i].label).join(', ');
 
     _answers[question.question] = selectedLabels.isEmpty ? '(none selected)' : selectedLabels;
     _moveToNextQuestion();
@@ -83,11 +126,25 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     }
   }
 
+  void _goToQuestion(int index) {
+    if (index < 0 || index >= component.request.questions.length) return;
+    setState(() {
+      _currentQuestionIndex = index;
+      _selectedOptionIndex = 0;
+      _multiSelectedIndices.clear();
+    });
+  }
+
   @override
   Component build(BuildContext context) {
     final question = _currentQuestion;
     final options = question.options;
     final totalQuestions = component.request.questions.length;
+
+    // When typing custom text, show a different UI
+    if (_isTypingCustom) {
+      return _buildTextInputMode(question, options.length);
+    }
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
@@ -97,26 +154,42 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
       ),
       child: KeyboardListener(
         onKeyEvent: (key) {
+          // Normal navigation mode
           if (key == LogicalKey.arrowUp) {
             setState(() {
-              _selectedOptionIndex = (_selectedOptionIndex - 1) % options.length;
-              if (_selectedOptionIndex < 0) _selectedOptionIndex = options.length - 1;
+              _selectedOptionIndex = (_selectedOptionIndex - 1) % _totalOptions;
+              if (_selectedOptionIndex < 0) _selectedOptionIndex = _totalOptions - 1;
             });
             return true;
           } else if (key == LogicalKey.arrowDown) {
             setState(() {
-              _selectedOptionIndex = (_selectedOptionIndex + 1) % options.length;
+              _selectedOptionIndex = (_selectedOptionIndex + 1) % _totalOptions;
             });
             return true;
+          } else if (key == LogicalKey.arrowLeft && totalQuestions > 1) {
+            _goToQuestion(_currentQuestionIndex - 1);
+            return true;
+          } else if (key == LogicalKey.arrowRight && totalQuestions > 1) {
+            _goToQuestion(_currentQuestionIndex + 1);
+            return true;
+          } else if (key == LogicalKey.tab && totalQuestions > 1) {
+            // Tab cycles through questions
+            _goToQuestion((_currentQuestionIndex + 1) % totalQuestions);
+            return true;
           } else if (key == LogicalKey.enter) {
-            if (question.multiSelect) {
+            if (question.multiSelect && !_isTypeSomethingSelected) {
               _confirmMultiSelect();
             } else {
               _selectOption();
             }
             return true;
-          } else if (key == LogicalKey.space && question.multiSelect) {
+          } else if (key == LogicalKey.space && question.multiSelect && !_isTypeSomethingSelected) {
             _selectOption(); // Toggle selection
+            return true;
+          } else if (key == LogicalKey.escape) {
+            // ESC cancels - submit empty answers
+            _hasResponded = true;
+            component.onSubmit({});
             return true;
           }
           return false;
@@ -126,50 +199,132 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title with question progress
-            Row(
-              children: [
-                Text(
-                  'Question',
-                  style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
-                ),
-                if (totalQuestions > 1) ...[
-                  Text(' ', style: TextStyle(color: Colors.cyan)),
-                  Text(
-                    '(${_currentQuestionIndex + 1}/$totalQuestions)',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                ],
-              ],
-            ),
+            // Tab navigation header for multiple questions
+            if (totalQuestions > 1) _buildTabHeader(totalQuestions),
 
-            // Optional header
-            if (question.header != null)
-              Text(
-                question.header!,
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-
-            // Question text
+            // Question text (bold)
             Text(
               question.question,
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
 
-            // Multi-select hint
-            if (question.multiSelect)
-              Text(
-                '(Space to toggle, Enter to confirm)',
-                style: TextStyle(color: Colors.grey),
-              ),
-
-            Divider(color: Colors.grey),
+            SizedBox(height: 1),
 
             // Options
             for (int i = 0; i < options.length; i++)
               _buildOption(i, options[i], question.multiSelect),
+
+            // "Type something" option
+            _buildTypeSomethingOption(options.length),
+
+            SizedBox(height: 1),
+
+            // Help text
+            Text(
+              'Enter to select · ${totalQuestions > 1 ? 'Tab/Arrow keys to navigate · ' : ''}Esc to cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Build the text input mode UI
+  Component _buildTextInputMode(AskUserQuestion question, int optionIndex) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      decoration: BoxDecoration(
+        border: BoxBorder.all(color: Colors.cyan),
+        color: Colors.black,
+      ),
+      child: Focusable(
+        focused: true,
+        onKeyEvent: (event) {
+          if (event.logicalKey == LogicalKey.escape) {
+            _cancelCustomText();
+            return true;
+          }
+          return false;
+        },
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Question text
+            Text(
+              question.question,
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+
+            SizedBox(height: 1),
+
+            // Text input
+            Row(
+              children: [
+                Text('› ', style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold)),
+                Text('${optionIndex + 1}. ', style: TextStyle(color: Colors.grey)),
+                Expanded(
+                  child: TextField(
+                    controller: _textController,
+                    focused: true,
+                    placeholder: 'Type your answer...',
+                    onSubmitted: (_) => _confirmCustomText(),
+                  ),
+                ),
+              ],
+            ),
+
+            SizedBox(height: 1),
+
+            // Help text
+            Text(
+              'Enter to confirm · Esc to cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Build the tab header showing all questions
+  Component _buildTabHeader(int totalQuestions) {
+    return Row(
+      children: [
+        Text('← ', style: TextStyle(color: Colors.grey)),
+        for (int i = 0; i < totalQuestions; i++) ...[
+          if (i > 0) Text(' ', style: TextStyle(color: Colors.grey)),
+          _buildTabItem(i),
+        ],
+        Text(' →', style: TextStyle(color: Colors.grey)),
+      ],
+    );
+  }
+
+  Component _buildTabItem(int index) {
+    final question = component.request.questions[index];
+    final isActive = index == _currentQuestionIndex;
+    final hasAnswer = _answers.containsKey(question.question);
+    final label = question.header ?? 'Q${index + 1}';
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      decoration: BoxDecoration(
+        color: isActive ? Colors.blue : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasAnswer) Text('✓ ', style: TextStyle(color: Colors.green)),
+          Text(
+            label,
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.grey,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -185,8 +340,14 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         children: [
           // Selection indicator
           Text(
-            isSelected ? '→ ' : '  ',
+            isSelected ? '› ' : '  ',
             style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+          ),
+
+          // Number
+          Text(
+            '${index + 1}. ',
+            style: TextStyle(color: Colors.grey),
           ),
 
           // Checkbox for multi-select
@@ -208,7 +369,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
                 Text(
                   option.label,
                   style: TextStyle(
-                    color: isSelected ? Colors.cyan : Colors.white,
+                    color: isSelected ? Colors.white : Colors.white,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
@@ -218,6 +379,31 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
                     style: TextStyle(color: Colors.grey),
                   ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Component _buildTypeSomethingOption(int index) {
+    final isSelected = _isTypeSomethingSelected;
+
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Row(
+        children: [
+          Text(
+            isSelected ? '› ' : '  ',
+            style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+          ),
+          Text('${index + 1}. ', style: TextStyle(color: Colors.grey)),
+          Text(
+            'Type something.',
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.grey,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontStyle: FontStyle.italic,
             ),
           ),
         ],
