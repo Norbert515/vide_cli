@@ -41,6 +41,7 @@ class MainAgentConfig {
         McpServerType.agent,
         McpServerType.memory,
         McpServerType.taskManagement,
+        McpServerType.askUserQuestion,
         //McpServerType.dart,
         //McpServerType.figma,
       ],

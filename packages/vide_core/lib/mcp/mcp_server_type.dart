@@ -19,6 +19,10 @@ sealed class McpServerType {
   /// Task management MCP server (vide-task-management)
   static const taskManagement = _BuiltInMcpServer._('vide-task-management');
 
+  /// Ask user question MCP server (vide-ask-user-question)
+  /// Provides structured multiple-choice questions to users
+  static const askUserQuestion = _BuiltInMcpServer._('vide-ask-user-question');
+
   /// Flutter runtime MCP server (flutter-runtime)
   static const flutterRuntime = _BuiltInMcpServer._('flutter-runtime');
 

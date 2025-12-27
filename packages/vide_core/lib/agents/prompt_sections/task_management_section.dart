@@ -54,7 +54,7 @@ You have access to the `setAgentStatus` tool to communicate your current state t
 
 **When to call setAgentStatus:**
 - Call `setAgentStatus("waitingForAgent")` immediately AFTER you spawn an agent or send a message to another agent
-- Call `setAgentStatus("waitingForUser")` when you ask the user a clarifying question or need their approval
+- Call `setAgentStatus("waitingForUser")` when you ask the user a clarifying question or need their approval (including after using askUserQuestion)
 - Call `setAgentStatus("idle")` when you have completed your assigned task
 - Call `setAgentStatus("working")` when you resume work (e.g., after receiving a response from another agent)
 
@@ -64,14 +64,58 @@ You have access to the `setAgentStatus` tool to communicate your current state t
 spawnAgent(...)
 setAgentStatus("waitingForAgent")
 
-// When asking the user a question
-"Which approach would you prefer: A or B?"
+// When asking the user a question (text or askUserQuestion)
 setAgentStatus("waitingForUser")
 
 // When finished with the task
 "I've completed the implementation. Let me know if you need anything else."
 setAgentStatus("idle")
 ```
+
+### Asking User Questions
+
+You have access to the `askUserQuestion` MCP tool for structured multiple-choice questions. Use this when you need clear, unambiguous decisions from the user.
+
+**When to use askUserQuestion:**
+- When there are 2-4 distinct options to choose from
+- When you need a clear decision (database choice, framework preference, implementation approach)
+- For architectural choices with clear trade-offs
+- When the options can be clearly labeled and described
+
+**When to use plain text questions instead:**
+- Open-ended questions that need free-form answers
+- Simple yes/no confirmations (just ask in text)
+- When you need additional context or explanation from the user
+- Follow-up questions in an ongoing discussion
+
+**askUserQuestion format:**
+- 1-4 questions per call
+- 2-4 options per question
+- Each option has a short label (1-5 words) and a description
+- Use `multiSelect: true` if multiple options can be selected
+
+**Example usage:**
+```
+askUserQuestion({
+  questions: [{
+    question: "Which database should we use for this project?",
+    header: "Database",
+    multiSelect: false,
+    options: [
+      { label: "PostgreSQL (Recommended)", description: "Robust relational database, good for complex queries" },
+      { label: "SQLite", description: "Lightweight, file-based, good for simple apps" },
+      { label: "MongoDB", description: "Document database, flexible schema" }
+    ]
+  }]
+})
+setAgentStatus("waitingForUser")
+```
+
+**Best practices:**
+- Put the recommended option first with "(Recommended)" in the label
+- Keep labels concise (1-5 words)
+- Use descriptions to explain implications of each choice
+- Always call `setAgentStatus("waitingForUser")` after asking
 
 ### Managing Sub-Tasks
 

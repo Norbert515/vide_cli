@@ -1,6 +1,7 @@
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'agent/agent_mcp_server.dart';
+import 'ask_user_question/ask_user_question_server.dart';
 import 'git/git_server.dart';
 import 'mcp_server_type.dart';
 import 'task_management/task_management_server.dart';
@@ -43,6 +44,7 @@ final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpSer
     McpServerType.agent => ref.watch(agentServerProvider(agentIdAndMcpServerType.agentId)),
     McpServerType.memory => ref.watch(memoryServerProvider(agentIdAndMcpServerType.agentId)),
     McpServerType.taskManagement => ref.watch(taskManagementServerProvider(agentIdAndMcpServerType.agentId)),
+    McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(agentIdAndMcpServerType.agentId)),
     McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(agentIdAndMcpServerType.agentId)),
     _ => throw Exception('MCP server type not supported: ${agentIdAndMcpServerType.mcpServerType}'),
   };

@@ -7,6 +7,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
+import 'package:vide_cli/components/ask_user_question_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -333,6 +334,19 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(permissionStateProvider.notifier).dequeueRequest();
   }
 
+  void _handleAskUserQuestionResponse(AskUserQuestionRequest request, Map<String, String> answers) {
+    final askUserQuestionService = context.read(askUserQuestionServiceProvider);
+
+    // Send the response back to the MCP tool
+    askUserQuestionService.respondToRequest(
+      request.requestId,
+      AskUserQuestionResponse(answers: answers),
+    );
+
+    // Dequeue the current request to show the next one
+    context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
+  }
+
   bool _handleKeyEvent(KeyboardEvent event) {
     if (event.logicalKey == LogicalKey.escape) {
       component.client.abort();
@@ -400,6 +414,10 @@ class _AgentChatState extends State<_AgentChat> {
     final permissionQueueState = context.watch(permissionStateProvider);
     final currentPermissionRequest = permissionQueueState.current;
 
+    // Get the current AskUserQuestion queue state from the provider
+    final askUserQuestionQueueState = context.watch(askUserQuestionStateProvider);
+    final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -452,8 +470,29 @@ class _AgentChatState extends State<_AgentChat> {
                     style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
                   ),
 
-                // Show permission dialog if there's an active request, otherwise show text field
-                if (currentPermissionRequest != null)
+                // Show AskUserQuestion dialog, permission dialog, or text field (priority order)
+                if (currentAskUserQuestionRequest != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Show queue length if there are more questions waiting
+                      if (askUserQuestionQueueState.queueLength > 1)
+                        Container(
+                          padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
+                          child: Text(
+                            'Question 1 of ${askUserQuestionQueueState.queueLength} (${askUserQuestionQueueState.queueLength - 1} more in queue)',
+                            style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      AskUserQuestionDialog(
+                        request: currentAskUserQuestionRequest,
+                        onSubmit: (answers) => _handleAskUserQuestionResponse(currentAskUserQuestionRequest, answers),
+                        key: Key('ask_user_question_${currentAskUserQuestionRequest.requestId}'),
+                      ),
+                    ],
+                  )
+                else if (currentPermissionRequest != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
