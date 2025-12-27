@@ -7,7 +7,7 @@ executables:
   vide: vide
 
 environment:
-  sdk: ^3.9.0
+  sdk: ^3.8.0
 
 workspace:
   - packages/claude_sdk
