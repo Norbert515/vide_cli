@@ -1,7 +1,18 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'tap_visualization.dart';
+
+/// Counter for unique pointer IDs in tap gestures.
+/// Each tap needs a unique pointer ID for Flutter's gesture system.
+int _nextTapPointer = 1;
+
+int _getNextTapPointer() {
+  final result = _nextTapPointer;
+  _nextTapPointer += 1;
+  return result;
+}
 
 /// Registers the tap service extension
 void registerTapExtension() {
@@ -61,6 +72,8 @@ Future<void> _simulateTap(double x, double y) async {
   try {
     final binding = WidgetsBinding.instance;
     final offset = Offset(x, y);
+    final pointer = _getNextTapPointer();
+    print('   Using pointer ID: $pointer');
 
     // Show tap visualization first
     final rootContext = binding.rootElement;
@@ -77,9 +90,15 @@ Future<void> _simulateTap(double x, double y) async {
       print('   ⚠️  No root context available for visualization');
     }
 
-    // Send pointer down event with minimal parameters (matching VM Service evaluator approach)
+    // Register the pointer device first
+    print('   Sending PointerAddedEvent');
+    final addEvent = PointerAddedEvent(position: offset, pointer: pointer);
+    binding.handlePointerEvent(addEvent);
+    print('   ✅ PointerAddedEvent dispatched');
+
+    // Send pointer down event with unique pointer ID
     print('   Sending PointerDownEvent at $offset');
-    final downEvent = PointerDownEvent(position: offset);
+    final downEvent = PointerDownEvent(position: offset, pointer: pointer);
     binding.handlePointerEvent(downEvent);
     print('   ✅ PointerDownEvent dispatched');
 
@@ -87,11 +106,17 @@ Future<void> _simulateTap(double x, double y) async {
     print('   Waiting 100ms...');
     await Future.delayed(const Duration(milliseconds: 100));
 
-    // Send pointer up event
+    // Send pointer up event with same pointer ID
     print('   Sending PointerUpEvent at $offset');
-    final upEvent = PointerUpEvent(position: offset);
+    final upEvent = PointerUpEvent(position: offset, pointer: pointer);
     binding.handlePointerEvent(upEvent);
     print('   ✅ PointerUpEvent dispatched');
+
+    // Unregister the pointer device
+    print('   Sending PointerRemovedEvent');
+    final removeEvent = PointerRemovedEvent(position: offset, pointer: pointer);
+    binding.handlePointerEvent(removeEvent);
+    print('   ✅ PointerRemovedEvent dispatched');
 
     // Set persistent cursor so screenshots show where the tap occurred
     if (rootContext != null) {
