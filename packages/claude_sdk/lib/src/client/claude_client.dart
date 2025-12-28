@@ -299,6 +299,10 @@ class ClaudeClientImpl implements ClaudeClient {
   @override
   Future<void> abort() async {
     if (!_lifecycleManager.isRunning) {
+      // Still need to reset state if we're showing as processing
+      if (_currentConversation.isProcessing) {
+        _updateConversation(_currentConversation.withState(ConversationState.idle));
+      }
       return;
     }
 
