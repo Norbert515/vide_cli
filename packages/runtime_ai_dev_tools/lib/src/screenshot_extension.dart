@@ -18,10 +18,14 @@ void registerScreenshotExtension() {
         final image = await _captureScreenshot();
         final base64Image = await _imageToBase64(image);
 
+        // Get the device pixel ratio from the Flutter window
+        final devicePixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
         return developer.ServiceExtensionResponse.result(
           json.encode({
             'status': 'success',
             'image': base64Image,
+            'devicePixelRatio': devicePixelRatio,
           }),
         );
       } catch (e, stackTrace) {

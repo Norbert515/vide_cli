@@ -33,6 +33,10 @@ class FlutterInstance {
   vms.VmService? _vmService;
   VmServiceEvaluator? _evaluator;
 
+  /// The device pixel ratio from the last screenshot
+  /// Used for converting physical pixels to logical pixels for tap coordinates
+  double? _lastDevicePixelRatio;
+
   final _outputController = StreamController<String>.broadcast();
   final _errorController = StreamController<String>.broadcast();
   final _startupCompleter = Completer<StartupResult>();
@@ -79,6 +83,10 @@ class FlutterInstance {
 
   /// Whether the instance is still running
   bool get isRunning => _isRunning;
+
+  /// The device pixel ratio from the last screenshot
+  /// Returns null if no screenshot has been taken yet, defaults to 2.0 in that case
+  double get devicePixelRatio => _lastDevicePixelRatio ?? 2.0;
 
   /// Get the VM Service evaluator for advanced operations
   ///
@@ -267,6 +275,14 @@ class FlutterInstance {
     final json = response.json;
     if (json != null && json['status'] == 'success') {
       print('✅ [FlutterInstance] runtime_ai_dev_tools screenshot successful');
+
+      // Extract and store devicePixelRatio if present
+      final devicePixelRatio = json['devicePixelRatio'];
+      if (devicePixelRatio != null && devicePixelRatio is num) {
+        _lastDevicePixelRatio = devicePixelRatio.toDouble();
+        print('   Device pixel ratio: $_lastDevicePixelRatio');
+      }
+
       final imageBase64 = json['image'] as String?;
       if (imageBase64 != null) {
         final bytes = base64.decode(imageBase64);

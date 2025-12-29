@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  DART_SDK: "3.8.0"
+  DART_SDK: "3.10.7"
 
 jobs:
   build-macos-arm64:
@@ -30,11 +30,17 @@ jobs:
       - name: Codesign binary
         run: codesign --sign - --force vide-macos-arm64
 
+      - name: Create tarball
+        run: |
+          chmod +x vide-macos-arm64
+          mv vide-macos-arm64 vide
+          tar -czvf vide-macos-arm64.tar.gz vide
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: vide-macos-arm64
-          path: vide-macos-arm64
+          path: vide-macos-arm64.tar.gz
 
   build-macos-x64:
     runs-on: macos-15-large
@@ -54,11 +60,17 @@ jobs:
       - name: Codesign binary
         run: codesign --sign - --force vide-macos-x64
 
+      - name: Create tarball
+        run: |
+          chmod +x vide-macos-x64
+          mv vide-macos-x64 vide
+          tar -czvf vide-macos-x64.tar.gz vide
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: vide-macos-x64
-          path: vide-macos-x64
+          path: vide-macos-x64.tar.gz
 
   build-linux-x64:
     runs-on: ubuntu-latest
@@ -102,39 +114,8 @@ jobs:
           name: vide-windows-x64
           path: vide-windows-x64.exe
 
-  create-macos-universal:
-    needs: [build-macos-arm64, build-macos-x64]
-    runs-on: macos-14
-    steps:
-      - name: Download arm64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: vide-macos-arm64
-
-      - name: Download x64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: vide-macos-x64
-
-      - name: Create universal binary
-        run: lipo -create vide-macos-arm64 vide-macos-x64 -output vide-macos
-
-      - name: Codesign universal binary
-        run: codesign --sign - --force vide-macos
-
-      - name: Create tarball
-        run: |
-          chmod +x vide-macos
-          tar -czvf vide-macos.tar.gz vide-macos
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vide-macos
-          path: vide-macos.tar.gz
-
   release:
-    needs: [create-macos-universal, build-linux-x64, build-windows-x64]
+    needs: [build-macos-arm64, build-macos-x64, build-linux-x64, build-windows-x64]
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -143,10 +124,15 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Download macOS universal binary
+      - name: Download macOS arm64 binary
         uses: actions/download-artifact@v4
         with:
-          name: vide-macos
+          name: vide-macos-arm64
+
+      - name: Download macOS x64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: vide-macos-x64
 
       - name: Download Linux binary
         uses: actions/download-artifact@v4
@@ -160,13 +146,14 @@ jobs:
 
       - name: Create SHA256SUMS
         run: |
-          sha256sum vide-macos.tar.gz vide-linux-x64 vide-windows-x64.exe > SHA256SUMS.txt
+          sha256sum vide-macos-arm64.tar.gz vide-macos-x64.tar.gz vide-linux-x64 vide-windows-x64.exe > SHA256SUMS.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            vide-macos.tar.gz
+            vide-macos-arm64.tar.gz
+            vide-macos-x64.tar.gz
             vide-linux-x64
             vide-windows-x64.exe
             SHA256SUMS.txt
@@ -176,11 +163,54 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
     steps:
-      - name: Update Homebrew formula
-        uses: mislav/bump-homebrew-formula-action@v3
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
         with:
-          formula-name: vide
-          homebrew-tap: Norbert515/homebrew-tap
-          download-url: https://github.com/Norbert515/vide_cli/releases/download/v${{ needs.release.outputs.version }}/vide-macos.tar.gz
-        env:
-          COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          repository: Norbert515/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Download SHA256SUMS
+        run: |
+          curl -sL https://github.com/Norbert515/vide_cli/releases/download/v${{ needs.release.outputs.version }}/SHA256SUMS.txt -o SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Update formula
+        run: |
+          VERSION="${{ needs.release.outputs.version }}"
+          ARM64_SHA=$(grep vide-macos-arm64.tar.gz SHA256SUMS.txt | awk '{print $1}')
+          X64_SHA=$(grep vide-macos-x64.tar.gz SHA256SUMS.txt | awk '{print $1}')
+
+          cat > Formula/vide.rb << EOF
+          class Vide < Formula
+            desc "Agentic terminal UI for Claude Code, built for Flutter developers"
+            homepage "https://github.com/Norbert515/vide_cli"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/Norbert515/vide_cli/releases/download/v${VERSION}/vide-macos-arm64.tar.gz"
+                sha256 "${ARM64_SHA}"
+              else
+                url "https://github.com/Norbert515/vide_cli/releases/download/v${VERSION}/vide-macos-x64.tar.gz"
+                sha256 "${X64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "vide"
+            end
+
+            test do
+              assert_match "vide", shell_output("#{bin}/vide --version 2>&1", 1)
+            end
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/vide.rb
+          git commit -m "Update vide to v${{ needs.release.outputs.version }}"
+          git push

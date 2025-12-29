@@ -1,7 +1,18 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'tap_visualization.dart';
+
+/// Counter for unique pointer IDs in scroll gestures.
+/// Starts high to avoid conflicts with tap pointer IDs.
+int _nextScrollPointer = 10000;
+
+int _getNextScrollPointer() {
+  final result = _nextScrollPointer;
+  _nextScrollPointer += 1;
+  return result;
+}
 
 /// Registers the scroll service extension
 void registerScrollExtension() {
@@ -94,6 +105,8 @@ Future<void> _simulateScroll({
   final binding = WidgetsBinding.instance;
   final endX = startX + dx;
   final endY = startY + dy;
+  final pointer = _getNextScrollPointer();
+  print('   Using pointer ID: $pointer');
 
   // Show scroll visualization
   final rootContext = binding.rootElement;
@@ -118,10 +131,19 @@ Future<void> _simulateScroll({
 
   print('   Steps: $steps, Step delay: ${stepDelay.inMilliseconds}ms');
 
-  // Pointer down at start
+  // Register the pointer device first
+  print('   Sending PointerAddedEvent');
+  binding.handlePointerEvent(PointerAddedEvent(
+    position: Offset(startX, startY),
+    pointer: pointer,
+  ));
+  print('   ✅ PointerAddedEvent dispatched');
+
+  // Pointer down at start with unique pointer ID
   print('   Sending PointerDownEvent at ($startX, $startY)');
   binding.handlePointerEvent(PointerDownEvent(
     position: Offset(startX, startY),
+    pointer: pointer,
   ));
 
   // Move through interpolated positions
@@ -135,14 +157,24 @@ Future<void> _simulateScroll({
     binding.handlePointerEvent(PointerMoveEvent(
       position: Offset(currentX, currentY),
       delta: Offset(dx / steps, dy / steps),
+      pointer: pointer,
     ));
   }
 
-  // Pointer up at end
+  // Pointer up at end with same pointer ID
   print('   Sending PointerUpEvent at ($endX, $endY)');
   binding.handlePointerEvent(PointerUpEvent(
     position: Offset(endX, endY),
+    pointer: pointer,
   ));
+
+  // Unregister the pointer device
+  print('   Sending PointerRemovedEvent');
+  binding.handlePointerEvent(PointerRemovedEvent(
+    position: Offset(endX, endY),
+    pointer: pointer,
+  ));
+  print('   ✅ PointerRemovedEvent dispatched');
 
   // Set persistent indicator at end position for screenshots
   if (rootContext != null) {

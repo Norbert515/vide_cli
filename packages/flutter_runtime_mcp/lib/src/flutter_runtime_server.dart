@@ -48,6 +48,7 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterStop',
     'flutterList',
     'flutterGetInfo',
+    'flutterGetLogs',
     'flutterScreenshot',
     'flutterAct',
     'flutterTapAt',
@@ -425,6 +426,102 @@ Instance ID: $instanceId
       },
     );
 
+    // Flutter Get Logs
+    server.tool(
+      'flutterGetLogs',
+      description: 'Retrieve logs from a running Flutter instance. Returns buffered stdout and/or stderr output.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
+          'stream': {
+            'type': 'string',
+            'description': 'Which output stream to retrieve: "stdout", "stderr", or "both" (default: "both")',
+            'enum': ['stdout', 'stderr', 'both'],
+          },
+          'filter': {
+            'type': 'string',
+            'description': 'Optional regex pattern to filter log lines. Only lines matching this pattern will be returned.',
+          },
+          'lastN': {
+            'type': 'integer',
+            'description': 'Optional: Return only the last N lines. If not specified, returns all buffered lines.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String;
+        final stream = args['stream'] as String? ?? 'both';
+        final filterPattern = args['filter'] as String?;
+        final lastN = args['lastN'] as int?;
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+          );
+        }
+
+        try {
+          // Collect logs based on stream parameter
+          var lines = <String>[];
+
+          if (stream == 'stdout' || stream == 'both') {
+            lines.addAll(instance.bufferedOutput);
+          }
+
+          if (stream == 'stderr' || stream == 'both') {
+            // Add stderr with prefix to distinguish from stdout when both are requested
+            if (stream == 'both') {
+              for (final line in instance.bufferedErrors) {
+                lines.add('[stderr] $line');
+              }
+            } else {
+              lines.addAll(instance.bufferedErrors);
+            }
+          }
+
+          // Apply regex filter if provided
+          if (filterPattern != null && filterPattern.isNotEmpty) {
+            try {
+              final regex = RegExp(filterPattern);
+              lines = lines.where((line) => regex.hasMatch(line)).toList();
+            } catch (e) {
+              return CallToolResult.fromContent(
+                content: [TextContent(text: 'Error: Invalid regex pattern "$filterPattern": $e')],
+              );
+            }
+          }
+
+          // Apply lastN limit if provided
+          if (lastN != null && lastN > 0 && lines.length > lastN) {
+            lines = lines.sublist(lines.length - lastN);
+          }
+
+          // Build response
+          final buffer = StringBuffer();
+          buffer.writeln('Flutter Instance Logs (${instance.id}):');
+          buffer.writeln('Stream: $stream');
+          if (filterPattern != null) {
+            buffer.writeln('Filter: $filterPattern');
+          }
+          buffer.writeln('Lines: ${lines.length}');
+          buffer.writeln();
+          buffer.writeln('=== Output ===');
+          buffer.writeln();
+
+          for (final line in lines) {
+            buffer.writeln(line);
+          }
+
+          return CallToolResult.fromContent(content: [TextContent(text: buffer.toString())]);
+        } catch (e, stackTrace) {
+          await _reportError(e, stackTrace, 'flutterGetLogs', instanceId: instanceId);
+          return CallToolResult.fromContent(content: [TextContent(text: 'Error retrieving logs: $e')]);
+        }
+      },
+    );
+
     // Flutter Screenshot
     server.tool(
       'flutterScreenshot',
@@ -597,7 +694,8 @@ Instance ID: $instanceId
           print('   Physical pixel coordinates: ($pixelRatioX, $pixelRatioY)');
 
           // Divide by devicePixelRatio to get logical pixels
-          const devicePixelRatio = 2.0;
+          // Use the instance's devicePixelRatio (from last screenshot) for accurate conversion
+          final devicePixelRatio = instance.devicePixelRatio;
           final x = (pixelRatioX / devicePixelRatio).round().toDouble();
           final y = (pixelRatioY / devicePixelRatio).round().toDouble();
 
@@ -724,7 +822,8 @@ Instance ID: $instanceId
           print('   Physical pixel coordinates: ($pixelRatioX, $pixelRatioY)');
 
           // Divide by devicePixelRatio to get logical pixels
-          const devicePixelRatio = 2.0;
+          // Use the instance's devicePixelRatio (from last screenshot) for accurate conversion
+          final devicePixelRatio = instance.devicePixelRatio;
           final x = (pixelRatioX / devicePixelRatio).round().toDouble();
           final y = (pixelRatioY / devicePixelRatio).round().toDouble();
 
@@ -966,7 +1065,8 @@ For example:
           final pixelDy = (normalizedDy * scrollMagnitude).round().toDouble();
 
           // Divide by devicePixelRatio to get logical pixels
-          const devicePixelRatio = 2.0;
+          // Use the instance's devicePixelRatio (from last screenshot) for accurate conversion
+          final devicePixelRatio = instance.devicePixelRatio;
           final startX = (pixelStartX / devicePixelRatio).round().toDouble();
           final startY = (pixelStartY / devicePixelRatio).round().toDouble();
           final dx = (pixelDx / devicePixelRatio).round().toDouble();
@@ -1116,7 +1216,8 @@ For example:
           final pixelDy = (normalizedDy * height).round().toDouble();
 
           // Divide by devicePixelRatio to get logical pixels
-          const devicePixelRatio = 2.0;
+          // Use the instance's devicePixelRatio (from last screenshot) for accurate conversion
+          final devicePixelRatio = instance.devicePixelRatio;
           final startX = (pixelStartX / devicePixelRatio).round().toDouble();
           final startY = (pixelStartY / devicePixelRatio).round().toDouble();
           final dx = (pixelDx / devicePixelRatio).round().toDouble();
@@ -1299,7 +1400,8 @@ For example:
     print('   Physical pixel coordinates: ($pixelRatioX, $pixelRatioY)');
 
     // Divide by devicePixelRatio to get logical pixels
-    const devicePixelRatio = 2.0;
+    // Use the instance's devicePixelRatio (from last screenshot) for accurate conversion
+    final devicePixelRatio = targetInstance.devicePixelRatio;
     final x = (pixelRatioX / devicePixelRatio).round().toDouble();
     final y = (pixelRatioY / devicePixelRatio).round().toDouble();
 

@@ -8,6 +8,7 @@ const String bundledImports = '''
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:ui' as ui;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -627,10 +628,14 @@ void _registerScreenshotExtension() {
         final image = await _captureScreenshot();
         final base64Image = await _imageToBase64(image);
 
+        // Get the device pixel ratio from the Flutter window
+        final devicePixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+
         return developer.ServiceExtensionResponse.result(
           json.encode({
             'status': 'success',
             'image': base64Image,
+            'devicePixelRatio': devicePixelRatio,
           }),
         );
       } catch (e, stackTrace) {
@@ -697,6 +702,16 @@ Future<String> _imageToBase64(ui.Image image) async {
 // tap_extension.dart
 // ============================================================================
 
+/// Counter for unique pointer IDs in tap gestures.
+/// Each tap needs a unique pointer ID for Flutter's gesture system.
+int _nextTapPointer = 1;
+
+int _getNextTapPointer() {
+  final result = _nextTapPointer;
+  _nextTapPointer += 1;
+  return result;
+}
+
 /// Registers the tap service extension
 void _registerTapExtension() {
   
@@ -750,7 +765,8 @@ Future<void> _simulateTap(double x, double y) async {
   try {
     final binding = WidgetsBinding.instance;
     final offset = Offset(x, y);
-
+    final pointer = _getNextTapPointer();
+    
     // Show tap visualization first
     final rootContext = binding.rootElement;
     if (rootContext != null) {
@@ -762,16 +778,24 @@ Future<void> _simulateTap(double x, double y) async {
     } else {
           }
 
-    // Send pointer down event with minimal parameters (matching VM Service evaluator approach)
-        final downEvent = PointerDownEvent(position: offset);
+    // Register the pointer device first
+        final addEvent = PointerAddedEvent(position: offset, pointer: pointer);
+    binding.handlePointerEvent(addEvent);
+    
+    // Send pointer down event with unique pointer ID
+        final downEvent = PointerDownEvent(position: offset, pointer: pointer);
     binding.handlePointerEvent(downEvent);
     
     // Wait 100ms for realistic tap duration
         await Future.delayed(const Duration(milliseconds: 100));
 
-    // Send pointer up event
-        final upEvent = PointerUpEvent(position: offset);
+    // Send pointer up event with same pointer ID
+        final upEvent = PointerUpEvent(position: offset, pointer: pointer);
     binding.handlePointerEvent(upEvent);
+    
+    // Unregister the pointer device
+        final removeEvent = PointerRemovedEvent(position: offset, pointer: pointer);
+    binding.handlePointerEvent(removeEvent);
     
     // Set persistent cursor so screenshots show where the tap occurred
     if (rootContext != null) {
@@ -1214,6 +1238,16 @@ Future<void> _sendEditingState(TextEditingValue value) async {
 // scroll_extension.dart
 // ============================================================================
 
+/// Counter for unique pointer IDs in scroll gestures.
+/// Starts high to avoid conflicts with tap pointer IDs.
+int _nextScrollPointer = 10000;
+
+int _getNextScrollPointer() {
+  final result = _nextScrollPointer;
+  _nextScrollPointer += 1;
+  return result;
+}
+
 /// Registers the scroll service extension
 void _registerScrollExtension() {
   
@@ -1297,7 +1331,8 @@ Future<void> _simulateScroll({
   final binding = WidgetsBinding.instance;
   final endX = startX + dx;
   final endY = startY + dy;
-
+  final pointer = _getNextScrollPointer();
+  
   // Show scroll visualization
   final rootContext = binding.rootElement;
   if (rootContext != null) {
@@ -1318,9 +1353,16 @@ Future<void> _simulateScroll({
   final stepDelay = Duration(milliseconds: duration.inMilliseconds ~/ steps);
 
   
-  // Pointer down at start
+  // Register the pointer device first
+    binding.handlePointerEvent(PointerAddedEvent(
+    position: Offset(startX, startY),
+    pointer: pointer,
+  ));
+  
+  // Pointer down at start with unique pointer ID
     binding.handlePointerEvent(PointerDownEvent(
     position: Offset(startX, startY),
+    pointer: pointer,
   ));
 
   // Move through interpolated positions
@@ -1334,14 +1376,22 @@ Future<void> _simulateScroll({
     binding.handlePointerEvent(PointerMoveEvent(
       position: Offset(currentX, currentY),
       delta: Offset(dx / steps, dy / steps),
+      pointer: pointer,
     ));
   }
 
-  // Pointer up at end
+  // Pointer up at end with same pointer ID
     binding.handlePointerEvent(PointerUpEvent(
     position: Offset(endX, endY),
+    pointer: pointer,
   ));
 
+  // Unregister the pointer device
+    binding.handlePointerEvent(PointerRemovedEvent(
+    position: Offset(endX, endY),
+    pointer: pointer,
+  ));
+  
   // Set persistent indicator at end position for screenshots
   if (rootContext != null) {
     try {
