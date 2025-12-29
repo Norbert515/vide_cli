@@ -17,9 +17,15 @@ class VideGlobalSettings {
   @JsonKey(includeIfNull: false)
   final String? theme;
 
+  /// Whether to show thinking/reasoning tokens in the UI.
+  /// Defaults to false (hidden).
+  @JsonKey(defaultValue: false)
+  final bool showThinking;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
+    this.showThinking = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -32,10 +38,12 @@ class VideGlobalSettings {
   VideGlobalSettings copyWith({
     bool? firstRunComplete,
     String? Function()? theme,
+    bool? showThinking,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
       theme: theme != null ? theme() : this.theme,
+      showThinking: showThinking ?? this.showThinking,
     );
   }
 }

@@ -6,6 +6,22 @@ part of 'response.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+ThinkingResponse _$ThinkingResponseFromJson(Map<String, dynamic> json) =>
+    ThinkingResponse(
+      id: json['id'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      content: json['content'] as String,
+      rawData: json['rawData'] as Map<String, dynamic>?,
+    );
+
+Map<String, dynamic> _$ThinkingResponseToJson(ThinkingResponse instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'timestamp': instance.timestamp.toIso8601String(),
+      'rawData': instance.rawData,
+      'content': instance.content,
+    };
+
 TextResponse _$TextResponseFromJson(Map<String, dynamic> json) => TextResponse(
   id: json['id'] as String,
   timestamp: DateTime.parse(json['timestamp'] as String),

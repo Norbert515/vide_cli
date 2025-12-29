@@ -46,7 +46,7 @@ class ResponseProcessor {
       responses = [response];
     }
 
-    if (response is TextResponse) {
+    if (response is TextResponse || response is ThinkingResponse) {
       return _processTextResponse(
         response,
         currentConversation,
@@ -92,13 +92,14 @@ class ResponseProcessor {
   }
 
   ProcessResult _processTextResponse(
-    TextResponse response,
+    ClaudeResponse response,
     Conversation currentConversation,
     String assistantId,
     ConversationMessage? existingMessage,
     bool isAssistantMessage,
     List<ClaudeResponse> responses,
   ) {
+    // Works for both TextResponse and ThinkingResponse
     // Extract usage if available
     final usage = _extractUsageFromRawData(response.rawData);
 
