@@ -27,6 +27,7 @@ void main() {
       expect(args, contains('--output-format=stream-json'));
       expect(args, contains('--input-format=stream-json'));
       expect(args, contains('--verbose'));
+      expect(args, contains('--include-partial-messages'));
       // Model and other params
       expect(args, contains('--model'));
       expect(args, contains('claude-3-opus'));
@@ -36,6 +37,17 @@ void main() {
       expect(args, contains('0.7'));
       expect(args, contains('--max-tokens'));
       expect(args, contains('1000'));
+    });
+
+    test('includes --include-partial-messages for streaming', () {
+      final config = ClaudeConfig();
+      final args = config.toCliArgs();
+
+      expect(
+        args,
+        contains('--include-partial-messages'),
+        reason: 'Required for streaming responses from Claude CLI',
+      );
     });
 
     test('includes additional flags', () {

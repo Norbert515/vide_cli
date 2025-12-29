@@ -9,9 +9,31 @@
 - `dart analyze` clean (no issues)
 - TUI compiles and runs successfully
 
-**Phase 2: NOT STARTED** (Next: Build REST API server)
+**Phase 2: IN PROGRESS 🔄** (Started: December 2025)
+- ✅ Created `vide_server` package with WebSocket streaming
+- ✅ Implemented POST /api/v1/networks endpoint
+- ✅ Implemented POST /api/v1/networks/{networkId}/messages endpoint
+- ✅ Implemented WebSocket streaming at /api/v1/networks/{networkId}/agents/{agentId}/stream
+- ✅ Fixed duplicate content bug in WebSocket streaming (see Bug Fixes below)
+- ✅ Added integration tests for end-to-end flow and duplicate content detection
+- ⬜ Multi-turn conversation test has pre-existing flakiness (timeout issues)
 
 **Phase 3: NOT STARTED** (Final: Testing & Documentation)
+
+### Bug Fixes (Phase 2)
+
+**Duplicate Content in WebSocket Streaming** (Fixed: December 28, 2025)
+
+*Issue 1: Cumulative vs Partial Message Handling*
+- **Problem**: WebSocket stream was sending duplicate content (e.g., 18 chars instead of 9)
+- **Root Cause**: Claude CLI sends BOTH streaming deltas (`content_block_delta`) AND cumulative assistant messages (`type: 'assistant'`). The `TextResponse.fromAssistantMessage` factory incorrectly marked cumulative messages as `isPartial: true` when `stop_reason` was null.
+- **Fix**: Changed `fromAssistantMessage` to set `isPartial: false` and added filtering in `ConversationMessage.assistant` to prefer partial (delta) responses when present.
+
+*Issue 2: Race Condition in Control Protocol Startup*
+- **Problem**: Messages were still being processed twice even after Issue 1 fix
+- **Root Cause**: When using `ClaudeClient.createNonBlocking()` followed by `sendMessage()`, both `init()` and `sendMessage()` could call `_startControlProtocol()` concurrently. Since `Process.start()` is async, both calls could pass the `_activeProcess != null` check before either set it, resulting in **two Claude CLI processes** running simultaneously, each with its own subscription to the messages stream.
+- **Fix** (`packages/claude_sdk/lib/src/client/claude_client.dart`): Added `_startingControlProtocol` future guard to make the startup idempotent - concurrent callers await the same in-progress startup instead of starting a new one.
+- **Tests**: Added integration tests for streaming with tool use, rapid sequential messages, and tool event ordering
 
 ---
 
@@ -829,26 +851,28 @@ void main(List<String> args) async {
 22. ✅ **Phase 1 COMPLETE - Ready to proceed to Phase 2**
 
 ### Phase 2: Build MVP REST Server (Day 3) **AFTER PHASE 1 CHECKPOINT**
-23. Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
-24. Implement network cache manager (hybrid caching strategy)
-25. Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
-26. **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); workingDirProvider overridden to throw error (defensive programming - ensures workingDirectory always passed to startNew())
-27. Implement CORS middleware (allow all origins for localhost MVP)
-28. Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
-29. Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, SSEEvent)
-30. Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
-31. Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
-32. Implement GET /api/v1/networks/:id/agents/:agentId/stream - SSE streaming with multiplexed sub-agent activity (events nest data under `data` field)
-33. **RUN DART ANALYSIS**: `dart analyze packages/vide_server` then `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings; verify all three packages are clean
-34. **Test MVP end-to-end**: create network → get mainAgentId → open stream → send message → watch agent + sub-agent responses
-35. **Verify TUI still works after Phase 2 changes**
+23. ✅ Create `packages/vide_server/` with pubspec.yaml (dependencies: shelf, shelf_router, vide_core, riverpod)
+24. ✅ Implement network cache manager (hybrid caching strategy)
+25. ✅ Implement server entry point (bin/vide_server.dart) - create ProviderContainer with overrides
+26. ✅ **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); workingDirProvider overridden to throw error (defensive programming - ensures workingDirectory always passed to startNew())
+27. ✅ Implement CORS middleware (allow all origins for localhost MVP)
+28. ✅ Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
+29. ✅ Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, WebSocketEvent)
+30. ✅ Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
+31. ✅ Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
+32. ✅ Implement WebSocket streaming at /api/v1/networks/:id/agents/:agentId/stream - WebSocket streaming with multiplexed sub-agent activity (changed from SSE to WebSocket for better bidirectional support)
+33. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_server` then `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings; verify all three packages are clean
+34. ✅ **Test MVP end-to-end**: create network → get mainAgentId → open WebSocket stream → send message → watch agent responses
+35. ✅ **Fix duplicate content bug**: Claude CLI sends both deltas and cumulative messages; fixed in `response.dart` and `conversation.dart`
+36. ✅ **Add integration tests**: End-to-end test and duplicate content detection test in `packages/vide_server/test/integration/end_to_end_test.dart`
+37. ⬜ **Verify TUI still works after Phase 2 changes** (pending manual verification)
 
 ### Phase 3: Testing & Documentation (Day 4)
-36. Manual testing with curl and browser (full chat conversation workflow)
-37. Add error handling for common cases (network errors, invalid requests)
-38. Write API documentation with curl examples (packages/vide_server/API.md)
-39. Create simple HTML test client for testing SSE streaming
-40. Update root README.md to explain dual-interface architecture
+38. Manual testing with curl and browser (full chat conversation workflow)
+39. Add error handling for common cases (network errors, invalid requests)
+40. Write API documentation with curl examples (packages/vide_server/API.md)
+41. Create simple HTML test client for testing WebSocket streaming
+42. Update root README.md to explain dual-interface architecture
 
 ---
 
@@ -938,16 +962,17 @@ When deploying beyond localhost (post-MVP):
 ✅ **dart analyze shows no issues**
 ✅ **TUI compiles and runs successfully**
 
-**Phase 2 - PENDING:**
-⬜ **REST server starts on localhost (no auth - testing only)**
-⬜ **REST server auto-selects an unused port and prints the full URL**
-⬜ **Can create network with initial prompt via POST /api/v1/networks**
-⬜ **Can send messages via POST .../messages**
-⬜ **Can receive agent responses in real-time via SSE stream**
-⬜ **Full chat conversation works end-to-end via REST API**
-⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)**
-⬜ **Permissions auto-approve safe operations, deny dangerous ones**
-⬜ **Bug fixes in vide_core automatically benefit both TUI and REST API**
+**Phase 2 - IN PROGRESS:**
+✅ **REST server starts on localhost (no auth - testing only)**
+✅ **REST server auto-selects an unused port and prints the full URL**
+✅ **Can create network with initial prompt via POST /api/v1/networks**
+✅ **Can send messages via POST .../messages**
+✅ **Can receive agent responses in real-time via WebSocket stream** (changed from SSE to WebSocket)
+✅ **WebSocket streaming correctly handles deltas without duplicate content**
+⬜ **Full chat conversation works end-to-end via REST API** (multi-turn test is flaky)
+⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)** (not yet tested)
+✅ **Permissions auto-approve safe operations, deny dangerous ones**
+✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
 
 ---
 
@@ -962,6 +987,11 @@ When deploying beyond localhost (post-MVP):
 ### Phase 5: Advanced Features
 - Webhook permission callbacks (replace simple auto-approve/deny)
 - WebSocket support (alternative to SSE)
+- Multi-client real-time session sharing
+  - Allow same user to access sessions from multiple devices (desktop, phone, etc.)
+  - Real-time synchronization of agent network state across all logged-in clients
+  - Live updates propagated to all connected clients via SSE/WebSocket
+  - Shared session state maintained on server
 - Additional REST endpoints:
   - GET /networks (list all networks)
   - GET /networks/:id (get network details)

@@ -4,7 +4,74 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Vide CLI is an agentic terminal UI for Claude Code, built specifically for Flutter developers. It implements a multi-agent architecture where specialized agents collaborate asynchronously via message passing to accomplish development tasks.
+Vide CLI is an agentic system for Claude Code, built specifically for Flutter developers. It implements a multi-agent architecture where specialized agents collaborate asynchronously via message passing to accomplish development tasks.
+
+**Current Status:** The project supports dual-interface architecture:
+- **TUI (Terminal UI)**: Fully functional interactive CLI
+- **REST API**: HTTP server exposing agent network functionality via WebSocket streaming
+
+Both interfaces share the same core business logic via the `vide_core` package.
+
+## Package Structure
+
+The codebase is organized into multiple packages:
+
+```
+vide_cli/ (repo root)
+├── lib/                        # TUI-specific code
+│   ├── modules/                # TUI pages, components, scopes
+│   │   ├── agent_network/      # UI for agent networks
+│   │   ├── permissions/        # Permission dialogs and TUI adapter
+│   │   └── settings/           # Settings UI
+│   ├── components/             # Reusable TUI components
+│   └── services/               # TUI-specific services (Sentry)
+├── packages/
+│   ├── vide_core/             # ⭐ Shared business logic
+│   │   ├── models/            # Core data models (AgentNetwork, Permission)
+│   │   ├── services/          # Business logic (AgentNetworkManager, ClaudeManager)
+│   │   ├── mcp/               # MCP servers (agent, git, memory, task)
+│   │   ├── agents/            # Agent configurations and loader
+│   │   ├── state/             # Riverpod state managers
+│   │   └── utils/             # Shared utilities
+│   ├── vide_server/           # REST API server with WebSocket streaming
+│   ├── flutter_runtime_mcp/   # Flutter app lifecycle management
+│   ├── runtime_ai_dev_tools/  # Flutter service extensions
+│   ├── claude_sdk/            # Claude SDK client
+│   └── moondream_api/         # Vision AI client
+```
+
+### Provider Override Pattern
+
+`vide_core` uses Riverpod providers that throw `UnimplementedError` by default. Each UI (TUI, REST) must override these providers with concrete implementations:
+
+```dart
+final container = ProviderContainer(overrides: [
+  videConfigManagerProvider.overrideWithValue(
+    VideConfigManager(configRoot: '~/.vide'),  // TUI uses ~/.vide
+  ),
+  workingDirProvider.overrideWithValue(Directory.current.path),
+  // permissionProvider - not currently used by TUI (hook-based system)
+]);
+```
+
+**Key Providers in vide_core:**
+- `videConfigManagerProvider` - Config directory management
+- `workingDirProvider` - Working directory for operations
+- `permissionProvider` - Permission request abstraction (future use)
+
+## Issue Tracking
+
+This project uses **bd** (beads) for issue tracking:
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --status=in_progress  # Claim work
+bd close <id>         # Complete work
+bd sync               # Sync with git
+```
+
+Run `bd onboard` when starting work on this project.
 
 ## Development Commands
 
@@ -17,21 +84,31 @@ dart pub get
 # Compile executable locally (for testing)
 dart compile exe bin/vide.dart -o vide
 
-# Install globally (native compiled)
-just install
-
 # Run from source (development mode)
 dart run bin/vide.dart
+```
+
+### Additional Build Commands
+
+The project uses `just` for common tasks:
+
+```bash
+just compile          # Compile native binary
+just install          # Install to ~/.local/bin
+just generate-devtools # Regenerate bundled devtools
 ```
 
 ### Testing
 
 ```bash
-# Run all tests
+# Run all tests (root project)
 dart test
 
 # Run specific test file
 dart test test/permission_matcher_test.dart
+
+# Run vide_server tests (includes end-to-end integration tests)
+cd packages/vide_server && dart test
 ```
 
 ### Code Generation
@@ -64,35 +141,36 @@ Agents spawn each other using `spawnAgent` MCP tool and communicate via `sendMes
 
 ### Key Modules
 
-**Agent Network** (`lib/modules/agent_network/`)
-- `service/agent_network_manager.dart` - Core agent lifecycle management (spawn, message, terminate)
-- `service/claude_manager.dart` - Manages ClaudeClient instances per agent
+**vide_core Package** (`packages/vide_core/`)
+- `services/agent_network_manager.dart` - Core agent lifecycle management (spawn, message, terminate)
+- `services/claude_manager.dart` - Manages ClaudeClient instances per agent
 - `models/agent_network.dart` - Agent network data structures
 - `state/agent_status_manager.dart` - Tracks agent status (working, waiting, idle)
+- `services/memory_service.dart` - Stores build commands, platform choices across sessions
+- `models/permission.dart` - Permission request/response data models
+- `services/permission_provider.dart` - Permission abstraction interface
 
-**Agent Configurations** (`lib/modules/agents/`)
-- `configs/` - Agent prompt configurations for each agent type
-- `configs/prompt_sections/` - Reusable prompt sections (Flutter, Dart, Git workflows, etc.)
+**Agent Configurations** (`packages/vide_core/lib/agents/`)
+- Agent prompt configurations for each agent type (main, implementation, context collection, planning, flutter tester)
+- `prompt_sections/` - Reusable prompt sections (Flutter, Dart, Git workflows, tool usage, etc.)
 - `agent_loader.dart` - Loads user-defined agents from `.claude/agents/*.md`
 
-**MCP Servers** (`lib/modules/mcp/`)
-- `agent/agent_mcp_server.dart` - Agent spawning, messaging, status management
-- `git/git_server.dart` - Git operations including worktree support
-- `task_management/task_management_server.dart` - Task naming for UI display
-
-**Memory** (`lib/modules/memory/`)
+**MCP Servers** (`packages/vide_core/lib/mcp/`)
+- `agent/agent/agent_mcp_server.dart` - Agent spawning, messaging, status management
+- `git/git/git_server.dart` - Git operations including worktree support
+- `git/git/git_client.dart` - Git client wrapper
+- `task_management/task_management/task_management_server.dart` - Task naming for UI display
 - `memory_mcp_server.dart` - Persistent key-value storage scoped to project path
-- `memory_service.dart` - Stores build commands, platform choices, etc. across sessions
 
-**Permissions** (`lib/modules/permissions/`)
-- `permission_service.dart` - Manages tool invocation permissions via dialog
-- `permission_scope.dart` - UI scope for permission dialogs
-- Permission matching system for file operations, bash commands, web requests
-
-**Settings** (`lib/modules/settings/`)
-- `local_settings_manager.dart` - Manages `.claude/settings.local.json`
-- `permission_matcher.dart` - Pattern matching for allow lists
-- `bash_command_parser.dart` - Safe command detection and parsing
+**TUI-Specific Modules** (`lib/modules/`)
+- `permissions/permission_service.dart` - HTTP server for hook-based permission requests
+- `permissions/permission_scope.dart` - UI scope for permission dialogs
+- `permissions/permission_service_adapter.dart` - Adapter implementing PermissionProvider (currently unused)
+- `settings/local_settings_manager.dart` - Manages `.claude/settings.local.json`
+- `settings/permission_matcher.dart` - Pattern matching for allow lists
+- `settings/bash_command_parser.dart` - Safe command detection and parsing
+- `agent_network/pages/` - TUI pages for network visualization
+- `agent_network/state/agent_networks_state_notifier.dart` - TUI state management
 
 **Flutter Runtime Integration** (`packages/flutter_runtime_mcp/`)
 - MCP server for managing Flutter app lifecycle
@@ -117,7 +195,7 @@ Built on **nocterm** (terminal UI framework, similar to Flutter but for CLI):
 
 ### User-Defined Agents
 
-Custom agents are loaded from `.claude/agents/*.md` files. The agent loader (`lib/modules/agents/agent_loader.dart`) scans:
+Custom agents are loaded from `.claude/agents/*.md` files. The agent loader (`packages/vide_core/lib/agents/agent_loader.dart`) scans:
 1. Project-level: `.claude/agents/` (relative to working directory)
 2. User-level: `~/.claude/agents/` (optional, currently disabled)
 
@@ -175,7 +253,31 @@ Key test areas:
 - Bash command parsing (`test/modules/settings/bash_command_parser_test.dart`)
 - Diff rendering and syntax highlighting (`test/utils/`)
 
+## Session Completion Workflow
+
+**When ending a work session**, complete the following steps:
+
+1. **File issues for remaining work** - Use `bd create` for anything that needs follow-up
+2. **Run quality gates** (if code changed):
+   - `dart test` - Run all tests
+   - `dart analyze` - Check for issues
+   - `dart format .` - Format code
+3. **Update issue status**:
+   - `bd close <id>` for completed work
+   - `bd update <id> --status=...` for in-progress items
+4. **Verify all changes** - Ensure tests pass and code is formatted
+5. **Hand off** - Provide clear context for next session
+
+**Note:** The user handles git commits and pushes.
+
 ## Code Style
+
+### Formatting
+- Dart uses 2-space indentation and standard Dart formatting
+- Run `dart format .` before committing
+- Files use `lower_snake_case.dart`
+- Classes use `UpperCamelCase`
+- Variables/functions use `lowerCamelCase`
 
 ### Analysis Configuration
 
@@ -187,6 +289,20 @@ Key test areas:
 Lint rules:
 - `avoid_print: false` - Print is allowed in this CLI application
 
+### Commit Messages
+
+(For reference - user handles commits)
+- Short, imperative, sentence case
+- Examples: "Add tests for diff renderer", "Fix: Package macOS binary"
+- Keep commits focused, avoid unrelated refactors
+
+### Pull Requests
+
+(For reference)
+- Include clear summary and list of tests run
+- Link related issues
+- Add screenshots or terminal captures for user-facing TUI/CLI changes
+
 ### Code Generation
 
 Uses build_runner for:
@@ -196,8 +312,15 @@ Uses build_runner for:
 
 Run code generation:
 ```bash
+# In root project
 dart run build_runner build
+
+# In vide_core package (if models are modified)
+cd packages/vide_core
+dart run build_runner build --delete-conflicting-outputs
 ```
+
+**Note**: After modifying models in `packages/vide_core/lib/models/`, run code generation in the vide_core package to regenerate `.g.dart` and `.freezed.dart` files.
 
 ## Flutter-Specific Workflows
 
@@ -246,6 +369,24 @@ Per the global CLAUDE.md rules:
 
 This helps surface problems quickly rather than hiding them.
 
+## Architecture Best Practices
+
+- **TDD (Test-Driven Development)** - write the tests first; the implementation code isn't done until the tests pass.
+- **DRY (Don't Repeat Yourself)** – eliminate duplicated logic by extracting shared utilities and modules.
+- **Separation of Concerns** – each module should handle one distinct responsibility.
+- **Single Responsibility Principle (SRP)** – every class/module/function/file should have exactly one reason to change.
+- **Clear Abstractions & Contracts** – expose intent through small, stable interfaces and hide implementation details.
+- **Low Coupling, High Cohesion** – keep modules self-contained, minimize cross-dependencies.
+- **Scalability & Statelessness** – design components to scale horizontally and prefer stateless services when possible.
+- **Observability & Testability** – build in logging, metrics, tracing, and ensure components can be unit/integration tested.
+- **KISS (Keep It Simple, Sir)** - keep solutions as simple as possible.
+- **YAGNI (You're Not Gonna Need It)** – avoid speculative complexity or over-engineering.
+- **Don't Swallow Errors** by catching exceptions, silently filling in required but missing values or adding timeouts when something hangs unexpectedly. All of those are exceptions that should be thrown so that the errors can be seen, root causes can be found and fixes can be applied.
+- **No Placeholder Code** - we're building production code here, not toys.
+- **No Comments for Removed Functionality** - the source is not the place to keep history of what's changed; it's the place to implement the current requirements only.
+- **Layered Architecture** - organize code into clear tiers where each layer depends only on the one(s) below it, keeping logic cleanly separated.
+- **Prefer Non-Nullable Variables** when possible; use nullability sparingly.
+
 ## Packaging and Distribution
 
 ### Homebrew Distribution
@@ -275,6 +416,8 @@ See `.github/workflows/` for build pipeline configuration.
 
 ### Local Packages
 
+- `packages/vide_core/` - Shared business logic (models, services, MCP servers, agents)
+- `packages/vide_server/` - REST API server with WebSocket streaming
 - `packages/claude_sdk/` - Claude SDK client
 - `packages/flutter_runtime_mcp/` - Flutter runtime MCP server
 - `packages/runtime_ai_dev_tools/` - Flutter service extensions
@@ -286,7 +429,8 @@ See `.github/workflows/` for build pipeline configuration.
 
 - `.claude/settings.local.json` - Local project settings (permissions, hooks, etc.)
 - `.claude/agents/*.md` - User-defined custom agents
-- `~/.vide/` - Global application data directory
+- `~/.vide/` - TUI global application data directory
+- `~/.vide/api/` - REST API global application data directory (session isolation)
 
 ### Permission System
 
@@ -297,3 +441,64 @@ Permission patterns are stored in `.claude/settings.local.json` and matched agai
 - Tool name patterns
 
 Safe commands (read-only operations like `ls`, `cat`, `git status`) are auto-approved.
+
+## REST API Server
+
+The `vide_server` package provides a REST API with WebSocket streaming for agent networks.
+
+### Running the Server
+
+```bash
+cd packages/vide_server
+dart run bin/vide_server.dart [--port 8080]
+```
+
+Note the port number from server output (e.g., `http://127.0.0.1:63139`).
+
+### API Endpoints
+
+- `GET /health` - Health check (returns "OK")
+- `POST /api/v1/networks` - Create agent network
+  - Body: `{"initialMessage": "...", "workingDirectory": "/path"}`
+  - Returns: `{"networkId": "uuid", "mainAgentId": "uuid", "createdAt": "..."}`
+- `POST /api/v1/networks/{networkId}/messages` - Send message (multi-turn conversation)
+  - Body: `{"content": "Your message here"}`
+- `ws://host:port/api/v1/networks/{networkId}/agents/{agentId}/stream` - Stream events via WebSocket
+
+### WebSocket Event Types
+
+- `connected` - WebSocket connection established
+- `status` - Agent status update (e.g., "connected")
+- `message` - Full user or assistant message (start of new message)
+- `message_delta` - Streaming chunk of assistant message (incremental text)
+- `tool_use` - Agent is using a tool
+- `tool_result` - Tool execution result
+- `done` - Turn complete
+- `error` - Error occurred
+
+**Streaming Behavior:**
+1. `message` event when message starts
+2. Multiple `message_delta` events with incremental chunks as text is generated
+3. Client appends deltas to display streaming text effect
+
+### How It Works
+
+1. **Create a network** via `POST /api/v1/networks` - returns IDs immediately
+2. **Connect to WebSocket** - triggers actual network creation (lazy initialization)
+3. **Receive events** - all conversation events stream in real-time
+4. **Send messages** - use `POST /api/v1/networks/{networkId}/messages` to continue conversation
+5. **Process responses** - handle messages, tool use, and completion events
+
+Network creation is lazy - happens when WebSocket connects, ensuring no events are missed.
+
+### Testing the Server
+
+```bash
+cd packages/vide_server
+dart test  # Includes end-to-end integration tests
+
+# Run example REPL client
+dart run example/client.dart -p <port>
+```
+
+**Security Warning:** Server has no authentication and is for localhost use only. Do NOT expose to internet.

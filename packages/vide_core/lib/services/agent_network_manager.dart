@@ -310,7 +310,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
   void sendMessage(AgentId agentId, Message message) {
     final claudeManager = _ref.read(claudeProvider(agentId));
-    claudeManager?.sendMessage(message);
+    if (claudeManager == null) {
+      print('[AgentNetworkManager] WARNING: No ClaudeClient found for agent: $agentId');
+      return;
+    }
+    claudeManager.sendMessage(message);
   }
 
   /// Spawn a new agent into the current network.

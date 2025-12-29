@@ -14,6 +14,7 @@ workspace:
   - packages/flutter_runtime_mcp
   - packages/moondream_api
   - packages/vide_core
+  - packages/vide_server
 
 dependencies:
   nocterm:

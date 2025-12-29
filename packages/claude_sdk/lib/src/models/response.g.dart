@@ -12,6 +12,7 @@ TextResponse _$TextResponseFromJson(Map<String, dynamic> json) => TextResponse(
   content: json['content'] as String,
   isPartial: json['isPartial'] as bool? ?? false,
   role: json['role'] as String?,
+  isCumulative: json['isCumulative'] as bool? ?? false,
   rawData: json['rawData'] as Map<String, dynamic>?,
 );
 
@@ -23,6 +24,7 @@ Map<String, dynamic> _$TextResponseToJson(TextResponse instance) =>
       'content': instance.content,
       'isPartial': instance.isPartial,
       'role': instance.role,
+      'isCumulative': instance.isCumulative,
     };
 
 ToolUseResponse _$ToolUseResponseFromJson(Map<String, dynamic> json) =>

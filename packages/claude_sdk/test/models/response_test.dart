@@ -241,7 +241,10 @@ void main() {
       expect(response.content, '');
     });
 
-    test('fromAssistantMessage detects partial from stop_reason', () {
+    test('fromAssistantMessage is never partial (contains cumulative content)',
+        () {
+      // fromAssistantMessage always contains CUMULATIVE content, not a delta
+      // So it should never be marked as partial, regardless of stop_reason
       final json = {
         'type': 'assistant',
         'message': {
@@ -253,7 +256,7 @@ void main() {
         }
       };
       final response = TextResponse.fromAssistantMessage(json);
-      expect(response.isPartial, true);
+      expect(response.isPartial, false);
     });
 
     test('fromAssistantMessage not partial when stop_reason present', () {

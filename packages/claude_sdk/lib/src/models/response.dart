@@ -69,6 +69,28 @@ sealed class ClaudeResponse {
         return MetaResponse.fromJson(json);
       case 'completion':
         return CompletionResponse.fromJson(json);
+      case 'stream_event':
+        // Handle streaming events from --include-partial-messages
+        final event = json['event'] as Map<String, dynamic>?;
+        if (event != null) {
+          final eventType = event['type'] as String?;
+          if (eventType == 'content_block_delta') {
+            // Extract streaming text delta
+            final delta = event['delta'] as Map<String, dynamic>?;
+            final text = delta?['text'] as String?;
+            if (text != null && text.isNotEmpty) {
+              return TextResponse(
+                id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                timestamp: DateTime.now(),
+                content: text,
+                isPartial: true,
+                rawData: json,
+              );
+            }
+          }
+        }
+        // Other stream_event types (message_start, content_block_start, etc.) - ignore
+        return UnknownResponse.fromJson(json);
       default:
         return UnknownResponse.fromJson(json);
     }
@@ -81,12 +103,18 @@ class TextResponse extends ClaudeResponse {
   final bool isPartial;
   final String? role;
 
+  /// Whether this response contains cumulative content (full text up to this point)
+  /// rather than sequential/delta content.
+  /// When true, only the last cumulative response should be used to avoid duplicates.
+  final bool isCumulative;
+
   const TextResponse({
     required super.id,
     required super.timestamp,
     required this.content,
     this.isPartial = false,
     this.role,
+    this.isCumulative = false,
     super.rawData,
   });
 
@@ -132,7 +160,11 @@ class TextResponse extends ClaudeResponse {
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: DateTime.now(),
       content: decodedText,
-      isPartial: message['stop_reason'] == null,
+      // fromAssistantMessage always contains CUMULATIVE content, not a delta
+      // So it should never be marked as partial. The stop_reason check was incorrect.
+      isPartial: false,
+      // Mark as cumulative so that only the last one is used (to avoid duplicates)
+      isCumulative: true,
       role: message['role'],
       rawData: json,
     );

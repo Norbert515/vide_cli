@@ -101,6 +101,10 @@ class ClaudeClientImpl implements ClaudeClient {
   /// Queue for messages sent before init completes
   final List<Message> _pendingMessages = [];
 
+  /// Tracks in-progress control protocol startup to prevent duplicate subscriptions.
+  /// When not null, a _startControlProtocol() call is in progress.
+  Future<void>? _startingControlProtocol;
+
   @override
   bool get isAborting => _lifecycleManager.isAborting;
 
@@ -123,15 +127,17 @@ class ClaudeClientImpl implements ClaudeClient {
     List<McpServerBase>? mcpServers,
     this.hooks,
     this.canUseTool,
-  })  : config = config ?? ClaudeConfig.defaults(),
-        mcpServers = mcpServers ?? [],
-        sessionId = config?.sessionId ?? const Uuid().v4() {
+  }) : config = config ?? ClaudeConfig.defaults(),
+       mcpServers = mcpServers ?? [],
+       sessionId = config?.sessionId ?? const Uuid().v4() {
     // Update config with session ID if not already set
     if (this.config.sessionId == null) {
       this.config = this.config.copyWith(sessionId: sessionId);
     }
     if (this.config.workingDirectory == null) {
-      this.config = this.config.copyWith(workingDirectory: Directory.current.path);
+      this.config = this.config.copyWith(
+        workingDirectory: Directory.current.path,
+      );
     }
   }
 
@@ -140,8 +146,14 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
 
-    if (await ConversationLoader.hasConversation(sessionId, config.workingDirectory!)) {
-      final conversation = await ConversationLoader.loadHistoryForDisplay(sessionId, config.workingDirectory!);
+    if (await ConversationLoader.hasConversation(
+      sessionId,
+      config.workingDirectory!,
+    )) {
+      final conversation = await ConversationLoader.loadHistoryForDisplay(
+        sessionId,
+        config.workingDirectory!,
+      );
       _currentConversation = conversation;
       _conversationController.add(conversation);
       _isFirstMessage = false;
@@ -182,29 +194,67 @@ class ClaudeClientImpl implements ClaudeClient {
     _pendingMessages.clear();
   }
 
-  /// Start a persistent process with control protocol
+  /// Start a persistent process with control protocol.
+  ///
+  /// This method is idempotent - concurrent calls will await the same startup
+  /// to prevent duplicate subscriptions.
   Future<void> _startControlProtocol() async {
-    final processManager = ProcessManager(config: config, mcpServers: mcpServers);
-    final args = config.toCliArgs(
-      isFirstMessage: _isFirstMessage,
-      hasPermissionCallback: canUseTool != null,
-    );
-
-    final mcpArgs = await processManager.getMcpArgs();
-    if (mcpArgs.isNotEmpty) {
-      args.insertAll(0, mcpArgs);
+    // If already starting, await the in-progress startup
+    if (_startingControlProtocol != null) {
+      await _startingControlProtocol;
+      return;
     }
 
-    // Delegate process start to lifecycle manager
-    final controlProtocol = await _lifecycleManager.startProcess(
-      config: config,
-      args: args,
-      hooks: hooks,
-      canUseTool: canUseTool,
-    );
+    // If already running, nothing to do
+    if (_lifecycleManager.controlProtocol != null) {
+      return;
+    }
 
-    // Listen to messages from control protocol
-    controlProtocol.messages.listen(_handleControlProtocolMessage);
+    // Mark startup as in-progress
+    final completer = Completer<void>();
+    _startingControlProtocol = completer.future;
+
+    try {
+      // Ensure MCP servers are started before getting their configs
+      // This handles the case where sendMessage is called before init completes
+      for (final server in mcpServers) {
+        if (!server.isRunning) {
+          await server.start();
+        }
+      }
+
+      final processManager = ProcessManager(
+        config: config,
+        mcpServers: mcpServers,
+      );
+      final args = config.toCliArgs(
+        isFirstMessage: _isFirstMessage,
+        hasPermissionCallback: canUseTool != null,
+      );
+
+      final mcpArgs = await processManager.getMcpArgs();
+      if (mcpArgs.isNotEmpty) {
+        args.insertAll(0, mcpArgs);
+      }
+
+      // Delegate process start to lifecycle manager
+      final controlProtocol = await _lifecycleManager.startProcess(
+        config: config,
+        args: args,
+        hooks: hooks,
+        canUseTool: canUseTool,
+      );
+
+      // Listen to messages from control protocol
+      controlProtocol.messages.listen(_handleControlProtocolMessage);
+
+      completer.complete();
+    } catch (e) {
+      completer.completeError(e);
+      rethrow;
+    } finally {
+      _startingControlProtocol = null;
+    }
   }
 
   /// Handle messages from the control protocol
@@ -213,7 +263,11 @@ class ClaudeClientImpl implements ClaudeClient {
     if (response == null) return;
 
     // Delegate response processing to ResponseProcessor
-    final result = _responseProcessor.processResponse(response, _currentConversation);
+    final result = _responseProcessor.processResponse(
+      response,
+      _currentConversation,
+    );
+
     _updateConversation(result.updatedConversation);
 
     if (result.turnComplete) {
@@ -253,7 +307,9 @@ class ClaudeClientImpl implements ClaudeClient {
     final updatedMessages = [..._currentConversation.messages];
     updatedMessages[lastIndex] = updatedMessage;
 
-    _updateConversation(_currentConversation.copyWith(messages: updatedMessages));
+    _updateConversation(
+      _currentConversation.copyWith(messages: updatedMessages),
+    );
   }
 
   @override
@@ -267,8 +323,15 @@ class ClaudeClientImpl implements ClaudeClient {
     if (controlProtocol == null) {
       _pendingMessages.add(message);
       // Update conversation optimistically so UI shows the message
-      final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
-      _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+      final userMessage = ConversationMessage.user(
+        content: message.text,
+        attachments: message.attachments,
+      );
+      _updateConversation(
+        _currentConversation
+            .addMessage(userMessage)
+            .withState(ConversationState.sendingMessage),
+      );
 
       // Restart the control protocol since it was aborted or not yet initialized
       _startControlProtocol();
@@ -276,14 +339,24 @@ class ClaudeClientImpl implements ClaudeClient {
     }
 
     // Add user message to conversation
-    final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
-    _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+    final userMessage = ConversationMessage.user(
+      content: message.text,
+      attachments: message.attachments,
+    );
+    _updateConversation(
+      _currentConversation
+          .addMessage(userMessage)
+          .withState(ConversationState.sendingMessage),
+    );
 
     // Send via control protocol
     _sendMessageViaProtocol(message, controlProtocol);
   }
 
-  void _sendMessageViaProtocol(Message message, ControlProtocol controlProtocol) {
+  void _sendMessageViaProtocol(
+    Message message,
+    ControlProtocol controlProtocol,
+  ) {
     if (message.attachments != null && message.attachments!.isNotEmpty) {
       // Build content array with attachments
       final content = <Map<String, dynamic>>[
@@ -301,7 +374,9 @@ class ClaudeClientImpl implements ClaudeClient {
     if (!_lifecycleManager.isRunning) {
       // Still need to reset state if we're showing as processing
       if (_currentConversation.isProcessing) {
-        _updateConversation(_currentConversation.withState(ConversationState.idle));
+        _updateConversation(
+          _currentConversation.withState(ConversationState.idle),
+        );
       }
       return;
     }
@@ -327,9 +402,15 @@ class ClaudeClientImpl implements ClaudeClient {
       );
 
       // Update conversation state
-      _updateConversation(_currentConversation.addMessage(abortMessage).withState(ConversationState.idle));
+      _updateConversation(
+        _currentConversation
+            .addMessage(abortMessage)
+            .withState(ConversationState.idle),
+      );
     } catch (e) {
-      _updateConversation(_currentConversation.withError('Failed to abort: $e'));
+      _updateConversation(
+        _currentConversation.withError('Failed to abort: $e'),
+      );
     }
   }
 

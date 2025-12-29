@@ -56,12 +56,32 @@ class ConversationMessage {
     bool isComplete = false,
   }) {
     // Build content from responses
+    // We may receive BOTH streaming deltas (isPartial: true) AND full messages (isPartial: false)
+    // To avoid duplicates, prefer using only the deltas (partials) if present,
+    // since full messages are cumulative and would duplicate delta content.
+    final textResponses = responses.whereType<TextResponse>().toList();
+    final hasPartials = textResponses.any((r) => r.isPartial);
+
     final textBuffer = StringBuffer();
     TokenUsage? usage;
 
     for (final response in responses) {
       if (response is TextResponse) {
-        textBuffer.write(response.content);
+        // If we have partial (delta) responses, only use those to avoid duplicates
+        if (hasPartials) {
+          if (response.isPartial) {
+            textBuffer.write(response.content);
+          }
+          // Skip non-partial responses when we have partials (they're cumulative)
+        } else if (response.isCumulative) {
+          // Cumulative responses contain the full text up to that point.
+          // Use only the last one by clearing before writing.
+          textBuffer.clear();
+          textBuffer.write(response.content);
+        } else {
+          // Sequential (non-cumulative, non-partial) responses should be concatenated
+          textBuffer.write(response.content);
+        }
       } else if (response is CompletionResponse) {
         usage = TokenUsage(
           inputTokens: response.inputTokens ?? 0,

@@ -5,16 +5,13 @@ import 'package:test/test.dart';
 
 void main() {
   group('ConversationLoader', () {
-    late Directory tempDir;
-
-    setUp(() async {
-      // Initialize tempDir to a placeholder that will be set in tests
-    });
+    Directory? tempDir;
 
     tearDown(() async {
       // Clean up temp directory if created
-      if (tempDir.existsSync()) {
-        await tempDir.delete(recursive: true);
+      if (tempDir != null && tempDir!.existsSync()) {
+        await tempDir!.delete(recursive: true);
+        tempDir = null;
       }
     });
 
@@ -31,7 +28,7 @@ void main() {
       final encodedPath = projectPath.replaceAll('/', '-').replaceAll('_', '-');
 
       // Create .claude/projects directory structure
-      final projectsDir = Directory('${tempDir.path}/.claude/projects/$encodedPath');
+      final projectsDir = Directory('${tempDir!.path}/.claude/projects/$encodedPath');
       await projectsDir.create(recursive: true);
 
       // Create conversation file
@@ -50,7 +47,7 @@ void main() {
       // For testing, we'll read the file directly and parse it the same way
       final encodedPath = projectPath.replaceAll('/', '-').replaceAll('_', '-');
       final conversationFile = File(
-        '${tempDir.path}/.claude/projects/$encodedPath/$sessionId.jsonl',
+        '${tempDir!.path}/.claude/projects/$encodedPath/$sessionId.jsonl',
       );
 
       if (!await conversationFile.exists()) {
@@ -67,7 +64,7 @@ void main() {
     ) async {
       final encodedPath = projectPath.replaceAll('/', '-').replaceAll('_', '-');
       final conversationFile = File(
-        '${tempDir.path}/.claude/projects/$encodedPath/$sessionId.jsonl',
+        '${tempDir!.path}/.claude/projects/$encodedPath/$sessionId.jsonl',
       );
       return conversationFile.exists();
     }
@@ -115,7 +112,7 @@ void main() {
 
         // Verify the encoded path
         final encodedDir = Directory(
-          '${tempDir.path}/.claude/projects/-Users-test-my-project',
+          '${tempDir!.path}/.claude/projects/-Users-test-my-project',
         );
         expect(encodedDir.existsSync(), isTrue);
       });

@@ -131,7 +131,14 @@ abstract class McpServerBase {
   Future<void> onClientDisconnected(String clientId) async {}
 
   /// Generate Claude Code configuration
+  ///
+  /// Throws [StateError] if the server has not been started yet.
   Map<String, dynamic> toClaudeConfig() {
+    if (!isRunning) {
+      throw StateError(
+        'MCP server "$name" has not been started. Call start() before toClaudeConfig().',
+      );
+    }
     // Return config in Claude Code's expected format
     // Using Streamable HTTP transport (replaces deprecated SSE)
     final config = {'type': 'http', 'url': 'http://localhost:$_assignedPort/mcp'};
