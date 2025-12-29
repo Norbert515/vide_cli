@@ -295,12 +295,15 @@ class _AgentChatState extends State<_AgentChat> {
       final toolName = request.toolName;
       final toolInput = request.toolInput;
 
+      // Convert to type-safe ToolInput for pattern inference
+      final input = ToolInput.fromJson(toolName, toolInput);
+
       // Check if this is a write operation
       final isWriteOperation = toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
 
       if (isWriteOperation) {
         // Add to session cache (in-memory only) using inferred pattern
-        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, toolInput);
+        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, input);
         permissionService.addSessionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
@@ -309,7 +312,7 @@ class _AgentChatState extends State<_AgentChat> {
           parrottRoot: Platform.script.resolve('.').toFilePath(),
         );
 
-        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, toolInput);
+        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, input);
         await settingsManager.addToAllowList(pattern);
       }
     }

@@ -6,7 +6,7 @@ void main() {
     test('auto-approves safe simple commands', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls -la'},
+          BashToolInput(command: 'ls -la'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -14,7 +14,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'pwd'},
+          BashToolInput(command: 'pwd'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -22,7 +22,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git status'},
+          BashToolInput(command: 'git status'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -32,7 +32,7 @@ void main() {
     test('blocks unsafe simple commands', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'rm -rf /'},
+          BashToolInput(command: 'rm -rf /'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -40,7 +40,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git commit -m "test"'},
+          BashToolInput(command: 'git commit -m "test"'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -48,7 +48,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'curl https://example.com'},
+          BashToolInput(command: 'curl https://example.com'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -58,7 +58,7 @@ void main() {
     test('auto-approves safe compound commands with &&', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls && pwd'},
+          BashToolInput(command: 'ls && pwd'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -66,7 +66,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git status && git log'},
+          BashToolInput(command: 'git status && git log'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -76,7 +76,7 @@ void main() {
     test('blocks compound commands with any unsafe part', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls && rm file.txt'},
+          BashToolInput(command: 'ls && rm file.txt'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -84,7 +84,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git status && git push'},
+          BashToolInput(command: 'git status && git push'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -94,7 +94,7 @@ void main() {
     test('auto-approves safe pipeline commands', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cat file.txt | grep pattern'},
+          BashToolInput(command: 'cat file.txt | grep pattern'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -102,7 +102,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls | head -n 10'},
+          BashToolInput(command: 'ls | head -n 10'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -110,7 +110,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git log | grep "bug"'},
+          BashToolInput(command: 'git log | grep "bug"'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -118,7 +118,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cat data.json | jq .name'},
+          BashToolInput(command: 'cat data.json | jq .name'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -128,7 +128,7 @@ void main() {
     test('blocks pipelines with unsafe commands', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls | xargs rm'},
+          BashToolInput(command: 'ls | xargs rm'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -136,7 +136,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cat file.txt | curl -X POST https://example.com'},
+          BashToolInput(command: 'cat file.txt | curl -X POST https://example.com'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -146,7 +146,7 @@ void main() {
     test('auto-approves cd within working directory', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd src'},
+          BashToolInput(command: 'cd src'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -154,7 +154,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd lib/src'},
+          BashToolInput(command: 'cd lib/src'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -162,7 +162,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd .'},
+          BashToolInput(command: 'cd .'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -172,7 +172,7 @@ void main() {
     test('blocks cd outside working directory', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd ..'},
+          BashToolInput(command: 'cd ..'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -180,7 +180,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd /etc'},
+          BashToolInput(command: 'cd /etc'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -188,7 +188,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd ~/Documents'},
+          BashToolInput(command: 'cd ~/Documents'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -198,7 +198,7 @@ void main() {
     test('auto-approves compound with safe cd', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd src && ls'},
+          BashToolInput(command: 'cd src && ls'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -206,7 +206,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd lib && git status'},
+          BashToolInput(command: 'cd lib && git status'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -216,7 +216,7 @@ void main() {
     test('blocks compound with unsafe cd', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd .. && ls'},
+          BashToolInput(command: 'cd .. && ls'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -224,25 +224,17 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cd /etc && cat passwd'},
+          BashToolInput(command: 'cd /etc && cat passwd'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
       );
     });
 
-    test('handles empty and null commands', () {
+    test('handles empty command', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': ''},
-          {'cwd': '/Users/test/project'},
-        ),
-        isFalse,
-      );
-
-      expect(
-        PermissionMatcher.isSafeBashCommand(
-          {'command': null},
+          BashToolInput(command: ''),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -252,7 +244,7 @@ void main() {
     test('handles commands with safe filters in complex pipelines', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git log --oneline | head -20 | grep fix'},
+          BashToolInput(command: 'git log --oneline | head -20 | grep fix'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -260,7 +252,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'find . -name "*.dart" | wc -l'},
+          BashToolInput(command: 'find . -name "*.dart" | wc -l'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -270,7 +262,7 @@ void main() {
     test('blocks dangerous flags even in safe commands', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'cat file.txt > output.txt'},
+          BashToolInput(command: 'cat file.txt > output.txt'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -278,7 +270,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'find . -name "*.tmp" -delete'},
+          BashToolInput(command: 'find . -name "*.tmp" -delete'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -286,7 +278,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'sed -i "s/old/new/" file.txt'},
+          BashToolInput(command: 'sed -i "s/old/new/" file.txt'),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -296,7 +288,7 @@ void main() {
     test('allows stderr redirection', () {
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'git status 2> /dev/null'},
+          BashToolInput(command: 'git status 2> /dev/null'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -304,7 +296,7 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls 2>&1'},
+          BashToolInput(command: 'ls 2>&1'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,
@@ -323,7 +315,7 @@ void main() {
       // that the safe command check works correctly
       expect(
         PermissionMatcher.isSafeBashCommand(
-          {'command': 'ls'},
+          BashToolInput(command: 'ls'),
           {'cwd': '/Users/test/project'},
         ),
         isTrue,

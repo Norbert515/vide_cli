@@ -14,7 +14,7 @@ import 'package:vide_core/services/agent_network_persistence_manager.dart';
 import 'package:vide_core/services/agent_network_manager.dart';
 import 'package:vide_core/services/permission_provider.dart';
 import 'package:vide_core/utils/working_dir_provider.dart';
-import 'package:vide_server/services/simple_permission_service.dart';
+import 'package:vide_server/services/rest_permission_service.dart';
 import 'package:vide_server/services/network_cache_manager.dart';
 import 'package:vide_server/middleware/cors_middleware.dart';
 import 'package:vide_server/routes/network_routes.dart';
@@ -108,7 +108,7 @@ void main(List<String> arguments) async {
       ),
       // Permission callback factory with auto-approve/deny rules
       canUseToolCallbackFactoryProvider.overrideWithValue(
-        createSimplePermissionCallback,
+        createRestPermissionCallback,
       ),
       // Working directory provider - uses current directory as default
       //

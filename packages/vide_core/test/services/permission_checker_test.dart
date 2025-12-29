@@ -45,7 +45,7 @@ void main() {
       test('auto-approves mcp__vide- tools', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__vide-agent__spawnAgent',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'mcp__vide-agent__spawnAgent', raw: {}),
           cwd: cwd,
         );
 
@@ -56,7 +56,7 @@ void main() {
       test('auto-approves mcp__flutter-runtime__ tools', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__flutter-runtime__flutterStart',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'mcp__flutter-runtime__flutterStart', raw: {}),
           cwd: cwd,
         );
 
@@ -66,7 +66,7 @@ void main() {
       test('auto-approves TodoWrite', () async {
         final result = await checker.checkPermission(
           toolName: 'TodoWrite',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'TodoWrite', raw: {}),
           cwd: cwd,
         );
 
@@ -76,7 +76,7 @@ void main() {
       test('auto-approves BashOutput', () async {
         final result = await checker.checkPermission(
           toolName: 'BashOutput',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'BashOutput', raw: {}),
           cwd: cwd,
         );
 
@@ -86,7 +86,7 @@ void main() {
       test('auto-approves KillShell', () async {
         final result = await checker.checkPermission(
           toolName: 'KillShell',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'KillShell', raw: {}),
           cwd: cwd,
         );
 
@@ -98,7 +98,7 @@ void main() {
       test('denies mcp__dart__analyze_files', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__dart__analyze_files',
-          toolInput: {},
+          input: const UnknownToolInput(toolName: 'mcp__dart__analyze_files', raw: {}),
           cwd: cwd,
         );
 
@@ -113,7 +113,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'rm -rf /'},
+          input: const BashToolInput(command: 'rm -rf /'),
           cwd: cwd,
         );
 
@@ -129,7 +129,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'rm -rf /'},
+          input: const BashToolInput(command: 'rm -rf /'),
           cwd: cwd,
         );
 
@@ -141,7 +141,7 @@ void main() {
       test('auto-approves ls command', () async {
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'ls -la'},
+          input: const BashToolInput(command: 'ls -la'),
           cwd: cwd,
         );
 
@@ -152,7 +152,7 @@ void main() {
       test('auto-approves pwd command', () async {
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'pwd'},
+          input: const BashToolInput(command: 'pwd'),
           cwd: cwd,
         );
 
@@ -162,7 +162,7 @@ void main() {
       test('auto-approves git status command', () async {
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'git status'},
+          input: const BashToolInput(command: 'git status'),
           cwd: cwd,
         );
 
@@ -172,7 +172,7 @@ void main() {
       test('auto-approves cat command', () async {
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'cat file.txt'},
+          input: const BashToolInput(command: 'cat file.txt'),
           cwd: cwd,
         );
 
@@ -186,7 +186,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '$cwd/lib/main.dart'},
+          input: WriteToolInput(filePath: '$cwd/lib/main.dart', content: ''),
           cwd: cwd,
         );
 
@@ -199,7 +199,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Edit',
-          toolInput: {'file_path': '$cwd/lib/main.dart'},
+          input: EditToolInput(filePath: '$cwd/lib/main.dart', oldString: '', newString: ''),
           cwd: cwd,
         );
 
@@ -211,7 +211,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm install'},
+          input: const BashToolInput(command: 'npm install'),
           cwd: cwd,
         );
 
@@ -225,7 +225,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '$cwd/lib/main.dart'},
+          input: WriteToolInput(filePath: '$cwd/lib/main.dart', content: ''),
           cwd: cwd,
         );
 
@@ -239,7 +239,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm install'},
+          input: const BashToolInput(command: 'npm install'),
           cwd: cwd,
         );
 
@@ -252,7 +252,7 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'WebFetch',
-          toolInput: {'url': 'https://pub.dev/packages/flutter'},
+          input: const WebFetchToolInput(url: 'https://pub.dev/packages/flutter'),
           cwd: cwd,
         );
 
@@ -264,7 +264,7 @@ void main() {
       test('asks user for unmatched tools', () async {
         final result = await checker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm install'},
+          input: const BashToolInput(command: 'npm install'),
           cwd: cwd,
         );
 
@@ -274,7 +274,7 @@ void main() {
       test('includes inferred pattern', () async {
         final result = await checker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '$cwd/lib/main.dart'},
+          input: WriteToolInput(filePath: '$cwd/lib/main.dart', content: ''),
           cwd: cwd,
         );
 
@@ -290,7 +290,7 @@ void main() {
 
         final allowed = checker.isAllowedBySessionCache(
           'Write',
-          {'file_path': '/path/to/file.dart'},
+          const WriteToolInput(filePath: '/path/to/file.dart', content: ''),
         );
 
         expect(allowed, isTrue);
@@ -301,7 +301,7 @@ void main() {
 
         final allowed = checker.isAllowedBySessionCache(
           'Bash',
-          {'command': 'ls'},
+          const BashToolInput(command: 'ls'),
         );
 
         expect(allowed, isFalse);
@@ -312,7 +312,7 @@ void main() {
 
         final allowed = checker.isAllowedBySessionCache(
           'Write',
-          {'file_path': '/path/to/file.dart'},
+          const WriteToolInput(filePath: '/path/to/file.dart', content: ''),
         );
 
         expect(allowed, isFalse);
@@ -327,7 +327,7 @@ void main() {
         // After dispose, session cache should be empty
         final allowed = checker.isAllowedBySessionCache(
           'Write',
-          {'file_path': '$cwd/lib/main.dart'},
+          WriteToolInput(filePath: '$cwd/lib/main.dart', content: ''),
         );
 
         expect(allowed, isFalse);

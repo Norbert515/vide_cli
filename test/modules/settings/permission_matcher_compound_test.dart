@@ -8,7 +8,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'cd /project/packages/server && dart pub get'},
+          BashToolInput(command: 'cd /project/packages/server && dart pub get'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -20,7 +20,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid'},
+          BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
         isTrue, // dart pub deps matches, grep is safe filter
       );
@@ -31,7 +31,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(grep:*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid'},
+          BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
         isTrue, // grep matches, dart pub deps is allowed as data source
       );
@@ -42,7 +42,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'cd /other && dart pub get'},
+          BashToolInput(command: 'cd /other && dart pub get'),
           context: {'cwd': '/project'},
         ),
         isFalse,
@@ -54,7 +54,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          {'command': 'cd /project/sub && dart pub get && dart analyze'},
+          BashToolInput(command: 'cd /project/sub && dart pub get && dart analyze'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -66,7 +66,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'cd /project/sub && dart pub get && serverpod generate'},
+          BashToolInput(command: 'cd /project/sub && dart pub get && serverpod generate'),
           context: {'cwd': '/project'},
         ),
         isFalse, // serverpod generate doesn't match dart pub:*
@@ -78,7 +78,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(find:*)',
           'Bash',
-          {'command': 'find /any/path -name "*.dart"'},
+          BashToolInput(command: 'find /any/path -name "*.dart"'),
         ),
         isTrue,
       );
@@ -89,7 +89,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(serverpod:*)',
           'Bash',
-          {'command': 'cd packages/server && serverpod generate'},
+          BashToolInput(command: 'cd packages/server && serverpod generate'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -101,7 +101,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(serverpod:*)',
           'Bash',
-          {'command': 'cd packages/server && serverpod generate'},
+          BashToolInput(command: 'cd packages/server && serverpod generate'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -113,7 +113,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(serverpod:*)',
           'Bash',
-          {'command': 'cd /other/path && serverpod generate'},
+          BashToolInput(command: 'cd /other/path && serverpod generate'),
           context: {'cwd': '/project'},
         ),
         isFalse,
@@ -125,7 +125,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid | wc -l'},
+          BashToolInput(command: 'dart pub deps | grep uuid | wc -l'),
         ),
         isTrue, // dart pub deps matches, grep and wc are safe filters
       );
@@ -136,7 +136,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(*)',
           'Bash',
-          {'command': 'cd /anywhere && any command | anything'},
+          BashToolInput(command: 'cd /anywhere && any command | anything'),
         ),
         isTrue,
       );
@@ -147,7 +147,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          {'command': ''},
+          BashToolInput(command: ''),
         ),
         isFalse,
       );
@@ -158,7 +158,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(cd:*)',
           'Bash',
-          {'command': 'cd /project/sub'},
+          BashToolInput(command: 'cd /project/sub'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -170,7 +170,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(cd:*)',
           'Bash',
-          {'command': 'cd /other'},
+          BashToolInput(command: 'cd /other'),
           context: {'cwd': '/project'},
         ),
         isTrue, // cd /other matches cd:* pattern
@@ -182,7 +182,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(echo:*)',
           'Bash',
-          {'command': 'echo "foo && bar" && echo "baz"'},
+          BashToolInput(command: 'echo "foo && bar" && echo "baz"'),
         ),
         isTrue,
       );
@@ -193,7 +193,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          {'command': 'cd ./packages/server && dart analyze file.dart'},
+          BashToolInput(command: 'cd ./packages/server && dart analyze file.dart'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -207,7 +207,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'dart pub get'},
+          BashToolInput(command: 'dart pub get'),
         ),
         isTrue,
       );
@@ -218,7 +218,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart (pub|test):*)',
           'Bash',
-          {'command': 'dart test'},
+          BashToolInput(command: 'dart test'),
         ),
         isTrue,
       );

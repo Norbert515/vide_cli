@@ -90,7 +90,8 @@ class PermissionService {
 
   /// Delegate to checker
   bool isAllowedBySessionCache(String toolName, Map<String, dynamic> toolInput) {
-    return _checker.isAllowedBySessionCache(toolName, toolInput);
+    final input = ToolInput.fromJson(toolName, toolInput);
+    return _checker.isAllowedBySessionCache(toolName, input);
   }
 
   void addSessionPattern(String pattern) {
@@ -114,9 +115,12 @@ class PermissionService {
     ToolPermissionContext context, {
     required String cwd,
   }) async {
+    // Convert raw map to type-safe ToolInput
+    final input = ToolInput.fromJson(toolName, toolInput);
+
     final result = await _checker.checkPermission(
       toolName: toolName,
-      toolInput: toolInput,
+      input: input,
       cwd: cwd,
     );
 
