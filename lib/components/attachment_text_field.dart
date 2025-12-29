@@ -63,7 +63,6 @@ class CommandSuggestion {
 class _AttachmentTextFieldState extends State<AttachmentTextField> {
   late final _AttachmentTextEditingController _controller;
   int _selectedSuggestionIndex = 0;
-  bool _isNavigating = false; // Flag to prevent index reset during arrow key navigation
 
   @override
   void initState() {
@@ -77,10 +76,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
   }
 
   void _onTextChanged() {
-    // Don't reset selection when navigating with arrow keys
-    if (_isNavigating) return;
-
-    // Reset selection when text changes
+    // Reset selection to first item when text changes
     setState(() {
       _selectedSuggestionIndex = 0;
     });
@@ -104,19 +100,6 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     );
     setState(() {
       _selectedSuggestionIndex = 0;
-    });
-  }
-
-  void _navigateToSuggestion(List<CommandSuggestion> suggestions, int newIndex) {
-    _isNavigating = true;
-    final suggestion = suggestions[newIndex];
-    _controller.text = '/${suggestion.name}';
-    _controller.selection = TextSelection.collapsed(
-      offset: _controller.text.length,
-    );
-    _isNavigating = false;
-    setState(() {
-      _selectedSuggestionIndex = newIndex;
     });
   }
 
@@ -164,12 +147,25 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
     // Check if this is a command (starts with / and no attachments)
     if (text.startsWith('/') &&
-        text.length > 1 &&
         _controller.attachments.isEmpty &&
         component.onCommand != null) {
-      component.onCommand!(text);
-      _controller.clear();
-      return;
+      // If suggestions are visible, execute the selected command directly
+      final suggestions = _getSuggestions();
+      if (suggestions.isNotEmpty && _selectedSuggestionIndex < suggestions.length) {
+        final selectedCommand = '/${suggestions[_selectedSuggestionIndex].name}';
+        component.onCommand!(selectedCommand);
+        _controller.clear();
+        setState(() {
+          _selectedSuggestionIndex = 0;
+        });
+        return;
+      }
+      // No suggestions visible, execute what's in the text field
+      if (text.length > 1) {
+        component.onCommand!(text);
+        _controller.clear();
+        return;
+      }
     }
 
     // Replace placeholders with actual content
@@ -241,22 +237,6 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           return true;
         }
 
-        // Arrow keys: Navigate suggestions and update text field
-        if (suggestions.isNotEmpty) {
-          if (event.logicalKey == LogicalKey.arrowUp) {
-            final newIndex =
-                (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
-            _navigateToSuggestion(suggestions, newIndex);
-            return true;
-          }
-          if (event.logicalKey == LogicalKey.arrowDown) {
-            final newIndex =
-                (_selectedSuggestionIndex + 1) % suggestions.length;
-            _navigateToSuggestion(suggestions, newIndex);
-            return true;
-          }
-        }
-
         return false;
       },
       child: Column(
@@ -318,6 +298,26 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                     placeholder: component.placeholder ?? 'Type a message...',
                     placeholderStyle: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
                     onPaste: _controller.handlePaste,
+                    onKeyEvent: (event) {
+                      // Arrow keys: Navigate suggestion selection only (don't modify text field)
+                      if (suggestions.isNotEmpty) {
+                        if (event.logicalKey == LogicalKey.arrowUp) {
+                          setState(() {
+                            _selectedSuggestionIndex =
+                                (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                          });
+                          return true;
+                        }
+                        if (event.logicalKey == LogicalKey.arrowDown) {
+                          setState(() {
+                            _selectedSuggestionIndex =
+                                (_selectedSuggestionIndex + 1) % suggestions.length;
+                          });
+                          return true;
+                        }
+                      }
+                      return false;
+                    },
                     onSubmitted: (_) {
                       _handleSubmit();
                     },
