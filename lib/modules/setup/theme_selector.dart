@@ -2,7 +2,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
-/// A preview component that shows sample code and chat to demonstrate theme colors.
+/// A chat preview showing a realistic conversation with code and diff.
 class ThemePreview extends StatelessComponent {
   const ThemePreview({super.key});
 
@@ -14,217 +14,83 @@ class ThemePreview extends StatelessComponent {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Code preview section
         Text(
-          'Code Preview',
+          'Preview',
           style: TextStyle(
             fontWeight: FontWeight.bold,
             color: theme.base.primary,
           ),
         ),
         SizedBox(height: 1),
-        Container(
-          decoration: BoxDecoration(
-            border: BoxBorder.all(color: theme.base.outline),
+        // User message
+        Text(
+          'You',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.secondary,
           ),
-          padding: EdgeInsets.all(1),
-          child: Column(
+        ),
+        Text(
+          'Add dark mode to the app',
+          style: TextStyle(color: theme.base.onSurface),
+        ),
+        SizedBox(height: 1),
+        // Claude response with code
+        Text(
+          'Claude',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.primary,
+          ),
+        ),
+        Text(
+          "I'll update the theme config:",
+          style: TextStyle(color: theme.base.onSurface),
+        ),
+        SizedBox(height: 1),
+        // Code block
+        _codeLine(theme, [
+          _token('final', theme.syntax.keyword),
+          _token(' ', theme.syntax.plain),
+          _token('theme', theme.syntax.variable),
+          _token(' = ', theme.syntax.plain),
+          _token('ThemeData', theme.syntax.type),
+          _token('(', theme.syntax.plain),
+        ]),
+        _codeLine(theme, [
+          _token('  brightness', theme.syntax.variable),
+          _token(': ', theme.syntax.plain),
+          _token('Brightness', theme.syntax.type),
+          _token('.', theme.syntax.plain),
+          _token('dark', theme.syntax.variable),
+          _token(',', theme.syntax.plain),
+        ]),
+        _codeLine(theme, [
+          _token('  ', theme.syntax.plain),
+          _token('// Dark mode enabled', theme.syntax.comment),
+        ]),
+        _codeLine(theme, [
+          _token(');', theme.syntax.plain),
+        ]),
+        SizedBox(height: 1),
+        // Diff
+        Container(
+          color: theme.diff.removedBackground,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildCodeLine(theme, [
-                _CodeToken('class', theme.syntax.keyword),
-                _CodeToken(' ', theme.syntax.plain),
-                _CodeToken('UserService', theme.syntax.type),
-                _CodeToken(' {', theme.syntax.plain),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('  ', theme.syntax.plain),
-                _CodeToken('// Fetches user data', theme.syntax.comment),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('  ', theme.syntax.plain),
-                _CodeToken('Future', theme.syntax.type),
-                _CodeToken('<', theme.syntax.plain),
-                _CodeToken('User', theme.syntax.type),
-                _CodeToken('> ', theme.syntax.plain),
-                _CodeToken('getUser', theme.syntax.function),
-                _CodeToken('(', theme.syntax.plain),
-                _CodeToken('int', theme.syntax.type),
-                _CodeToken(' id) ', theme.syntax.plain),
-                _CodeToken('async', theme.syntax.keyword),
-                _CodeToken(' {', theme.syntax.plain),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('    ', theme.syntax.plain),
-                _CodeToken('final', theme.syntax.keyword),
-                _CodeToken(' ', theme.syntax.plain),
-                _CodeToken('url', theme.syntax.variable),
-                _CodeToken(' = ', theme.syntax.plain),
-                _CodeToken("'/api/users/\$id'", theme.syntax.string),
-                _CodeToken(';', theme.syntax.plain),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('    ', theme.syntax.plain),
-                _CodeToken('return', theme.syntax.keyword),
-                _CodeToken(' ', theme.syntax.plain),
-                _CodeToken('await', theme.syntax.keyword),
-                _CodeToken(' ', theme.syntax.plain),
-                _CodeToken('fetch', theme.syntax.function),
-                _CodeToken('(', theme.syntax.plain),
-                _CodeToken('url', theme.syntax.variable),
-                _CodeToken(');', theme.syntax.plain),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('  }', theme.syntax.plain),
-              ]),
-              _buildCodeLine(theme, [
-                _CodeToken('}', theme.syntax.plain),
-              ]),
+              Text('- ', style: TextStyle(color: theme.diff.removedPrefix)),
+              Text('brightness: light', style: TextStyle(color: theme.base.onSurface)),
             ],
           ),
         ),
-        SizedBox(height: 2),
-        // Chat preview section
-        Text(
-          'Chat Preview',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: theme.base.primary,
-          ),
-        ),
-        SizedBox(height: 1),
         Container(
-          decoration: BoxDecoration(
-            border: BoxBorder.all(color: theme.base.outline),
-          ),
-          padding: EdgeInsets.all(1),
-          child: Column(
+          color: theme.diff.addedBackground,
+          child: Row(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // User message
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'You',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: theme.base.secondary,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                'Add a login button to the home page',
-                style: TextStyle(color: theme.base.onSurface),
-              ),
-              SizedBox(height: 1),
-              // Agent message
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Claude',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: theme.base.primary,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                "I'll add a login button to the home page.",
-                style: TextStyle(color: theme.base.onSurface),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: 2),
-        // Diff preview section
-        Text(
-          'Diff Preview',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: theme.base.primary,
-          ),
-        ),
-        SizedBox(height: 1),
-        Container(
-          decoration: BoxDecoration(
-            border: BoxBorder.all(color: theme.base.outline),
-          ),
-          padding: EdgeInsets.all(1),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '@@ -1,3 +1,4 @@',
-                style: TextStyle(color: theme.diff.header),
-              ),
-              Container(
-                color: theme.diff.removedBackground,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '-',
-                      style: TextStyle(color: theme.diff.removedPrefix),
-                    ),
-                    Text(
-                      '  Text("Welcome")',
-                      style: TextStyle(color: theme.base.onSurface),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                color: theme.diff.addedBackground,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '+',
-                      style: TextStyle(color: theme.diff.addedPrefix),
-                    ),
-                    Text(
-                      '  Text("Welcome Back!")',
-                      style: TextStyle(color: theme.base.onSurface),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                color: theme.diff.addedBackground,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '+',
-                      style: TextStyle(color: theme.diff.addedPrefix),
-                    ),
-                    Text(
-                      '  LoginButton()',
-                      style: TextStyle(color: theme.base.onSurface),
-                    ),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    ' ',
-                    style: TextStyle(color: theme.diff.contextPrefix),
-                  ),
-                  Text(
-                    ' ]',
-                    style: TextStyle(color: theme.base.onSurface),
-                  ),
-                ],
-              ),
+              Text('+ ', style: TextStyle(color: theme.diff.addedPrefix)),
+              Text('brightness: dark', style: TextStyle(color: theme.base.onSurface)),
             ],
           ),
         ),
@@ -232,21 +98,13 @@ class ThemePreview extends StatelessComponent {
     );
   }
 
-  Component _buildCodeLine(VideThemeData theme, List<_CodeToken> tokens) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: tokens
-          .map((token) => Text(token.text, style: TextStyle(color: token.color)))
-          .toList(),
-    );
+  Component _codeLine(VideThemeData theme, List<Component> tokens) {
+    return Row(mainAxisSize: MainAxisSize.min, children: tokens);
   }
-}
 
-class _CodeToken {
-  final String text;
-  final Color color;
-
-  const _CodeToken(this.text, this.color);
+  Component _token(String text, Color color) {
+    return Text(text, style: TextStyle(color: color));
+  }
 }
 
 /// Available theme options with display names and descriptions
@@ -425,35 +283,43 @@ class _ThemeSelectorState extends State<ThemeSelector> {
             return false;
         }
       },
-      child: Column(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Select Theme',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: theme.base.primary,
-            ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Select Theme',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: theme.base.primary,
+                ),
+              ),
+              SizedBox(height: 1),
+              // Auto option
+              _buildOption(
+                theme,
+                index: _autoOptionIndex,
+                displayName: 'Auto',
+                description: 'Match terminal brightness',
+              ),
+              // Theme options
+              for (int i = 0; i < ThemeOption.all.length; i++)
+                _buildOption(
+                  theme,
+                  index: i + 1,
+                  displayName: ThemeOption.all[i].displayName,
+                  description: ThemeOption.all[i].description,
+                ),
+              SizedBox(height: 1),
+              _buildFooter(theme),
+            ],
           ),
-          SizedBox(height: 1),
-          // Auto option
-          _buildOption(
-            theme,
-            index: _autoOptionIndex,
-            displayName: 'Auto',
-            description: 'Match terminal brightness',
-          ),
-          // Theme options
-          for (int i = 0; i < ThemeOption.all.length; i++)
-            _buildOption(
-              theme,
-              index: i + 1,
-              displayName: ThemeOption.all[i].displayName,
-              description: ThemeOption.all[i].description,
-            ),
-          SizedBox(height: 1),
-          _buildFooter(theme),
+          SizedBox(width: 4),
+          const ThemePreview(),
         ],
       ),
     );
