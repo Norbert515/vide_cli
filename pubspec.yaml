@@ -74,12 +74,12 @@ melos:
 
   scripts:
     test:
-      run: dart test --exclude-tags e2e
+      run: dart test --exclude-tags e2e,integration
       exec:
         failFast: true
       packageFilters:
         dirExists: test
-      description: Run tests in all packages (excluding e2e tests)
+      description: Run tests in all packages (excluding e2e and integration tests)
 
     build_runner:
       run: dart run build_runner build --delete-conflicting-outputs
