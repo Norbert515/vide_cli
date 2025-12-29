@@ -393,17 +393,6 @@ class _AgentChatState extends State<_AgentChat> {
               ),
             ),
           ],
-
-          // Cost display
-          if (_conversation.totalCostUsd > 0) ...[
-            Expanded(child: SizedBox()),
-            Text(
-              '\$${_conversation.totalCostUsd.toStringAsFixed(4)}',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-          ],
         ],
       ),
     );
