@@ -9,7 +9,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(find:*)',
           'Bash',
-          {'command': 'find /path -name "pubspec.yaml"'},
+          BashToolInput(command: 'find /path -name "pubspec.yaml"'),
         ),
         isTrue,
       );
@@ -20,7 +20,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'cd /project/sub && dart pub get'},
+          BashToolInput(command: 'cd /project/sub && dart pub get'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -32,7 +32,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(serverpod:*)',
           'Bash',
-          {'command': 'cd /project/sub && serverpod generate'},
+          BashToolInput(command: 'cd /project/sub && serverpod generate'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -44,7 +44,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart analyze:*)',
           'Bash',
-          {'command': 'cd /project/sub && dart analyze file.dart'},
+          BashToolInput(command: 'cd /project/sub && dart analyze file.dart'),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -58,7 +58,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid'},
+          BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
         isTrue, // grep is auto-approved as safe filter
       );
@@ -68,7 +68,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(grep:*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid'},
+          BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
         isTrue, // dart pub deps doesn't match, but grep matches
       );
@@ -78,7 +78,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(*)',
           'Bash',
-          {'command': 'dart pub deps | grep uuid'},
+          BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
         isTrue,
       );
@@ -90,7 +90,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(find:*)',
           'Bash',
-          {'command': 'find /path -name ".claude" | head -5'},
+          BashToolInput(command: 'find /path -name ".claude" | head -5'),
         ),
         isTrue,
       );
@@ -99,7 +99,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(find:*)',
           'Bash',
-          {'command': 'find /path -name "*.dart" | tail -10'},
+          BashToolInput(command: 'find /path -name "*.dart" | tail -10'),
         ),
         isTrue,
       );
@@ -108,7 +108,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(find:*)',
           'Bash',
-          {'command': 'find /path -type f 2>/dev/null | head -5'},
+          BashToolInput(command: 'find /path -type f 2>/dev/null | head -5'),
         ),
         isTrue,
       );
@@ -119,7 +119,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(ls:*)',
           'Bash',
-          {'command': 'ls -la | grep ".dart"'},
+          BashToolInput(command: 'ls -la | grep ".dart"'),
         ),
         isTrue,
       );
@@ -128,7 +128,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(ls:*)',
           'Bash',
-          {'command': 'ls | sort | uniq'},
+          BashToolInput(command: 'ls | sort | uniq'),
         ),
         isTrue,
       );
@@ -139,7 +139,7 @@ void main() {
         PermissionMatcher.matches(
           'Bash(curl:*)',
           'Bash',
-          {'command': 'curl https://api.example.com | jq .data'},
+          BashToolInput(command: 'curl https://api.example.com | jq .data'),
         ),
         isTrue,
       );
@@ -150,7 +150,7 @@ void main() {
     test('find with path infers to Bash(find:*)', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
-        {'command': 'find /any/path -name "*.dart"'},
+        BashToolInput(command: 'find /any/path -name "*.dart"'),
       );
       expect(pattern, 'Bash(find:*)');
     });
@@ -158,7 +158,7 @@ void main() {
     test('cd && command infers from non-cd command', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
-        {'command': 'cd /project/sub && dart pub get'},
+        BashToolInput(command: 'cd /project/sub && dart pub get'),
       );
       // Infers the full sub-command (more specific is better)
       expect(pattern, 'Bash(dart pub get:*)');
@@ -167,7 +167,7 @@ void main() {
     test('serverpod with cd infers from serverpod command', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
-        {'command': 'cd packages/server && serverpod generate'},
+        BashToolInput(command: 'cd packages/server && serverpod generate'),
       );
       // Infers the full sub-command (more specific is better)
       expect(pattern, 'Bash(serverpod generate:*)');
@@ -176,7 +176,7 @@ void main() {
     test('dart analyze with file path infers to Bash(dart analyze:*)', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
-        {'command': 'dart analyze /path/to/file.dart'},
+        BashToolInput(command: 'dart analyze /path/to/file.dart'),
       );
       expect(pattern, 'Bash(dart analyze:*)');
     });

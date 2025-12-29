@@ -38,7 +38,7 @@ void main() {
         // Initially not in allow list - should ask user
         var result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm install'},
+          input: const BashToolInput(command: 'npm install'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAskUser>());
@@ -49,7 +49,7 @@ void main() {
         // Now should be allowed
         result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm install'},
+          input: const BashToolInput(command: 'npm install'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -64,7 +64,7 @@ void main() {
         // npm commands allowed
         var result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'npm run build'},
+          input: const BashToolInput(command: 'npm run build'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -72,7 +72,7 @@ void main() {
         // dart commands allowed
         result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'dart analyze'},
+          input: const BashToolInput(command: 'dart analyze'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -80,7 +80,7 @@ void main() {
         // Read operations allowed
         result = await permissionChecker.checkPermission(
           toolName: 'Read',
-          toolInput: {'file_path': '/any/file.txt'},
+          input: const ReadToolInput(filePath: '/any/file.txt'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -88,7 +88,7 @@ void main() {
         // Other bash commands still need approval
         result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'rm -rf /'},
+          input: const BashToolInput(command: 'rm -rf /'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAskUser>());
@@ -114,7 +114,7 @@ void main() {
         // Deny should win
         final result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'rm file.txt'},
+          input: const BashToolInput(command: 'rm file.txt'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionDeny>());
@@ -126,7 +126,7 @@ void main() {
         // Write operation initially needs approval
         var result = await permissionChecker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '/test/file.dart'},
+          input: const WriteToolInput(filePath: '/test/file.dart', content: ''),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAskUser>());
@@ -137,7 +137,7 @@ void main() {
         // Now allowed from session cache
         result = await permissionChecker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '/test/file.dart'},
+          input: const WriteToolInput(filePath: '/test/file.dart', content: ''),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -147,7 +147,7 @@ void main() {
         final newChecker = PermissionChecker();
         result = await newChecker.checkPermission(
           toolName: 'Write',
-          toolInput: {'file_path': '/test/file.dart'},
+          input: const WriteToolInput(filePath: '/test/file.dart', content: ''),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAskUser>());
@@ -160,7 +160,7 @@ void main() {
         // Session cache doesn't apply to Bash - should ask
         final result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'echo hello'},
+          input: const BashToolInput(command: 'echo hello'),
           cwd: projectRoot,
         );
         // echo is a safe command, so it's auto-approved for that reason
@@ -174,7 +174,7 @@ void main() {
         // Initial check - not allowed
         var result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'custom-tool --run'},
+          input: const BashToolInput(command: 'custom-tool --run'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAskUser>());
@@ -196,7 +196,7 @@ void main() {
         // Subsequent check should pick up new settings
         result = await permissionChecker.checkPermission(
           toolName: 'Bash',
-          toolInput: {'command': 'custom-tool --run'},
+          input: const BashToolInput(command: 'custom-tool --run'),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());
@@ -220,7 +220,7 @@ void main() {
         for (final command in safeCommands) {
           final result = await permissionChecker.checkPermission(
             toolName: 'Bash',
-            toolInput: {'command': command},
+            input: BashToolInput(command: command),
             cwd: projectRoot,
           );
           expect(
@@ -243,7 +243,7 @@ void main() {
         for (final tool in mcpTools) {
           final result = await permissionChecker.checkPermission(
             toolName: tool,
-            toolInput: {},
+            input: UnknownToolInput(toolName: tool, raw: {}),
             cwd: projectRoot,
           );
           expect(
@@ -257,7 +257,7 @@ void main() {
       test('TodoWrite is auto-approved', () async {
         final result = await permissionChecker.checkPermission(
           toolName: 'TodoWrite',
-          toolInput: {'todos': []},
+          input: const UnknownToolInput(toolName: 'TodoWrite', raw: {'todos': []}),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());

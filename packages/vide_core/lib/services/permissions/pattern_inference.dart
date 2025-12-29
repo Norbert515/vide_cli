@@ -1,27 +1,24 @@
 import 'package:path/path.dart' as path;
 import 'bash_command_parser.dart';
+import 'tool_input.dart';
 
 /// Smart pattern inference for permission rules
 /// Generates intelligent wildcard patterns from specific tool uses
 class PatternInference {
   /// Generate a smart pattern from a tool use
-  static String inferPattern(String toolName, Map<String, dynamic> toolInput) {
-    switch (toolName) {
-      case 'Bash':
-        return _inferBashPattern(toolInput);
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-        return _inferFilePattern(toolName, toolInput);
-      case 'WebFetch':
-        return _inferWebFetchPattern(toolInput);
-      case 'Read':
-        return _inferReadPattern(toolInput);
-      case 'WebSearch':
-        return _inferWebSearchPattern(toolInput);
-      default:
-        return toolName;
-    }
+  static String inferPattern(String toolName, ToolInput input) {
+    return switch (input) {
+      BashToolInput(:final command) => _inferBashPattern(command),
+      WriteToolInput(:final filePath) => _inferFilePattern('Write', filePath),
+      EditToolInput(:final filePath) => _inferFilePattern('Edit', filePath),
+      MultiEditToolInput(:final filePath) => _inferFilePattern('MultiEdit', filePath),
+      WebFetchToolInput(:final url) => _inferWebFetchPattern(url),
+      ReadToolInput(:final filePath) => _inferReadPattern(filePath),
+      WebSearchToolInput() => _inferWebSearchPattern(),
+      GrepToolInput() => toolName,
+      GlobToolInput() => toolName,
+      UnknownToolInput() => toolName,
+    };
   }
 
   /// Infer pattern for Bash commands
@@ -29,9 +26,8 @@ class PatternInference {
   /// Example: "git status" → "Bash(git status:*)"
   /// Example: "cd /path && dart pub get" → "Bash(dart pub get:*)"
   /// Example: "find /path -name *.dart" → "Bash(find:*)"
-  static String _inferBashPattern(Map<String, dynamic> toolInput) {
-    final command = toolInput['command'] as String?;
-    if (command == null || command.isEmpty) return 'Bash(*)';
+  static String _inferBashPattern(String command) {
+    if (command.isEmpty) return 'Bash(*)';
 
     // Parse compound commands
     final parsedCommands = BashCommandParser.parse(command);
@@ -80,10 +76,9 @@ class PatternInference {
   /// Example: "/path/to/file.dart" → "Write(/path/to/**)"
   static String _inferFilePattern(
     String toolName,
-    Map<String, dynamic> toolInput,
+    String filePath,
   ) {
-    final filePath = toolInput['file_path'] as String?;
-    if (filePath == null || filePath.isEmpty) return '$toolName(*)';
+    if (filePath.isEmpty) return '$toolName(*)';
 
     // Extract directory path
     final directory = path.dirname(filePath);
@@ -99,9 +94,8 @@ class PatternInference {
 
   /// Infer pattern for WebFetch
   /// Example: "https://api.github.com/repos/..." → "WebFetch(domain:github.com)"
-  static String _inferWebFetchPattern(Map<String, dynamic> toolInput) {
-    final url = toolInput['url'] as String?;
-    if (url == null || url.isEmpty) return 'WebFetch(*)';
+  static String _inferWebFetchPattern(String url) {
+    if (url.isEmpty) return 'WebFetch(*)';
 
     try {
       final uri = Uri.parse(url);
@@ -117,9 +111,8 @@ class PatternInference {
 
   /// Infer pattern for Read operations
   /// Example: "/path/to/file.dart" → "Read(/path/to/**)"
-  static String _inferReadPattern(Map<String, dynamic> toolInput) {
-    final filePath = toolInput['file_path'] as String?;
-    if (filePath == null || filePath.isEmpty) return 'Read(*)';
+  static String _inferReadPattern(String filePath) {
+    if (filePath.isEmpty) return 'Read(*)';
 
     // Extract directory path
     final directory = path.dirname(filePath);
@@ -135,10 +128,7 @@ class PatternInference {
 
   /// Infer pattern for WebSearch
   /// WebSearch doesn't need wildcards - use exact pattern
-  static String _inferWebSearchPattern(Map<String, dynamic> toolInput) {
-    final query = toolInput['query'] as String?;
-    if (query == null || query.isEmpty) return 'WebSearch';
-
+  static String _inferWebSearchPattern() {
     // For WebSearch, we just use the tool name without arguments
     // This will allow all web searches (since patterns are too specific)
     return 'WebSearch';

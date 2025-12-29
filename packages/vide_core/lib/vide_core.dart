@@ -58,6 +58,7 @@ export 'services/permissions/safe_commands.dart';
 export 'services/permissions/pattern_inference.dart';
 export 'services/permissions/gitignore_matcher.dart';
 export 'services/permissions/permission_checker.dart';
+export 'services/permissions/tool_input.dart';
 
 // Settings
 export 'services/settings/local_settings_manager.dart';

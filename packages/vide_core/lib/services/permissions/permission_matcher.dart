@@ -1,24 +1,20 @@
 import 'bash_command_parser.dart';
 import 'safe_commands.dart';
+import 'tool_input.dart';
 
 class PermissionMatcher {
   /// Check if a permission pattern matches a tool use
   static bool matches(
     String pattern,
     String toolName,
-    Map<String, dynamic> toolInput, {
+    ToolInput input, {
     Map<String, dynamic>? context,
   }) {
     // Validate file paths for security (prevent path traversal)
-    if (toolName == 'Read' ||
-        toolName == 'Write' ||
-        toolName == 'Edit' ||
-        toolName == 'MultiEdit') {
-      final filePath = toolInput['file_path'] as String?;
-      if (filePath != null && _isPathTraversal(filePath)) {
-        // Path traversal detected - deny by not matching any pattern
-        return false;
-      }
+    final filePath = _extractFilePath(input);
+    if (filePath != null && _isPathTraversal(filePath)) {
+      // Path traversal detected - deny by not matching any pattern
+      return false;
     }
 
     // Extract tool pattern (before parentheses)
@@ -42,10 +38,21 @@ class PermissionMatcher {
       }
 
       // Tool-specific argument matching
-      return _matchesArguments(toolName, argPattern, toolInput, context);
+      return _matchesArguments(argPattern, input, context);
     }
 
     return true; // Tool name matched, no argument filter
+  }
+
+  /// Extract file path from tool input if applicable
+  static String? _extractFilePath(ToolInput input) {
+    return switch (input) {
+      ReadToolInput(:final filePath) => filePath.isEmpty ? null : filePath,
+      WriteToolInput(:final filePath) => filePath.isEmpty ? null : filePath,
+      EditToolInput(:final filePath) => filePath.isEmpty ? null : filePath,
+      MultiEditToolInput(:final filePath) => filePath.isEmpty ? null : filePath,
+      _ => null,
+    };
   }
 
   /// Check for path traversal attempts
@@ -69,52 +76,55 @@ class PermissionMatcher {
   }
 
   static bool _matchesArguments(
-    String toolName,
     String argPattern,
-    Map<String, dynamic> toolInput,
+    ToolInput input,
     Map<String, dynamic>? context,
   ) {
-    switch (toolName) {
-      case 'Bash':
-        return _matchesBashCommand(argPattern, toolInput, context);
+    return switch (input) {
+      BashToolInput(:final command) =>
+        _matchesBashCommand(argPattern, command, context),
+      ReadToolInput(:final filePath) =>
+        filePath.isNotEmpty && _globMatch(argPattern, filePath),
+      WriteToolInput(:final filePath) =>
+        filePath.isNotEmpty && _globMatch(argPattern, filePath),
+      EditToolInput(:final filePath) =>
+        filePath.isNotEmpty && _globMatch(argPattern, filePath),
+      MultiEditToolInput(:final filePath) =>
+        filePath.isNotEmpty && _globMatch(argPattern, filePath),
+      WebFetchToolInput(:final url) =>
+        _matchesWebFetch(argPattern, url),
+      WebSearchToolInput(:final query) =>
+        _matchesWebSearch(argPattern, query),
+      GrepToolInput() => false, // Grep doesn't need permission patterns
+      GlobToolInput() => false, // Glob doesn't need permission patterns
+      UnknownToolInput() => false,
+    };
+  }
 
-      case 'Read':
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-        final filePath = toolInput['file_path'] as String?;
-        if (filePath == null) return false;
-        return _globMatch(argPattern, filePath);
+  static bool _matchesWebFetch(String argPattern, String url) {
+    if (url.isEmpty) return false;
 
-      case 'WebFetch':
-        final url = toolInput['url'] as String?;
-        if (url == null) return false;
-
-        // Check for domain matching (e.g., "domain:example.com")
-        if (argPattern.startsWith('domain:')) {
-          final domain = argPattern.substring('domain:'.length);
-          return _matchesDomain(url, domain);
-        }
-
-        // Otherwise use regex matching on full URL
-        return RegExp(argPattern).hasMatch(url);
-
-      case 'WebSearch':
-        final query = toolInput['query'] as String?;
-        if (query == null) return false;
-
-        // Check for query matching (e.g., "query:security")
-        if (argPattern.startsWith('query:')) {
-          final queryPattern = argPattern.substring('query:'.length);
-          return RegExp(queryPattern).hasMatch(query);
-        }
-
-        // Otherwise use regex matching on full query
-        return RegExp(argPattern).hasMatch(query);
-
-      default:
-        return false;
+    // Check for domain matching (e.g., "domain:example.com")
+    if (argPattern.startsWith('domain:')) {
+      final domain = argPattern.substring('domain:'.length);
+      return _matchesDomain(url, domain);
     }
+
+    // Otherwise use regex matching on full URL
+    return RegExp(argPattern).hasMatch(url);
+  }
+
+  static bool _matchesWebSearch(String argPattern, String query) {
+    if (query.isEmpty) return false;
+
+    // Check for query matching (e.g., "query:security")
+    if (argPattern.startsWith('query:')) {
+      final queryPattern = argPattern.substring('query:'.length);
+      return RegExp(queryPattern).hasMatch(query);
+    }
+
+    // Otherwise use regex matching on full query
+    return RegExp(argPattern).hasMatch(query);
   }
 
   static bool _matchesDomain(String url, String domain) {
@@ -160,11 +170,11 @@ class PermissionMatcher {
 
   /// Check if a bash command should be auto-approved as safe
   static bool isSafeBashCommand(
-    Map<String, dynamic> toolInput,
+    BashToolInput input,
     Map<String, dynamic>? context,
   ) {
-    final command = toolInput['command'] as String?;
-    if (command == null || command.trim().isEmpty) return false;
+    final command = input.command;
+    if (command.trim().isEmpty) return false;
 
     // Get working directory from context
     final cwd = context?['cwd'] as String?;
@@ -200,11 +210,10 @@ class PermissionMatcher {
   /// Match Bash commands with compound command support
   static bool _matchesBashCommand(
     String argPattern,
-    Map<String, dynamic> toolInput,
+    String command,
     Map<String, dynamic>? context,
   ) {
-    final command = toolInput['command'] as String?;
-    if (command == null || command.trim().isEmpty) return false;
+    if (command.trim().isEmpty) return false;
 
     // Get working directory from context
     final cwd = context?['cwd'] as String?;
@@ -329,34 +338,26 @@ class PermissionMatcher {
   /// Generate a permission pattern from a tool use
   static String generatePattern(
     String toolName,
-    Map<String, dynamic> toolInput,
+    ToolInput input,
   ) {
-    switch (toolName) {
-      case 'Bash':
-        final command = toolInput['command'] as String?;
-        if (command == null) return toolName;
-        return 'Bash($command)';
-
-      case 'Read':
-      case 'Write':
-      case 'Edit':
-      case 'MultiEdit':
-        final filePath = toolInput['file_path'] as String?;
-        if (filePath == null) return toolName;
-        return '$toolName($filePath)';
-
-      case 'WebFetch':
-        final url = toolInput['url'] as String?;
-        if (url == null) return toolName;
-        return 'WebFetch($url)';
-
-      case 'WebSearch':
-        final query = toolInput['query'] as String?;
-        if (query == null) return toolName;
-        return 'WebSearch($query)';
-
-      default:
-        return toolName;
-    }
+    return switch (input) {
+      BashToolInput(:final command) =>
+        command.isEmpty ? toolName : 'Bash($command)',
+      ReadToolInput(:final filePath) =>
+        filePath.isEmpty ? toolName : 'Read($filePath)',
+      WriteToolInput(:final filePath) =>
+        filePath.isEmpty ? toolName : 'Write($filePath)',
+      EditToolInput(:final filePath) =>
+        filePath.isEmpty ? toolName : 'Edit($filePath)',
+      MultiEditToolInput(:final filePath) =>
+        filePath.isEmpty ? toolName : 'MultiEdit($filePath)',
+      WebFetchToolInput(:final url) =>
+        url.isEmpty ? toolName : 'WebFetch($url)',
+      WebSearchToolInput(:final query) =>
+        query.isEmpty ? toolName : 'WebSearch($query)',
+      GrepToolInput() => toolName,
+      GlobToolInput() => toolName,
+      UnknownToolInput() => toolName,
+    };
   }
 }
