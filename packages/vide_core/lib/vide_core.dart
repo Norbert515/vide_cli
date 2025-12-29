@@ -4,6 +4,9 @@
 /// and REST API implementations of Vide.
 library vide_core;
 
+// Version
+export 'version.dart';
+
 // Models
 export 'models/agent_network.dart';
 export 'models/agent_metadata.dart';
@@ -16,6 +19,7 @@ export 'models/vide_global_settings.dart';
 export 'services/memory_service.dart';
 export 'services/vide_config_manager.dart';
 export 'services/posthog_service.dart';
+export 'services/auto_update_service.dart';
 export 'services/permission_provider.dart';
 export 'services/agent_network_persistence_manager.dart';
 export 'services/agent_network_manager.dart';
