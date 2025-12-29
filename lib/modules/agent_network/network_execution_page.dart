@@ -594,30 +594,36 @@ class _AgentChatState extends State<_AgentChat> {
       final widgets = <Component>[];
       final renderedToolResults = <String>{};
 
+      // Render deduplicated text content ONCE (not each TextResponse)
+      // message.content is already properly assembled to avoid duplicates
+      if (message.content.isNotEmpty) {
+        // Check for context-full errors and add helpful hint
+        final isContextFullError = message.content.toLowerCase().contains('prompt is too long') ||
+            message.content.toLowerCase().contains('context window') ||
+            message.content.toLowerCase().contains('token limit');
+
+        widgets.add(MarkdownText(message.content));
+
+        if (isContextFullError) {
+          widgets.add(
+            Container(
+              padding: EdgeInsets.only(top: 1),
+              child: Text(
+                '💡 Tip: Type /compact to free up context space',
+                style: TextStyle(color: theme.base.primary),
+              ),
+            ),
+          );
+        }
+      } else if (message.isStreaming && message.responses.whereType<TextResponse>().any((r) => r.content.isEmpty)) {
+        // Show loading indicator only when streaming and no text yet
+        widgets.add(EnhancedLoadingIndicator());
+      }
+
       for (final response in message.responses) {
+        // Skip TextResponse - already handled above using message.content
         if (response is TextResponse) {
-          if (response.content.isEmpty && message.isStreaming) {
-            widgets.add(EnhancedLoadingIndicator());
-          } else {
-            // Check for context-full errors and add helpful hint
-            final isContextFullError = response.content.toLowerCase().contains('prompt is too long') ||
-                response.content.toLowerCase().contains('context window') ||
-                response.content.toLowerCase().contains('token limit');
-
-            widgets.add(MarkdownText(response.content));
-
-            if (isContextFullError) {
-              widgets.add(
-                Container(
-                  padding: EdgeInsets.only(top: 1),
-                  child: Text(
-                    '💡 Tip: Type /compact to free up context space',
-                    style: TextStyle(color: theme.base.primary),
-                  ),
-                ),
-              );
-            }
-          }
+          continue;
         } else if (response is ToolUseResponse) {
           // Check if we have a result for this tool call
           final result = response.toolUseId != null ? toolResultsById[response.toolUseId] : null;
