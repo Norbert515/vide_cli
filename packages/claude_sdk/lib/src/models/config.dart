@@ -72,6 +72,7 @@ class ClaudeConfig {
       '--output-format=stream-json',
       '--input-format=stream-json',
       '--verbose',
+      '--include-partial-messages',
     ]);
 
     // Enable streaming of partial messages if configured
