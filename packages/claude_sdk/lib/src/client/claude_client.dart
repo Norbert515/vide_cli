@@ -259,18 +259,27 @@ class ClaudeClientImpl implements ClaudeClient {
 
   /// Handle messages from the control protocol
   void _handleControlProtocolMessage(Map<String, dynamic> json) {
-    final response = _decoder.decodeSingle(jsonEncode(json));
-    if (response == null) return;
+    // Use decodeMultiple to handle interleaved assistant content
+    final responses = _decoder.decodeMultiple(jsonEncode(json));
+    if (responses.isEmpty) return;
 
-    // Delegate response processing to ResponseProcessor
-    final result = _responseProcessor.processResponse(
-      response,
-      _currentConversation,
-    );
+    // Process each response (usually just one, but can be multiple for interleaved content)
+    var conversation = _currentConversation;
+    var turnComplete = false;
 
-    _updateConversation(result.updatedConversation);
+    for (final response in responses) {
+      // Delegate response processing to ResponseProcessor
+      final result = _responseProcessor.processResponse(
+        response,
+        conversation,
+      );
+      conversation = result.updatedConversation;
+      turnComplete = turnComplete || result.turnComplete;
+    }
 
-    if (result.turnComplete) {
+    _updateConversation(conversation);
+
+    if (turnComplete) {
       _turnCompleteController.add(null);
     }
   }

@@ -5,6 +5,7 @@ import '../models/agent_id.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_provider.dart';
 import 'permission_provider.dart';
+import 'vide_config_manager.dart';
 
 /// Factory for creating ClaudeClient instances with proper configuration.
 ///
@@ -36,6 +37,12 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   })  : _getWorkingDirectory = getWorkingDirectory,
         _ref = ref;
 
+  /// Gets the enableStreaming setting from global settings.
+  bool get _enableStreaming {
+    final configManager = _ref.read(videConfigManagerProvider);
+    return configManager.readGlobalSettings().enableStreaming;
+  }
+
   @override
   ClaudeClient createSync({
     required AgentId agentId,
@@ -45,6 +52,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
+      enableStreaming: _enableStreaming,
     );
 
     final mcpServers = config.mcpServers
@@ -73,6 +81,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
+      enableStreaming: _enableStreaming,
     );
 
     final mcpServers = config.mcpServers

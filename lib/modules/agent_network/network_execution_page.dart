@@ -577,61 +577,78 @@ class _AgentChatState extends State<_AgentChat> {
         ),
       );
     } else {
-      // Build tool invocations by pairing calls with their results
-      final toolCallsById = <String, ToolUseResponse>{};
+      // Build tool results lookup for pairing with tool calls
       final toolResultsById = <String, ToolResultResponse>{};
-
-      // First pass: collect all tool calls and results by ID
       for (final response in message.responses) {
-        if (response is ToolUseResponse && response.toolUseId != null) {
-          toolCallsById[response.toolUseId!] = response;
-        } else if (response is ToolResultResponse) {
+        if (response is ToolResultResponse) {
           toolResultsById[response.toolUseId] = response;
         }
       }
 
-      // Second pass: render responses in order, combining tool calls with their results
+      // Process responses in order, preserving interleaving of text and tool calls.
+      // Text segments are accumulated between tool calls to handle streaming deltas.
       final widgets = <Component>[];
       final renderedToolResults = <String>{};
 
-      // Render deduplicated text content ONCE (not each TextResponse)
-      // message.content is already properly assembled to avoid duplicates
-      if (message.content.isNotEmpty) {
-        // Check for context-full errors and add helpful hint
-        final isContextFullError = message.content.toLowerCase().contains('prompt is too long') ||
-            message.content.toLowerCase().contains('context window') ||
-            message.content.toLowerCase().contains('token limit');
+      // Track text accumulation for the current segment
+      final textBuffer = StringBuffer();
+      bool hasPartialInSegment = false;
 
-        widgets.add(MarkdownText(message.content));
+      // Helper to flush accumulated text as a widget
+      void flushTextSegment() {
+        final text = textBuffer.toString();
+        if (text.isNotEmpty) {
+          // Check for context-full errors and add helpful hint
+          final isContextFullError = text.toLowerCase().contains('prompt is too long') ||
+              text.toLowerCase().contains('context window') ||
+              text.toLowerCase().contains('token limit');
 
-        if (isContextFullError) {
-          widgets.add(
-            Container(
-              padding: EdgeInsets.only(top: 1),
-              child: Text(
-                '💡 Tip: Type /compact to free up context space',
-                style: TextStyle(color: theme.base.primary),
+          widgets.add(MarkdownText(text));
+
+          if (isContextFullError) {
+            widgets.add(
+              Container(
+                padding: EdgeInsets.only(top: 1),
+                child: Text(
+                  '💡 Tip: Type /compact to free up context space',
+                  style: TextStyle(color: theme.base.primary),
+                ),
               ),
-            ),
-          );
+            );
+          }
         }
-      } else if (message.isStreaming && message.responses.whereType<TextResponse>().any((r) => r.content.isEmpty)) {
-        // Show loading indicator only when streaming and no text yet
-        widgets.add(EnhancedLoadingIndicator());
+        textBuffer.clear();
+        hasPartialInSegment = false;
       }
 
       for (final response in message.responses) {
-        // Skip TextResponse - already handled above using message.content
         if (response is TextResponse) {
-          continue;
+          // Accumulate text for the current segment, handling streaming deduplication.
+          // When we have partial (delta) responses, only use those.
+          // When we have cumulative responses, use only the last one (clear before writing).
+          if (response.isPartial) {
+            hasPartialInSegment = true;
+            textBuffer.write(response.content);
+          } else if (response.isCumulative) {
+            // Cumulative contains full text up to this point - only use if no partials
+            if (!hasPartialInSegment) {
+              textBuffer.clear();
+              textBuffer.write(response.content);
+            }
+            // If we have partials, ignore cumulative to avoid duplicates
+          } else {
+            // Sequential non-partial, non-cumulative - concatenate
+            textBuffer.write(response.content);
+          }
         } else if (response is ToolUseResponse) {
+          // Flush any accumulated text before this tool call
+          flushTextSegment();
+
           // Check if we have a result for this tool call
           final result = response.toolUseId != null ? toolResultsById[response.toolUseId] : null;
 
-          String? subagentSessionId;
-
           // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(response, result, sessionId: subagentSessionId);
+          final invocation = ConversationMessage.createTypedInvocation(response, result);
 
           widgets.add(
             ToolInvocationRouter(
@@ -646,9 +663,10 @@ class _AgentChatState extends State<_AgentChat> {
             renderedToolResults.add(response.toolUseId!);
           }
         } else if (response is ToolResultResponse) {
-          // Only show tool result if it wasn't already paired with its call
+          // Tool results are paired with their calls above, so we skip them here
+          // unless they're orphaned (which shouldn't normally happen)
           if (!renderedToolResults.contains(response.toolUseId)) {
-            // This is an orphaned tool result (shouldn't normally happen)
+            flushTextSegment();
             widgets.add(
               Container(
                 padding: EdgeInsets.only(left: 2, top: 1),
@@ -657,6 +675,14 @@ class _AgentChatState extends State<_AgentChat> {
             );
           }
         }
+      }
+
+      // Flush any remaining text after the last tool call
+      flushTextSegment();
+
+      // Show loading indicator if streaming with no content yet
+      if (widgets.isEmpty && message.isStreaming) {
+        widgets.add(EnhancedLoadingIndicator());
       }
 
       return Container(
