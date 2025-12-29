@@ -231,7 +231,6 @@ class _WelcomePageState extends State<WelcomePage> {
   Component _buildThemeSelectionView(BuildContext context, VideThemeData theme) {
     return Center(
       child: Container(
-        width: _boxWidth,
         decoration: BoxDecoration(
           border: BoxBorder.all(color: theme.base.outline),
         ),
