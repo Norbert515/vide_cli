@@ -1,5 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
 import 'package:vide_cli/modules/setup/setup_scope.dart';
@@ -43,6 +44,16 @@ void main(List<String> args, {List<Override> overrides = const []}) async {
   await PostHogService.init(configManager);
   PostHogService.appStarted();
 
+  // Check for and apply pending updates at startup
+  if (AutoUpdateService.hasPendingUpdateSync(configManager)) {
+    final pendingVersion = AutoUpdateService.getPendingUpdateVersion(configManager);
+    if (pendingVersion != null && pendingVersion != videVersion) {
+      // Apply the pending update
+      await AutoUpdateService.applyPendingUpdate(configManager);
+      // Note: The update will take effect on next restart
+    }
+  }
+
   await container.read(agentNetworksStateNotifierProvider.notifier).init();
 
   await runApp(
@@ -79,11 +90,28 @@ class VideApp extends StatelessComponent {
   }
 
   Component _buildContent() {
-    return Padding(
-      padding: EdgeInsets.all(1),
-      child: WelcomeScope(
-        child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
-      ),
+    return Column(
+      children: [
+        // Top bar with version indicator in the right corner
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          child: Row(
+            children: [
+              Expanded(child: SizedBox()),
+              VersionIndicator(),
+            ],
+          ),
+        ),
+        // Main content
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
+            child: WelcomeScope(
+              child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
