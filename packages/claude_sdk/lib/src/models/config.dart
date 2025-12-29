@@ -20,6 +20,12 @@ class ClaudeConfig {
   final List<String>? disallowedTools;
   final int? maxTurns;
 
+  /// Whether to enable streaming of partial messages.
+  /// When true, text is streamed character-by-character as it's generated.
+  /// When false, only complete messages are returned.
+  /// Defaults to true.
+  final bool enableStreaming;
+
   const ClaudeConfig({
     this.model,
     this.timeout = const Duration(seconds: 120),
@@ -36,6 +42,7 @@ class ClaudeConfig {
     this.allowedTools,
     this.disallowedTools,
     this.maxTurns,
+    this.enableStreaming = true,
   });
 
   factory ClaudeConfig.defaults() => const ClaudeConfig();
@@ -65,8 +72,12 @@ class ClaudeConfig {
       '--output-format=stream-json',
       '--input-format=stream-json',
       '--verbose',
-      '--include-partial-messages',
     ]);
+
+    // Enable streaming of partial messages if configured
+    if (enableStreaming) {
+      args.add('--include-partial-messages');
+    }
 
     // If we have a permission callback, tell CLI to send permission requests via stdio
     if (hasPermissionCallback) {
@@ -128,6 +139,7 @@ class ClaudeConfig {
     List<String>? allowedTools,
     List<String>? disallowedTools,
     int? maxTurns,
+    bool? enableStreaming,
   }) {
     return ClaudeConfig(
       model: model ?? this.model,
@@ -145,6 +157,7 @@ class ClaudeConfig {
       allowedTools: allowedTools ?? this.allowedTools,
       disallowedTools: disallowedTools ?? this.disallowedTools,
       maxTurns: maxTurns ?? this.maxTurns,
+      enableStreaming: enableStreaming ?? this.enableStreaming,
     );
   }
 }

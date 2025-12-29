@@ -15,6 +15,73 @@ sealed class ClaudeResponse {
     this.rawData,
   });
 
+  /// Parses a JSON response and returns one or more ClaudeResponse objects.
+  ///
+  /// For most response types, returns a single response.
+  /// For `type: assistant` messages with interleaved content (text + tool_use + text),
+  /// returns multiple responses in order to preserve interleaving.
+  static List<ClaudeResponse> fromJsonMultiple(Map<String, dynamic> json) {
+    final type = json['type'] as String?;
+
+    // Handle assistant messages with potentially interleaved content
+    if (type == 'assistant' && json['message'] != null) {
+      final message = json['message'] as Map<String, dynamic>;
+      final content = message['content'] as List<dynamic>?;
+
+      if (content != null && content.length > 1) {
+        // Multiple content blocks - expand into separate responses
+        return _expandAssistantContentBlocks(json, content);
+      }
+    }
+
+    // For all other cases, use the single-response parser
+    return [ClaudeResponse.fromJson(json)];
+  }
+
+  /// Expands an assistant message with multiple content blocks into separate responses.
+  /// This preserves the interleaving of text and tool_use blocks.
+  static List<ClaudeResponse> _expandAssistantContentBlocks(
+    Map<String, dynamic> json,
+    List<dynamic> content,
+  ) {
+    final responses = <ClaudeResponse>[];
+    final baseId = json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+
+    for (int i = 0; i < content.length; i++) {
+      final block = content[i] as Map<String, dynamic>;
+      final blockType = block['type'] as String?;
+      final blockId = block['id'] ?? '$baseId-$i';
+
+      if (blockType == 'text') {
+        final text = block['text'] as String? ?? '';
+        if (text.isNotEmpty) {
+          responses.add(TextResponse(
+            id: blockId,
+            timestamp: DateTime.now(),
+            content: HtmlEntityDecoder.decode(text),
+            // These are cumulative per-block, not streaming deltas
+            isCumulative: true,
+            rawData: json,
+          ));
+        }
+      } else if (blockType == 'tool_use') {
+        final toolName = block['name'] as String? ?? '';
+        final parameters = block['input'] as Map<String, dynamic>? ?? {};
+
+        responses.add(ToolUseResponse(
+          id: blockId,
+          timestamp: DateTime.now(),
+          toolName: HtmlEntityDecoder.decode(toolName),
+          parameters: HtmlEntityDecoder.decodeMap(parameters),
+          toolUseId: block['id'] as String?,
+          rawData: json,
+        ));
+      }
+    }
+
+    return responses;
+  }
+
   factory ClaudeResponse.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String?;
     final subtype = json['subtype'] as String?;

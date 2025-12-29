@@ -30,7 +30,11 @@ class JsonDecoder {
 
       try {
         final json = jsonDecode(line) as Map<String, dynamic>;
-        yield ClaudeResponse.fromJson(json);
+        // Use fromJsonMultiple to handle interleaved assistant content
+        final responses = ClaudeResponse.fromJsonMultiple(json);
+        for (final response in responses) {
+          yield response;
+        }
       } catch (e) {
         // Try to handle partial JSON or malformed responses
         if (line.contains('"type"') || line.contains('"content"')) {
@@ -52,6 +56,17 @@ class JsonDecoder {
       return ClaudeResponse.fromJson(decoded);
     } catch (e) {
       return null;
+    }
+  }
+
+  /// Decodes a JSON string and returns multiple responses if the message
+  /// contains interleaved content (text + tool_use + text).
+  List<ClaudeResponse> decodeMultiple(String json) {
+    try {
+      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      return ClaudeResponse.fromJsonMultiple(decoded);
+    } catch (e) {
+      return [];
     }
   }
 }

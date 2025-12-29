@@ -90,5 +90,32 @@ void main() {
       expect(modified.permissionMode, equals('acceptEdits'));
       expect(original.permissionMode, isNull);
     });
+
+    test('enableStreaming defaults to true', () {
+      final config = ClaudeConfig();
+
+      expect(config.enableStreaming, isTrue);
+    });
+
+    test('excludes --include-partial-messages when streaming disabled', () {
+      final config = ClaudeConfig(enableStreaming: false);
+      final args = config.toCliArgs();
+
+      expect(
+        args,
+        isNot(contains('--include-partial-messages')),
+        reason: 'Should not include streaming flag when disabled',
+      );
+    });
+
+    test('copyWith updates enableStreaming', () {
+      final original = ClaudeConfig();
+      expect(original.enableStreaming, isTrue);
+
+      final modified = original.copyWith(enableStreaming: false);
+
+      expect(modified.enableStreaming, isFalse);
+      expect(original.enableStreaming, isTrue);
+    });
   });
 }

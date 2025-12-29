@@ -65,7 +65,7 @@ class _NetworksListPageState extends State<NetworksListPage> {
             style: TextStyle(decoration: TextDecoration.underline, fontWeight: FontWeight.bold),
           ),
           SizedBox(height: 1),
-          // Memory and Theme row
+          // Memory, Theme, and Streaming row
           Focusable(
             focused: true,
             onKeyEvent: (event) {
@@ -77,6 +77,16 @@ class _NetworksListPageState extends State<NetworksListPage> {
                 ThemeSettingsPage.push(context);
                 return true;
               }
+              if (event.logicalKey == LogicalKey.keyS) {
+                // Toggle streaming setting
+                final configManager = context.read(videConfigManagerProvider);
+                final currentSettings = configManager.readGlobalSettings();
+                configManager.writeGlobalSettings(
+                  currentSettings.copyWith(enableStreaming: !currentSettings.enableStreaming),
+                );
+                setState(() {}); // Trigger rebuild to update badge
+                return true;
+              }
               return false;
             },
             child: Row(
@@ -85,13 +95,15 @@ class _NetworksListPageState extends State<NetworksListPage> {
                 _MemoryBadge(count: totalMemories),
                 SizedBox(width: 2),
                 _ThemeBadge(),
+                SizedBox(width: 2),
+                _StreamingBadge(),
               ],
             ),
           ),
           SizedBox(height: 1),
           // Help text
           Text(
-            'Esc: home | Backspace×2: delete | V: memories | T: theme',
+            'Esc: home | Backspace×2: delete | V: memories | T: theme | S: streaming',
             style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
           ),
           SizedBox(height: 2),
@@ -286,6 +298,37 @@ class _ThemeBadge extends StatelessComponent {
           child: Text(
             displayName,
             style: TextStyle(color: theme.base.onPrimary, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Streaming badge showing current streaming mode
+class _StreamingBadge extends StatelessComponent {
+  const _StreamingBadge();
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+    final configManager = context.read(videConfigManagerProvider);
+    final isEnabled = configManager.readGlobalSettings().enableStreaming;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(color: theme.base.outline),
+          child: Text('Streaming', style: TextStyle(color: theme.base.onSurface)),
+        ),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(color: isEnabled ? theme.base.success : theme.base.error),
+          child: Text(
+            isEnabled ? 'On' : 'Off',
+            style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
           ),
         ),
       ],

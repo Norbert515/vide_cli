@@ -17,9 +17,17 @@ class VideGlobalSettings {
   @JsonKey(includeIfNull: false)
   final String? theme;
 
+  /// Whether to enable streaming of partial messages.
+  /// When true, text is streamed character-by-character as it's generated.
+  /// When false, only complete messages are returned.
+  /// Defaults to true.
+  @JsonKey(defaultValue: true)
+  final bool enableStreaming;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
+    this.enableStreaming = true,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -32,10 +40,12 @@ class VideGlobalSettings {
   VideGlobalSettings copyWith({
     bool? firstRunComplete,
     String? Function()? theme,
+    bool? enableStreaming,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
       theme: theme != null ? theme() : this.theme,
+      enableStreaming: enableStreaming ?? this.enableStreaming,
     );
   }
 }

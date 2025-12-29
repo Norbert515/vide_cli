@@ -73,12 +73,14 @@ class AgentConfiguration {
   /// - Setting system prompt
   /// - Configuring allowed tools (non-MCP)
   /// - Model and permission settings
+  /// - Streaming configuration
   ///
   /// Note: MCP server configuration is handled separately in the
   /// client creation process based on [mcpServers].
   ClaudeConfig toClaudeConfig({
     String? sessionId,
     String? workingDirectory,
+    bool enableStreaming = true,
   }) {
     return ClaudeConfig(
       appendSystemPrompt: systemPrompt,
@@ -89,6 +91,7 @@ class AgentConfiguration {
       maxTokens: maxTokens,
       sessionId: sessionId,
       workingDirectory: workingDirectory,
+      enableStreaming: enableStreaming,
     );
   }
 
