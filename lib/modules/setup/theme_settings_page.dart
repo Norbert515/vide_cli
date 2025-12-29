@@ -51,7 +51,6 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
 
     return Center(
       child: Container(
-        width: 60,
         decoration: BoxDecoration(
           border: BoxBorder.all(color: theme.base.outline),
         ),
@@ -74,27 +73,37 @@ class _ThemeSettingsPageState extends State<ThemeSettingsPage> {
               ),
             ),
             SizedBox(height: 2),
-            ThemeSelector(
-              initialThemeId: currentThemeId,
-              onThemeSelected: (themeId) {
-                // Save the theme and update provider
-                context.read(themeSettingProvider.notifier).state = themeId;
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Theme selector on the left
+                ThemeSelector(
+                  initialThemeId: currentThemeId,
+                  onThemeSelected: (themeId) {
+                    // Save the theme and update provider
+                    context.read(themeSettingProvider.notifier).state = themeId;
 
-                // Also persist to config
-                final configManager = context.read(videConfigManagerProvider);
-                configManager.setTheme(themeId);
+                    // Also persist to config
+                    final configManager = context.read(videConfigManagerProvider);
+                    configManager.setTheme(themeId);
 
-                // Navigate back
-                Navigator.of(context).pop();
-              },
-              onPreviewTheme: (previewTheme) {
-                setState(() {
-                  _previewTheme = previewTheme;
-                });
-              },
-              onCancel: () {
-                Navigator.of(context).pop();
-              },
+                    // Navigate back
+                    Navigator.of(context).pop();
+                  },
+                  onPreviewTheme: (previewTheme) {
+                    setState(() {
+                      _previewTheme = previewTheme;
+                    });
+                  },
+                  onCancel: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                SizedBox(width: 4),
+                // Preview panel on the right
+                const ThemePreview(),
+              ],
             ),
           ],
         ),

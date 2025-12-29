@@ -2,6 +2,253 @@ import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
+/// A preview component that shows sample code and chat to demonstrate theme colors.
+class ThemePreview extends StatelessComponent {
+  const ThemePreview({super.key});
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Code preview section
+        Text(
+          'Code Preview',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.primary,
+          ),
+        ),
+        SizedBox(height: 1),
+        Container(
+          decoration: BoxDecoration(
+            border: BoxBorder.all(color: theme.base.outline),
+          ),
+          padding: EdgeInsets.all(1),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildCodeLine(theme, [
+                _CodeToken('class', theme.syntax.keyword),
+                _CodeToken(' ', theme.syntax.plain),
+                _CodeToken('UserService', theme.syntax.type),
+                _CodeToken(' {', theme.syntax.plain),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('  ', theme.syntax.plain),
+                _CodeToken('// Fetches user data', theme.syntax.comment),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('  ', theme.syntax.plain),
+                _CodeToken('Future', theme.syntax.type),
+                _CodeToken('<', theme.syntax.plain),
+                _CodeToken('User', theme.syntax.type),
+                _CodeToken('> ', theme.syntax.plain),
+                _CodeToken('getUser', theme.syntax.function),
+                _CodeToken('(', theme.syntax.plain),
+                _CodeToken('int', theme.syntax.type),
+                _CodeToken(' id) ', theme.syntax.plain),
+                _CodeToken('async', theme.syntax.keyword),
+                _CodeToken(' {', theme.syntax.plain),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('    ', theme.syntax.plain),
+                _CodeToken('final', theme.syntax.keyword),
+                _CodeToken(' ', theme.syntax.plain),
+                _CodeToken('url', theme.syntax.variable),
+                _CodeToken(' = ', theme.syntax.plain),
+                _CodeToken("'/api/users/\$id'", theme.syntax.string),
+                _CodeToken(';', theme.syntax.plain),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('    ', theme.syntax.plain),
+                _CodeToken('return', theme.syntax.keyword),
+                _CodeToken(' ', theme.syntax.plain),
+                _CodeToken('await', theme.syntax.keyword),
+                _CodeToken(' ', theme.syntax.plain),
+                _CodeToken('fetch', theme.syntax.function),
+                _CodeToken('(', theme.syntax.plain),
+                _CodeToken('url', theme.syntax.variable),
+                _CodeToken(');', theme.syntax.plain),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('  }', theme.syntax.plain),
+              ]),
+              _buildCodeLine(theme, [
+                _CodeToken('}', theme.syntax.plain),
+              ]),
+            ],
+          ),
+        ),
+        SizedBox(height: 2),
+        // Chat preview section
+        Text(
+          'Chat Preview',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.primary,
+          ),
+        ),
+        SizedBox(height: 1),
+        Container(
+          decoration: BoxDecoration(
+            border: BoxBorder.all(color: theme.base.outline),
+          ),
+          padding: EdgeInsets.all(1),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User message
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'You',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.base.secondary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Add a login button to the home page',
+                style: TextStyle(color: theme.base.onSurface),
+              ),
+              SizedBox(height: 1),
+              // Agent message
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Claude',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.base.primary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                "I'll add a login button to the home page.",
+                style: TextStyle(color: theme.base.onSurface),
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: 2),
+        // Diff preview section
+        Text(
+          'Diff Preview',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.primary,
+          ),
+        ),
+        SizedBox(height: 1),
+        Container(
+          decoration: BoxDecoration(
+            border: BoxBorder.all(color: theme.base.outline),
+          ),
+          padding: EdgeInsets.all(1),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '@@ -1,3 +1,4 @@',
+                style: TextStyle(color: theme.diff.header),
+              ),
+              Container(
+                color: theme.diff.removedBackground,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '-',
+                      style: TextStyle(color: theme.diff.removedPrefix),
+                    ),
+                    Text(
+                      '  Text("Welcome")',
+                      style: TextStyle(color: theme.base.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                color: theme.diff.addedBackground,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '+',
+                      style: TextStyle(color: theme.diff.addedPrefix),
+                    ),
+                    Text(
+                      '  Text("Welcome Back!")',
+                      style: TextStyle(color: theme.base.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                color: theme.diff.addedBackground,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '+',
+                      style: TextStyle(color: theme.diff.addedPrefix),
+                    ),
+                    Text(
+                      '  LoginButton()',
+                      style: TextStyle(color: theme.base.onSurface),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    ' ',
+                    style: TextStyle(color: theme.diff.contextPrefix),
+                  ),
+                  Text(
+                    ' ]',
+                    style: TextStyle(color: theme.base.onSurface),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Component _buildCodeLine(VideThemeData theme, List<_CodeToken> tokens) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: tokens
+          .map((token) => Text(token.text, style: TextStyle(color: token.color)))
+          .toList(),
+    );
+  }
+}
+
+class _CodeToken {
+  final String text;
+  final Color color;
+
+  const _CodeToken(this.text, this.color);
+}
+
 /// Available theme options with display names and descriptions
 class ThemeOption {
   final String id;
