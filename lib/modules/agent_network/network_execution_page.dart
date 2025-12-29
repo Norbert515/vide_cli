@@ -18,6 +18,7 @@ import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/theme/theme_provider.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
 
@@ -42,6 +43,7 @@ class NetworkExecutionPage extends StatefulComponent {
 class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   DateTime? _lastCtrlCPress;
   bool _showQuitWarning = false;
+  String? _thinkingToggleMessage;
   static const _quitTimeWindow = Duration(seconds: 2);
 
   int selectedAgentIndex = 0;
@@ -119,6 +121,24 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     }
   }
 
+  void _handleCtrlO() {
+    // Toggle thinking tokens display
+    toggleShowThinking(context.container);
+    final newValue = context.read(showThinkingProvider);
+    setState(() {
+      _thinkingToggleMessage = newValue ? 'Thinking tokens: visible' : 'Thinking tokens: hidden';
+    });
+
+    // Hide message after 2 seconds
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _thinkingToggleMessage = null;
+        });
+      }
+    });
+  }
+
   @override
   Component build(BuildContext context) {
     final networkState = context.watch(agentNetworkManagerProvider);
@@ -145,6 +165,12 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             return true;
           }
 
+          // Ctrl+O: Toggle thinking tokens display
+          if (event.logicalKey == LogicalKey.keyO && event.isControlPressed) {
+            _handleCtrlO();
+            return true;
+          }
+
           return false;
         },
         child: MouseRegion(
@@ -160,6 +186,15 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                 ),
                 Divider(),
                 RunningAgentsBar(agents: networkState.agents, selectedIndex: selectedAgentIndex),
+                // Show thinking toggle message if active
+                if (_thinkingToggleMessage != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 1),
+                    child: Text(
+                      _thinkingToggleMessage!,
+                      style: TextStyle(color: VideTheme.of(context).base.primary),
+                    ),
+                  ),
                 if (networkState.agentIds.isEmpty)
                   Center(child: Text('No agents'))
                 else
@@ -580,8 +615,41 @@ class _AgentChatState extends State<_AgentChat> {
       final widgets = <Component>[];
       final renderedToolResults = <String>{};
 
+      // Check if we should show thinking content
+      final showThinking = context.watch(showThinkingProvider);
+
       for (final response in message.responses) {
-        if (response is TextResponse) {
+        if (response is ThinkingResponse) {
+          // Only render thinking content if showThinking is enabled
+          if (showThinking && response.content.isNotEmpty) {
+            widgets.add(
+              Container(
+                padding: EdgeInsets.only(bottom: 1),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Thinking:',
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    Container(
+                      padding: EdgeInsets.only(left: 2),
+                      child: Text(
+                        response.content,
+                        style: TextStyle(
+                          color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+        } else if (response is TextResponse) {
           if (response.content.isEmpty && message.isStreaming) {
             widgets.add(EnhancedLoadingIndicator());
           } else {

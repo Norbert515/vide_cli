@@ -23,3 +23,19 @@ void setTheme(ProviderContainer container, String? themeId) {
   configManager.setTheme(themeId);
   container.read(themeSettingProvider.notifier).state = themeId;
 }
+
+/// Provider for controlling whether thinking tokens are displayed.
+/// Toggle with Ctrl+O shortcut.
+final showThinkingProvider = StateProvider<bool>((ref) {
+  final configManager = ref.read(videConfigManagerProvider);
+  return configManager.getShowThinking();
+});
+
+/// Toggles the showThinking setting and persists it to config.
+void toggleShowThinking(ProviderContainer container) {
+  final configManager = container.read(videConfigManagerProvider);
+  final current = container.read(showThinkingProvider);
+  final newValue = !current;
+  configManager.setShowThinking(newValue);
+  container.read(showThinkingProvider.notifier).state = newValue;
+}

@@ -149,6 +149,17 @@ class VideConfigManager {
     final settings = readGlobalSettings();
     writeGlobalSettings(settings.copyWith(theme: () => themeName));
   }
+
+  /// Get whether to show thinking tokens in the UI.
+  bool getShowThinking() {
+    return readGlobalSettings().showThinking;
+  }
+
+  /// Set whether to show thinking tokens in the UI.
+  void setShowThinking(bool show) {
+    final settings = readGlobalSettings();
+    writeGlobalSettings(settings.copyWith(showThinking: show));
+  }
 }
 
 /// Riverpod provider for VideConfigManager

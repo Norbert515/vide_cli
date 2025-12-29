@@ -290,7 +290,20 @@ class ConversationLoader {
           if (block is Map<String, dynamic>) {
             final blockType = block['type'] as String?;
 
-            if (blockType == 'text') {
+            if (blockType == 'thinking') {
+              final thinking = block['thinking'] as String? ?? '';
+              if (thinking.isNotEmpty) {
+                responses.add(
+                  ThinkingResponse(
+                    id:
+                        block['id'] as String? ??
+                        DateTime.now().millisecondsSinceEpoch.toString(),
+                    timestamp: DateTime.now(),
+                    content: HtmlEntityDecoder.decode(thinking),
+                  ),
+                );
+              }
+            } else if (blockType == 'text') {
               final text = block['text'] as String? ?? '';
               if (text.isNotEmpty) {
                 responses.add(

@@ -75,6 +75,30 @@ sealed class ClaudeResponse {
   }
 }
 
+/// Response containing thinking/reasoning content from extended thinking.
+@JsonSerializable()
+class ThinkingResponse extends ClaudeResponse {
+  final String content;
+
+  const ThinkingResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    super.rawData,
+  });
+
+  factory ThinkingResponse.fromJson(Map<String, dynamic> json) {
+    return ThinkingResponse(
+      id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: DateTime.now(),
+      content: json['thinking'] ?? json['content'] ?? json['text'] ?? '',
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$ThinkingResponseToJson(this);
+}
+
 @JsonSerializable()
 class TextResponse extends ClaudeResponse {
   final String content;
