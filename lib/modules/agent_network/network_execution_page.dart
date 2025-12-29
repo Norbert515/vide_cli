@@ -368,20 +368,31 @@ class _AgentChatState extends State<_AgentChat> {
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;
     final isWarningZone = percentage >= kContextWarningThreshold;
+    final isCautionZone = percentage >= kContextCautionThreshold;
+
+    // Only show context usage when it's getting full (>= 60%)
+    final showContextUsage = isCautionZone;
+
+    // If nothing to show, return empty
+    if (!showContextUsage && _conversation.totalCostUsd <= 0) {
+      return SizedBox();
+    }
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Row(
         children: [
-          // Context usage indicator
-          ContextUsageIndicator(usedTokens: usedTokens),
-          SizedBox(width: 1),
-          Text(
-            'context',
-            style: TextStyle(
-              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+          // Context usage indicator (only when >= caution threshold)
+          if (showContextUsage) ...[
+            ContextUsageIndicator(usedTokens: usedTokens),
+            SizedBox(width: 1),
+            Text(
+              'context',
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+              ),
             ),
-          ),
+          ],
 
           // Show /compact hint when in warning zone
           if (isWarningZone) ...[
