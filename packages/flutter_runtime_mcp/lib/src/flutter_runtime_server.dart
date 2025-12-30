@@ -182,7 +182,7 @@ class FlutterRuntimeServer extends McpServerBase {
             return CallToolResult.fromContent(content: [TextContent(text: outputBuffer.toString())]);
           }
 
-          // Build full output with header and all buffered lines
+          // Success - return concise info without full logs
           final outputBuffer = StringBuffer();
           outputBuffer.writeln('Flutter instance started successfully!');
           outputBuffer.writeln();
@@ -194,23 +194,6 @@ class FlutterRuntimeServer extends McpServerBase {
           }
           if (instance.deviceId != null) {
             outputBuffer.writeln('Device ID: ${instance.deviceId}');
-          }
-          outputBuffer.writeln();
-          outputBuffer.writeln('=== Flutter Output ===');
-          outputBuffer.writeln();
-
-          // Append all buffered output
-          for (final line in instance.bufferedOutput) {
-            outputBuffer.writeln(line);
-          }
-
-          // Append any errors
-          if (instance.bufferedErrors.isNotEmpty) {
-            outputBuffer.writeln();
-            outputBuffer.writeln('=== Errors ===');
-            for (final line in instance.bufferedErrors) {
-              outputBuffer.writeln(line);
-            }
           }
 
           return CallToolResult.fromContent(content: [TextContent(text: outputBuffer.toString())]);
@@ -315,7 +298,7 @@ Instance ID: $instanceId
     // Flutter Stop
     server.tool(
       'flutterStop',
-      description: 'Stop a running Flutter instance. Returns full stdout and stderr logs from the session, useful for debugging build failures or runtime errors.',
+      description: 'Stop a running Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to stop'},
@@ -333,10 +316,6 @@ Instance ID: $instanceId
         }
 
         try {
-          // Capture buffered output before stopping
-          final bufferedOutput = instance.bufferedOutput;
-          final bufferedErrors = instance.bufferedErrors;
-
           await instance.stop();
           _instances.remove(instanceId);
 
@@ -346,31 +325,17 @@ Instance ID: $instanceId
             await SyntheticMainGenerator.cleanup(workingDir);
           }
 
-          // Build full output including all buffered logs
-          final outputBuffer = StringBuffer();
-          outputBuffer.writeln('Flutter instance stopped successfully.');
-          outputBuffer.writeln();
-          outputBuffer.writeln('Instance ID: $instanceId');
-          outputBuffer.writeln();
-          outputBuffer.writeln('=== Full Flutter Output ===');
-          outputBuffer.writeln();
-
-          // Append all buffered output
-          for (final line in bufferedOutput) {
-            outputBuffer.writeln(line);
-          }
-
-          // Append any errors
-          if (bufferedErrors.isNotEmpty) {
-            outputBuffer.writeln();
-            outputBuffer.writeln('=== Errors ===');
-            for (final line in bufferedErrors) {
-              outputBuffer.writeln(line);
-            }
-          }
-
           return CallToolResult.fromContent(
-            content: [TextContent(text: outputBuffer.toString())],
+            content: [
+              TextContent(
+                text:
+                    '''
+Flutter instance stopped successfully.
+
+Instance ID: $instanceId
+''',
+              ),
+            ],
           );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'flutterStop', instanceId: instanceId);
