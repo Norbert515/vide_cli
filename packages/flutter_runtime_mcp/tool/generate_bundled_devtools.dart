@@ -39,6 +39,7 @@ final _removePatterns = [
 const _requiredImports = [
   "dart:convert",
   "dart:developer",
+  "dart:io",
   "dart:ui",
   "package:flutter/material.dart",
   "package:flutter/rendering.dart",
