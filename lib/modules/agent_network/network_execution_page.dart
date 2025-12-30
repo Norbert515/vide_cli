@@ -454,8 +454,7 @@ class _AgentChatState extends State<_AgentChat> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Show typing indicator with hint when processing
-                // But NOT when waiting for user input (askUserQuestion or permission dialog)
+                // Loading indicator row - always 1 cell height to prevent layout jumps
                 if (_conversation.isProcessing &&
                     currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)
@@ -470,7 +469,9 @@ class _AgentChatState extends State<_AgentChat> {
                         style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
                       ),
                     ],
-                  ),
+                  )
+                else
+                  Text(' '), // Reserve 1 line when loading indicator is hidden
 
                 // Show quit warning if active
                 if (component.showQuitWarning)
