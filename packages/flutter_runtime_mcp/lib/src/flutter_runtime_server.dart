@@ -315,7 +315,7 @@ Instance ID: $instanceId
     // Flutter Stop
     server.tool(
       'flutterStop',
-      description: 'Stop a running Flutter instance',
+      description: 'Stop a running Flutter instance. Returns full stdout and stderr logs from the session, useful for debugging build failures or runtime errors.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to stop'},
@@ -333,6 +333,10 @@ Instance ID: $instanceId
         }
 
         try {
+          // Capture buffered output before stopping
+          final bufferedOutput = instance.bufferedOutput;
+          final bufferedErrors = instance.bufferedErrors;
+
           await instance.stop();
           _instances.remove(instanceId);
 
@@ -342,17 +346,31 @@ Instance ID: $instanceId
             await SyntheticMainGenerator.cleanup(workingDir);
           }
 
-          return CallToolResult.fromContent(
-            content: [
-              TextContent(
-                text:
-                    '''
-Flutter instance stopped successfully.
+          // Build full output including all buffered logs
+          final outputBuffer = StringBuffer();
+          outputBuffer.writeln('Flutter instance stopped successfully.');
+          outputBuffer.writeln();
+          outputBuffer.writeln('Instance ID: $instanceId');
+          outputBuffer.writeln();
+          outputBuffer.writeln('=== Full Flutter Output ===');
+          outputBuffer.writeln();
 
-Instance ID: $instanceId
-''',
-              ),
-            ],
+          // Append all buffered output
+          for (final line in bufferedOutput) {
+            outputBuffer.writeln(line);
+          }
+
+          // Append any errors
+          if (bufferedErrors.isNotEmpty) {
+            outputBuffer.writeln();
+            outputBuffer.writeln('=== Errors ===');
+            for (final line in bufferedErrors) {
+              outputBuffer.writeln(line);
+            }
+          }
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: outputBuffer.toString())],
           );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'flutterStop', instanceId: instanceId);
