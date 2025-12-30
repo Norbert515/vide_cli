@@ -37,7 +37,8 @@ vide_cli/ (repo root)
 │   ├── flutter_runtime_mcp/   # Flutter app lifecycle management
 │   ├── runtime_ai_dev_tools/  # Flutter service extensions
 │   ├── claude_sdk/            # Claude SDK client
-│   └── moondream_api/         # Vision AI client
+│   ├── moondream_api/         # Vision AI client
+│   └── vide_terminal/         # Flutter terminal wrapper for testing vide
 ```
 
 ### Provider Override Pattern
@@ -253,6 +254,51 @@ Key test areas:
 - Bash command parsing (`test/modules/settings/bash_command_parser_test.dart`)
 - Diff rendering and syntax highlighting (`test/utils/`)
 
+### Interactive Testing with vide_terminal
+
+The `packages/vide_terminal` Flutter app wraps the vide CLI in a terminal emulator, enabling automated UI testing of vide itself.
+
+**Purpose:** Test vide changes interactively using the flutter-tester agent, which can:
+- Launch vide in a Flutter terminal window
+- Take screenshots of the TUI
+- Interact with vide via the terminal (type commands, navigate)
+- Validate UI rendering and behavior
+
+**When to use (requires user confirmation):**
+After making changes to vide's TUI or core functionality, ask the user:
+> "Would you like me to test these changes in the Flutter terminal wrapper?"
+
+If the user confirms, delegate to the flutter-tester agent:
+
+```
+spawnAgent(
+  agentType: "flutterTester",
+  name: "Vide UI Test",
+  initialPrompt: "Test vide changes in the Flutter terminal wrapper.
+
+  Working directory: packages/vide_terminal
+
+  What to test:
+  - [Specific functionality that was changed]
+  - [Expected behavior]
+
+  Steps:
+  1. Launch the vide_terminal app
+  2. Wait for vide to start in the terminal
+  3. Take a screenshot to verify the UI
+  4. [Specific interactions to test]
+
+  Please message me back with test results and screenshots."
+)
+```
+
+**How it works:**
+- `vide_terminal` automatically locates the vide repo and runs `dart run bin/vide.dart`
+- It uses the `xterm` and `flutter_pty` packages for terminal emulation
+- The flutter-tester agent can interact with vide as a user would
+
+**Note:** This is for manual verification during development, not automated CI testing.
+
 ## Session Completion Workflow
 
 **When ending a work session**, complete the following steps:
@@ -422,6 +468,7 @@ See `.github/workflows/` for build pipeline configuration.
 - `packages/flutter_runtime_mcp/` - Flutter runtime MCP server
 - `packages/runtime_ai_dev_tools/` - Flutter service extensions
 - `packages/moondream_api/` - Moondream vision AI client
+- `packages/vide_terminal/` - Flutter app wrapping vide CLI for interactive testing
 
 ## Configuration Files
 
