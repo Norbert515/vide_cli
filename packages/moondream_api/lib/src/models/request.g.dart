@@ -7,16 +7,16 @@ part of 'request.dart';
 // **************************************************************************
 
 QueryRequest _$QueryRequestFromJson(Map<String, dynamic> json) => QueryRequest(
-  imageUrl: json['image_url'] as String,
-  question: json['question'] as String,
-  stream: json['stream'] as bool?,
-);
+      imageUrl: json['image_url'] as String,
+      question: json['question'] as String,
+      stream: json['stream'] as bool?,
+    );
 
 Map<String, dynamic> _$QueryRequestToJson(QueryRequest instance) =>
     <String, dynamic>{
       'image_url': instance.imageUrl,
       'question': instance.question,
-      'stream': ?instance.stream,
+      if (instance.stream case final value?) 'stream': value,
     };
 
 CaptionRequest _$CaptionRequestFromJson(Map<String, dynamic> json) =>
@@ -29,8 +29,9 @@ CaptionRequest _$CaptionRequestFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$CaptionRequestToJson(CaptionRequest instance) =>
     <String, dynamic>{
       'image_url': instance.imageUrl,
-      'length': ?_$CaptionLengthEnumMap[instance.length],
-      'stream': ?instance.stream,
+      if (_$CaptionLengthEnumMap[instance.length] case final value?)
+        'length': value,
+      if (instance.stream case final value?) 'stream': value,
     };
 
 const _$CaptionLengthEnumMap = {
@@ -52,9 +53,9 @@ Map<String, dynamic> _$DetectRequestToJson(DetectRequest instance) =>
     };
 
 PointRequest _$PointRequestFromJson(Map<String, dynamic> json) => PointRequest(
-  imageUrl: json['image_url'] as String,
-  object: json['object'] as String,
-);
+      imageUrl: json['image_url'] as String,
+      object: json['object'] as String,
+    );
 
 Map<String, dynamic> _$PointRequestToJson(PointRequest instance) =>
     <String, dynamic>{

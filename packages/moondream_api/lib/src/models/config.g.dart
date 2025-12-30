@@ -13,14 +13,12 @@ MoondreamConfig _$MoondreamConfigFromJson(Map<String, dynamic> json) =>
       timeout: json['timeout'] == null
           ? const Duration(seconds: 30)
           : MoondreamConfig._durationFromMillis(
-              (json['timeout'] as num).toInt(),
-            ),
+              (json['timeout'] as num).toInt()),
       retryAttempts: (json['retryAttempts'] as num?)?.toInt() ?? 3,
       retryDelay: json['retryDelay'] == null
           ? const Duration(seconds: 1)
           : MoondreamConfig._durationFromMillis(
-              (json['retryDelay'] as num).toInt(),
-            ),
+              (json['retryDelay'] as num).toInt()),
       verbose: json['verbose'] as bool? ?? false,
     );
 
