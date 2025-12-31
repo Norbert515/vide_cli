@@ -1,18 +1,11 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:claude_sdk/claude_sdk.dart' show ClaudeStatus;
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
 
 class EnhancedLoadingIndicator extends StatefulComponent {
-  const EnhancedLoadingIndicator({super.key, this.agentId});
-
-  /// Optional agent ID to show status-aware loading messages.
-  /// If provided, the indicator will show messages based on Claude's actual status.
-  final String? agentId;
+  const EnhancedLoadingIndicator({super.key});
 
   @override
   State<EnhancedLoadingIndicator> createState() =>
@@ -73,13 +66,6 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
     'Unscrambling quantum eggs',
   ];
 
-  /// Status-specific messages shown when we know Claude's actual state
-  static const _statusMessages = {
-    ClaudeStatus.processing: 'Processing',
-    ClaudeStatus.thinking: 'Thinking',
-    ClaudeStatus.responding: 'Responding',
-  };
-
   static final _brailleFrames = [
     '⠋',
     '⠙',
@@ -132,33 +118,11 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
     super.dispose();
   }
 
-  /// Get the display text based on Claude's status.
-  /// Shows status prefix when available, otherwise just the fun activity.
-  String _getDisplayText(ClaudeStatus? status) {
-    final activity = _activities[_activityIndex];
-
-    // If we have a meaningful status, show it as a prefix
-    if (status != null && _statusMessages.containsKey(status)) {
-      return '${_statusMessages[status]}: $activity';
-    }
-
-    // Fallback to just the activity
-    return activity;
-  }
-
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final braille = _brailleFrames[_frameIndex];
-
-    // Get Claude status if agent ID is provided
-    ClaudeStatus? claudeStatus;
-    if (component.agentId != null) {
-      final statusAsync = context.watch(claudeStatusProvider(component.agentId!));
-      claudeStatus = statusAsync.valueOrNull;
-    }
-
-    final displayText = _getDisplayText(claudeStatus);
+    final activity = _activities[_activityIndex];
 
     return Row(
       children: [
@@ -171,7 +135,7 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
         ),
         SizedBox(width: 1),
         // Activity text with shimmer
-        _buildShimmerText(context, displayText),
+        _buildShimmerText(context, activity),
       ],
     );
   }
