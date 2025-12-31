@@ -24,8 +24,20 @@ class AgentIdAndClaudeConfig {
   }
 }
 
-final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, config) {
-  return ref.watch(claudeManagerProvider)[config];
+final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, agentId) {
+  return ref.watch(claudeManagerProvider)[agentId];
+});
+
+/// Provider for watching the current ClaudeStatus from an agent's client.
+///
+/// This provides real-time status updates (processing, thinking, responding, etc.)
+/// from the Claude API, useful for showing activity indicators in the UI.
+final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((ref, agentId) {
+  final client = ref.watch(claudeProvider(agentId));
+  if (client == null) {
+    return Stream.value(ClaudeStatus.ready);
+  }
+  return client.statusStream;
 });
 
 final claudeManagerProvider = StateNotifierProvider<ClaudeManagerStateNotifier, Map<String, ClaudeClient>>((ref) {

@@ -81,7 +81,15 @@ class ConversationLoader {
         // Process each response
         for (final response in responses) {
           final message = ResponseToMessageConverter.convert(response);
-          if (message == null) continue;
+
+          // Skip transient/ephemeral message types when loading history
+          // These are only relevant during live streaming
+          if (message.messageType == MessageType.status ||
+              message.messageType == MessageType.meta ||
+              message.messageType == MessageType.completion ||
+              message.messageType == MessageType.unknown) {
+            continue;
+          }
 
           // Handle tool results - merge into last assistant message
           if (ResponseToMessageConverter.isToolResult(response)) {

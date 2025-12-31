@@ -34,6 +34,8 @@ class CommandContext {
     required this.agentId,
     required this.workingDirectory,
     this.sendMessage,
+    this.clearConversation,
+    this.exitApp,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -45,6 +47,14 @@ class CommandContext {
   /// Callback to send a message to the Claude client.
   /// Used by commands that need to interact with Claude (e.g., /compact).
   final void Function(String message)? sendMessage;
+
+  /// Callback to clear the conversation history.
+  /// Used by /clear command.
+  final Future<void> Function()? clearConversation;
+
+  /// Callback to exit the application.
+  /// Used by /exit command.
+  final void Function()? exitApp;
 }
 
 /// Base interface for all slash commands.

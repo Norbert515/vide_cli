@@ -17,7 +17,9 @@ class MockClaudeClient implements ClaudeClient {
   final List<Message> sentMessages = [];
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
+  final _statusController = StreamController<ClaudeStatus>.broadcast();
   Conversation _currentConversation = Conversation.empty();
+  ClaudeStatus _currentStatus = ClaudeStatus.ready;
   bool _isAborted = false;
   bool _isClosed = false;
 
@@ -29,6 +31,12 @@ class MockClaudeClient implements ClaudeClient {
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
+
+  @override
+  Stream<ClaudeStatus> get statusStream => _statusController.stream;
+
+  @override
+  ClaudeStatus get currentStatus => _currentStatus;
 
   @override
   Conversation get currentConversation => _currentConversation;
@@ -58,6 +66,13 @@ class MockClaudeClient implements ClaudeClient {
     _isClosed = true;
     await _conversationController.close();
     await _turnCompleteController.close();
+    await _statusController.close();
+  }
+
+  @override
+  Future<void> clearConversation() async {
+    _currentConversation = Conversation.empty();
+    _conversationController.add(_currentConversation);
   }
 
   @override

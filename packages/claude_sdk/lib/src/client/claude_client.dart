@@ -27,6 +27,9 @@ abstract class ClaudeClient {
 
   String get workingDirectory;
 
+  /// Clears the conversation history, starting fresh.
+  Future<void> clearConversation();
+
   /// Injects a synthetic tool result into the conversation.
   /// Used to mark a pending tool invocation as failed (e.g., when permission is denied).
   void injectToolResult(ToolResultResponse toolResult);
@@ -34,6 +37,14 @@ abstract class ClaudeClient {
   /// Emits when a conversation turn completes (assistant finishes responding).
   /// This is the clean way to detect when an agent has finished its work.
   Stream<void> get onTurnComplete;
+
+  /// Stream of Claude's current processing status.
+  /// Emits status updates like processing, thinking, responding, completed.
+  /// Useful for showing real-time activity indicators in the UI.
+  Stream<ClaudeStatus> get statusStream;
+
+  /// The most recent status from Claude.
+  ClaudeStatus get currentStatus;
 
   T? getMcpServer<T extends McpServerBase>(String name);
 
@@ -114,13 +125,21 @@ class ClaudeClientImpl implements ClaudeClient {
   // Conversation state management - persistent across process invocations
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
+  final _statusController = StreamController<ClaudeStatus>.broadcast();
   Conversation _currentConversation = Conversation.empty();
+  ClaudeStatus _currentStatus = ClaudeStatus.ready;
 
   @override
   Stream<Conversation> get conversation => _conversationController.stream;
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
+
+  @override
+  Stream<ClaudeStatus> get statusStream => _statusController.stream;
+
+  @override
+  ClaudeStatus get currentStatus => _currentStatus;
 
   @override
   Conversation get currentConversation => _currentConversation;
@@ -273,6 +292,11 @@ class ClaudeClientImpl implements ClaudeClient {
     var turnComplete = false;
 
     for (final response in responses) {
+      // Extract and emit status updates
+      if (response is StatusResponse) {
+        _updateStatus(response.status);
+      }
+
       // Delegate response processing to ResponseProcessor
       final result = _responseProcessor.processResponse(
         response,
@@ -301,6 +325,13 @@ class ClaudeClientImpl implements ClaudeClient {
   void _updateConversation(Conversation newConversation) {
     _currentConversation = newConversation;
     _conversationController.add(_currentConversation);
+  }
+
+  void _updateStatus(ClaudeStatus status) {
+    if (_currentStatus != status) {
+      _currentStatus = status;
+      _statusController.add(status);
+    }
   }
 
   @override
@@ -439,6 +470,7 @@ class ClaudeClientImpl implements ClaudeClient {
     }
   }
 
+  @override
   Future<void> clearConversation() async {
     _updateConversation(Conversation.empty());
     _isFirstMessage = true;
@@ -457,6 +489,7 @@ class ClaudeClientImpl implements ClaudeClient {
     // Close streams
     await _conversationController.close();
     await _turnCompleteController.close();
+    await _statusController.close();
 
     _isInitialized = false;
   }

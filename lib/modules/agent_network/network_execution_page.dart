@@ -71,7 +71,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  EnhancedLoadingIndicator(),
+                  EnhancedLoadingIndicator(agentId: agentId),
                   SizedBox(width: 2),
                   Text(
                     '(Press ESC to stop)',
@@ -87,6 +87,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     return Expanded(
       child: _AgentChat(
         key: ValueKey(agentId),
+        agentId: agentId,
         client: client,
         networkId: component.networkId,
         showQuitWarning: _showQuitWarning,
@@ -174,11 +175,12 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 }
 
 class _AgentChat extends StatefulComponent {
+  final String agentId;
   final ClaudeClient client;
   final String networkId;
   final bool showQuitWarning;
 
-  const _AgentChat({required this.client, required this.networkId, this.showQuitWarning = false, super.key});
+  const _AgentChat({required this.agentId, required this.client, required this.networkId, this.showQuitWarning = false, super.key});
 
   @override
   State<_AgentChat> createState() => _AgentChatState();
@@ -469,7 +471,7 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(),
+                      EnhancedLoadingIndicator(agentId: component.agentId),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
@@ -568,9 +570,8 @@ class _AgentChatState extends State<_AgentChat> {
   Component _buildMessage(BuildContext context, ConversationMessage message) {
     final theme = VideTheme.of(context);
 
-    // Check for compact boundary message (from CompactBoundaryResponse)
-    final hasCompactBoundary = message.responses.any((r) => r is CompactBoundaryResponse);
-    if (hasCompactBoundary) {
+    // Check for compact boundary message using messageType
+    if (message.messageType == MessageType.compactBoundary) {
       // Extract compact metadata for display
       final compactResponse =
           message.responses.firstWhere((r) => r is CompactBoundaryResponse) as CompactBoundaryResponse;
@@ -602,7 +603,7 @@ class _AgentChatState extends State<_AgentChat> {
     }
 
     // Check for compact summary user message
-    if (message.role == MessageRole.user && message.isCompactSummary) {
+    if (message.messageType == MessageType.compactSummary) {
       // Show compact summary as collapsed/truncated
       final summaryPreview = message.content.length > 100
           ? '${message.content.substring(0, 100)}...'
@@ -747,7 +748,7 @@ class _AgentChatState extends State<_AgentChat> {
 
       // Show loading indicator if streaming with no content yet
       if (widgets.isEmpty && message.isStreaming) {
-        widgets.add(EnhancedLoadingIndicator());
+        widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
       }
 
       return Container(
@@ -757,7 +758,7 @@ class _AgentChatState extends State<_AgentChat> {
             ...widgets,
 
             // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(),
+            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(agentId: component.agentId),
 
             if (message.error != null)
               Container(
