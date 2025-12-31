@@ -15,7 +15,9 @@ class MockClaudeClient implements ClaudeClient {
 
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
+  final _statusController = StreamController<ClaudeStatus>.broadcast();
   Conversation _currentConversation = Conversation.empty();
+  ClaudeStatus _currentStatus = ClaudeStatus.ready;
 
   bool _isAborting = false;
   Timer? _activeTimer;
@@ -25,6 +27,12 @@ class MockClaudeClient implements ClaudeClient {
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
+
+  @override
+  Stream<ClaudeStatus> get statusStream => _statusController.stream;
+
+  @override
+  ClaudeStatus get currentStatus => _currentStatus;
 
   // Mock response templates
   static const List<String> _mockResponses = [
@@ -66,6 +74,13 @@ class MockClaudeClient implements ClaudeClient {
     _conversationController.add(_currentConversation);
   }
 
+  void _updateStatus(ClaudeStatus status) {
+    if (_currentStatus != status) {
+      _currentStatus = status;
+      _statusController.add(status);
+    }
+  }
+
   @override
   void sendMessage(Message message) {
     if (message.text.trim().isEmpty) {
@@ -75,10 +90,12 @@ class MockClaudeClient implements ClaudeClient {
     // Add user message
     final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
     _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+    _updateStatus(ClaudeStatus.processing);
 
     // Simulate processing delay
     Timer(const Duration(milliseconds: 500), () {
       _updateConversation(_currentConversation.withState(ConversationState.receivingResponse));
+      _updateStatus(ClaudeStatus.responding);
 
       // Start streaming mock response
       _streamMockResponse(message.text);
@@ -207,6 +224,9 @@ class MockClaudeClient implements ClaudeClient {
               ),
         );
 
+        // Update status to completed/ready
+        _updateStatus(ClaudeStatus.ready);
+
         // Notify that turn is complete
         _turnCompleteController.add(null);
         return;
@@ -255,6 +275,7 @@ class MockClaudeClient implements ClaudeClient {
     });
   }
 
+  @override
   Future<void> clearConversation() async {
     _updateConversation(Conversation.empty());
   }
@@ -295,6 +316,7 @@ class MockClaudeClient implements ClaudeClient {
     _activeTimer?.cancel();
     await _conversationController.close();
     await _turnCompleteController.close();
+    await _statusController.close();
   }
 
   Future<void> restart() async {

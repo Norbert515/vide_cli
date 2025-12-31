@@ -679,7 +679,8 @@ void main() {
 
       expect(result.updatedConversation.messages.length, equals(1));
       final message = result.updatedConversation.messages.first;
-      expect(message.role, equals(MessageRole.assistant));
+      expect(message.role, equals(MessageRole.system));
+      expect(message.messageType, equals(MessageType.compactBoundary));
       expect(message.content, contains('Compacted'));
       expect(message.content, contains('manual'));
       expect(result.turnComplete, isFalse);
@@ -716,7 +717,8 @@ void main() {
       conversation = result.updatedConversation;
 
       expect(conversation.messages.length, equals(1));
-      expect(conversation.messages[0].role, equals(MessageRole.assistant));
+      expect(conversation.messages[0].role, equals(MessageRole.system));
+      expect(conversation.messages[0].messageType, equals(MessageType.compactBoundary));
       expect(conversation.messages[0].content, contains('Compacted'));
 
       // 2. Receive continuation summary (user message)
@@ -784,7 +786,8 @@ void main() {
 
       // Verify final state
       expect(conversation.messages.length, equals(2));
-      expect(conversation.messages[0].role, equals(MessageRole.assistant)); // compact boundary
+      expect(conversation.messages[0].role, equals(MessageRole.system)); // compact boundary
+      expect(conversation.messages[0].messageType, equals(MessageType.compactBoundary));
       expect(conversation.messages[0].content, contains('Compacted'));
       expect(conversation.messages[1].role, equals(MessageRole.user)); // continuation summary
       expect(conversation.messages[1].content, contains('continued from a previous'));

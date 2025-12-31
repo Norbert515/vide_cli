@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:claude_sdk/claude_sdk.dart' show ClaudeStatus;
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
@@ -90,21 +90,20 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     return agent.name;
   }
 
-  /// Infer the actual status based on both explicit status and conversation state.
+  /// Infer the actual status based on both explicit status and Claude's processing state.
   /// This provides safeguards against agents forgetting to call setAgentStatus.
-  AgentStatus _inferActualStatus(AgentStatus explicitStatus, Conversation? conversation) {
-    if (conversation == null) {
-      return explicitStatus;
-    }
-
-    // If conversation is processing, agent is definitely working
-    if (conversation.isProcessing) {
+  AgentStatus _inferActualStatus(AgentStatus explicitStatus, ClaudeStatus claudeStatus) {
+    // If Claude is actively processing/thinking/responding, agent is definitely working
+    if (claudeStatus == ClaudeStatus.processing ||
+        claudeStatus == ClaudeStatus.thinking ||
+        claudeStatus == ClaudeStatus.responding) {
       return AgentStatus.working;
     }
 
-    // If conversation is idle but agent claims to be working, override to idle
+    // If Claude is ready/completed but agent claims to be working, override to idle
     // This handles cases where agent forgot to call setAgentStatus("idle")
-    if (conversation.state == ConversationState.idle && explicitStatus == AgentStatus.working) {
+    if ((claudeStatus == ClaudeStatus.ready || claudeStatus == ClaudeStatus.completed) &&
+        explicitStatus == AgentStatus.working) {
       return AgentStatus.idle;
     }
 
@@ -117,12 +116,12 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     final theme = VideTheme.of(context);
     final explicitStatus = context.watch(agentStatusProvider(component.agent.id));
 
-    // Get the claude client to check conversation state
-    final client = context.watch(claudeProvider(component.agent.id));
-    final conversation = client?.currentConversation;
+    // Get Claude's processing status from the stream
+    final claudeStatusAsync = context.watch(claudeStatusProvider(component.agent.id));
+    final claudeStatus = claudeStatusAsync.valueOrNull ?? ClaudeStatus.ready;
 
-    // Infer actual status - override if conversation says we're idle but status says working
-    final status = _inferActualStatus(explicitStatus, conversation);
+    // Infer actual status - use Claude's status to correct agent status if needed
+    final status = _inferActualStatus(explicitStatus, claudeStatus);
 
     final indicatorColor = _getIndicatorColor(status, theme.status);
     final indicatorTextColor = _getIndicatorTextColor(status, theme);

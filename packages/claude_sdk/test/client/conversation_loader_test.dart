@@ -504,12 +504,13 @@ void main() {
           '/Users/test/project',
         );
 
-        // Should have: user, assistant, compact_boundary (as assistant), user
+        // Should have: user, assistant, compact_boundary (as system), user
         expect(conversation.messages.length, equals(4));
         expect(conversation.messages[0].role, equals(MessageRole.user));
         expect(conversation.messages[1].role, equals(MessageRole.assistant));
-        // Compact boundary is rendered as an assistant message
-        expect(conversation.messages[2].role, equals(MessageRole.assistant));
+        // Compact boundary is rendered as a system message
+        expect(conversation.messages[2].role, equals(MessageRole.system));
+        expect(conversation.messages[2].messageType, equals(MessageType.compactBoundary));
         expect(
           conversation.messages[2].content,
           contains('Compacted'),

@@ -16,8 +16,7 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.assistant));
+        expect(message.role, equals(MessageRole.assistant));
         expect(message.responses.length, equals(1));
         expect(message.isStreaming, isTrue);
       });
@@ -33,8 +32,7 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.assistant));
+        expect(message.role, equals(MessageRole.assistant));
         expect(message.responses.first, isA<ToolUseResponse>());
       });
 
@@ -49,8 +47,7 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.assistant));
+        expect(message.role, equals(MessageRole.assistant));
         expect(message.responses.first, isA<ToolResultResponse>());
       });
 
@@ -64,8 +61,8 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.assistant));
+        expect(message.role, equals(MessageRole.system));
+        expect(message.messageType, equals(MessageType.compactBoundary));
         expect(message.content, contains('Compacted'));
         expect(message.content, contains('manual'));
       });
@@ -80,8 +77,8 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.user));
+        expect(message.role, equals(MessageRole.user));
+        expect(message.messageType, equals(MessageType.compactSummary));
         expect(message.content, equals('This session is being continued...'));
         expect(message.isCompactSummary, isTrue);
         expect(message.isVisibleInTranscriptOnly, isTrue);
@@ -96,8 +93,8 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.user));
+        expect(message.role, equals(MessageRole.user));
+        expect(message.messageType, equals(MessageType.userMessage));
         expect(message.content, equals('User question here'));
         expect(message.isCompactSummary, isFalse);
       });
@@ -111,12 +108,12 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNotNull);
-        expect(message!.role, equals(MessageRole.assistant));
+        expect(message.role, equals(MessageRole.assistant));
+        expect(message.messageType, equals(MessageType.error));
         expect(message.error, equals('Something went wrong'));
       });
 
-      test('returns null for StatusResponse', () {
+      test('converts StatusResponse to system message with status type', () {
         final response = StatusResponse(
           id: 'status-1',
           timestamp: DateTime.now(),
@@ -125,10 +122,11 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNull);
+        expect(message.role, equals(MessageRole.system));
+        expect(message.messageType, equals(MessageType.status));
       });
 
-      test('returns null for MetaResponse', () {
+      test('converts MetaResponse to system message with meta type', () {
         final response = MetaResponse(
           id: 'meta-1',
           timestamp: DateTime.now(),
@@ -138,10 +136,30 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNull);
+        expect(message.role, equals(MessageRole.system));
+        expect(message.messageType, equals(MessageType.meta));
+        expect(message.content, equals('session-123'));
       });
 
-      test('returns null for UnknownResponse', () {
+      test('converts CompletionResponse to system message with completion type', () {
+        final response = CompletionResponse(
+          id: 'completion-1',
+          timestamp: DateTime.now(),
+          stopReason: 'end_turn',
+          inputTokens: 1000,
+          outputTokens: 500,
+        );
+
+        final message = ResponseToMessageConverter.convert(response);
+
+        expect(message.role, equals(MessageRole.system));
+        expect(message.messageType, equals(MessageType.completion));
+        expect(message.tokenUsage, isNotNull);
+        expect(message.tokenUsage!.inputTokens, equals(1000));
+        expect(message.tokenUsage!.outputTokens, equals(500));
+      });
+
+      test('converts UnknownResponse to system message with unknown type', () {
         final response = UnknownResponse(
           id: 'unknown-1',
           timestamp: DateTime.now(),
@@ -149,7 +167,8 @@ void main() {
 
         final message = ResponseToMessageConverter.convert(response);
 
-        expect(message, isNull);
+        expect(message.role, equals(MessageRole.system));
+        expect(message.messageType, equals(MessageType.unknown));
       });
     });
 
@@ -505,24 +524,23 @@ void main() {
       expect(summaryResponse, isA<CompactSummaryResponse>());
       expect(assistantResponse, isA<TextResponse>());
 
-      // Convert to messages
+      // Convert to messages (parseLine returns nullable, so use !)
       final compactMessage = ResponseToMessageConverter.convert(compactResponse!);
       final summaryMessage = ResponseToMessageConverter.convert(summaryResponse!);
       final responseMessage = ResponseToMessageConverter.convert(assistantResponse!);
 
       // Verify compact boundary message
-      expect(compactMessage, isNotNull);
-      expect(compactMessage!.content, contains('manual'));
+      expect(compactMessage.messageType, equals(MessageType.compactBoundary));
+      expect(compactMessage.content, contains('manual'));
 
       // Verify summary message has correct flags
-      expect(summaryMessage, isNotNull);
-      expect(summaryMessage!.role, equals(MessageRole.user));
+      expect(summaryMessage.role, equals(MessageRole.user));
+      expect(summaryMessage.messageType, equals(MessageType.compactSummary));
       expect(summaryMessage.isCompactSummary, isTrue);
       expect(summaryMessage.isVisibleInTranscriptOnly, isTrue);
 
       // Verify assistant response
-      expect(responseMessage, isNotNull);
-      expect(responseMessage!.role, equals(MessageRole.assistant));
+      expect(responseMessage.role, equals(MessageRole.assistant));
     });
 
     test('tool invocation flow: text → tool_use → tool_result → text', () {

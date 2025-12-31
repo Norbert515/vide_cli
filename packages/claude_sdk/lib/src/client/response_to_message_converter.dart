@@ -1,6 +1,5 @@
 import '../models/response.dart';
 import '../models/conversation.dart';
-import '../models/message.dart';
 
 /// Converts ClaudeResponse objects to ConversationMessage objects.
 ///
@@ -12,10 +11,13 @@ import '../models/message.dart';
 class ResponseToMessageConverter {
   /// Convert a ClaudeResponse to a ConversationMessage.
   ///
-  /// Returns null if the response should be skipped (e.g., meta messages, status updates).
+  /// All response types are converted to messages, allowing the UI layer
+  /// to decide what to display or filter. The `messageType` field on the
+  /// returned message indicates the semantic type.
+  ///
   /// For responses that should be merged with previous messages (like tool results),
   /// returns the message that should be merged.
-  static ConversationMessage? convert(
+  static ConversationMessage convert(
     ClaudeResponse response, {
     DateTime? timestamp,
   }) {
@@ -29,11 +31,10 @@ class ResponseToMessageConverter {
       CompactSummaryResponse r => _convertCompactSummaryResponse(r, ts),
       UserMessageResponse r => _convertUserMessageResponse(r, ts),
       ErrorResponse r => _convertErrorResponse(r, ts),
-      // These don't produce messages
-      StatusResponse() => null,
-      MetaResponse() => null,
-      CompletionResponse() => null,
-      UnknownResponse() => null,
+      StatusResponse r => _convertStatusResponse(r, ts),
+      MetaResponse r => _convertMetaResponse(r, ts),
+      CompletionResponse r => _convertCompletionResponse(r, ts),
+      UnknownResponse r => _convertUnknownResponse(r, ts),
     };
   }
 
@@ -130,7 +131,55 @@ class ResponseToMessageConverter {
       responses: [response],
       isComplete: true,
       isStreaming: false,
-    ).copyWith(error: response.error);
+    ).copyWith(error: response.error, messageType: MessageType.error);
+  }
+
+  static ConversationMessage _convertStatusResponse(
+    StatusResponse response,
+    DateTime timestamp,
+  ) {
+    return ConversationMessage.status(
+      id: response.id,
+      timestamp: timestamp,
+      status: response.status,
+      message: response.message,
+      response: response,
+    );
+  }
+
+  static ConversationMessage _convertMetaResponse(
+    MetaResponse response,
+    DateTime timestamp,
+  ) {
+    return ConversationMessage.meta(
+      id: response.id,
+      timestamp: timestamp,
+      conversationId: response.conversationId,
+      metadata: response.metadata,
+      response: response,
+    );
+  }
+
+  static ConversationMessage _convertCompletionResponse(
+    CompletionResponse response,
+    DateTime timestamp,
+  ) {
+    return ConversationMessage.completion(
+      id: response.id,
+      timestamp: timestamp,
+      response: response,
+    );
+  }
+
+  static ConversationMessage _convertUnknownResponse(
+    UnknownResponse response,
+    DateTime timestamp,
+  ) {
+    return ConversationMessage.unknown(
+      id: response.id,
+      timestamp: timestamp,
+      response: response,
+    );
   }
 }
 
@@ -143,8 +192,6 @@ class JsonlMessageParser {
   ///
   /// Returns null if the line should be skipped.
   static ClaudeResponse? parseLine(Map<String, dynamic> json) {
-    final type = json['type'] as String?;
-
     // Skip meta messages
     final isMeta = json['isMeta'] as bool? ?? false;
     if (isMeta) return null;
@@ -163,8 +210,6 @@ class JsonlMessageParser {
   /// For assistant messages with multiple content blocks, this expands
   /// them into separate responses to preserve interleaving.
   static List<ClaudeResponse> parseLineMultiple(Map<String, dynamic> json) {
-    final type = json['type'] as String?;
-
     // Skip meta messages
     final isMeta = json['isMeta'] as bool? ?? false;
     if (isMeta) return [];

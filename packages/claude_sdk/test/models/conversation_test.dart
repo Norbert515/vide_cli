@@ -22,10 +22,11 @@ void main() {
   });
 
   group('MessageRole', () {
-    test('has user and assistant roles', () {
+    test('has user, assistant, and system roles', () {
       expect(MessageRole.values, contains(MessageRole.user));
       expect(MessageRole.values, contains(MessageRole.assistant));
-      expect(MessageRole.values.length, equals(2));
+      expect(MessageRole.values, contains(MessageRole.system));
+      expect(MessageRole.values.length, equals(3));
     });
   });
 

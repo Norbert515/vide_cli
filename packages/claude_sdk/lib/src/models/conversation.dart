@@ -10,7 +10,44 @@ enum ConversationState {
   error,
 }
 
-enum MessageRole { user, assistant }
+enum MessageRole { user, assistant, system }
+
+/// The semantic type of a message, allowing the UI layer to decide
+/// how to display or filter different message types.
+enum MessageType {
+  /// Regular user message
+  userMessage,
+
+  /// Regular assistant text response
+  assistantText,
+
+  /// Tool invocation by assistant
+  toolUse,
+
+  /// Result from a tool execution
+  toolResult,
+
+  /// Error response
+  error,
+
+  /// Completion/end of turn marker with token usage
+  completion,
+
+  /// Status update (processing, ready, etc.)
+  status,
+
+  /// Session metadata (conversation ID, project info, etc.)
+  meta,
+
+  /// Compact boundary marker (context was compacted)
+  compactBoundary,
+
+  /// Compact summary (summarized conversation after compaction)
+  compactSummary,
+
+  /// Unknown/unrecognized response type
+  unknown,
+}
 
 class ConversationMessage {
   final String id;
@@ -23,6 +60,9 @@ class ConversationMessage {
   final String? error;
   final TokenUsage? tokenUsage;
   final List<Attachment>? attachments;
+
+  /// The semantic type of this message, allowing UI layer to filter/display appropriately.
+  final MessageType messageType;
 
   /// Whether this message is a compact summary injected after context compaction.
   /// When true, the content contains the summarized conversation history.
@@ -43,6 +83,7 @@ class ConversationMessage {
     this.error,
     this.tokenUsage,
     this.attachments,
+    this.messageType = MessageType.assistantText,
     this.isCompactSummary = false,
     this.isVisibleInTranscriptOnly = false,
   });
@@ -59,6 +100,7 @@ class ConversationMessage {
     timestamp: DateTime.now(),
     isComplete: true,
     attachments: attachments,
+    messageType: isCompactSummary ? MessageType.compactSummary : MessageType.userMessage,
     isCompactSummary: isCompactSummary,
     isVisibleInTranscriptOnly: isVisibleInTranscriptOnly,
   );
@@ -72,10 +114,11 @@ class ConversationMessage {
   }) {
     return ConversationMessage(
       id: id,
-      role: MessageRole.assistant,
+      role: MessageRole.system,
       content: '─────────── Conversation Compacted ($trigger) ───────────',
       timestamp: timestamp,
       isComplete: true,
+      messageType: MessageType.compactBoundary,
       responses: [
         CompactBoundaryResponse(
           id: id,
@@ -224,6 +267,7 @@ class ConversationMessage {
     String? error,
     TokenUsage? tokenUsage,
     List<Attachment>? attachments,
+    MessageType? messageType,
     bool? isCompactSummary,
     bool? isVisibleInTranscriptOnly,
   }) {
@@ -238,9 +282,88 @@ class ConversationMessage {
       error: error ?? this.error,
       tokenUsage: tokenUsage ?? this.tokenUsage,
       attachments: attachments ?? this.attachments,
+      messageType: messageType ?? this.messageType,
       isCompactSummary: isCompactSummary ?? this.isCompactSummary,
       isVisibleInTranscriptOnly:
           isVisibleInTranscriptOnly ?? this.isVisibleInTranscriptOnly,
+    );
+  }
+
+  /// Creates a status message (e.g., processing, ready).
+  factory ConversationMessage.status({
+    required String id,
+    required DateTime timestamp,
+    required ClaudeStatus status,
+    String? message,
+    required StatusResponse response,
+  }) {
+    return ConversationMessage(
+      id: id,
+      role: MessageRole.system,
+      content: message ?? status.name,
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.status,
+      responses: [response],
+    );
+  }
+
+  /// Creates a meta message containing session metadata.
+  factory ConversationMessage.meta({
+    required String id,
+    required DateTime timestamp,
+    String? conversationId,
+    required Map<String, dynamic> metadata,
+    required MetaResponse response,
+  }) {
+    return ConversationMessage(
+      id: id,
+      role: MessageRole.system,
+      content: conversationId ?? 'Session metadata',
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.meta,
+      responses: [response],
+    );
+  }
+
+  /// Creates a completion message marking end of turn with token usage.
+  factory ConversationMessage.completion({
+    required String id,
+    required DateTime timestamp,
+    required CompletionResponse response,
+  }) {
+    return ConversationMessage(
+      id: id,
+      role: MessageRole.system,
+      content: response.stopReason ?? 'Turn complete',
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.completion,
+      tokenUsage: TokenUsage(
+        inputTokens: response.inputTokens ?? 0,
+        outputTokens: response.outputTokens ?? 0,
+        cacheReadInputTokens: response.cacheReadInputTokens ?? 0,
+        cacheCreationInputTokens: response.cacheCreationInputTokens ?? 0,
+      ),
+      responses: [response],
+    );
+  }
+
+  /// Creates an unknown message for unrecognized response types.
+  factory ConversationMessage.unknown({
+    required String id,
+    required DateTime timestamp,
+    required UnknownResponse response,
+  }) {
+    return ConversationMessage(
+      id: id,
+      role: MessageRole.system,
+      content: 'Unknown response',
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.unknown,
+      responses: [response],
     );
   }
 }
