@@ -17,9 +17,8 @@ class ProcessResult {
 
 /// Processes Claude responses and updates conversation state.
 ///
-/// This class extracts the response processing logic from ClaudeClientImpl
-/// to provide a testable, single-responsibility component for handling
-/// different response types and updating conversation state accordingly.
+/// This class uses a visitor pattern to handle different response types,
+/// making it easy to add new response types without modifying the core logic.
 class ResponseProcessor {
   /// Process a ClaudeResponse and update conversation state.
   ///
@@ -29,120 +28,61 @@ class ResponseProcessor {
     ClaudeResponse response,
     Conversation currentConversation,
   ) {
-    // Generate a new assistant ID for new messages
-    final assistantId = DateTime.now().millisecondsSinceEpoch.toString();
+    // Use exhaustive pattern matching for type-safe handling
+    return switch (response) {
+      TextResponse r => _processTextResponse(r, currentConversation),
+      ToolUseResponse r => _processToolResponse(r, currentConversation),
+      ToolResultResponse r => _processToolResponse(r, currentConversation),
+      CompletionResponse r => _processCompletionResponse(r, currentConversation),
+      ErrorResponse r => _processErrorResponse(r, currentConversation),
+      CompactBoundaryResponse r => _processCompactBoundaryResponse(r, currentConversation),
+      CompactSummaryResponse r => _processCompactSummaryResponse(r, currentConversation),
+      UserMessageResponse r => _processUserMessageResponse(r, currentConversation),
+      // Non-message responses - pass through unchanged
+      StatusResponse() => _passThrough(currentConversation),
+      MetaResponse() => _passThrough(currentConversation),
+      UnknownResponse() => _passThrough(currentConversation),
+    };
+  }
 
-    // Check if we should append to existing assistant message
-    final existingMessage = currentConversation.messages.lastOrNull;
-    final isAssistantMessage =
-        existingMessage?.role == MessageRole.assistant &&
-            existingMessage?.isStreaming == true;
-
-    // Build responses list
-    List<ClaudeResponse> responses;
-    if (isAssistantMessage) {
-      responses = [...existingMessage!.responses, response];
-    } else {
-      responses = [response];
-    }
-
-    if (response is TextResponse) {
-      return _processTextResponse(
-        response,
-        currentConversation,
-        assistantId,
-        existingMessage,
-        isAssistantMessage,
-        responses,
-      );
-    } else if (response is ToolUseResponse || response is ToolResultResponse) {
-      return _processToolResponse(
-        response,
-        currentConversation,
-        assistantId,
-        existingMessage,
-        isAssistantMessage,
-        responses,
-      );
-    } else if (response is CompletionResponse) {
-      return _processCompletionResponse(
-        response,
-        currentConversation,
-        assistantId,
-        existingMessage,
-        isAssistantMessage,
-        responses,
-      );
-    } else if (response is ErrorResponse) {
-      return _processErrorResponse(
-        response,
-        currentConversation,
-        assistantId,
-        existingMessage,
-        isAssistantMessage,
-        responses,
-      );
-    } else {
-      // StatusResponse, MetaResponse, UnknownResponse - ignore
-      return ProcessResult(
-        updatedConversation: currentConversation,
-        turnComplete: false,
-      );
-    }
+  ProcessResult _passThrough(Conversation conversation) {
+    return ProcessResult(
+      updatedConversation: conversation,
+      turnComplete: false,
+    );
   }
 
   ProcessResult _processTextResponse(
     TextResponse response,
     Conversation currentConversation,
-    String assistantId,
-    ConversationMessage? existingMessage,
-    bool isAssistantMessage,
-    List<ClaudeResponse> responses,
   ) {
+    final context = _getAssistantMessageContext(currentConversation);
+    final responses = _appendResponse(context, response);
+
     // Extract usage if available
     final usage = _extractUsageFromRawData(response.rawData);
 
-    // Check if this is truly a complete turn (end_turn stop_reason)
-    // stop_reason="tool_use" means Claude wants to use a tool - turn is NOT complete
-    // stop_reason="end_turn" means Claude is done - turn IS complete
+    // Check if this is truly a complete turn
     final stopReason = response.rawData?['message']?['stop_reason'] as String?;
     final isTurnComplete = stopReason == 'end_turn';
 
     final message = ConversationMessage.assistant(
-      id: isAssistantMessage ? existingMessage!.id : assistantId,
+      id: context.messageId,
       responses: responses,
       isStreaming: !isTurnComplete,
       isComplete: isTurnComplete,
     );
 
-    Conversation updatedConversation;
-    if (isAssistantMessage) {
-      updatedConversation = currentConversation.updateLastMessage(message);
-    } else {
-      updatedConversation = currentConversation
-          .addMessage(message)
-          .withState(ConversationState.receivingResponse);
-    }
+    var updatedConversation = _updateOrAddMessage(
+      currentConversation,
+      message,
+      context.isExistingMessage,
+      ConversationState.receivingResponse,
+    );
 
     // Update tokens whenever usage is available
     if (usage != null) {
-      updatedConversation = updatedConversation.copyWith(
-        // Accumulate totals (for billing/stats)
-        totalInputTokens:
-            updatedConversation.totalInputTokens + usage.inputTokens,
-        totalOutputTokens:
-            updatedConversation.totalOutputTokens + usage.outputTokens,
-        totalCacheReadInputTokens:
-            updatedConversation.totalCacheReadInputTokens +
-                usage.cacheReadInputTokens,
-        totalCacheCreationInputTokens:
-            updatedConversation.totalCacheCreationInputTokens +
-                usage.cacheCreationInputTokens,
-        // Replace current context values (for context window %)
-        currentContextInputTokens: usage.inputTokens,
-        currentContextCacheReadTokens: usage.cacheReadInputTokens,
-        currentContextCacheCreationTokens: usage.cacheCreationInputTokens,
-      );
+      updatedConversation = _updateUsage(updatedConversation, usage);
     }
 
     // Set state to idle only if turn is complete
@@ -159,93 +99,74 @@ class ResponseProcessor {
   ProcessResult _processToolResponse(
     ClaudeResponse response,
     Conversation currentConversation,
-    String assistantId,
-    ConversationMessage? existingMessage,
-    bool isAssistantMessage,
-    List<ClaudeResponse> responses,
   ) {
-    // Extract usage if available - this indicates the response has stop_reason set
+    final context = _getAssistantMessageContext(currentConversation);
+    final responses = _appendResponse(context, response);
+
+    // Extract usage if available
     final usage = _extractUsageFromRawData(response.rawData);
 
     final message = ConversationMessage.assistant(
-      id: isAssistantMessage ? existingMessage!.id : assistantId,
+      id: context.messageId,
       responses: responses,
-      isStreaming: true, // Tool operations always continue (waiting for result)
+      isStreaming: true, // Tool operations always continue
     );
 
-    Conversation updatedConversation;
-    if (isAssistantMessage) {
-      updatedConversation = currentConversation.updateLastMessage(message);
-    } else {
-      updatedConversation = currentConversation
-          .addMessage(message)
-          .withState(ConversationState.processing);
-    }
+    var updatedConversation = _updateOrAddMessage(
+      currentConversation,
+      message,
+      context.isExistingMessage,
+      ConversationState.processing,
+    );
 
     // Ensure state is processing for tool operations
     if (updatedConversation.state != ConversationState.processing) {
-      updatedConversation =
-          updatedConversation.withState(ConversationState.processing);
+      updatedConversation = updatedConversation.withState(ConversationState.processing);
     }
 
-    // Update usage if available (even during tool use, Claude reports usage)
+    // Update usage if available
     if (usage != null) {
-      updatedConversation = updatedConversation.copyWith(
-        // Accumulate totals (for billing/stats)
-        totalInputTokens:
-            updatedConversation.totalInputTokens + usage.inputTokens,
-        totalOutputTokens:
-            updatedConversation.totalOutputTokens + usage.outputTokens,
-        totalCacheReadInputTokens:
-            updatedConversation.totalCacheReadInputTokens +
-                usage.cacheReadInputTokens,
-        totalCacheCreationInputTokens:
-            updatedConversation.totalCacheCreationInputTokens +
-                usage.cacheCreationInputTokens,
-        // Replace current context values (for context window %)
-        currentContextInputTokens: usage.inputTokens,
-        currentContextCacheReadTokens: usage.cacheReadInputTokens,
-        currentContextCacheCreationTokens: usage.cacheCreationInputTokens,
-      );
+      updatedConversation = _updateUsage(updatedConversation, usage);
     }
 
     return ProcessResult(
       updatedConversation: updatedConversation,
-      turnComplete: false, // Tool responses are never turn-complete, we wait for result
+      turnComplete: false,
     );
   }
 
   ProcessResult _processCompletionResponse(
     CompletionResponse response,
     Conversation currentConversation,
-    String assistantId,
-    ConversationMessage? existingMessage,
-    bool isAssistantMessage,
-    List<ClaudeResponse> responses,
   ) {
+    final context = _getAssistantMessageContext(currentConversation);
+    final responses = _appendResponse(context, response);
+
     final message = ConversationMessage.assistant(
-      id: isAssistantMessage ? existingMessage!.id : assistantId,
+      id: context.messageId,
       responses: responses,
       isStreaming: false,
       isComplete: true,
     );
 
-    final updatedConversation = (isAssistantMessage
-            ? currentConversation.updateLastMessage(message)
-            : currentConversation.addMessage(message))
+    Conversation updatedConversation;
+    if (context.isExistingMessage) {
+      updatedConversation = currentConversation.updateLastMessage(message);
+    } else {
+      updatedConversation = currentConversation.addMessage(message);
+    }
+
+    // Always set to idle for completion and update token counts
+    updatedConversation = updatedConversation
         .withState(ConversationState.idle)
         .copyWith(
-          totalInputTokens:
-              currentConversation.totalInputTokens + (response.inputTokens ?? 0),
-          totalOutputTokens:
-              currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
+          totalInputTokens: currentConversation.totalInputTokens + (response.inputTokens ?? 0),
+          totalOutputTokens: currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
           totalCacheReadInputTokens: currentConversation.totalCacheReadInputTokens +
               (response.cacheReadInputTokens ?? 0),
-          totalCacheCreationInputTokens:
-              currentConversation.totalCacheCreationInputTokens +
-                  (response.cacheCreationInputTokens ?? 0),
-          totalCostUsd:
-              currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
+          totalCacheCreationInputTokens: currentConversation.totalCacheCreationInputTokens +
+              (response.cacheCreationInputTokens ?? 0),
+          totalCostUsd: currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
         );
 
     return ProcessResult(
@@ -257,27 +178,23 @@ class ResponseProcessor {
   ProcessResult _processErrorResponse(
     ErrorResponse response,
     Conversation currentConversation,
-    String assistantId,
-    ConversationMessage? existingMessage,
-    bool isAssistantMessage,
-    List<ClaudeResponse> responses,
   ) {
+    final context = _getAssistantMessageContext(currentConversation);
+    final responses = _appendResponse(context, response);
+
     final message = ConversationMessage.assistant(
-      id: isAssistantMessage ? existingMessage!.id : assistantId,
+      id: context.messageId,
       responses: responses,
       isStreaming: false,
       isComplete: true,
     ).copyWith(error: response.error);
 
-    Conversation updatedConversation;
-    if (isAssistantMessage) {
-      updatedConversation = currentConversation
-          .updateLastMessage(message)
-          .withError(response.error);
-    } else {
-      updatedConversation =
-          currentConversation.addMessage(message).withError(response.error);
-    }
+    final updatedConversation = _updateOrAddMessage(
+      currentConversation,
+      message,
+      context.isExistingMessage,
+      ConversationState.idle,
+    ).withError(response.error);
 
     return ProcessResult(
       updatedConversation: updatedConversation,
@@ -285,10 +202,110 @@ class ResponseProcessor {
     );
   }
 
+  ProcessResult _processCompactBoundaryResponse(
+    CompactBoundaryResponse response,
+    Conversation currentConversation,
+  ) {
+    final message = ConversationMessage.compactBoundary(
+      id: response.id,
+      timestamp: response.timestamp,
+      trigger: response.trigger,
+      preTokens: response.preTokens,
+    );
+
+    return ProcessResult(
+      updatedConversation: currentConversation.addMessage(message),
+      turnComplete: false,
+    );
+  }
+
+  ProcessResult _processCompactSummaryResponse(
+    CompactSummaryResponse response,
+    Conversation currentConversation,
+  ) {
+    final message = ConversationMessage.user(
+      content: response.content,
+      isCompactSummary: true,
+      isVisibleInTranscriptOnly: response.isVisibleInTranscriptOnly,
+    );
+
+    return ProcessResult(
+      updatedConversation: currentConversation.addMessage(message),
+      turnComplete: false,
+    );
+  }
+
+  ProcessResult _processUserMessageResponse(
+    UserMessageResponse response,
+    Conversation currentConversation,
+  ) {
+    final message = ConversationMessage.user(
+      content: response.content,
+    );
+
+    return ProcessResult(
+      updatedConversation: currentConversation.addMessage(message),
+      turnComplete: false,
+    );
+  }
+
+  // Helper methods
+
+  /// Get context about the current assistant message (for appending responses).
+  _AssistantMessageContext _getAssistantMessageContext(Conversation conversation) {
+    final existingMessage = conversation.messages.lastOrNull;
+    final isExistingMessage = existingMessage?.role == MessageRole.assistant &&
+        existingMessage?.isStreaming == true;
+
+    return _AssistantMessageContext(
+      messageId: isExistingMessage
+          ? existingMessage!.id
+          : DateTime.now().millisecondsSinceEpoch.toString(),
+      existingResponses: isExistingMessage ? existingMessage!.responses : [],
+      isExistingMessage: isExistingMessage,
+    );
+  }
+
+  /// Append a response to existing responses.
+  List<ClaudeResponse> _appendResponse(
+    _AssistantMessageContext context,
+    ClaudeResponse response,
+  ) {
+    return [...context.existingResponses, response];
+  }
+
+  /// Update or add a message to the conversation.
+  Conversation _updateOrAddMessage(
+    Conversation conversation,
+    ConversationMessage message,
+    bool isExistingMessage,
+    ConversationState newState,
+  ) {
+    if (isExistingMessage) {
+      return conversation.updateLastMessage(message);
+    } else {
+      return conversation.addMessage(message).withState(newState);
+    }
+  }
+
+  /// Update conversation with usage data.
+  Conversation _updateUsage(Conversation conversation, _UsageData usage) {
+    return conversation.copyWith(
+      // Accumulate totals
+      totalInputTokens: conversation.totalInputTokens + usage.inputTokens,
+      totalOutputTokens: conversation.totalOutputTokens + usage.outputTokens,
+      totalCacheReadInputTokens:
+          conversation.totalCacheReadInputTokens + usage.cacheReadInputTokens,
+      totalCacheCreationInputTokens:
+          conversation.totalCacheCreationInputTokens + usage.cacheCreationInputTokens,
+      // Replace current context values
+      currentContextInputTokens: usage.inputTokens,
+      currentContextCacheReadTokens: usage.cacheReadInputTokens,
+      currentContextCacheCreationTokens: usage.cacheCreationInputTokens,
+    );
+  }
+
   /// Extracts usage data from the raw JSON data of an assistant message.
-  ///
-  /// The usage is typically at `rawData['message']['usage']` for Claude CLI output.
-  /// Returns null if no usage data is found.
   _UsageData? _extractUsageFromRawData(Map<String, dynamic>? rawData) {
     if (rawData == null) return null;
 
@@ -298,10 +315,8 @@ class ResponseProcessor {
       return _UsageData(
         inputTokens: messageUsage['input_tokens'] as int? ?? 0,
         outputTokens: messageUsage['output_tokens'] as int? ?? 0,
-        cacheReadInputTokens:
-            messageUsage['cache_read_input_tokens'] as int? ?? 0,
-        cacheCreationInputTokens:
-            messageUsage['cache_creation_input_tokens'] as int? ?? 0,
+        cacheReadInputTokens: messageUsage['cache_read_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens: messageUsage['cache_creation_input_tokens'] as int? ?? 0,
       );
     }
 
@@ -312,13 +327,25 @@ class ResponseProcessor {
         inputTokens: usage['input_tokens'] as int? ?? 0,
         outputTokens: usage['output_tokens'] as int? ?? 0,
         cacheReadInputTokens: usage['cache_read_input_tokens'] as int? ?? 0,
-        cacheCreationInputTokens:
-            usage['cache_creation_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens: usage['cache_creation_input_tokens'] as int? ?? 0,
       );
     }
 
     return null;
   }
+}
+
+/// Context about an assistant message being built.
+class _AssistantMessageContext {
+  final String messageId;
+  final List<ClaudeResponse> existingResponses;
+  final bool isExistingMessage;
+
+  _AssistantMessageContext({
+    required this.messageId,
+    required this.existingResponses,
+    required this.isExistingMessage,
+  });
 }
 
 /// Internal class to hold extracted usage data.

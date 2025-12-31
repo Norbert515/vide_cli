@@ -172,3 +172,64 @@ Map<String, dynamic> _$UnknownResponseToJson(UnknownResponse instance) =>
       'timestamp': instance.timestamp.toIso8601String(),
       'rawData': instance.rawData,
     };
+
+UserMessageResponse _$UserMessageResponseFromJson(Map<String, dynamic> json) =>
+    UserMessageResponse(
+      id: json['id'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      content: json['content'] as String,
+      isReplay: json['isReplay'] as bool? ?? false,
+      rawData: json['rawData'] as Map<String, dynamic>?,
+    );
+
+Map<String, dynamic> _$UserMessageResponseToJson(
+  UserMessageResponse instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'timestamp': instance.timestamp.toIso8601String(),
+  'rawData': instance.rawData,
+  'content': instance.content,
+  'isReplay': instance.isReplay,
+};
+
+CompactBoundaryResponse _$CompactBoundaryResponseFromJson(
+  Map<String, dynamic> json,
+) => CompactBoundaryResponse(
+  id: json['id'] as String,
+  timestamp: DateTime.parse(json['timestamp'] as String),
+  trigger: json['trigger'] as String,
+  preTokens: (json['preTokens'] as num).toInt(),
+  content: json['content'] as String? ?? 'Conversation compacted',
+  rawData: json['rawData'] as Map<String, dynamic>?,
+);
+
+Map<String, dynamic> _$CompactBoundaryResponseToJson(
+  CompactBoundaryResponse instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'timestamp': instance.timestamp.toIso8601String(),
+  'rawData': instance.rawData,
+  'trigger': instance.trigger,
+  'preTokens': instance.preTokens,
+  'content': instance.content,
+};
+
+CompactSummaryResponse _$CompactSummaryResponseFromJson(
+  Map<String, dynamic> json,
+) => CompactSummaryResponse(
+  id: json['id'] as String,
+  timestamp: DateTime.parse(json['timestamp'] as String),
+  content: json['content'] as String,
+  isVisibleInTranscriptOnly: json['isVisibleInTranscriptOnly'] as bool? ?? true,
+  rawData: json['rawData'] as Map<String, dynamic>?,
+);
+
+Map<String, dynamic> _$CompactSummaryResponseToJson(
+  CompactSummaryResponse instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'timestamp': instance.timestamp.toIso8601String(),
+  'rawData': instance.rawData,
+  'content': instance.content,
+  'isVisibleInTranscriptOnly': instance.isVisibleInTranscriptOnly,
+};
