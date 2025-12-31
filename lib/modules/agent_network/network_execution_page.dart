@@ -71,7 +71,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  EnhancedLoadingIndicator(agentId: agentId),
+                  EnhancedLoadingIndicator(),
                   SizedBox(width: 2),
                   Text(
                     '(Press ESC to stop)',
@@ -471,7 +471,7 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(agentId: component.agentId),
+                      EnhancedLoadingIndicator(),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
@@ -748,7 +748,7 @@ class _AgentChatState extends State<_AgentChat> {
 
       // Show loading indicator if streaming with no content yet
       if (widgets.isEmpty && message.isStreaming) {
-        widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
+        widgets.add(EnhancedLoadingIndicator());
       }
 
       return Container(
@@ -758,7 +758,7 @@ class _AgentChatState extends State<_AgentChat> {
             ...widgets,
 
             // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(agentId: component.agentId),
+            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(),
 
             if (message.error != null)
               Container(
