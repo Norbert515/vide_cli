@@ -486,6 +486,98 @@ void main() {
       });
     });
 
+    group('compact boundary support', () {
+      test('parses compact_boundary system messages', () async {
+        await setupConversationFile(
+          'compact-session',
+          '/Users/test/project',
+          [
+            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+            '{"type": "system", "subtype": "compact_boundary", "content": "Conversation compacted", "uuid": "cb1", "timestamp": "2024-01-01T00:01:00Z", "compactMetadata": {"trigger": "manual", "preTokens": 150000}}',
+            '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "text", "text": "Continue please"}]}, "timestamp": "2024-01-01T00:01:01Z"}',
+          ],
+        );
+
+        final conversation = await loadTestConversation(
+          'compact-session',
+          '/Users/test/project',
+        );
+
+        // Should have: user, assistant, compact_boundary (as assistant), user
+        expect(conversation.messages.length, equals(4));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
+        // Compact boundary is rendered as an assistant message
+        expect(conversation.messages[2].role, equals(MessageRole.assistant));
+        expect(
+          conversation.messages[2].content,
+          contains('Compacted'),
+        );
+        expect(conversation.messages[3].role, equals(MessageRole.user));
+      });
+
+      test('parses compact summary user messages with flags', () async {
+        await setupConversationFile(
+          'summary-session',
+          '/Users/test/project',
+          [
+            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": "Summary of conversation..."}, "isCompactSummary": true, "isVisibleInTranscriptOnly": true, "timestamp": "2024-01-01T00:00:00Z"}',
+          ],
+        );
+
+        final conversation = await loadTestConversation(
+          'summary-session',
+          '/Users/test/project',
+        );
+
+        expect(conversation.messages.length, equals(1));
+        expect(conversation.messages[0].isCompactSummary, isTrue);
+        expect(conversation.messages[0].isVisibleInTranscriptOnly, isTrue);
+      });
+
+      test('skips meta messages (isMeta: true)', () async {
+        await setupConversationFile(
+          'meta-session',
+          '/Users/test/project',
+          [
+            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+            '{"type": "user", "uuid": "u2", "isMeta": true, "message": {"role": "user", "content": "This is a meta message"}, "timestamp": "2024-01-01T00:00:01Z"}',
+            '{"type": "user", "uuid": "u3", "message": {"role": "user", "content": [{"type": "text", "text": "Continue"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+          ],
+        );
+
+        final conversation = await loadTestConversation(
+          'meta-session',
+          '/Users/test/project',
+        );
+
+        // Meta message should be skipped
+        expect(conversation.messages.length, equals(2));
+        expect(conversation.messages[0].content, equals('Hello'));
+        expect(conversation.messages[1].content, equals('Continue'));
+      });
+
+      test('handles auto trigger in compact boundary', () async {
+        await setupConversationFile(
+          'auto-compact-session',
+          '/Users/test/project',
+          [
+            '{"type": "system", "subtype": "compact_boundary", "uuid": "cb1", "timestamp": "2024-01-01T00:00:00Z", "compactMetadata": {"trigger": "auto", "preTokens": 200000}}',
+          ],
+        );
+
+        final conversation = await loadTestConversation(
+          'auto-compact-session',
+          '/Users/test/project',
+        );
+
+        expect(conversation.messages.length, equals(1));
+        final compactMessage = conversation.messages[0];
+        expect(compactMessage.content, contains('auto'));
+      });
+    });
+
     group('integration with fixtures', () {
       test('loads simple_conversation fixture correctly', () async {
         final fixtureFile = File(
@@ -557,7 +649,16 @@ Conversation _parseConversationLines(List<String> lines) {
       final json = jsonDecode(line) as Map<String, dynamic>;
       final type = json['type'] as String?;
 
-      if (type == 'user') {
+      if (type == 'system') {
+        final subtype = json['subtype'] as String?;
+        if (subtype == 'compact_boundary') {
+          final compactMsg = _parseCompactBoundary(json);
+          if (compactMsg != null) {
+            messages.add(compactMsg);
+            lastAssistantMessageId = null;
+          }
+        }
+      } else if (type == 'user') {
         lastAssistantMessageId = null;
         final msg = _parseUserMessage(json);
         if (msg != null) {
@@ -608,10 +709,45 @@ Conversation _parseConversationLines(List<String> lines) {
   return Conversation(messages: messages, state: ConversationState.idle);
 }
 
+ConversationMessage? _parseCompactBoundary(Map<String, dynamic> json) {
+  try {
+    final compactMetadata =
+        json['compactMetadata'] as Map<String, dynamic>? ?? {};
+    final trigger = compactMetadata['trigger'] as String? ?? 'auto';
+    final preTokens = compactMetadata['preTokens'] as int? ?? 0;
+
+    final timestampStr = json['timestamp'] as String?;
+    final timestamp = timestampStr != null
+        ? DateTime.tryParse(timestampStr) ?? DateTime.now()
+        : DateTime.now();
+
+    final uuid = json['uuid'] as String? ??
+        DateTime.now().millisecondsSinceEpoch.toString();
+
+    return ConversationMessage.compactBoundary(
+      id: uuid,
+      timestamp: timestamp,
+      trigger: trigger,
+      preTokens: preTokens,
+    );
+  } catch (e) {
+    return null;
+  }
+}
+
 ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
   try {
     final messageData = json['message'] as Map<String, dynamic>?;
     if (messageData == null) return null;
+
+    // Check for compact summary flags
+    final isCompactSummary = json['isCompactSummary'] as bool? ?? false;
+    final isVisibleInTranscriptOnly =
+        json['isVisibleInTranscriptOnly'] as bool? ?? false;
+
+    // Skip meta messages
+    final isMeta = json['isMeta'] as bool? ?? false;
+    if (isMeta) return null;
 
     final content = messageData['content'];
     final timestampStr = json['timestamp'] as String?;
@@ -699,6 +835,8 @@ ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
       timestamp: timestamp ?? DateTime.now(),
       isComplete: true,
       attachments: attachments,
+      isCompactSummary: isCompactSummary,
+      isVisibleInTranscriptOnly: isVisibleInTranscriptOnly,
     );
   } catch (e) {
     return null;

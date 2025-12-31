@@ -24,6 +24,14 @@ class ConversationMessage {
   final TokenUsage? tokenUsage;
   final List<Attachment>? attachments;
 
+  /// Whether this message is a compact summary injected after context compaction.
+  /// When true, the content contains the summarized conversation history.
+  final bool isCompactSummary;
+
+  /// Whether this message is only visible in the transcript file (not sent to the model).
+  /// Used for compact summaries and other internal messages.
+  final bool isVisibleInTranscriptOnly;
+
   const ConversationMessage({
     required this.id,
     required this.role,
@@ -35,11 +43,15 @@ class ConversationMessage {
     this.error,
     this.tokenUsage,
     this.attachments,
+    this.isCompactSummary = false,
+    this.isVisibleInTranscriptOnly = false,
   });
 
   factory ConversationMessage.user({
     required String content,
     List<Attachment>? attachments,
+    bool isCompactSummary = false,
+    bool isVisibleInTranscriptOnly = false,
   }) => ConversationMessage(
     id: DateTime.now().millisecondsSinceEpoch.toString(),
     role: MessageRole.user,
@@ -47,7 +59,33 @@ class ConversationMessage {
     timestamp: DateTime.now(),
     isComplete: true,
     attachments: attachments,
+    isCompactSummary: isCompactSummary,
+    isVisibleInTranscriptOnly: isVisibleInTranscriptOnly,
   );
+
+  /// Creates a compact boundary message representing where context was compacted.
+  factory ConversationMessage.compactBoundary({
+    required String id,
+    required DateTime timestamp,
+    required String trigger,
+    required int preTokens,
+  }) {
+    return ConversationMessage(
+      id: id,
+      role: MessageRole.assistant,
+      content: '─────────── Conversation Compacted ($trigger) ───────────',
+      timestamp: timestamp,
+      isComplete: true,
+      responses: [
+        CompactBoundaryResponse(
+          id: id,
+          timestamp: timestamp,
+          trigger: trigger,
+          preTokens: preTokens,
+        ),
+      ],
+    );
+  }
 
   factory ConversationMessage.assistant({
     required String id,
@@ -186,6 +224,8 @@ class ConversationMessage {
     String? error,
     TokenUsage? tokenUsage,
     List<Attachment>? attachments,
+    bool? isCompactSummary,
+    bool? isVisibleInTranscriptOnly,
   }) {
     return ConversationMessage(
       id: id ?? this.id,
@@ -198,6 +238,9 @@ class ConversationMessage {
       error: error ?? this.error,
       tokenUsage: tokenUsage ?? this.tokenUsage,
       attachments: attachments ?? this.attachments,
+      isCompactSummary: isCompactSummary ?? this.isCompactSummary,
+      isVisibleInTranscriptOnly:
+          isVisibleInTranscriptOnly ?? this.isVisibleInTranscriptOnly,
     );
   }
 }

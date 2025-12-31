@@ -658,4 +658,168 @@ void main() {
       expect(result.turnComplete, isTrue);
     });
   });
+
+  group('Compaction flow', () {
+    late ResponseProcessor processor;
+
+    setUp(() {
+      processor = ResponseProcessor();
+    });
+
+    test('CompactBoundaryResponse adds compact boundary message', () {
+      final conversation = Conversation.empty();
+      final response = CompactBoundaryResponse(
+        id: 'compact-1',
+        timestamp: DateTime.now(),
+        trigger: 'manual',
+        preTokens: 47000,
+      );
+
+      final result = processor.processResponse(response, conversation);
+
+      expect(result.updatedConversation.messages.length, equals(1));
+      final message = result.updatedConversation.messages.first;
+      expect(message.role, equals(MessageRole.assistant));
+      expect(message.content, contains('Compacted'));
+      expect(message.content, contains('manual'));
+      expect(result.turnComplete, isFalse);
+    });
+
+    test('UserMessageResponse adds user message to conversation', () {
+      final conversation = Conversation.empty();
+      final response = UserMessageResponse(
+        id: 'user-1',
+        timestamp: DateTime.now(),
+        content: 'This is the continuation summary...',
+      );
+
+      final result = processor.processResponse(response, conversation);
+
+      expect(result.updatedConversation.messages.length, equals(1));
+      final message = result.updatedConversation.messages.first;
+      expect(message.role, equals(MessageRole.user));
+      expect(message.content, equals('This is the continuation summary...'));
+      expect(result.turnComplete, isFalse);
+    });
+
+    test('full compaction flow: compact_boundary followed by user summary', () {
+      var conversation = Conversation.empty();
+
+      // 1. Receive compact_boundary
+      final compactBoundary = CompactBoundaryResponse(
+        id: 'compact-1',
+        timestamp: DateTime.now(),
+        trigger: 'manual',
+        preTokens: 47000,
+      );
+      var result = processor.processResponse(compactBoundary, conversation);
+      conversation = result.updatedConversation;
+
+      expect(conversation.messages.length, equals(1));
+      expect(conversation.messages[0].role, equals(MessageRole.assistant));
+      expect(conversation.messages[0].content, contains('Compacted'));
+
+      // 2. Receive continuation summary (user message)
+      final userSummary = UserMessageResponse(
+        id: 'user-1',
+        timestamp: DateTime.now(),
+        content: 'This session is being continued from a previous conversation...',
+      );
+      result = processor.processResponse(userSummary, conversation);
+      conversation = result.updatedConversation;
+
+      expect(conversation.messages.length, equals(2));
+      expect(conversation.messages[1].role, equals(MessageRole.user));
+      expect(conversation.messages[1].content, contains('continued from a previous'));
+    });
+
+    test('e2e: parse streaming JSON and process through ResponseProcessor', () {
+      // Actual streaming JSON from Claude CLI during compaction
+      final compactBoundaryJson = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'session_id': 'test-session',
+        'uuid': 'compact-uuid-123',
+        'compact_metadata': {
+          'trigger': 'manual',
+          'pre_tokens': 51185,
+        },
+      };
+
+      final userSummaryJson = {
+        'type': 'user',
+        'message': {
+          'role': 'user',
+          'content': 'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\nAnalysis: ...',
+        },
+        'session_id': 'test-session',
+        'parent_tool_use_id': null,
+        'uuid': 'user-uuid-456',
+        'isReplay': false,
+      };
+
+      // Parse responses
+      final compactResponse = ClaudeResponse.fromJson(compactBoundaryJson);
+      final userResponse = ClaudeResponse.fromJson(userSummaryJson);
+
+      // Verify parsing
+      expect(compactResponse, isA<CompactBoundaryResponse>());
+      expect(userResponse, isA<UserMessageResponse>());
+
+      final compactBoundary = compactResponse as CompactBoundaryResponse;
+      expect(compactBoundary.trigger, equals('manual'));
+      expect(compactBoundary.preTokens, equals(51185));
+
+      final userMessage = userResponse as UserMessageResponse;
+      expect(userMessage.content, contains('continued from a previous conversation'));
+
+      // Process through ResponseProcessor
+      var conversation = Conversation.empty();
+
+      var result = processor.processResponse(compactResponse, conversation);
+      conversation = result.updatedConversation;
+
+      result = processor.processResponse(userResponse, conversation);
+      conversation = result.updatedConversation;
+
+      // Verify final state
+      expect(conversation.messages.length, equals(2));
+      expect(conversation.messages[0].role, equals(MessageRole.assistant)); // compact boundary
+      expect(conversation.messages[0].content, contains('Compacted'));
+      expect(conversation.messages[1].role, equals(MessageRole.user)); // continuation summary
+      expect(conversation.messages[1].content, contains('continued from a previous'));
+    });
+
+    test('e2e: user message without isCompactSummary flag is still processed', () {
+      // This is the key test - streaming doesn't include isCompactSummary flag
+      final userJson = {
+        'type': 'user',
+        'message': {
+          'role': 'user',
+          'content': 'Some user message content',
+        },
+        'session_id': 'test-session',
+        'uuid': 'user-123',
+        // Note: NO isCompactSummary field!
+      };
+
+      final response = ClaudeResponse.fromJson(userJson);
+
+      // Should be parsed as UserMessageResponse (not UnknownResponse!)
+      expect(response, isA<UserMessageResponse>());
+      expect(response, isNot(isA<UnknownResponse>()));
+
+      final userMessage = response as UserMessageResponse;
+      expect(userMessage.content, equals('Some user message content'));
+
+      // Process it
+      final conversation = Conversation.empty();
+      final result = processor.processResponse(response, conversation);
+
+      // Should be added to conversation
+      expect(result.updatedConversation.messages.length, equals(1));
+      expect(result.updatedConversation.messages[0].role, equals(MessageRole.user));
+      expect(result.updatedConversation.messages[0].content, equals('Some user message content'));
+    });
+  });
 }

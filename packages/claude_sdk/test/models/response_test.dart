@@ -96,6 +96,26 @@ void main() {
         expect(response, isA<StatusResponse>());
       });
 
+      test('parses type=system subtype=compact_boundary as CompactBoundaryResponse', () {
+        final json = {
+          'type': 'system',
+          'subtype': 'compact_boundary',
+          'content': 'Conversation compacted',
+          'uuid': 'cb-123',
+          'timestamp': '2024-01-15T12:00:00Z',
+          'compactMetadata': {
+            'trigger': 'manual',
+            'preTokens': 150000,
+          },
+        };
+        final response = ClaudeResponse.fromJson(json);
+        expect(response, isA<CompactBoundaryResponse>());
+        final compactResponse = response as CompactBoundaryResponse;
+        expect(compactResponse.trigger, 'manual');
+        expect(compactResponse.preTokens, 150000);
+        expect(compactResponse.content, 'Conversation compacted');
+      });
+
       test('parses type=result as CompletionResponse', () {
         final json = {
           'type': 'result',
@@ -837,6 +857,264 @@ void main() {
       expect(response, isA<StatusResponse>());
       expect((response as StatusResponse).status, ClaudeStatus.processing);
       expect(response.message, 'Working on it...');
+    });
+  });
+
+  group('CompactBoundaryResponse', () {
+    test('extracts trigger from compactMetadata', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {
+          'trigger': 'auto',
+          'preTokens': 200000,
+        },
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.trigger, 'auto');
+    });
+
+    test('extracts preTokens from compactMetadata', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {
+          'trigger': 'manual',
+          'preTokens': 198710,
+        },
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.preTokens, 198710);
+    });
+
+    test('extracts content field', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'content': 'Context was compacted',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 100000},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.content, 'Context was compacted');
+    });
+
+    test('defaults content to "Conversation compacted"', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 100000},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.content, 'Conversation compacted');
+    });
+
+    test('parses timestamp correctly', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00.000Z',
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 100000},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.timestamp.year, 2024);
+      expect(response.timestamp.month, 1);
+      expect(response.timestamp.day, 15);
+      expect(response.timestamp.hour, 12);
+    });
+
+    test('uses uuid as id', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'unique-id-abc123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'trigger': 'auto', 'preTokens': 50000},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.id, 'unique-id-abc123');
+    });
+
+    test('defaults trigger to "auto" when missing', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'preTokens': 100000},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.trigger, 'auto');
+    });
+
+    test('defaults preTokens to 0 when missing', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'trigger': 'manual'},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.preTokens, 0);
+    });
+
+    test('handles empty compactMetadata', () {
+      final json = <String, dynamic>{
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': <String, dynamic>{},
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.trigger, 'auto');
+      expect(response.preTokens, 0);
+    });
+
+    test('handles missing compactMetadata', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.trigger, 'auto');
+      expect(response.preTokens, 0);
+    });
+
+    test('handles snake_case compact_metadata from streaming', () {
+      // Streaming events use snake_case
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compact_metadata': {
+          'trigger': 'manual',
+          'pre_tokens': 185000,
+        },
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.trigger, 'manual');
+      expect(response.preTokens, 185000);
+    });
+
+    test('prefers camelCase over snake_case when both present', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {
+          'trigger': 'manual',
+          'preTokens': 200000,
+        },
+        'compact_metadata': {
+          'trigger': 'auto',
+          'pre_tokens': 100000,
+        },
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      // Should prefer camelCase (from JSONL storage)
+      expect(response.trigger, 'manual');
+      expect(response.preTokens, 200000);
+    });
+
+    test('preserves rawData', () {
+      final json = {
+        'type': 'system',
+        'subtype': 'compact_boundary',
+        'uuid': 'cb-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 100000},
+        'extra_field': 'should be preserved',
+      };
+      final response = CompactBoundaryResponse.fromJson(json);
+      expect(response.rawData, json);
+      expect(response.rawData!['extra_field'], 'should be preserved');
+    });
+  });
+
+  group('CompactSummaryResponse', () {
+    test('parses user message with isCompactSummary flag', () {
+      final json = {
+        'type': 'user',
+        'uuid': 'cs-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'isCompactSummary': true,
+        'isVisibleInTranscriptOnly': true,
+        'message': {
+          'role': 'user',
+          'content': 'This session is being continued from a previous conversation...',
+        },
+      };
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<CompactSummaryResponse>());
+      final summaryResponse = response as CompactSummaryResponse;
+      expect(summaryResponse.content, contains('This session is being continued'));
+      expect(summaryResponse.isVisibleInTranscriptOnly, isTrue);
+    });
+
+    test('handles snake_case is_compact_summary from streaming', () {
+      final json = {
+        'type': 'user',
+        'uuid': 'cs-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'is_compact_summary': true,
+        'is_visible_in_transcript_only': true,
+        'message': {
+          'role': 'user',
+          'content': 'Summary of conversation...',
+        },
+      };
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<CompactSummaryResponse>());
+      final summaryResponse = response as CompactSummaryResponse;
+      expect(summaryResponse.content, 'Summary of conversation...');
+      expect(summaryResponse.isVisibleInTranscriptOnly, isTrue);
+    });
+
+    test('extracts content from content array', () {
+      final json = {
+        'type': 'user',
+        'uuid': 'cs-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'isCompactSummary': true,
+        'message': {
+          'role': 'user',
+          'content': [
+            {'type': 'text', 'text': 'Part 1 of summary. '},
+            {'type': 'text', 'text': 'Part 2 of summary.'},
+          ],
+        },
+      };
+      final response = CompactSummaryResponse.fromJson(json);
+      expect(response.content, 'Part 1 of summary. Part 2 of summary.');
+    });
+
+    test('defaults isVisibleInTranscriptOnly to true', () {
+      final json = {
+        'type': 'user',
+        'uuid': 'cs-123',
+        'timestamp': '2024-01-15T12:00:00Z',
+        'isCompactSummary': true,
+        'message': {
+          'role': 'user',
+          'content': 'Summary...',
+        },
+      };
+      final response = CompactSummaryResponse.fromJson(json);
+      expect(response.isVisibleInTranscriptOnly, isTrue);
     });
   });
 

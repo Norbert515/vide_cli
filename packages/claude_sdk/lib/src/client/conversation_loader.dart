@@ -3,14 +3,16 @@ import 'dart:io';
 import '../errors/claude_errors.dart';
 import '../models/conversation.dart';
 import '../models/response.dart';
-import '../models/message.dart';
-import '../utils/html_entity_decoder.dart';
+import 'response_to_message_converter.dart';
 
 /// Loads historical conversations from Claude Code's storage format.
 ///
 /// Claude Code stores conversations in:
 /// - ~/.claude/history.jsonl - metadata for all conversations
 /// - ~/.claude/projects/{project-path}/{sessionId}.jsonl - full conversation data
+///
+/// This loader uses the unified ClaudeResponse parsing pipeline to ensure
+/// consistent behavior between loading from storage and live streaming.
 class ConversationLoader {
   /// Loads a conversation's messages from disk for display in UI.
   ///
@@ -56,54 +58,49 @@ class ConversationLoader {
 
       try {
         final json = jsonDecode(line) as Map<String, dynamic>;
-        final type = json['type'] as String?;
 
-        if (type == 'user') {
-          lastAssistantMessageId = null; // Reset on user message
-          final msg = _parseUserMessage(json);
-          if (msg != null) {
-            // Check if this is a tool result that should be added to the last assistant message
-            if (msg.role == MessageRole.assistant &&
-                msg.responses.isNotEmpty &&
-                msg.responses.every((r) => r is ToolResultResponse)) {
-              // This is a tool result - merge it into the last assistant message
-              if (messages.isNotEmpty &&
-                  messages.last.role == MessageRole.assistant) {
-                final lastMsg = messages.last;
-                final updatedResponses = [
-                  ...lastMsg.responses,
-                  ...msg.responses,
-                ];
-                messages[messages.length - 1] = lastMsg.copyWith(
-                  responses: updatedResponses,
-                );
-              }
-            } else {
-              messages.add(msg);
+        // Skip meta messages early
+        final isMeta = json['isMeta'] as bool? ?? false;
+        if (isMeta) continue;
+
+        // Use unified parsing pipeline
+        final responses = JsonlMessageParser.parseLineMultiple(json);
+        if (responses.isEmpty) continue;
+
+        // Extract usage data for context window tracking
+        final usage = JsonlMessageParser.extractUsage(json);
+        if (usage != null) {
+          lastInputTokens = usage.inputTokens;
+          lastCacheReadTokens = usage.cacheReadTokens;
+          lastCacheCreationTokens = usage.cacheCreationTokens;
+        }
+
+        // Extract message ID for assistant message merging
+        final currentMessageId = JsonlMessageParser.extractMessageId(json);
+
+        // Process each response
+        for (final response in responses) {
+          final message = ResponseToMessageConverter.convert(response);
+          if (message == null) continue;
+
+          // Handle tool results - merge into last assistant message
+          if (ResponseToMessageConverter.isToolResult(response)) {
+            if (messages.isNotEmpty &&
+                messages.last.role == MessageRole.assistant) {
+              final lastMsg = messages.last;
+              final updatedResponses = [
+                ...lastMsg.responses,
+                ...message.responses,
+              ];
+              messages[messages.length - 1] = lastMsg.copyWith(
+                responses: updatedResponses,
+              );
             }
+            continue;
           }
-        } else if (type == 'assistant') {
-          final msg = _parseAssistantMessage(json);
-          if (msg != null) {
-            // Get the message ID from the assistant message
-            final messageData = json['message'] as Map<String, dynamic>?;
-            final currentMessageId = messageData?['id'] as String?;
 
-            // Extract usage data for context window tracking
-            final usage = messageData?['usage'] as Map<String, dynamic>?;
-            if (usage != null) {
-              final inputTokens = usage['input_tokens'] as int? ?? 0;
-              final cacheRead = usage['cache_read_input_tokens'] as int? ?? 0;
-              final cacheCreation =
-                  usage['cache_creation_input_tokens'] as int? ?? 0;
-              // Only update if we have meaningful data (not all zeros)
-              if (inputTokens > 0 || cacheRead > 0 || cacheCreation > 0) {
-                lastInputTokens = inputTokens;
-                lastCacheReadTokens = cacheRead;
-                lastCacheCreationTokens = cacheCreation;
-              }
-            }
-
+          // Handle assistant messages - may need to merge
+          if (message.role == MessageRole.assistant) {
             // Check if this is a continuation of the previous assistant message
             if (currentMessageId != null &&
                 currentMessageId == lastAssistantMessageId &&
@@ -111,20 +108,37 @@ class ConversationLoader {
                 messages.last.role == MessageRole.assistant) {
               // Merge responses into the last assistant message
               final lastMsg = messages.last;
-              final updatedResponses = [...lastMsg.responses, ...msg.responses];
+              final updatedResponses = [
+                ...lastMsg.responses,
+                ...message.responses,
+              ];
               messages[messages.length - 1] = lastMsg.copyWith(
                 responses: updatedResponses,
               );
             } else {
               // New assistant message
-              messages.add(msg);
+              messages.add(message.copyWith(isComplete: true, isStreaming: false));
               lastAssistantMessageId = currentMessageId;
             }
+            continue;
+          }
+
+          // Handle user messages - reset assistant message tracking
+          if (message.role == MessageRole.user) {
+            lastAssistantMessageId = null;
+            messages.add(message);
+            continue;
+          }
+
+          // Other messages (compact boundary, etc.)
+          messages.add(message);
+          if (response is CompactBoundaryResponse) {
+            lastAssistantMessageId = null;
           }
         }
-        // Ignore other types (summary, etc.) - they're not messages
       } catch (e) {
-        // Continue parsing other lines
+        // Continue parsing other lines on error
+        continue;
       }
     }
 
@@ -154,189 +168,6 @@ class ConversationLoader {
       '$claudeDir/projects/$encodedPath/$sessionId.jsonl',
     );
     return conversationFile.exists();
-  }
-
-  /// Parse user message from JSONL event
-  static ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
-    try {
-      final messageData = json['message'] as Map<String, dynamic>?;
-      if (messageData == null) return null;
-
-      final content = messageData['content'];
-      final timestampStr = json['timestamp'] as String?;
-      final timestamp = timestampStr != null
-          ? DateTime.tryParse(timestampStr)
-          : null;
-
-      // Content can be a string or array of content blocks
-      String textContent = '';
-      List<Attachment>? attachments;
-
-      if (content is String) {
-        textContent = HtmlEntityDecoder.decode(content);
-      } else if (content is List) {
-        // First check if this is a tool_result message
-        final toolResults = <ToolResultResponse>[];
-
-        for (final block in content) {
-          if (block is Map<String, dynamic>) {
-            final blockType = block['type'] as String?;
-            if (blockType == 'tool_result') {
-              // This is a tool result - extract the fields
-              final toolUseId = block['tool_use_id'] as String? ?? '';
-              final isError = block['is_error'] as bool? ?? false;
-
-              // Handle both string and array content formats
-              // Normal tools: "content": "string"
-              // MCP tools: "content": [{"type": "text", "text": "string"}]
-              String resultContent = '';
-              final rawContent = block['content'];
-              if (rawContent is String) {
-                resultContent = rawContent;
-              } else if (rawContent is List) {
-                // Extract text from array of content blocks
-                for (final item in rawContent) {
-                  if (item is Map<String, dynamic> && item['type'] == 'text') {
-                    resultContent += item['text'] as String? ?? '';
-                  }
-                }
-              }
-
-              toolResults.add(
-                ToolResultResponse(
-                  id:
-                      json['uuid'] as String? ??
-                      DateTime.now().millisecondsSinceEpoch.toString(),
-                  timestamp: timestamp ?? DateTime.now(),
-                  toolUseId: toolUseId,
-                  content: HtmlEntityDecoder.decode(resultContent),
-                  isError: isError,
-                ),
-              );
-            }
-          }
-        }
-
-        // If we found tool results, return them as an assistant message
-        // (tool results are displayed as part of assistant's tool execution flow)
-        if (toolResults.isNotEmpty) {
-          return ConversationMessage.assistant(
-            id:
-                timestamp?.millisecondsSinceEpoch.toString() ??
-                DateTime.now().millisecondsSinceEpoch.toString(),
-            responses: toolResults,
-            isComplete: true,
-          );
-        }
-
-        // Otherwise parse as regular user message with text/images
-        final textParts = <String>[];
-        final imageAttachments = <Attachment>[];
-
-        for (final block in content) {
-          if (block is Map<String, dynamic>) {
-            final blockType = block['type'] as String?;
-            if (blockType == 'text') {
-              textParts.add(block['text'] as String? ?? '');
-            } else if (blockType == 'image') {
-              // Images stored as base64 in source.data
-              final source = block['source'] as Map<String, dynamic>?;
-              if (source != null && source['type'] == 'base64') {
-                // For display purposes, we just note that an image was attached
-                imageAttachments.add(Attachment.image('[embedded image]'));
-              }
-            }
-          }
-        }
-
-        textContent = HtmlEntityDecoder.decode(textParts.join('\n'));
-        if (imageAttachments.isNotEmpty) {
-          attachments = imageAttachments;
-        }
-      }
-
-      return ConversationMessage(
-        id:
-            timestamp?.millisecondsSinceEpoch.toString() ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
-        role: MessageRole.user,
-        content: textContent,
-        timestamp: timestamp ?? DateTime.now(),
-        isComplete: true,
-        attachments: attachments,
-      );
-    } catch (e) {
-      return null;
-    }
-  }
-
-  /// Parse assistant message from JSONL event
-  static ConversationMessage? _parseAssistantMessage(
-    Map<String, dynamic> json,
-  ) {
-    try {
-      final messageData = json['message'] as Map<String, dynamic>?;
-      if (messageData == null) return null;
-
-      final content = messageData['content'];
-      final timestampStr = json['timestamp'] as String?;
-      final timestamp = timestampStr != null
-          ? DateTime.tryParse(timestampStr)
-          : null;
-      final responses = <ClaudeResponse>[];
-
-      if (content is List) {
-        for (final block in content) {
-          if (block is Map<String, dynamic>) {
-            final blockType = block['type'] as String?;
-
-            if (blockType == 'text') {
-              final text = block['text'] as String? ?? '';
-              if (text.isNotEmpty) {
-                responses.add(
-                  TextResponse(
-                    id:
-                        block['id'] as String? ??
-                        DateTime.now().millisecondsSinceEpoch.toString(),
-                    timestamp: DateTime.now(),
-                    content: HtmlEntityDecoder.decode(text),
-                  ),
-                );
-              }
-            } else if (blockType == 'tool_use') {
-              final toolName = block['name'] as String? ?? 'unknown';
-              final parameters = block['input'] as Map<String, dynamic>? ?? {};
-              responses.add(
-                ToolUseResponse(
-                  id:
-                      block['id'] as String? ??
-                      DateTime.now().millisecondsSinceEpoch.toString(),
-                  timestamp: DateTime.now(),
-                  toolName: HtmlEntityDecoder.decode(toolName),
-                  parameters: HtmlEntityDecoder.decodeMap(parameters),
-                  toolUseId: block['id'] as String?,
-                ),
-              );
-            }
-          }
-        }
-      }
-
-      // If no content blocks, just create empty response
-      if (responses.isEmpty) {
-        return null; // Skip empty assistant messages
-      }
-
-      return ConversationMessage.assistant(
-        id:
-            timestamp?.millisecondsSinceEpoch.toString() ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
-        responses: responses,
-        isComplete: true,
-      );
-    } catch (e) {
-      return null;
-    }
   }
 
   /// Encode project path to match Claude Code's naming scheme

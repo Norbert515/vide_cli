@@ -236,6 +236,13 @@ class _AgentChatState extends State<_AgentChat> {
       sendMessage: (message) {
         component.client.sendMessage(Message(text: message));
       },
+      clearConversation: () async {
+        await component.client.clearConversation();
+        setState(() {
+          _conversation = Conversation.empty();
+        });
+      },
+      exitApp: shutdownApp,
     );
 
     final result = await dispatcher.dispatch(commandInput, commandContext);
@@ -560,6 +567,63 @@ class _AgentChatState extends State<_AgentChat> {
 
   Component _buildMessage(BuildContext context, ConversationMessage message) {
     final theme = VideTheme.of(context);
+
+    // Check for compact boundary message (from CompactBoundaryResponse)
+    final hasCompactBoundary = message.responses.any((r) => r is CompactBoundaryResponse);
+    if (hasCompactBoundary) {
+      // Extract compact metadata for display
+      final compactResponse =
+          message.responses.firstWhere((r) => r is CompactBoundaryResponse) as CompactBoundaryResponse;
+      final trigger = compactResponse.trigger;
+      final preTokens = compactResponse.preTokens;
+
+      return Container(
+        padding: EdgeInsets.symmetric(vertical: 1),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '────────────── Conversation Compacted ($trigger) ──────────────',
+                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                  ),
+                ),
+              ],
+            ),
+            if (preTokens > 0)
+              Text(
+                'Previous context: ${(preTokens / 1000).toStringAsFixed(0)}k tokens',
+                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // Check for compact summary user message
+    if (message.role == MessageRole.user && message.isCompactSummary) {
+      // Show compact summary as collapsed/truncated
+      final summaryPreview = message.content.length > 100
+          ? '${message.content.substring(0, 100)}...'
+          : message.content;
+      return Container(
+        padding: EdgeInsets.only(bottom: 1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '📋 Continuation Summary',
+              style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+            ),
+            Text(
+              summaryPreview,
+              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (message.role == MessageRole.user) {
       return Container(

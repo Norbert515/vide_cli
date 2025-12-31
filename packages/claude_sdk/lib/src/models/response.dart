@@ -66,7 +66,10 @@ sealed class ClaudeResponse {
         }
       } else if (blockType == 'tool_use') {
         final toolName = block['name'] as String? ?? '';
-        final parameters = block['input'] as Map<String, dynamic>? ?? {};
+        final rawInput = block['input'];
+        final parameters = rawInput is Map<String, dynamic>
+            ? rawInput
+            : (rawInput is Map ? Map<String, dynamic>.from(rawInput) : <String, dynamic>{});
 
         responses.add(ToolUseResponse(
           id: blockId,
@@ -86,16 +89,30 @@ sealed class ClaudeResponse {
     final type = json['type'] as String?;
     final subtype = json['subtype'] as String?;
 
-    // Check for tool results in user messages
+    // Check for user message types
     if (type == 'user' && json['message'] != null) {
+      // Check for compact summary (both camelCase and snake_case)
+      final isCompactSummary = json['isCompactSummary'] as bool? ??
+          json['is_compact_summary'] as bool? ??
+          false;
+      if (isCompactSummary) {
+        return CompactSummaryResponse.fromJson(json);
+      }
+
+      // Check for tool results (content is a List with tool_result blocks)
       final message = json['message'] as Map<String, dynamic>;
-      final content = message['content'] as List<dynamic>?;
-      if (content != null && content.isNotEmpty) {
-        final firstContent = content.first as Map<String, dynamic>;
-        if (firstContent['type'] == 'tool_result') {
+      final content = message['content'];
+      if (content is List && content.isNotEmpty) {
+        final firstContent = content.first;
+        if (firstContent is Map<String, dynamic> &&
+            firstContent['type'] == 'tool_result') {
           return ToolResultResponse.fromJson(json);
         }
       }
+
+      // All other user messages - return as UserMessageResponse
+      // (content can be String for regular messages or List for structured content)
+      return UserMessageResponse.fromJson(json);
     }
 
     switch (type) {
@@ -128,6 +145,9 @@ sealed class ClaudeResponse {
       case 'system':
         if (subtype == 'init') {
           return MetaResponse.fromJson(json);
+        }
+        if (subtype == 'compact_boundary') {
+          return CompactBoundaryResponse.fromJson(json);
         }
         return StatusResponse.fromJson(json);
       case 'result':
@@ -518,6 +538,180 @@ class UnknownResponse extends ClaudeResponse {
   }
 
   Map<String, dynamic> toJson() => _$UnknownResponseToJson(this);
+}
+
+/// Response representing a user message from the streaming protocol.
+///
+/// This handles user messages that come through streaming, including
+/// the continuation summary after compaction (which may or may not have
+/// the isCompactSummary flag depending on the protocol version).
+@JsonSerializable()
+class UserMessageResponse extends ClaudeResponse {
+  /// The message content
+  final String content;
+
+  /// Whether this is a replay of a previous message
+  final bool isReplay;
+
+  const UserMessageResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    this.isReplay = false,
+    super.rawData,
+  });
+
+  factory UserMessageResponse.fromJson(Map<String, dynamic> json) {
+    final message = json['message'] as Map<String, dynamic>?;
+    String content = '';
+
+    if (message != null) {
+      final messageContent = message['content'];
+      if (messageContent is String) {
+        content = messageContent;
+      } else if (messageContent is List) {
+        // Extract text from content blocks
+        for (final block in messageContent) {
+          if (block is Map<String, dynamic> && block['type'] == 'text') {
+            content += block['text'] as String? ?? '';
+          }
+        }
+      }
+    }
+
+    final isReplay = json['isReplay'] as bool? ??
+        json['is_replay'] as bool? ??
+        false;
+
+    return UserMessageResponse(
+      id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp']) ?? DateTime.now()
+          : DateTime.now(),
+      content: content,
+      isReplay: isReplay,
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$UserMessageResponseToJson(this);
+}
+
+/// Response representing a compact boundary event.
+///
+/// This is emitted when Claude Code compacts the conversation context.
+/// The session ID remains the same, but messages before this point
+/// have been summarized to free up context space.
+@JsonSerializable()
+class CompactBoundaryResponse extends ClaudeResponse {
+  /// What triggered the compaction: 'manual' (user ran /compact) or 'auto'
+  final String trigger;
+
+  /// Token count before compaction
+  final int preTokens;
+
+  /// The content message (typically "Conversation compacted")
+  final String content;
+
+  const CompactBoundaryResponse({
+    required super.id,
+    required super.timestamp,
+    required this.trigger,
+    required this.preTokens,
+    this.content = 'Conversation compacted',
+    super.rawData,
+  });
+
+  factory CompactBoundaryResponse.fromJson(Map<String, dynamic> json) {
+    // Handle both camelCase (from JSONL storage) and snake_case (from streaming)
+    final compactMetadata =
+        json['compactMetadata'] as Map<String, dynamic>? ??
+        json['compact_metadata'] as Map<String, dynamic>? ??
+        {};
+
+    // Try to get trigger from compactMetadata first, then fall back to top-level
+    final trigger = compactMetadata['trigger'] as String? ??
+        json['trigger'] as String? ??
+        'auto';
+
+    // Try to get preTokens (camelCase) or pre_tokens (snake_case)
+    final preTokens = compactMetadata['preTokens'] as int? ??
+        compactMetadata['pre_tokens'] as int? ??
+        json['preTokens'] as int? ??
+        json['pre_tokens'] as int? ??
+        0;
+
+    return CompactBoundaryResponse(
+      id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp']) ?? DateTime.now()
+          : DateTime.now(),
+      trigger: trigger,
+      preTokens: preTokens,
+      content: json['content'] as String? ?? 'Conversation compacted',
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$CompactBoundaryResponseToJson(this);
+}
+
+/// Response representing a compact summary user message.
+///
+/// This is the continuation summary injected by Claude Code after compaction.
+/// It contains a summarized version of the conversation history.
+@JsonSerializable()
+class CompactSummaryResponse extends ClaudeResponse {
+  /// The summary content
+  final String content;
+
+  /// Whether this message is only visible in the transcript
+  final bool isVisibleInTranscriptOnly;
+
+  const CompactSummaryResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    this.isVisibleInTranscriptOnly = true,
+    super.rawData,
+  });
+
+  factory CompactSummaryResponse.fromJson(Map<String, dynamic> json) {
+    final message = json['message'] as Map<String, dynamic>?;
+    String content = '';
+
+    if (message != null) {
+      final messageContent = message['content'];
+      if (messageContent is String) {
+        content = messageContent;
+      } else if (messageContent is List) {
+        // Extract text from content blocks
+        for (final block in messageContent) {
+          if (block is Map<String, dynamic> && block['type'] == 'text') {
+            content += block['text'] as String? ?? '';
+          }
+        }
+      }
+    }
+
+    // Handle both camelCase and snake_case
+    final isVisibleInTranscriptOnly =
+        json['isVisibleInTranscriptOnly'] as bool? ??
+        json['is_visible_in_transcript_only'] as bool? ??
+        true;
+
+    return CompactSummaryResponse(
+      id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp']) ?? DateTime.now()
+          : DateTime.now(),
+      content: content,
+      isVisibleInTranscriptOnly: isVisibleInTranscriptOnly,
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$CompactSummaryResponseToJson(this);
 }
 
 enum ClaudeStatus {

@@ -5,6 +5,8 @@ export 'src/client/claude_client.dart';
 export 'src/client/mock_claude_client.dart';
 export 'src/client/process_manager.dart';
 export 'src/client/conversation_loader.dart';
+export 'src/client/response_processor.dart';
+export 'src/client/response_to_message_converter.dart';
 
 // Errors
 export 'src/errors/claude_errors.dart';
