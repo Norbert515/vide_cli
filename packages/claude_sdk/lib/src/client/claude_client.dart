@@ -48,7 +48,7 @@ abstract class ClaudeClient {
   /// This is the clean way to detect when an agent has finished its work.
   Stream<void> get onTurnComplete;
 
-/// Stream of Claude's current processing status.
+  /// Stream of Claude's current processing status.
   /// Emits status updates like processing, thinking, responding, completed.
   /// Useful for showing real-time activity indicators in the UI.
   Stream<ClaudeStatus> get statusStream;
