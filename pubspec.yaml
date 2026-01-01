@@ -17,14 +17,11 @@ workspace:
   - packages/vide_server
 
 dependencies:
-  nocterm:
-    git:
-      url: https://github.com/Norbert515/nocterm.git
-      ref: 504f91aaa4cf5807096fde8734f257d6430f3058
+  nocterm: ^0.3.1
   nocterm_riverpod:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 504f91aaa4cf5807096fde8734f257d6430f3058
+      ref: v0.3.1
       path: packages/nocterm_riverpod
   claude_sdk: any
   flutter_runtime_mcp: any
@@ -50,14 +47,11 @@ dev_dependencies:
   test: ^1.26.3
 
 dependency_overrides:
-  nocterm:
-    git:
-      url: https://github.com/Norbert515/nocterm.git
-      ref: 504f91aaa4cf5807096fde8734f257d6430f3058
+  nocterm: ^0.3.1
   nocterm_riverpod:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 504f91aaa4cf5807096fde8734f257d6430f3058
+      ref: v0.3.1
       path: packages/nocterm_riverpod
 
 melos:
