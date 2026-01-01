@@ -36,14 +36,10 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
 
   Timer? _spinnerTimer;
   int _spinnerIndex = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _startSpinner();
-  }
+  AgentStatus? _lastInferredStatus;
 
   void _startSpinner() {
+    if (_spinnerTimer != null) return; // Already running
     _spinnerTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       setState(() {
         _spinnerIndex = (_spinnerIndex + 1) % _spinnerFrames.length;
@@ -51,9 +47,30 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     });
   }
 
+  void _stopSpinner() {
+    _spinnerTimer?.cancel();
+    _spinnerTimer = null;
+  }
+
+  void _updateSpinnerForStatus(AgentStatus status) {
+    final wasWorking = _lastInferredStatus == AgentStatus.working;
+    final isWorking = status == AgentStatus.working;
+
+    if (isWorking && !wasWorking) {
+      _startSpinner();
+    } else if (!isWorking && wasWorking) {
+      _stopSpinner();
+    } else if (isWorking && _spinnerTimer == null) {
+      // Handle initial mount with working status
+      _startSpinner();
+    }
+
+    _lastInferredStatus = status;
+  }
+
   @override
   void dispose() {
-    _spinnerTimer?.cancel();
+    _stopSpinner();
     super.dispose();
   }
 
@@ -122,6 +139,9 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
 
     // Infer actual status - use Claude's status to correct agent status if needed
     final status = _inferActualStatus(explicitStatus, claudeStatus);
+
+    // Start/stop spinner based on status changes (only runs when status is 'working')
+    _updateSpinnerForStatus(status);
 
     final indicatorColor = _getIndicatorColor(status, theme.status);
     final indicatorTextColor = _getIndicatorTextColor(status, theme);
