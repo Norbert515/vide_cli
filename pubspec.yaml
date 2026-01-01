@@ -17,11 +17,11 @@ workspace:
   - packages/vide_server
 
 dependencies:
-  nocterm: ^0.3.1
+  nocterm: ^0.3.2
   nocterm_riverpod:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: v0.3.1
+      ref: v0.3.2
       path: packages/nocterm_riverpod
   claude_sdk: any
   flutter_runtime_mcp: any
