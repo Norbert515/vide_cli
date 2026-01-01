@@ -14,8 +14,19 @@ detect_platform() {
 
     case "$os" in
         Darwin)
-            # macOS - use universal binary
-            echo "macos"
+            # macOS - detect architecture
+            case "$arch" in
+                arm64)
+                    echo "macos-arm64"
+                    ;;
+                x86_64)
+                    echo "macos-x64"
+                    ;;
+                *)
+                    echo "Unsupported macOS architecture: $arch" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         Linux)
             case "$arch" in
@@ -42,6 +53,64 @@ get_latest_version() {
         sed -E 's/.*"v([^"]+)".*/\1/'
 }
 
+# Detect user's shell and return the appropriate config file
+get_shell_config() {
+    case "$SHELL" in
+        */zsh)
+            echo "$HOME/.zshrc"
+            ;;
+        */bash)
+            # Prefer .bashrc, but use .bash_profile on macOS if .bashrc doesn't exist
+            if [ -f "$HOME/.bashrc" ]; then
+                echo "$HOME/.bashrc"
+            else
+                echo "$HOME/.bash_profile"
+            fi
+            ;;
+        *)
+            echo "$HOME/.profile"
+            ;;
+    esac
+}
+
+# Prompt user to add PATH and handle response
+prompt_add_to_path() {
+    local shell_config=$(get_shell_config)
+    local shell_config_name=$(basename "$shell_config")
+
+    echo ""
+    echo "$INSTALL_DIR is not in your PATH."
+    printf "Add it to your shell config ($shell_config_name)? [Y/n] "
+
+    # Read a single character, default to Y if just Enter
+    read -r response
+    response=${response:-Y}
+
+    case "$response" in
+        [Yy]*)
+            # Create the config file if it doesn't exist
+            if [ ! -f "$shell_config" ]; then
+                touch "$shell_config"
+            fi
+
+            # Add PATH export
+            echo "" >> "$shell_config"
+            echo "# Added by vide installer" >> "$shell_config"
+            echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$shell_config"
+
+            echo ""
+            echo "Added PATH to $shell_config"
+            echo "Restart your terminal or run: source $shell_config"
+            ;;
+        *)
+            echo ""
+            echo "To add it manually, add this line to your shell config:"
+            echo ""
+            echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+            ;;
+    esac
+}
+
 main() {
     echo "Installing vide..."
 
@@ -58,16 +127,41 @@ main() {
     fi
     echo "Latest version: $version"
 
-    # Determine binary name based on platform
-    local binary_file="vide-$platform"
-
     # Create install directory
     mkdir -p "$INSTALL_DIR"
 
-    # Download binary
-    local download_url="https://github.com/$REPO/releases/download/v$version/$binary_file"
+    # Determine download file and URL based on platform
+    local download_file
+    local is_tarball=false
+
+    case "$platform" in
+        macos-arm64)
+            download_file="vide-macos-arm64.tar.gz"
+            is_tarball=true
+            ;;
+        macos-x64)
+            download_file="vide-macos-x64.tar.gz"
+            is_tarball=true
+            ;;
+        linux-x64)
+            download_file="vide-linux-x64"
+            ;;
+    esac
+
+    local download_url="https://github.com/$REPO/releases/download/v$version/$download_file"
     echo "Downloading from: $download_url"
-    curl -fsSL "$download_url" -o "$INSTALL_DIR/$BINARY_NAME"
+
+    if [ "$is_tarball" = true ]; then
+        # Download and extract tarball
+        local temp_dir=$(mktemp -d)
+        curl -fsSL "$download_url" -o "$temp_dir/$download_file"
+        tar -xzf "$temp_dir/$download_file" -C "$temp_dir"
+        mv "$temp_dir/vide" "$INSTALL_DIR/$BINARY_NAME"
+        rm -rf "$temp_dir"
+    else
+        # Download raw binary
+        curl -fsSL "$download_url" -o "$INSTALL_DIR/$BINARY_NAME"
+    fi
 
     # Make executable
     chmod +x "$INSTALL_DIR/$BINARY_NAME"
@@ -77,18 +171,7 @@ main() {
 
     # Check if install directory is in PATH
     if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
-        echo ""
-        echo "WARNING: $INSTALL_DIR is not in your PATH"
-        echo ""
-        echo "Add it to your shell configuration:"
-        echo ""
-        echo "  For bash (~/.bashrc or ~/.bash_profile):"
-        echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
-        echo ""
-        echo "  For zsh (~/.zshrc):"
-        echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
-        echo ""
-        echo "Then restart your terminal or run: source ~/.bashrc (or ~/.zshrc)"
+        prompt_add_to_path
     fi
 
     echo ""

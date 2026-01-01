@@ -105,6 +105,17 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
 
   /// Check for updates in the background
   Future<void> checkForUpdates({bool silent = true}) async {
+    // Check if auto-updates are disabled via environment variable
+    if (Platform.environment['DISABLE_AUTOUPDATER'] == '1') {
+      return;
+    }
+
+    // Check if auto-updates are disabled via settings
+    final settings = _configManager.readGlobalSettings();
+    if (!settings.autoUpdatesEnabled) {
+      return;
+    }
+
     if (state.status == UpdateStatus.checking || state.status == UpdateStatus.downloading) {
       return; // Already in progress
     }

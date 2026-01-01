@@ -24,10 +24,15 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool enableStreaming;
 
+  /// Whether auto-updates are enabled
+  @JsonKey(defaultValue: true)
+  final bool autoUpdatesEnabled;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
     this.enableStreaming = true,
+    this.autoUpdatesEnabled = true,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -41,11 +46,13 @@ class VideGlobalSettings {
     bool? firstRunComplete,
     String? Function()? theme,
     bool? enableStreaming,
+    bool? autoUpdatesEnabled,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
       theme: theme != null ? theme() : this.theme,
       enableStreaming: enableStreaming ?? this.enableStreaming,
+      autoUpdatesEnabled: autoUpdatesEnabled ?? this.autoUpdatesEnabled,
     );
   }
 }
