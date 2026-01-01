@@ -16,8 +16,10 @@ class MockClaudeClient implements ClaudeClient {
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
+  final _queuedMessageController = StreamController<String?>.broadcast();
   Conversation _currentConversation = Conversation.empty();
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
+  String? _queuedMessageText;
 
   bool _isAborting = false;
   Timer? _activeTimer;
@@ -33,6 +35,18 @@ class MockClaudeClient implements ClaudeClient {
 
   @override
   ClaudeStatus get currentStatus => _currentStatus;
+
+  @override
+  Stream<String?> get queuedMessage => _queuedMessageController.stream;
+
+  @override
+  String? get currentQueuedMessage => _queuedMessageText;
+
+  @override
+  void clearQueuedMessage() {
+    _queuedMessageText = null;
+    _queuedMessageController.add(null);
+  }
 
   // Mock response templates
   static const List<String> _mockResponses = [
@@ -317,6 +331,7 @@ class MockClaudeClient implements ClaudeClient {
     await _conversationController.close();
     await _turnCompleteController.close();
     await _statusController.close();
+    await _queuedMessageController.close();
   }
 
   Future<void> restart() async {

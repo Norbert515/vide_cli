@@ -8,6 +8,7 @@ import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/ask_user_question_dialog.dart';
+import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -188,10 +189,12 @@ class _AgentChat extends StatefulComponent {
 
 class _AgentChatState extends State<_AgentChat> {
   StreamSubscription<Conversation>? _conversationSubscription;
+  StreamSubscription<String?>? _queueSubscription;
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
+  String? _queuedMessage;
 
   @override
   void initState() {
@@ -207,6 +210,12 @@ class _AgentChatState extends State<_AgentChat> {
       _syncTokenStats(conversation);
     });
     _conversation = component.client.currentConversation;
+
+    // Listen to queued message updates
+    _queueSubscription = component.client.queuedMessage.listen((text) {
+      setState(() => _queuedMessage = text);
+    });
+    _queuedMessage = component.client.currentQueuedMessage;
   }
 
   void _syncTokenStats(Conversation conversation) {
@@ -223,6 +232,7 @@ class _AgentChatState extends State<_AgentChat> {
   @override
   void dispose() {
     _conversationSubscription?.cancel();
+    _queueSubscription?.cancel();
     super.dispose();
   }
 
@@ -364,6 +374,12 @@ class _AgentChatState extends State<_AgentChat> {
 
   bool _handleKeyEvent(KeyboardEvent event) {
     if (event.logicalKey == LogicalKey.escape) {
+      // If there's a queued message, clear it first
+      if (_queuedMessage != null) {
+        component.client.clearQueuedMessage();
+        return true;
+      }
+      // Otherwise abort the current processing
       component.client.abort();
       return true;
     }
@@ -463,6 +479,13 @@ class _AgentChatState extends State<_AgentChat> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Show queued message indicator above the generating indicator
+                if (_queuedMessage != null)
+                  QueueIndicator(
+                    queuedText: _queuedMessage!,
+                    onClear: () => component.client.clearQueuedMessage(),
+                  ),
+
                 // Loading indicator row - always 1 cell height to prevent layout jumps
                 if (_conversation.isProcessing &&
                     currentAskUserQuestionRequest == null &&
@@ -535,12 +558,20 @@ class _AgentChatState extends State<_AgentChat> {
                   )
                 else
                   AttachmentTextField(
-                    enabled: !_conversation.isProcessing,
+                    enabled: true, // Always enabled - messages queue during processing
                     placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
                     onCommand: _handleCommand,
                     commandSuggestions: _getCommandSuggestions,
-                    onEscape: () => component.client.abort(),
+                    onEscape: () {
+                      // If there's a queued message, clear it first
+                      if (_queuedMessage != null) {
+                        component.client.clearQueuedMessage();
+                      } else {
+                        // Otherwise abort the current processing
+                        component.client.abort();
+                      }
+                    },
                   ),
 
                 // Command result feedback

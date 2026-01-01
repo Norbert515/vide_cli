@@ -27,6 +27,16 @@ abstract class ClaudeClient {
 
   String get workingDirectory;
 
+  /// Stream that emits whenever the queued message changes.
+  /// Emits the current queued text, or null when queue is cleared.
+  Stream<String?> get queuedMessage;
+
+  /// The current queued message text, or null if no message is queued.
+  String? get currentQueuedMessage;
+
+  /// Clears any queued message without sending it.
+  void clearQueuedMessage();
+
   /// Clears the conversation history, starting fresh.
   Future<void> clearConversation();
 
@@ -129,11 +139,22 @@ class ClaudeClientImpl implements ClaudeClient {
   Conversation _currentConversation = Conversation.empty();
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
 
+  // Message queue for messages sent while processing
+  String? _queuedMessageText;
+  List<Attachment>? _queuedAttachments;
+  final _queuedMessageController = StreamController<String?>.broadcast();
+
   @override
   Stream<Conversation> get conversation => _conversationController.stream;
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
+
+  @override
+  Stream<String?> get queuedMessage => _queuedMessageController.stream;
+
+  @override
+  String? get currentQueuedMessage => _queuedMessageText;
 
   @override
   Stream<ClaudeStatus> get statusStream => _statusController.stream;
@@ -161,6 +182,11 @@ class ClaudeClientImpl implements ClaudeClient {
         workingDirectory: Directory.current.path,
       );
     }
+
+    // Auto-flush queued messages when turn completes
+    _turnCompleteController.stream.listen((_) {
+      _flushQueuedMessage();
+    });
   }
 
   Future<void> init() async {
@@ -359,7 +385,13 @@ class ClaudeClientImpl implements ClaudeClient {
 
   @override
   void sendMessage(Message message) {
-    if (message.text.trim().isEmpty) {
+    if (message.text.trim().isEmpty && (message.attachments?.isEmpty ?? true)) {
+      return;
+    }
+
+    // If currently processing, queue the message instead of sending
+    if (_currentConversation.isProcessing) {
+      _queueMessage(message);
       return;
     }
 
@@ -423,6 +455,45 @@ class ClaudeClientImpl implements ClaudeClient {
     } else {
       controlProtocol.sendUserMessage(message.text);
     }
+  }
+
+  void _queueMessage(Message message) {
+    if (_queuedMessageText == null) {
+      _queuedMessageText = message.text;
+      _queuedAttachments = message.attachments;
+    } else {
+      // Append with newline
+      _queuedMessageText = '$_queuedMessageText\n${message.text}';
+      if (message.attachments != null) {
+        _queuedAttachments = [
+          ...(_queuedAttachments ?? []),
+          ...message.attachments!,
+        ];
+      }
+    }
+    _queuedMessageController.add(_queuedMessageText);
+  }
+
+  void _flushQueuedMessage() {
+    if (_queuedMessageText == null) return;
+
+    final text = _queuedMessageText!;
+    final attachments = _queuedAttachments;
+
+    // Clear queue first
+    _queuedMessageText = null;
+    _queuedAttachments = null;
+    _queuedMessageController.add(null);
+
+    // Send the queued message
+    sendMessage(Message(text: text, attachments: attachments));
+  }
+
+  @override
+  void clearQueuedMessage() {
+    _queuedMessageText = null;
+    _queuedAttachments = null;
+    _queuedMessageController.add(null);
   }
 
   @override
@@ -490,6 +561,7 @@ class ClaudeClientImpl implements ClaudeClient {
     await _conversationController.close();
     await _turnCompleteController.close();
     await _statusController.close();
+    await _queuedMessageController.close();
 
     _isInitialized = false;
   }
