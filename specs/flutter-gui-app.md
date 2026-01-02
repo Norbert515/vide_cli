@@ -128,6 +128,40 @@ Before starting vide_flutter development, the following vide_server features mus
 - Each event includes attribution fields: `agentId`, `agentType`, `agentName`, `taskName`
 - Client receives unified timeline without managing multiple WebSocket connections
 
+### Bidirectional WebSocket for Permission Requests
+- WebSocket is bidirectional: server sends events, client can send responses
+- Permission requests sent as `permission_request` event type:
+  ```json
+  {
+    "type": "permission_request",
+    "agentId": "...",
+    "data": {
+      "requestId": "uuid",
+      "toolName": "Bash",
+      "toolInput": {"command": "rm -rf node_modules"},
+      "permissionSuggestions": ["Bash(rm *)"]
+    }
+  }
+  ```
+- Client responds by sending a message through the same WebSocket:
+  ```json
+  {
+    "type": "permission_response",
+    "requestId": "uuid",
+    "allow": true,
+    "updatedInput": { ... }
+  }
+  ```
+- Mimics the `CanUseToolCallback` pattern from claude_sdk:
+  - Receives: `toolName`, `toolInput`, `context` (with `permissionSuggestions`, `blockedPath`)
+  - Returns: allow (with optional `updatedInput`) or deny (with `message`)
+- Server blocks agent execution until client responds or times out
+
+### Model Selection Support
+- `POST /api/v1/networks/:id/messages` accepts optional `model` field
+- Valid values: `"sonnet"` or `"opus"` (default: `"sonnet"`)
+- Model selection applies per-message, allowing users to switch mid-conversation
+
 ### Filesystem Browsing API
 - `GET /api/v1/filesystem?parent=...` endpoint for hierarchical directory listing
   - `parent` parameter: path to list children of; `null`/omitted = server-configured root
@@ -226,7 +260,7 @@ Before starting vide_flutter development, the following vide_server features mus
 - [ ] Network history and persistence (local storage)
 - [ ] Resume previous networks
 - [ ] Permission mode UI (surfaces tool approval requests from WebSocket stream)
-- [ ] Model selection dropdown
+- [ ] Model selection dropdown (Sonnet, Opus - set per-message)
 - [ ] Memory viewer (read-only)
 - [ ] Settings page (theme, server URL, preferences)
 - [ ] Responsive design (mobile-friendly)
@@ -238,7 +272,7 @@ Before starting vide_flutter development, the following vide_server features mus
 
 #### Widgets/Components
 - `ToolApprovalDialog` - Displays pending tool calls requiring user approval
-- `ModelDropdown` - Model selection
+- `ModelDropdown` - Model selection (Sonnet/Opus, persisted per-session, applied per-message)
 - `MemoryEntryCard` - Display memory entry
 - `NetworkHistoryList` - Searchable history
 - `ThemeToggle` - Light/dark mode
@@ -284,6 +318,75 @@ Before starting vide_flutter development, the following vide_server features mus
 ---
 
 ## 4. Custom dartantic_chat Provider Design
+
+### JSON Event Accumulation Model
+
+The `ChatMessage.text` field contains a JSON structure that accumulates WebSocket events as they stream in. The `responseBuilder` parses this JSON to render rich Flutter widgets.
+
+**Event accumulation flow:**
+1. WebSocket receives `text_event` → Append to `events` array in JSON
+2. WebSocket receives `tool_call_event` → Append tool call to `events` array
+3. WebSocket receives `tool_result_event` → Append tool result to `events` array
+4. `responseBuilder` parses the JSON and renders appropriate widgets
+
+**ChatMessage.text JSON structure:**
+```json
+{
+  "events": [
+    {"type": "text", "content": "Let me help you with that."},
+    {"type": "tool_call", "callId": "123", "name": "Bash", "args": {"command": "ls -la"}},
+    {"type": "tool_result", "callId": "123", "result": "file1.txt\nfile2.txt", "isError": false},
+    {"type": "text", "content": "Here are your files."}
+  ]
+}
+```
+
+**Accumulation helper:**
+```dart
+String accumulateEvent(String currentText, Map<String, dynamic> newEvent) {
+  final current = currentText.isEmpty
+      ? {'events': <dynamic>[]}
+      : jsonDecode(currentText) as Map<String, dynamic>;
+  final events = current['events'] as List<dynamic>;
+  events.add(newEvent);
+  return jsonEncode(current);
+}
+```
+
+**responseBuilder parsing:**
+```dart
+responseBuilder: (context, response) {
+  final json = jsonDecode(response) as Map<String, dynamic>;
+  final events = json['events'] as List<dynamic>;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final event in events)
+        _buildEventWidget(event as Map<String, dynamic>),
+    ],
+  );
+}
+
+Widget _buildEventWidget(Map<String, dynamic> event) {
+  return switch (event['type']) {
+    'text' => MarkdownBody(data: event['content'] as String),
+    'tool_call' => ToolCallWidget(
+      callId: event['callId'] as String,
+      name: event['name'] as String,
+      args: event['args'] as Map<String, dynamic>,
+    ),
+    'tool_result' => ToolResultWidget(
+      callId: event['callId'] as String,
+      result: event['result'] as String,
+      isError: event['isError'] as bool? ?? false,
+    ),
+    _ => const SizedBox.shrink(),
+  };
+}
+```
+
+This approach allows the UI to update incrementally as events stream in, providing a rich, real-time experience.
 
 ### ChatHistoryProvider Implementation
 
@@ -681,9 +784,15 @@ class VideApiClient {
   }
 
   /// Send message to network
-  Future<void> sendMessage(String networkId, String content) async {
+  /// [model] - optional model override: "sonnet" or "opus" (default: sonnet)
+  Future<void> sendMessage(
+    String networkId,
+    String content, {
+    String? model,
+  }) async {
     await _dio.post('/api/v1/networks/$networkId/messages', data: {
       'content': content,
+      if (model != null) 'model': model,
     });
   }
 
@@ -756,7 +865,8 @@ enum AgentStatus {
   waitingForUser,   // Waiting for user input/approval
 }
 
-// Note: Use ChatMessage from dartantic_interface package for chat history.
+// Note: ChatMessage is defined in the dartantic_interface package.
+// Import via: import 'package:dartantic_interface/dartantic_interface.dart';
 // The ChatHistoryProvider interface requires ChatMessage, which supports:
 // - ChatMessageRole.user, ChatMessageRole.model, ChatMessageRole.system
 // - Parts: TextPart, DataPart, LinkPart, ToolPart
@@ -1324,6 +1434,7 @@ class EnvConfig {
 | `message_delta` | Streaming text chunk | `role: string, delta: string` |
 | `tool_use` | Agent invoking a tool | `toolName: string, toolInput: object, toolUseId: string` |
 | `tool_result` | Result from tool execution | `toolName: string, result: string, isError: bool, toolUseId: string` |
+| `permission_request` | Tool needs user approval | `requestId: string, toolName: string, toolInput: object, permissionSuggestions?: string[]` |
 | `done` | Agent turn complete | (no data) |
 | `error` | Error occurred | `message: string, stack?: string` |
 
@@ -1333,7 +1444,28 @@ class EnvConfig {
 2. Subsequent events are `message_delta` containing only the new characters
 3. Client should append deltas to build the complete response
 4. Tool events (`tool_use`, `tool_result`) are sent when detected
-5. `done` signals the agent has finished its turn
+5. `permission_request` events pause agent execution until client responds
+6. `done` signals the agent has finished its turn
+
+### Client-to-Server Messages (Bidirectional WebSocket)
+
+The client can send JSON messages through the WebSocket connection:
+
+| Type | Description | Fields |
+|------|-------------|--------|
+| `permission_response` | Respond to permission request | `requestId: string, allow: bool, updatedInput?: object, message?: string` |
+
+**Permission Response Examples:**
+```json
+// Allow the tool
+{"type": "permission_response", "requestId": "abc-123", "allow": true}
+
+// Allow with modified input
+{"type": "permission_response", "requestId": "abc-123", "allow": true, "updatedInput": {"command": "ls"}}
+
+// Deny the tool
+{"type": "permission_response", "requestId": "abc-123", "allow": false, "message": "User declined"}
+```
 
 ## Appendix B: REST API Quick Reference
 
@@ -1342,20 +1474,22 @@ class EnvConfig {
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/v1/networks` | POST | Create new network |
-| `/api/v1/networks/:id/messages` | POST | Send message |
+| `/api/v1/networks/:id/messages` | POST | Send message (body: `{content, model?}` where model is "sonnet" or "opus") |
 
 ### Prerequisite Endpoints (must be implemented before vide_flutter)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/networks/:id/stream` | WS | Multiplexed WebSocket stream (all agents) |
+| `/api/v1/networks/:id/stream` | WS | Multiplexed bidirectional WebSocket stream (all agents) |
 | `/api/v1/filesystem` | GET | List directory contents |
 | `/api/v1/filesystem` | POST | Create new folder |
 
-**Multiplexed WebSocket Details:**
+**Multiplexed Bidirectional WebSocket Details:**
 - Single connection per network, receives events from all agents
 - Each event includes: `agentId`, `agentType`, `agentName`, `taskName` for attribution
 - Replaces per-agent streams with unified timeline approach
+- Client can send messages (e.g., `permission_response`) through the same connection
+- See "Client-to-Server Messages" in Appendix A for message types
 
 **Filesystem GET Endpoint:**
 - Query param: `parent` (optional) - path to list children of; null/omitted = server root
