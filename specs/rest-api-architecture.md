@@ -18,14 +18,15 @@
 - ✅ Added integration tests for end-to-end flow and duplicate content detection
 
 **Phase 2.5: GUI App Prerequisites 🆕** (Required before vide_flutter)
-- ⬜ Multiplexed bidirectional WebSocket at /api/v1/networks/{networkId}/stream (replaces per-agent streams)
-- ⬜ Client→server messages: `user_message`, `permission_response`, `abort`
-- ⬜ Server→client events: `connected`, `history`, `agent_spawned`, `agent_terminated`, `aborted`
-- ⬜ Permission handling: server sends `permission_request`, client responds, 60s timeout with auto-deny
-- ⬜ Model selection: sonnet/opus/haiku per-message via `user_message` (plus permissionMode)
+- ⬜ Multiplexed bidirectional WebSocket at /api/v1/sessions/{session-id}/stream (replaces per-agent streams)
+- ⬜ Client→server messages: `user-message`, `permission-response`, `abort`
+- ⬜ Server→client events: `connected`, `history`, `agent-spawned`, `agent-terminated`, `aborted`
+- ⬜ Permission handling: server sends `permission-request`, client responds, 60s timeout with auto-deny
+- ⬜ Model selection: sonnet/opus/haiku per-message via `user-message` (plus permission-mode)
 - ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
 - ⬜ Server configuration file support (~/.vide/api/config.json)
 - ⬜ WebSocket keepalive (20s ping/pong)
+- ⬜ Message streaming: single `message` event with `is-partial` flag and `event-id` for client accumulation
 
 **Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
 - Multi-turn conversation test flakiness fix (moved from Phase 2)
@@ -711,50 +712,80 @@ These features must be implemented in vide_server before starting vide_flutter d
 
 #### 2.5.1 Multiplexed Bidirectional WebSocket
 
-Replace the per-agent WebSocket streams with a single network-level multiplexed stream.
+Replace the per-agent WebSocket streams with a single session-level multiplexed stream.
 
-**Current**: `GET /api/v1/networks/:networkId/agents/:agentId/stream` (per-agent)
-**New**: `GET /api/v1/networks/:networkId/stream` (per-network, multiplexed)
+**Current**: `GET /api/v1/networks/:networkId/agents/:agentId/stream` (per-agent, Phase 2)
+**New**: `GET /api/v1/sessions/:session-id/stream` (per-session, multiplexed)
 
-**Migration**: The per-agent stream endpoint will be **removed** (not deprecated). Only the network-level multiplexed stream will be available.
+**Migration**: The per-agent stream endpoint will be **removed** (not deprecated). Only the session-level multiplexed stream will be available. The POST endpoint also changes from `/api/v1/networks` to `/api/v1/sessions`.
 
 **Features**:
-- Single WebSocket connection per network receives events from ALL agents (main + spawned)
-- Each event includes attribution fields: `agentId`, `agentType`, `agentName`, `taskName`
+- Single WebSocket connection per session receives events from ALL agents (main + spawned)
+- Each event includes attribution fields: `agent-id`, `agent-type`, `agent-name`, `task-name`
 - WebSocket is fully bidirectional: server sends events, client sends messages and commands
 - Client receives unified timeline without managing multiple connections
 - All session messages sent via WebSocket (no HTTP POST for messages)
+- Server does NOT accumulate message content - sends each chunk as received
+- Client is responsible for accumulating chunks with matching `event-id`
 
 **Event format** (server → client):
+
+All JSON uses kebab-case for property names and event types.
+
 ```json
 {
-  "agentId": "uuid",
-  "agentType": "implementation",
-  "agentName": "Auth Fix",
-  "taskName": "Implementing login flow",
-  "type": "message_delta",
-  "data": {"role": "assistant", "delta": "Let me "},
+  "type": "message",
+  "event-id": "550e8400-e29b-41d4-a716-446655440000",
+  "is-partial": true,
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "data": {"content": "Let me "},
   "timestamp": "2025-12-21T10:00:00Z"
 }
+```
+
+**Message streaming model**:
+- Single `message` event type with `is-partial` flag
+- `is-partial: true` for streaming chunks, `is-partial: false` for complete message
+- `event-id` (UUID) correlates chunks for client-side accumulation
+- Final event has `is-partial: false` (content may be empty)
+
+**Example streaming sequence**:
+```json
+{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "Let me "}, ...}
+{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "help you "}, ...}
+{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "with that."}, ...}
+{"type": "message", "event-id": "550e8400-...", "is-partial": false, "data": {"content": ""}, ...}
 ```
 
 **Message format** (client → server):
 
 | Type | Description | Fields |
 |------|-------------|--------|
-| `user_message` | Send a message to the conversation | `content`, `model?`, `permissionMode?` |
-| `permission_response` | Allow/deny a permission request | `requestId`, `allow`, `updatedInput?`, `message?` |
+| `user-message` | Send a message to the conversation | `content`, `model?`, `permission-mode?` |
+| `permission-response` | Allow/deny a permission request | `request-id`, `allow`, `updated-input?`, `message?` |
 | `abort` | Cancel in-progress agent operation | (none) |
 
-**`user_message` example**:
+**`user-message` example**:
 ```json
 {
-  "type": "user_message",
+  "type": "user-message",
   "content": "Now make it print goodbye too",
   "model": "opus",
-  "permissionMode": "ask"
+  "permission-mode": "ask"
 }
 ```
+
+**`abort` behavior**:
+When the client sends `abort`, the server:
+1. Cancels the current turn for the active agent
+2. Stops any in-progress Claude API calls
+3. Sends an `aborted` event to confirm cancellation
+4. The conversation remains valid - client can send new messages
+
+Note: Tool executions that have already completed cannot be undone. Abort only affects in-progress operations.
 
 **`abort` example**:
 ```json
@@ -767,15 +798,19 @@ Replace the per-agent WebSocket streams with a single network-level multiplexed 
 ```json
 {
   "type": "error",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "timestamp": "2025-12-21T10:00:00Z",
   "data": {
     "message": "Unknown message type: foo",
-    "originalMessage": {...}
-  },
-  "timestamp": "2025-12-21T10:00:00Z"
+    "code": "UNKNOWN_MESSAGE_TYPE",
+    "original-message": {...}
+  }
 }
 ```
 
-**Future work for `user_message`**: `temperature`, `maxTokens`, `allowedTools`, `disallowedTools`
+**Future work for `user-message`**: `temperature`, `max-tokens`, `allowed-tools`, `disallowed-tools`
 
 #### 2.5.2 Bidirectional Permission Handling
 
@@ -784,36 +819,36 @@ Add permission request/response flow via the WebSocket connection.
 **Permission request** (server → client):
 ```json
 {
-  "type": "permission_request",
-  "agentId": "uuid",
-  "agentType": "implementation",
-  "agentName": "Auth Fix",
-  "taskName": "Implementing login flow",
+  "type": "permission-request",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "timestamp": "2025-12-21T10:00:00Z",
   "data": {
-    "requestId": "uuid",
-    "toolName": "Bash",
-    "toolInput": {"command": "rm -rf node_modules"},
-    "permissionSuggestions": ["Bash(rm *)"]
-  },
-  "timestamp": "2025-12-21T10:00:00Z"
+    "request-id": "660e8400-e29b-41d4-a716-446655440001",
+    "tool-name": "Bash",
+    "tool-input": {"command": "rm -rf node_modules"},
+    "permission-suggestions": ["Bash(rm *)"]
+  }
 }
 ```
 
 **Permission response** (client → server):
 ```json
 {
-  "type": "permission_response",
-  "requestId": "uuid",
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
   "allow": true,
-  "updatedInput": {"command": "rm -rf node_modules"}
+  "updated-input": {"command": "rm -rf node_modules"}
 }
 ```
 
 Or deny:
 ```json
 {
-  "type": "permission_response",
-  "requestId": "uuid",
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
   "allow": false,
   "message": "User declined"
 }
@@ -831,27 +866,27 @@ Or deny:
 Add optional per-message configuration fields to control model and permissions.
 
 **Where options are specified**:
-1. `POST /api/v1/networks` - For the initial message (see Section 2.4)
-2. `user_message` WebSocket event - For subsequent messages (see Section 2.5.1)
+1. `POST /api/v1/sessions` - For the initial message (see Section 2.4)
+2. `user-message` WebSocket event - For subsequent messages (see Section 2.5.1)
 
 **Valid model values**:
 - `"sonnet"` (default) - Claude Sonnet
 - `"opus"` - Claude Opus
 - `"haiku"` - Claude Haiku (faster, lower cost)
 
-**Valid permissionMode values**:
-- `"acceptEdits"` (default) - Auto-approve tool use
+**Valid permission-mode values**:
+- `"accept-edits"` (default) - Auto-approve tool use
 - `"plan"` - Plan-only mode, no code execution
-- `"ask"` - Request user permission for each tool use (triggers permission_request events)
+- `"ask"` - Request user permission for each tool use (triggers `permission-request` events)
 - `"deny"` - Block all tool use
 
 **Implementation notes**:
 - All fields are optional; omitted fields use agent defaults
 - Model/mode selection applies per-message, allowing users to switch mid-conversation
 - Options are passed to ClaudeClient when processing the message
-- Validation returns error event for invalid model/permissionMode values
+- Model and permission-mode values are passed directly to the Claude SDK. If the SDK returns an error (e.g., invalid model name), the error is forwarded to the client as an error event.
 
-**Future work**: `temperature`, `maxTokens`, `allowedTools`, `disallowedTools`
+**Future work**: `temperature`, `max-tokens`, `allowed-tools`, `disallowed-tools`
 
 #### 2.5.4 Filesystem Browsing API
 
@@ -865,8 +900,8 @@ Query params:
 Response:
 {
   "entries": [
-    {"name": "src", "path": "/Users/chris/myproject/src", "isDirectory": true},
-    {"name": "main.dart", "path": "/Users/chris/myproject/main.dart", "isDirectory": false}
+    {"name": "src", "path": "/Users/chris/myproject/src", "is-directory": true},
+    {"name": "main.dart", "path": "/Users/chris/myproject/main.dart", "is-directory": false}
   ]
 }
 ```
@@ -889,80 +924,90 @@ Response:
 - Server enforces a configurable root directory (configured via server config file)
 - All operations restricted to within the allowed scope
 - Prevents path traversal attacks (e.g., `../../../etc/passwd`)
-- **Symlinks are NOT followed** to prevent escaping the configured `filesystemRoot`
+- **Symlinks are NOT followed** to prevent escaping the configured `filesystem-root`
 - **Path validation**: Paths are canonicalized and must:
   1. Exist on the filesystem (for listings)
-  2. Be at or below the configured `filesystemRoot`
+  2. Be at or below the configured `filesystem-root`
 
 **Configuration** (in server config file: `~/.vide/api/config.json`):
 ```json
 {
-  "filesystemRoot": "/Users/chris/projects",
-  "permissionTimeoutSeconds": 60
+  "filesystem-root": "/Users/chris/projects",
+  "permission-timeout-seconds": 60
 }
 ```
 
 **Config file behavior**:
 - If file doesn't exist, server uses defaults for all values
-- `filesystemRoot` defaults to user's home directory
-- `permissionTimeoutSeconds` defaults to 60
+- `filesystem-root` defaults to user's home directory
+- `permission-timeout-seconds` defaults to 60
 
 #### 2.5.5 Error Response Schema
 
 All HTTP endpoints use a consistent error response format.
 
-**Error response** (HTTP 4xx/5xx):
+**HTTP error response** (4xx/5xx):
 ```json
 {
   "error": "Human-readable error message",
-  "code": "ERROR_CODE",
-  "details": {
-    "field": "additional context"
-  }
+  "code": "ERROR_CODE"
 }
 ```
 
 **Common error codes**:
 - `INVALID_REQUEST` - Malformed request body or missing required fields
-- `NOT_FOUND` - Network, agent, or resource not found
-- `VALIDATION_ERROR` - Invalid field values (e.g., invalid model name)
+- `INVALID_WORKING_DIRECTORY` - Working directory does not exist or is not accessible
+- `NOT_FOUND` - Session, agent, or resource not found
 - `INTERNAL_ERROR` - Unexpected server error
 
-**WebSocket errors** use `WebSocketEvent.error()` format for consistency with other events.
+**WebSocket errors** use the standard event format with `original-message` for client-triggered errors:
+```json
+{
+  "type": "error",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "message": "Human-readable error message",
+    "code": "ERROR_CODE",
+    "original-message": {...}
+  }
+}
+```
 
 #### 2.5.6 WebSocket Lifecycle Documentation
 
 **Connection lifecycle**:
 
-1. **Connect**: Client opens WebSocket to `/api/v1/networks/{networkId}/stream`
-2. **Handshake**: Server sends `connected` event with network metadata
+1. **Connect**: Client opens WebSocket to `/api/v1/sessions/{session-id}/stream`
+2. **Handshake**: Server sends `connected` event with session metadata
 3. **State sync**: Server sends `status` events for all current agents
-4. **Catch-up**: If conversation has messages, server sends `history` event with full conversation
+4. **Catch-up**: If conversation has messages, server sends `history` event with full conversation (complete turns only)
 5. **Streaming**: Server streams events as agents work
 6. **Bidirectional**: Client can send messages and commands
 
 **Events (server → client)**:
 | Type | Description |
 |------|-------------|
-| `connected` | Initial connection with network metadata |
-| `history` | Full conversation history for client display |
-| `status` | Agent status changes (idle, working, waitingForAgent, waitingForUser) |
-| `message` | New message started (includes initial content) |
-| `message_delta` | Streaming chunk of current message |
-| `tool_use` | Agent is invoking a tool |
-| `tool_result` | Tool execution completed |
-| `permission_request` | Tool needs user approval |
-| `agent_spawned` | New agent added to network |
-| `agent_terminated` | Agent removed from network |
-| `aborted` | Confirms abort, includes interrupted agentId |
+| `connected` | Initial connection with session metadata |
+| `history` | Complete conversation turns for client display (partial/in-progress excluded) |
+| `status` | Agent status changes (ready, processing, thinking, responding, completed, error) |
+| `message` | Streaming message chunk with `is-partial` flag and `event-id` |
+| `tool-use` | Agent is invoking a tool |
+| `tool-result` | Tool execution completed |
+| `permission-request` | Tool needs user approval |
+| `agent-spawned` | New agent added to session |
+| `agent-terminated` | Agent removed from session |
+| `aborted` | Confirms abort, includes interrupted agent-id |
 | `done` | Agent turn completed |
 | `error` | Error occurred |
 
 **Messages (client → server)**:
 | Type | Description |
 |------|-------------|
-| `user_message` | Send a message to the conversation |
-| `permission_response` | Allow/deny a permission request |
+| `user-message` | Send a message to the conversation |
+| `permission-response` | Allow/deny a permission request |
 | `abort` | Cancel in-progress agent operation |
 
 **Event data structures**:
@@ -971,19 +1016,34 @@ All HTTP endpoints use a consistent error response format.
 ```json
 {
   "type": "connected",
-  "networkId": "uuid",
-  "mainAgentId": "uuid",
-  "sessionId": "uuid",
+  "session-id": "550e8400-e29b-41d4-a716-446655440000",
+  "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
   "timestamp": "2025-12-21T10:00:00Z",
   "agents": [
-    {"id": "uuid", "type": "main", "name": "Main Agent", "status": "idle"}
+    {"id": "660e8400-e29b-41d4-a716-446655440001", "type": "main", "name": "Main Agent", "status": "ready"}
   ],
   "metadata": {
-    "workingDirectory": "/path/to/project",
-    "hasExistingConversation": false
+    "working-directory": "/path/to/project",
+    "has-existing-conversation": false
   }
 }
 ```
+
+`status`:
+```json
+{
+  "type": "status",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "status": "responding"
+  }
+}
+```
+
+**Valid status values:** `ready`, `processing`, `thinking`, `responding`, `completed`, `error`
 
 `history`:
 ```json
@@ -999,38 +1059,35 @@ All HTTP endpoints use a consistent error response format.
 }
 ```
 
-`agent_spawned`:
+The `history` event contains only **complete turns** - partial/in-progress messages are not included. If reconnecting while an agent is mid-response, the client will receive the ongoing `message` events with `is-partial: true` after the history.
+
+`agent-spawned`:
 ```json
 {
-  "type": "agent_spawned",
-  "agentId": "uuid",
-  "agentType": "implementation",
-  "agentName": "Auth Fix",
-  "taskName": null,
+  "type": "agent-spawned",
+  "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": null,
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
-    "spawnedBy": "parent-agent-uuid"
+    "spawned-by": "660e8400-e29b-41d4-a716-446655440001"
   }
 }
 ```
 
-`agent_terminated`:
+`agent-terminated`:
 ```json
 {
-  "type": "agent_terminated",
-  "agentId": "uuid",
-  "agentType": "implementation",
-  "agentName": "Auth Fix",
-  "taskName": "Implementing login",
+  "type": "agent-terminated",
+  "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
-    "terminatedBy": "parent-agent-uuid",
-    "reason": "Task complete",
-    "tokenUsage": {
-      "inputTokens": 1234,
-      "outputTokens": 567,
-      "totalCostUsd": 0.05
-    }
+    "terminated-by": "660e8400-e29b-41d4-a716-446655440001",
+    "reason": "Task complete"
   }
 }
 ```
@@ -1039,9 +1096,9 @@ All HTTP endpoints use a consistent error response format.
 ```json
 {
   "type": "aborted",
-  "agentId": "uuid",
-  "agentType": "main",
-  "agentName": "Main Agent",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {}
 }
@@ -1103,10 +1160,10 @@ Standard WebSocket close codes are used (RFC 6455):
 #### 3.1 Manual Testing
 **Test scenario**: End-to-end chat flow
 1. Start server (from `packages/vide_server`): `dart run bin/vide_server.dart`
-2. Create network (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/networks -H "Content-Type: application/json" -d '{"initialMessage":"Hello","workingDirectory":"."}'`
-3. Open WebSocket connection: `wscat -c ws://127.0.0.1:<port>/api/v1/networks/{networkId}/stream`
+2. Create session (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/sessions -H "Content-Type: application/json" -d '{"initial-message":"Hello","working-directory":"."}'`
+3. Open WebSocket connection: `wscat -c ws://127.0.0.1:<port>/api/v1/sessions/{session-id}/stream`
 4. Receive initial response stream from the initial message
-5. Send follow-up message via WebSocket: `{"type":"user_message","content":"Write hello.dart"}`
+5. Send follow-up message via WebSocket: `{"type":"user-message","content":"Write hello.dart"}`
 6. Watch agent response in WebSocket stream
 
 #### 3.2 Documentation
@@ -1294,46 +1351,47 @@ Standard WebSocket close codes are used (RFC 6455):
 
 ### Phase 2.5: GUI App Prerequisites (Day 3.5-4)
 
-**2.5.1 Multiplexed Network WebSocket:**
-38. ⬜ Create `_NetworkStreamManager` class to track all agents in network
-39. ⬜ Implement `streamNetworkWebSocket()` handler at `/api/v1/networks/{networkId}/stream`
+**2.5.1 Multiplexed Session WebSocket:**
+38. ⬜ Create `_SessionStreamManager` class to track all agents in session
+39. ⬜ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
 40. ⬜ Add multi-agent subscription logic (subscribe to all current + spawned agents)
-41. ⬜ Add `agent_spawned` and `agent_terminated` event types
+41. ⬜ Add `agent-spawned` and `agent-terminated` event types
 42. ⬜ Remove old per-agent endpoint (`/agents/{agentId}/stream`)
-43. ⬜ Update integration tests for network-level WebSocket
+43. ⬜ Update integration tests for session-level WebSocket
+44. ⬜ Implement message streaming with `is-partial` flag and `event-id` (server does NOT accumulate)
 
 **2.5.2 Bidirectional Permission Handling:**
-44. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
-45. ⬜ Add `permission_request` event type to WebSocketEvent
-46. ⬜ Implement client message handling for `permission_response`
-47. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
-48. ⬜ Add integration tests for permission request/response flow
+45. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
+46. ⬜ Add `permission-request` event type to WebSocketEvent
+47. ⬜ Implement client message handling for `permission-response`
+48. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
+49. ⬜ Add integration tests for permission request/response flow
 
 **2.5.3 Model and Options Selection:**
-49. ⬜ Add `user_message` client→server handler to WebSocket (content, model?, permissionMode?)
-50. ⬜ Add `abort` client→server handler to WebSocket (cancels in-progress agent operation)
-51. ⬜ Add `aborted` server→client event (confirms abort with interrupted agentId)
-52. ⬜ Add `history` server→client event (send full conversation on reconnect)
-53. ⬜ Extend `CreateNetworkRequest` DTO with model, permissionMode (for initial message)
-54. ⬜ Add validation for model (sonnet/opus/haiku) and permissionMode values
-55. ⬜ Add error response for unknown WebSocket message types (include originalMessage)
-56. ⬜ Future work: temperature, maxTokens, allowedTools, disallowedTools
+50. ⬜ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
+51. ⬜ Add `abort` client→server handler to WebSocket (cancels current turn)
+52. ⬜ Add `aborted` server→client event (confirms abort with interrupted agent-id)
+53. ⬜ Add `history` server→client event (complete turns only, sent on connect/reconnect)
+54. ⬜ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
+55. ⬜ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
+56. ⬜ Add error response for unknown WebSocket message types (include original-message)
+57. ⬜ Future work: temperature, max-tokens, allowed-tools, disallowed-tools
 
 **2.5.4 Filesystem Browsing API:**
-57. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
-58. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
-59. ⬜ Register filesystem routes in server
-60. ⬜ Add integration tests for filesystem browsing
+58. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
+59. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
+60. ⬜ Register filesystem routes in server
+61. ⬜ Add integration tests for filesystem browsing
 
 **2.5.5 WebSocket Connection Health:**
-61. ⬜ Configure 20-second ping interval on WebSocket connections
-62. ⬜ Handle ping timeout (close with code 1001)
+62. ⬜ Configure 20-second ping interval on WebSocket connections
+63. ⬜ Handle ping timeout (close with code 1001)
 
 **2.5.6-8 Documentation & Examples:**
-63. ⬜ Add `ErrorResponse` class to DTOs
-64. ⬜ Document WebSocket lifecycle in code comments
-65. ⬜ Update CLAUDE.md with new API endpoints
-66. ⬜ Update `packages/vide_server/example/client.dart` to use WebSocket messaging (replace HTTP POST)
+64. ⬜ Add `ErrorResponse` class to DTOs
+65. ⬜ Document WebSocket lifecycle in code comments
+66. ⬜ Update CLAUDE.md with new API endpoints
+67. ⬜ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
 
 ### Phase 3: Testing & Documentation (Day 5)
 67. Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
@@ -1444,17 +1502,18 @@ When deploying beyond localhost (post-MVP):
 ✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
 
 **Phase 2.5 - GUI Prerequisites (NOT STARTED):**
-⬜ **Multiplexed WebSocket at /api/v1/networks/{networkId}/stream** (single stream for all agents)
-⬜ **Agent lifecycle events** (`agent_spawned`, `agent_terminated` event types)
-⬜ **Bidirectional WebSocket support** (client sends `user_message`, `permission_response`, `abort`)
-⬜ **Receive conversation history via `history` event on connect/reconnect**
-⬜ **Abort support** (client sends `abort`, server sends `aborted` event)
-⬜ **Permission request events** (server sends permission_request, client responds, 60s timeout with auto-deny)
-⬜ **Model selection support** (sonnet/opus/haiku per-message via `user_message` WebSocket event)
-⬜ **Per-message options** (model, permissionMode only for MVP; future: temperature, maxTokens, allowedTools, disallowedTools)
+⬜ **Multiplexed WebSocket at /api/v1/sessions/{session-id}/stream** (single stream for all agents)
+⬜ **Agent lifecycle events** (`agent-spawned`, `agent-terminated` event types)
+⬜ **Bidirectional WebSocket support** (client sends `user-message`, `permission-response`, `abort`)
+⬜ **Receive conversation history via `history` event on connect/reconnect** (complete turns only)
+⬜ **Abort support** (client sends `abort`, server sends `aborted` event, cancels current turn)
+⬜ **Permission request events** (server sends `permission-request`, client responds, 60s timeout with auto-deny)
+⬜ **Model selection support** (sonnet/opus/haiku per-message via `user-message` WebSocket event)
+⬜ **Per-message options** (model, permission-mode only for MVP; future: temperature, max-tokens, allowed-tools, disallowed-tools)
+⬜ **Message streaming** (single `message` event with `is-partial` flag and `event-id` - server does NOT accumulate)
 ⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem with path validation, symlinks not followed)
-⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystemRoot, permissionTimeout)
-⬜ **Error response schema** (consistent JSON format with error, code, details)
+⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystem-root, permission-timeout-seconds)
+⬜ **Error response schema** (consistent JSON format with error, code; WebSocket errors include original-message)
 ⬜ **WebSocket keepalive** (20s ping/pong interval, close with 1001 on timeout)
 ⬜ **WebSocket lifecycle documented** (connection, disconnection, reconnection handling)
 ⬜ **All GUI prerequisites tested and documented**
@@ -1478,15 +1537,15 @@ See `specs/flutter-gui-app.md` for the complete GUI specification.
 - HTTP/2 streaming support (alternative to WebSocket)
 - Multi-client real-time session sharing
   - Allow same user to access sessions from multiple devices (desktop, phone, etc.)
-  - Real-time synchronization of agent network state across all logged-in clients
+  - Real-time synchronization of session state across all logged-in clients
   - Live updates propagated to all connected clients via WebSocket
   - Shared session state maintained on server
 - Additional REST endpoints:
-  - GET /networks (list all networks)
-  - GET /networks/:id (get network details)
-  - DELETE /networks/:id (delete network)
-  - GET /networks/:id/status (get current status without streaming)
-  - GET /networks/:id/agents (list agents in network)
+  - GET /sessions (list all sessions)
+  - GET /sessions/:id (get session details)
+  - DELETE /sessions/:id (delete session)
+  - GET /sessions/:id/status (get current status without streaming)
+  - GET /sessions/:id/agents (list agents in session)
 
 ### Phase 6: Production Readiness
 - PostgreSQL/SQLite (replace file-based storage)
