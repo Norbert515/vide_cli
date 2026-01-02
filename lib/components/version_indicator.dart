@@ -118,15 +118,10 @@ class _VersionIndicatorState extends State<VersionIndicator> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(color: theme.base.primary),
-              child: Text(
-                'v$newVersion ready',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+            Text(
+              'v$newVersion ready',
+              style: TextStyle(
+                color: theme.base.primary,
               ),
             ),
           ],

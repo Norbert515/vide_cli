@@ -92,23 +92,23 @@ class VideApp extends StatelessComponent {
   Component _buildContent() {
     return Column(
       children: [
-        // Top bar with version indicator in the right corner
+        // Main content
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(left: 1, right: 1),
+            child: WelcomeScope(
+              child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
+            ),
+          ),
+        ),
+        // Bottom bar with version indicator in the right corner
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 1),
+          padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
           child: Row(
             children: [
               Expanded(child: SizedBox()),
               VersionIndicator(),
             ],
-          ),
-        ),
-        // Main content
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
-            child: WelcomeScope(
-              child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
-            ),
           ),
         ),
       ],

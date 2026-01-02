@@ -101,18 +101,13 @@ Agents come with deep Flutter knowledge baked in:
 
 ## Installation
 
-### Homebrew (macOS)
-
-```bash
-brew tap Norbert515/tap
-brew install vide
-```
-
 ### Quick Install (macOS/Linux)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash
 ```
+
+Installs to `~/.local/bin/vide` and optionally adds it to your PATH.
 
 ### Quick Install (Windows)
 
@@ -126,7 +121,8 @@ Download the latest binary from [GitHub Releases](https://github.com/Norbert515/
 
 | Platform | Binary |
 |----------|--------|
-| macOS (Universal) | `vide-macos` |
+| macOS (ARM64) | `vide-macos-arm64.tar.gz` |
+| macOS (Intel) | `vide-macos-x64.tar.gz` |
 | Linux (x64) | `vide-linux-x64` |
 | Windows (x64) | `vide-windows-x64.exe` |
 
@@ -144,6 +140,15 @@ Then run from any directory:
 
 ```bash
 vide
+```
+
+### Auto-Updates
+
+Vide automatically checks for updates and downloads them in the background. Updates are applied on the next restart.
+
+To disable auto-updates:
+```bash
+export DISABLE_AUTOUPDATER=1
 ```
 
 ---
