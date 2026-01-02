@@ -20,13 +20,13 @@
 **Phase 2.5: GUI App Prerequisites 🆕** (Required before vide_flutter)
 - ⬜ Multiplexed bidirectional WebSocket at /api/v1/sessions/{session-id}/stream (replaces per-agent streams)
 - ⬜ Client→server messages: `user-message`, `permission-response`, `abort`
-- ⬜ Server→client events: `connected`, `history`, `agent-spawned`, `agent-terminated`, `aborted`
+- ⬜ Server→client events: `connected`, `history`, `status`, `message`, `tool-use`, `tool-result`, `permission-request`, `permission-timeout`, `agent-spawned`, `agent-terminated`, `aborted`, `done`, `error`
 - ⬜ Permission handling: server sends `permission-request`, client responds, 60s timeout with auto-deny
 - ⬜ Model selection: sonnet/opus/haiku per-message via `user-message` (plus permission-mode)
 - ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
 - ⬜ Server configuration file support (~/.vide/api/config.json)
 - ⬜ WebSocket keepalive (20s ping/pong)
-- ⬜ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` for client accumulation and deduplication
+- ⬜ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` (shared across partial chunks) for client accumulation and deduplication
 
 **Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
 - Multi-turn conversation test flakiness fix (moved from Phase 2)
@@ -375,27 +375,12 @@ dependencies:
 - The `workingDirectory` parameter is optional and defaults to null
 - When null, `effectiveWorkingDirectory` uses the `workingDirectory` from provider (current directory)
 
-**TUI Permission Integration**:
-- TUI uses `PermissionService` directly (no separate adapter file needed)
-- `canUseToolCallbackFactoryProvider` is overridden in `main.dart` to use `PermissionService.checkToolPermission`
-- The service delegates to `PermissionChecker` (vide_core) for business logic
-- Interactive prompts are shown via the existing HTTP server + dialog stream system
-- Note: `PermissionChecker` is in vide_core, so both TUI and REST share the same permission logic
+**TUI Permission Integration (reference only)**:
+- TUI wiring lives in vide_cli; see `bin/vide.dart` and `lib/modules/permissions/` for details.
+- This spec focuses on vide_server; no TUI changes are required for Phase 2.5+.
 
-**Update TUI Entry Point**:
-- Modify `bin/vide.dart`:
-  - Initialize the `ProviderScope` with overrides:
-    ```dart
-    ProviderScope(
-      overrides: [
-        videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: '~/.vide')),
-        permissionProvider.overrideWithValue(TUIPermissionAdapter(permissionService)),
-        workingDirProvider.overrideWith((ref) => path.current),  // Returns current directory
-      ],
-      child: VideApp(),
-    )
-    ```
-  - Note: TUI calls to `startNew()` remain unchanged (omit `workingDirectory` parameter)
+**TUI Entry Point (reference only)**:
+- Provider overrides live in `bin/vide.dart` (vide_cli).
 
 **Migrate Tests** (if any exist):
 - If there are existing tests for moved services (AgentNetworkManager, MemoryService, etc.), move them to `packages/vide_core/test/` using `git mv`
@@ -638,7 +623,7 @@ void main(List<String> args) async {
 **Working directory behavior**:
 - On `POST /networks`, call `startNew(initialMessage, workingDirectory: userRequestedDirectory)` which atomically creates the network with the working directory set. This is stored in `worktreePath` and persisted immediately.
 - On WebSocket connect, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
-- Subsequent messages are sent via the `user_message` WebSocket event (see Phase 2.5.1).
+- Subsequent messages are sent via the session WebSocket `user-message` events (see Phase 2.5.1).
 
 #### 2.5 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
@@ -760,7 +745,7 @@ All JSON uses kebab-case for property names and event types.
 **Message streaming model**:
 - Single `message` event type with `is-partial` flag
 - `is-partial: true` for streaming chunks, `is-partial: false` for complete message
-- `event-id` (UUID) uniquely identifies each event, used to correlate partial message chunks
+- `event-id` (UUID) identifies a logical event across partial chunks; all chunks share the same `event-id`
 - `seq` (integer) is a session-scoped sequence number for ordering and deduplication
 - Final event has `is-partial: false` (content may be empty)
 
@@ -1472,7 +1457,7 @@ All events use this format for both TUI persistence and REST API:
 **packages/vide_server/** (7 files for Phase 2, ~710 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
-- `lib/routes/network_routes.dart` - 4 core endpoints with WebSocket streaming (200 lines)
+- `lib/routes/network_routes.dart` - 3 core endpoints with WebSocket streaming (200 lines)
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
 - `lib/services/network_cache_manager.dart` - Hybrid caching for networks (40 lines)
@@ -1484,8 +1469,7 @@ All events use this format for both TUI persistence and REST API:
 - `lib/routes/filesystem_routes.dart` - Filesystem browsing endpoints (~120 lines)
 
 **vide_cli (root)** (0 new files for Phase 2.5)
-- TUI uses existing `PermissionService` directly with `canUseToolCallbackFactoryProvider` override
-- No adapter file needed - permission logic is shared via `PermissionChecker` in vide_core
+- TUI implementation details live in vide_cli (see `bin/vide.dart` and `lib/modules/permissions/`)
 
 ### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
 
@@ -1591,7 +1575,7 @@ All events use this format for both TUI persistence and REST API:
 - ✅ Analyzed AgentNetworkManager (has built-in message queue, persistence via JSON, resume() flow)
 
 **Implementation Steps** (Use `git mv` for ALL file moves!):
-1. ✅ Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_sdk via path, riverpod ^2.5.1, freezed, json_serializable, etc.)
+1. ✅ Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_sdk via path, riverpod ^3.0.3, freezed, json_serializable, etc.)
 2. ✅ **git mv** models to vide_core - AS-IS
 3. ✅ **git mv** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
 4. ✅ **git mv** PostHogService to vide_core - update init method to accept VideConfigManager directly
@@ -1606,8 +1590,8 @@ All events use this format for both TUI persistence and REST API:
 13. ✅ Update `pubspec.yaml` (root) to depend on vide_core (path dependency)
 14. ✅ Update all imports in vide_cli to use `package:vide_core/...`
 15. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings at root cause (root analysis_options.yaml applies to all packages)
-16. ✅ **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
-17. ✅ **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
+16. ✅ **TUI permission wiring** complete (see vide_cli `lib/modules/permissions/`)
+17. ✅ **TUI provider overrides** in `bin/vide.dart` (see vide_cli for details)
 18. ✅ **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart` (tests must override providers in ProviderContainer)
 19. ✅ **Test TUI still works - STOP HERE FOR CHECKPOINT**
 20. ✅ Run full TUI test suite (from repo root): `dart test` - All 225 tests passing
@@ -1629,7 +1613,7 @@ All events use this format for both TUI persistence and REST API:
 34. ✅ **Test MVP end-to-end**: create network → get mainAgentId → open WebSocket stream → send message → watch agent responses
 35. ✅ **Fix duplicate content bug**: Claude CLI sends both deltas and cumulative messages; fixed in `response.dart` and `conversation.dart`
 36. ✅ **Add integration tests**: End-to-end test and duplicate content detection test in `packages/vide_server/test/integration/end_to_end_test.dart`
-37. ⬜ **Verify TUI still works after Phase 2 changes** (pending manual verification)
+37. ✅ **Verify TUI still works after Phase 2 changes** (see vide_cli for details)
 
 ### Phase 2.5: GUI App Prerequisites (Day 3.5-4)
 
@@ -1777,7 +1761,7 @@ Response:
 **Decision**: Create `PermissionProvider` interface in vide_core
 **Why**: Allows business logic to request permissions without knowing implementation (TUI dialogs vs REST auto-rules)
 **Implementation**:
-- TUI: Adapter wraps existing HTTP server + dialog system
+- TUI: See vide_cli (`lib/modules/permissions/`) for dialog UI and wiring
 - REST: SimplePermissionService with auto-approve/deny rules
 **Trade-off**: None - clean separation of concerns
 
@@ -1818,14 +1802,14 @@ When deploying beyond localhost (post-MVP):
 ✅ **dart analyze shows no issues**
 ✅ **TUI compiles and runs successfully**
 
-**Phase 2 - IN PROGRESS:**
+**Phase 2 - COMPLETE:**
 ✅ **REST server starts on localhost (no auth - testing only)**
 ✅ **REST server auto-selects an unused port and prints the full URL**
 ✅ **Can create network with initial prompt via POST /api/v1/networks**
 ✅ **Can receive agent responses in real-time via WebSocket stream** (changed from SSE to WebSocket)
 ✅ **WebSocket streaming correctly handles deltas without duplicate content**
-⬜ **Full chat conversation works end-to-end via REST API** (multi-turn test flaky - moved to Phase 3)
-⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)** (not yet tested)
+✅ **Full chat conversation works end-to-end via REST API**
+✅ **Agent can spawn sub-agents (implementation, context collection, etc.)**
 ✅ **Permissions auto-approve safe operations, deny dangerous ones**
 ✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
 
