@@ -534,6 +534,11 @@ void main(List<String> args) async {
 ```
 
 #### 2.4 Implement Core Network API Endpoints (MVP)
+
+> ⚠️ **Phase 2 Legacy**: These endpoints use "network" terminology and camelCase JSON.
+> Phase 2.5 replaces them with "session" terminology and kebab-case JSON.
+> See Phase 2.5.0 for the migration tasks.
+
 **New file**: `packages/vide_server/lib/routes/network_routes.dart` (~200 lines)
 
 **3 Core MVP Endpoints** (NO authentication for MVP):
@@ -683,6 +688,11 @@ void main(List<String> args) async {
 **Note**: For MVP testing on localhost. Post-MVP will add interactive permission handling via WebSocket.
 
 #### 2.7 Implement DTOs (Data Transfer Objects)
+
+> ⚠️ **Phase 2 Legacy**: These DTOs use "network" naming and camelCase.
+> Phase 2.5 renames to "session" terminology with kebab-case JSON.
+> See Phase 2.5.0 for the migration tasks.
+
 **New file**: `packages/vide_server/lib/dto/network_dto.dart` (~150 lines)
 
 **Purpose**: Request/response schemas
@@ -780,9 +790,9 @@ All JSON uses kebab-case for property names and event types.
 
 **`abort` behavior**:
 When the client sends `abort`, the server:
-1. Cancels the current turn for the active agent
-2. Stops any in-progress Claude API calls
-3. Sends an `aborted` event to confirm cancellation
+1. Cancels the current turn for **ALL active agents** in the session (not just one)
+2. Stops any in-progress Claude API calls for all agents
+3. Sends an `aborted` event **for each cancelled agent** to confirm cancellation
 4. The conversation remains valid - client can send new messages
 
 Note: Tool executions that have already completed cannot be undone. Abort only affects in-progress operations.
@@ -858,8 +868,26 @@ Or deny:
 - Server blocks agent execution until client responds or times out
 - Mimics `CanUseToolCallback` pattern from claude_sdk
 - Timeout is configurable (default: 60 seconds)
-- **On timeout: auto-deny** - If client doesn't respond within timeout, permission is denied
 - Timeout can be configured in server config file (`~/.vide/api/config.json`)
+
+**On timeout**: When permission request times out, server:
+1. Auto-denies the permission
+2. Sends `permission-timeout` event to client:
+```json
+{
+  "type": "permission-timeout",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "request-id": "660e8400-e29b-41d4-a716-446655440001",
+    "tool-name": "Bash",
+    "timeout-seconds": 60
+  }
+}
+```
 
 #### 2.5.3 Model and Options Selection Support
 
@@ -939,7 +967,7 @@ Response:
 
 **Config file behavior**:
 - If file doesn't exist, server uses defaults for all values
-- `filesystem-root` defaults to user's home directory
+- `filesystem-root` defaults to user's home directory (intentionally broad to allow flexibility; GUI client may add restrictions)
 - `permission-timeout-seconds` defaults to 60
 
 #### 2.5.5 Error Response Schema
@@ -992,11 +1020,12 @@ All HTTP endpoints use a consistent error response format.
 |------|-------------|
 | `connected` | Initial connection with session metadata |
 | `history` | Complete conversation turns for client display (partial/in-progress excluded) |
-| `status` | Agent status changes (ready, processing, thinking, responding, completed, error) |
+| `status` | Agent status changes (working, waiting-for-agent, waiting-for-user, idle) |
 | `message` | Streaming message chunk with `is-partial` flag and `event-id` |
 | `tool-use` | Agent is invoking a tool |
 | `tool-result` | Tool execution completed |
 | `permission-request` | Tool needs user approval |
+| `permission-timeout` | Permission request timed out (auto-denied) |
 | `agent-spawned` | New agent added to session |
 | `agent-terminated` | Agent removed from session |
 | `aborted` | Confirms abort, includes interrupted agent-id |
@@ -1020,7 +1049,13 @@ All HTTP endpoints use a consistent error response format.
   "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
   "timestamp": "2025-12-21T10:00:00Z",
   "agents": [
-    {"id": "660e8400-e29b-41d4-a716-446655440001", "type": "main", "name": "Main Agent", "status": "ready"}
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "type": "main",
+      "name": "Main Agent",
+      "description": "Orchestrates tasks and delegates to specialized agents",
+      "status": "working"
+    }
   ],
   "metadata": {
     "working-directory": "/path/to/project",
@@ -1038,12 +1073,21 @@ All HTTP endpoints use a consistent error response format.
   "agent-name": "Main Agent",
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
-    "status": "responding"
+    "status": "working"
   }
 }
 ```
 
-**Valid status values:** `ready`, `processing`, `thinking`, `responding`, `completed`, `error`
+**Valid status values** (from vide_core's `AgentStatus` enum):
+
+| Status | Meaning |
+|--------|---------|
+| `working` | Agent is actively processing a task |
+| `waiting-for-agent` | Agent is waiting for another agent to respond |
+| `waiting-for-user` | Agent is waiting for user input/approval |
+| `idle` | Agent has completed its work |
+
+> Note: These map directly to vide_core's `AgentStatus` enum. The low-level Claude processing states (`thinking`, `responding`, etc.) are internal to claude_sdk and not exposed through vide_core's public API.
 
 `history`:
 ```json
@@ -1052,14 +1096,33 @@ All HTTP endpoints use a consistent error response format.
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
     "messages": [
-      {"role": "user", "content": "Write hello.dart"},
-      {"role": "assistant", "content": "I'll create that file for you..."}
+      {
+        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+        "agent-type": "main",
+        "agent-name": "Main Agent",
+        "role": "user",
+        "content": "Write hello.dart"
+      },
+      {
+        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+        "agent-type": "main",
+        "agent-name": "Main Agent",
+        "role": "assistant",
+        "content": "I'll delegate this to the implementation agent..."
+      },
+      {
+        "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+        "agent-type": "implementation",
+        "agent-name": "Code Writer",
+        "role": "assistant",
+        "content": "File created successfully at hello.dart"
+      }
     ]
   }
 }
 ```
 
-The `history` event contains only **complete turns** - partial/in-progress messages are not included. If reconnecting while an agent is mid-response, the client will receive the ongoing `message` events with `is-partial: true` after the history.
+The `history` event contains **complete turns from ALL agents** in the session - partial/in-progress messages are not included. Each message includes agent attribution so the client can display them correctly. If reconnecting while an agent is mid-response, the client will receive the ongoing `message` events with `is-partial: true` after the history.
 
 `agent-spawned`:
 ```json
@@ -1351,56 +1414,93 @@ Standard WebSocket close codes are used (RFC 6455):
 
 ### Phase 2.5: GUI App Prerequisites (Day 3.5-4)
 
+> **Terminology Migration**: Phase 2.5 completes the migration from "network" to "session" terminology in vide_server.
+> - **External API**: Uses "session" exclusively (`/api/v1/sessions`, `session-id`, `CreateSessionRequest`)
+> - **Internal code**: vide_server calls vide_core's `AgentNetworkManager` which uses "network" internally
+> - **JSON format**: All properties use kebab-case (breaking change from Phase 2's camelCase)
+
+**2.5.0 Terminology & Convention Migration:**
+38. ⬜ Rename all DTOs: `CreateNetworkRequest` → `CreateSessionRequest`, `NetworkCacheManager` → `SessionCacheManager`
+39. ⬜ Rename route file: `network_routes.dart` → `session_routes.dart`
+40. ⬜ Create `POST /api/v1/sessions` endpoint (replaces `POST /api/v1/networks`)
+41. ⬜ Remove `POST /api/v1/networks` endpoint
+42. ⬜ Update all JSON responses to use kebab-case: `session-id`, `main-agent-id`, `working-directory`, etc.
+43. ⬜ Update all JSON requests to use kebab-case: `initial-message`, `permission-mode`, etc.
+
+**POST /api/v1/sessions** - Create session and start agent (replaces Phase 2's POST /api/v1/networks):
+```
+Request:
+{
+  "initial-message": "Write a hello world program",
+  "working-directory": "/Users/chris/myproject",
+  "model": "opus",             // optional: "sonnet" (default), "opus", "haiku"
+  "permission-mode": "ask"     // optional: "accept-edits" (default), "plan", "ask", "deny"
+}
+
+Response:
+{
+  "session-id": "550e8400-e29b-41d4-a716-446655440000",
+  "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "created-at": "2025-12-21T10:00:00Z"
+}
+```
+
+**Requirements**:
+- `working-directory` is required
+- Response includes `main-agent-id` so client can identify the orchestrator agent
+- After receiving response, client connects to WebSocket at `/api/v1/sessions/{session-id}/stream`
+
 **2.5.1 Multiplexed Session WebSocket:**
-38. ⬜ Create `_SessionStreamManager` class to track all agents in session
-39. ⬜ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
-40. ⬜ Add multi-agent subscription logic (subscribe to all current + spawned agents)
-41. ⬜ Add `agent-spawned` and `agent-terminated` event types
-42. ⬜ Remove old per-agent endpoint (`/agents/{agentId}/stream`)
-43. ⬜ Update integration tests for session-level WebSocket
-44. ⬜ Implement message streaming with `is-partial` flag and `event-id` (server does NOT accumulate)
+44. ⬜ Create `_SessionStreamManager` class to track all agents in session
+45. ⬜ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
+46. ⬜ Add multi-agent subscription logic (subscribe to all current + spawned agents)
+47. ⬜ Add `agent-spawned` and `agent-terminated` event types
+48. ⬜ Remove old per-agent endpoint (`/api/v1/networks/{networkId}/agents/{agentId}/stream`)
+49. ⬜ Update integration tests for session-level WebSocket
+50. ⬜ Implement message streaming with `is-partial` flag and `event-id` (server does NOT accumulate)
 
 **2.5.2 Bidirectional Permission Handling:**
-45. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
-46. ⬜ Add `permission-request` event type to WebSocketEvent
-47. ⬜ Implement client message handling for `permission-response`
-48. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
-49. ⬜ Add integration tests for permission request/response flow
+51. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
+52. ⬜ Add `permission-request` event type to WebSocketEvent
+53. ⬜ Implement client message handling for `permission-response`
+54. ⬜ Add `permission-timeout` event type (sent when permission request times out)
+55. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
+56. ⬜ Add integration tests for permission request/response flow
 
 **2.5.3 Model and Options Selection:**
-50. ⬜ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
-51. ⬜ Add `abort` client→server handler to WebSocket (cancels current turn)
-52. ⬜ Add `aborted` server→client event (confirms abort with interrupted agent-id)
-53. ⬜ Add `history` server→client event (complete turns only, sent on connect/reconnect)
-54. ⬜ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
-55. ⬜ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
-56. ⬜ Add error response for unknown WebSocket message types (include original-message)
-57. ⬜ Future work: temperature, max-tokens, allowed-tools, disallowed-tools
+57. ⬜ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
+58. ⬜ Add `abort` client→server handler to WebSocket (cancels ALL active agents)
+59. ⬜ Add `aborted` server→client event (one per cancelled agent)
+60. ⬜ Add `history` server→client event (all messages from ALL agents, with agent attribution)
+61. ⬜ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
+62. ⬜ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
+63. ⬜ Add error response for unknown WebSocket message types (include original-message)
+64. ⬜ Future work: temperature, max-tokens, allowed-tools, disallowed-tools
 
 **2.5.4 Filesystem Browsing API:**
-58. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
-59. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
-60. ⬜ Register filesystem routes in server
-61. ⬜ Add integration tests for filesystem browsing
+65. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
+66. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
+67. ⬜ Register filesystem routes in server
+68. ⬜ Add integration tests for filesystem browsing
 
 **2.5.5 WebSocket Connection Health:**
-62. ⬜ Configure 20-second ping interval on WebSocket connections
-63. ⬜ Handle ping timeout (close with code 1001)
+69. ⬜ Configure 20-second ping interval on WebSocket connections
+70. ⬜ Handle ping timeout (close with code 1001)
 
 **2.5.6-8 Documentation & Examples:**
-64. ⬜ Add `ErrorResponse` class to DTOs
-65. ⬜ Document WebSocket lifecycle in code comments
-66. ⬜ Update CLAUDE.md with new API endpoints
-67. ⬜ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
+71. ⬜ Add `ErrorResponse` class to DTOs
+72. ⬜ Document WebSocket lifecycle in code comments
+73. ⬜ Update CLAUDE.md with new API endpoints
+74. ⬜ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
 
 ### Phase 3: Testing & Documentation (Day 5)
-67. Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
-68. Add error handling for common cases (network errors, invalid requests)
-69. Write API documentation with examples (packages/vide_server/API.md)
-70. Create simple HTML test client for testing WebSocket streaming
-71. Update root README.md to explain dual-interface architecture
-72. Fix multi-turn conversation test flakiness (timeout issues)
-73. Add basic rate limiting (e.g., 100 req/min) for production readiness
+75. ⬜ Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
+76. ⬜ Add error handling for common cases (network errors, invalid requests)
+77. ⬜ Write API documentation with examples (packages/vide_server/API.md)
+78. ⬜ Create simple HTML test client for testing WebSocket streaming
+79. ⬜ Update root README.md to explain dual-interface architecture
+80. ⬜ Fix multi-turn conversation test flakiness (timeout issues)
+81. ⬜ Add basic rate limiting (e.g., 100 req/min) for production readiness
 
 ---
 
@@ -1502,15 +1602,18 @@ When deploying beyond localhost (post-MVP):
 ✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
 
 **Phase 2.5 - GUI Prerequisites (NOT STARTED):**
+⬜ **Terminology migration** (network → session, camelCase → kebab-case throughout vide_server)
+⬜ **POST /api/v1/sessions endpoint** (replaces POST /api/v1/networks)
 ⬜ **Multiplexed WebSocket at /api/v1/sessions/{session-id}/stream** (single stream for all agents)
 ⬜ **Agent lifecycle events** (`agent-spawned`, `agent-terminated` event types)
 ⬜ **Bidirectional WebSocket support** (client sends `user-message`, `permission-response`, `abort`)
-⬜ **Receive conversation history via `history` event on connect/reconnect** (complete turns only)
-⬜ **Abort support** (client sends `abort`, server sends `aborted` event, cancels current turn)
-⬜ **Permission request events** (server sends `permission-request`, client responds, 60s timeout with auto-deny)
+⬜ **Receive conversation history via `history` event on connect/reconnect** (all agents, with attribution)
+⬜ **Abort support** (client sends `abort`, server cancels ALL active agents, sends `aborted` per agent)
+⬜ **Permission request events** (server sends `permission-request`, client responds, 60s timeout with `permission-timeout` event)
 ⬜ **Model selection support** (sonnet/opus/haiku per-message via `user-message` WebSocket event)
 ⬜ **Per-message options** (model, permission-mode only for MVP; future: temperature, max-tokens, allowed-tools, disallowed-tools)
 ⬜ **Message streaming** (single `message` event with `is-partial` flag and `event-id` - server does NOT accumulate)
+⬜ **Status events** use AgentStatus values (working, waiting-for-agent, waiting-for-user, idle)
 ⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem with path validation, symlinks not followed)
 ⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystem-root, permission-timeout-seconds)
 ⬜ **Error response schema** (consistent JSON format with error, code; WebSocket errors include original-message)
