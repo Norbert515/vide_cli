@@ -9,22 +9,27 @@
 - `dart analyze` clean (no issues)
 - TUI compiles and runs successfully
 
-**Phase 2: IN PROGRESS 🔄** (Started: December 2025)
+**Phase 2: COMPLETE ✅** (Completed: December 2025)
 - ✅ Created `vide_server` package with WebSocket streaming
-- ✅ Implemented POST /api/v1/networks endpoint
-- ✅ Implemented POST /api/v1/networks/{networkId}/messages endpoint
+- ✅ Implemented POST /api/v1/networks endpoint (creates network and starts agent with initial message)
+- ✅ Implemented GET /health endpoint (returns JSON: `{"status": "ok", "version": "0.1.0"}`)
 - ✅ Implemented WebSocket streaming at /api/v1/networks/{networkId}/agents/{agentId}/stream
 - ✅ Fixed duplicate content bug in WebSocket streaming (see Bug Fixes below)
 - ✅ Added integration tests for end-to-end flow and duplicate content detection
-- ⬜ Multi-turn conversation test has pre-existing flakiness (timeout issues)
 
 **Phase 2.5: GUI App Prerequisites 🆕** (Required before vide_flutter)
 - ⬜ Multiplexed bidirectional WebSocket at /api/v1/networks/{networkId}/stream (replaces per-agent streams)
-- ⬜ Bidirectional WebSocket support for permission requests/responses
-- ⬜ Model selection support (Sonnet/Opus per-message)
-- ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem)
+- ⬜ Client→server messages: `user_message`, `permission_response`, `abort`
+- ⬜ Server→client events: `connected`, `history`, `agent_spawned`, `agent_terminated`, `aborted`
+- ⬜ Permission handling: server sends `permission_request`, client responds, 60s timeout with auto-deny
+- ⬜ Model selection: sonnet/opus/haiku per-message via `user_message` (plus permissionMode)
+- ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
+- ⬜ Server configuration file support (~/.vide/api/config.json)
+- ⬜ WebSocket keepalive (20s ping/pong)
 
-**Phase 3: NOT STARTED** (Final: Testing & Documentation)
+**Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
+- Multi-turn conversation test flakiness fix (moved from Phase 2)
+- Basic rate limiting
 
 ### Bug Fixes (Phase 2)
 
@@ -369,11 +374,12 @@ dependencies:
 - The `workingDirectory` parameter is optional and defaults to null
 - When null, `effectiveWorkingDirectory` uses the `workingDirectory` from provider (current directory)
 
-**Create TUI Permission Adapter**:
-- Create `lib/modules/permissions/permission_service_adapter.dart`
-- Implement `PermissionProvider` interface by wrapping existing `PermissionService`
-- The adapter implements `requestPermission()` method using the existing HTTP server + dialog stream system
-- Note: `PermissionRequest` and `PermissionResponse` are now in vide_core, so update TUI to use those
+**TUI Permission Integration**:
+- TUI uses `PermissionService` directly (no separate adapter file needed)
+- `canUseToolCallbackFactoryProvider` is overridden in `main.dart` to use `PermissionService.checkToolPermission`
+- The service delegates to `PermissionChecker` (vide_core) for business logic
+- Interactive prompts are shown via the existing HTTP server + dialog stream system
+- Note: `PermissionChecker` is in vide_core, so both TUI and REST share the same permission logic
 
 **Update TUI Entry Point**:
 - Modify `bin/vide.dart`:
@@ -531,11 +537,19 @@ void main(List<String> args) async {
 
 **3 Core MVP Endpoints** (NO authentication for MVP):
 
+0. **GET /health** - Health check
+   ```
+   Response: {"status": "ok", "version": "0.1.0"} (200)
+   ```
+   **Purpose**: Load balancer health checks, client connection verification, server availability monitoring.
+
 1. **POST /api/v1/networks** - Create network and start agent
    ```
    Request:  {
      "initialMessage": "Write a hello world program",
-     "workingDirectory": "/Users/chris/myproject"
+     "workingDirectory": "/Users/chris/myproject",
+     "model": "opus",           // optional: "sonnet" (default), "opus", "haiku"
+     "permissionMode": "ask"    // optional: "acceptEdits" (default), "plan", "ask", "deny"
    }
    Response: {
      "networkId": "uuid",
@@ -547,15 +561,9 @@ void main(List<String> args) async {
    - `workingDirectory` is required for MVP
    - Response MUST include `mainAgentId` so client can open WebSocket stream immediately
    - `mainAgentId` is the first agent in the network (the orchestrator agent)
+   - `model` and `permissionMode` are optional (defaults applied if omitted)
 
-2. **POST /api/v1/networks/:networkId/messages** - Send message to agent
-   ```
-   Request:  {"content": "Now make it print goodbye too"}
-   Response: {"status": "sent"}
-   ```
-   **Note**: Messages are automatically queued if agent is busy. ClaudeClient has built-in FIFO message queue (`_inbox`), so concurrent requests are handled sequentially.
-
-3. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (WebSocket)
+2. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (WebSocket)
    ```
    Response: WebSocket stream (JSON events)
    Event format (includes agent context for multiplexing):
@@ -577,8 +585,9 @@ void main(List<String> args) async {
      "taskName": "Implementing login flow",
      "type": "tool_use",
      "data": {
-       "tool": "Write",
-       "params": {...}
+       "toolUseId": "tool-uuid-1",
+       "toolName": "Write",
+       "toolInput": {...}
      },
      "timestamp": "2025-12-21T10:00:01Z"
    }
@@ -589,7 +598,10 @@ void main(List<String> args) async {
      "taskName": "Implementing login flow",
      "type": "tool_result",
      "data": {
-       "result": "..."
+       "toolUseId": "tool-uuid-1",
+       "toolName": "Write",
+       "result": "...",
+       "isError": false
      },
      "timestamp": "2025-12-21T10:00:02Z"
    }
@@ -619,7 +631,8 @@ void main(List<String> args) async {
 **Implementation note**: Endpoints run actual ClaudeClient instances. WebSocket streams real-time agent responses.
 **Working directory behavior**:
 - On `POST /networks`, call `startNew(initialMessage, workingDirectory: userRequestedDirectory)` which atomically creates the network with the working directory set. This is stored in `worktreePath` and persisted immediately.
-- On `/messages` and `/stream`, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
+- On WebSocket connect, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
+- Subsequent messages are sent via the `user_message` WebSocket event (see Phase 2.5.1).
 
 #### 2.5 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
@@ -634,12 +647,39 @@ void main(List<String> args) async {
 **Purpose**: Simple auto-approve/deny permission rules for MVP
 
 **Strategy**:
-- Auto-approve safe read-only operations (Read, Grep, Glob, git status)
+- Auto-approve safe read-only operations (Read, Grep, Glob, git status, git log, git diff)
 - Auto-approve Write/Edit to project directory only
-- Auto-deny dangerous operations (Bash with rm/dd/mkfs, web requests to non-localhost)
+- Auto-deny dangerous operations (see list below)
 - No user interaction needed
 
-**Note**: For MVP testing on localhost. Post-MVP will add webhook callbacks.
+**Dangerous commands (auto-denied)**:
+
+*File operations:*
+- `rm -rf`, `rm -fr`, `rm -r /` (recursive deletion)
+- `rmdir` on system paths
+
+*Disk operations:*
+- `dd` (raw disk access)
+- `mkfs` (filesystem creation)
+- `fdisk`, `parted` (partition manipulation)
+- `mount`, `umount` (filesystem mounting)
+
+*System modification:*
+- `chmod 777` (world-writable permissions)
+- `chown` (ownership changes)
+- `sudo`, `su` (privilege escalation)
+- `systemctl`, `service` (service management)
+
+*Network operations (external):*
+- `curl`, `wget` to non-localhost targets
+- `WebFetch` to non-localhost URLs
+- `ssh`, `scp` (remote access)
+
+*Package management:*
+- `apt`, `yum`, `brew`, `npm install -g` (global installs)
+- `pip install` without `--user`
+
+**Note**: For MVP testing on localhost. Post-MVP will add interactive permission handling via WebSocket.
 
 #### 2.7 Implement DTOs (Data Transfer Objects)
 **New file**: `packages/vide_server/lib/dto/network_dto.dart` (~150 lines)
@@ -647,8 +687,8 @@ void main(List<String> args) async {
 **Purpose**: Request/response schemas
 
 **Key DTOs**:
-- `CreateNetworkRequest` - { initialMessage, workingDirectory (required) }
-- `SendMessageRequest` - { content }
+- `CreateNetworkRequest` - { initialMessage, workingDirectory (required), model?, permissionMode? }
+- `WebSocketClientMessage` - { type, content?, model?, permissionMode?, requestId?, allow?, ... } (for user_message, permission_response, abort)
 - `WebSocketEvent` - Enhanced for multiplexing:
   ```dart
   class WebSocketEvent {
@@ -681,8 +721,9 @@ Replace the per-agent WebSocket streams with a single network-level multiplexed 
 **Features**:
 - Single WebSocket connection per network receives events from ALL agents (main + spawned)
 - Each event includes attribution fields: `agentId`, `agentType`, `agentName`, `taskName`
-- WebSocket is bidirectional: server sends events, client can send responses
+- WebSocket is fully bidirectional: server sends events, client sends messages and commands
 - Client receives unified timeline without managing multiple connections
+- All session messages sent via WebSocket (no HTTP POST for messages)
 
 **Event format** (server → client):
 ```json
@@ -697,6 +738,45 @@ Replace the per-agent WebSocket streams with a single network-level multiplexed 
 }
 ```
 
+**Message format** (client → server):
+
+| Type | Description | Fields |
+|------|-------------|--------|
+| `user_message` | Send a message to the conversation | `content`, `model?`, `permissionMode?` |
+| `permission_response` | Allow/deny a permission request | `requestId`, `allow`, `updatedInput?`, `message?` |
+| `abort` | Cancel in-progress agent operation | (none) |
+
+**`user_message` example**:
+```json
+{
+  "type": "user_message",
+  "content": "Now make it print goodbye too",
+  "model": "opus",
+  "permissionMode": "ask"
+}
+```
+
+**`abort` example**:
+```json
+{
+  "type": "abort"
+}
+```
+
+**Error handling for unknown message types**:
+```json
+{
+  "type": "error",
+  "data": {
+    "message": "Unknown message type: foo",
+    "originalMessage": {...}
+  },
+  "timestamp": "2025-12-21T10:00:00Z"
+}
+```
+
+**Future work for `user_message`**: `temperature`, `maxTokens`, `allowedTools`, `disallowedTools`
+
 #### 2.5.2 Bidirectional Permission Handling
 
 Add permission request/response flow via the WebSocket connection.
@@ -706,6 +786,9 @@ Add permission request/response flow via the WebSocket connection.
 {
   "type": "permission_request",
   "agentId": "uuid",
+  "agentType": "implementation",
+  "agentName": "Auth Fix",
+  "taskName": "Implementing login flow",
   "data": {
     "requestId": "uuid",
     "toolName": "Bash",
@@ -739,30 +822,36 @@ Or deny:
 **Implementation notes**:
 - Server blocks agent execution until client responds or times out
 - Mimics `CanUseToolCallback` pattern from claude_sdk
-- Timeout should be configurable (default: 60 seconds)
+- Timeout is configurable (default: 60 seconds)
+- **On timeout: auto-deny** - If client doesn't respond within timeout, permission is denied
+- Timeout can be configured in server config file (`~/.vide/api/config.json`)
 
-#### 2.5.3 Model Selection Support
+#### 2.5.3 Model and Options Selection Support
 
-Add optional `model` field to message endpoint.
+Add optional per-message configuration fields to control model and permissions.
 
-**Endpoint**: `POST /api/v1/networks/:networkId/messages`
-
-**Updated request body**:
-```json
-{
-  "content": "Write hello.dart",
-  "model": "opus"
-}
-```
+**Where options are specified**:
+1. `POST /api/v1/networks` - For the initial message (see Section 2.4)
+2. `user_message` WebSocket event - For subsequent messages (see Section 2.5.1)
 
 **Valid model values**:
 - `"sonnet"` (default) - Claude Sonnet
 - `"opus"` - Claude Opus
+- `"haiku"` - Claude Haiku (faster, lower cost)
+
+**Valid permissionMode values**:
+- `"acceptEdits"` (default) - Auto-approve tool use
+- `"plan"` - Plan-only mode, no code execution
+- `"ask"` - Request user permission for each tool use (triggers permission_request events)
+- `"deny"` - Block all tool use
 
 **Implementation notes**:
-- Model selection applies per-message, allowing users to switch mid-conversation
-- If `model` is omitted, defaults to `"sonnet"`
-- Pass model to ClaudeClient when sending message
+- All fields are optional; omitted fields use agent defaults
+- Model/mode selection applies per-message, allowing users to switch mid-conversation
+- Options are passed to ClaudeClient when processing the message
+- Validation returns error event for invalid model/permissionMode values
+
+**Future work**: `temperature`, `maxTokens`, `allowedTools`, `disallowedTools`
 
 #### 2.5.4 Filesystem Browsing API
 
@@ -800,14 +889,192 @@ Response:
 - Server enforces a configurable root directory (configured via server config file)
 - All operations restricted to within the allowed scope
 - Prevents path traversal attacks (e.g., `../../../etc/passwd`)
+- **Symlinks are NOT followed** to prevent escaping the configured `filesystemRoot`
+- **Path validation**: Paths are canonicalized and must:
+  1. Exist on the filesystem (for listings)
+  2. Be at or below the configured `filesystemRoot`
 
-**Configuration** (in server config file, e.g., `~/.vide/api/config.json`):
+**Configuration** (in server config file: `~/.vide/api/config.json`):
 ```json
 {
-  "filesystemRoot": "/Users/chris/projects"
+  "filesystemRoot": "/Users/chris/projects",
+  "permissionTimeoutSeconds": 60
 }
 ```
-If not configured, defaults to user's home directory.
+
+**Config file behavior**:
+- If file doesn't exist, server uses defaults for all values
+- `filesystemRoot` defaults to user's home directory
+- `permissionTimeoutSeconds` defaults to 60
+
+#### 2.5.5 Error Response Schema
+
+All HTTP endpoints use a consistent error response format.
+
+**Error response** (HTTP 4xx/5xx):
+```json
+{
+  "error": "Human-readable error message",
+  "code": "ERROR_CODE",
+  "details": {
+    "field": "additional context"
+  }
+}
+```
+
+**Common error codes**:
+- `INVALID_REQUEST` - Malformed request body or missing required fields
+- `NOT_FOUND` - Network, agent, or resource not found
+- `VALIDATION_ERROR` - Invalid field values (e.g., invalid model name)
+- `INTERNAL_ERROR` - Unexpected server error
+
+**WebSocket errors** use `WebSocketEvent.error()` format for consistency with other events.
+
+#### 2.5.6 WebSocket Lifecycle Documentation
+
+**Connection lifecycle**:
+
+1. **Connect**: Client opens WebSocket to `/api/v1/networks/{networkId}/stream`
+2. **Handshake**: Server sends `connected` event with network metadata
+3. **State sync**: Server sends `status` events for all current agents
+4. **Catch-up**: If conversation has messages, server sends `history` event with full conversation
+5. **Streaming**: Server streams events as agents work
+6. **Bidirectional**: Client can send messages and commands
+
+**Events (server → client)**:
+| Type | Description |
+|------|-------------|
+| `connected` | Initial connection with network metadata |
+| `history` | Full conversation history for client display |
+| `status` | Agent status changes (idle, working, waitingForAgent, waitingForUser) |
+| `message` | New message started (includes initial content) |
+| `message_delta` | Streaming chunk of current message |
+| `tool_use` | Agent is invoking a tool |
+| `tool_result` | Tool execution completed |
+| `permission_request` | Tool needs user approval |
+| `agent_spawned` | New agent added to network |
+| `agent_terminated` | Agent removed from network |
+| `aborted` | Confirms abort, includes interrupted agentId |
+| `done` | Agent turn completed |
+| `error` | Error occurred |
+
+**Messages (client → server)**:
+| Type | Description |
+|------|-------------|
+| `user_message` | Send a message to the conversation |
+| `permission_response` | Allow/deny a permission request |
+| `abort` | Cancel in-progress agent operation |
+
+**Event data structures**:
+
+`connected`:
+```json
+{
+  "type": "connected",
+  "networkId": "uuid",
+  "mainAgentId": "uuid",
+  "sessionId": "uuid",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "agents": [
+    {"id": "uuid", "type": "main", "name": "Main Agent", "status": "idle"}
+  ],
+  "metadata": {
+    "workingDirectory": "/path/to/project",
+    "hasExistingConversation": false
+  }
+}
+```
+
+`history`:
+```json
+{
+  "type": "history",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "messages": [
+      {"role": "user", "content": "Write hello.dart"},
+      {"role": "assistant", "content": "I'll create that file for you..."}
+    ]
+  }
+}
+```
+
+`agent_spawned`:
+```json
+{
+  "type": "agent_spawned",
+  "agentId": "uuid",
+  "agentType": "implementation",
+  "agentName": "Auth Fix",
+  "taskName": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "spawnedBy": "parent-agent-uuid"
+  }
+}
+```
+
+`agent_terminated`:
+```json
+{
+  "type": "agent_terminated",
+  "agentId": "uuid",
+  "agentType": "implementation",
+  "agentName": "Auth Fix",
+  "taskName": "Implementing login",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "terminatedBy": "parent-agent-uuid",
+    "reason": "Task complete",
+    "tokenUsage": {
+      "inputTokens": 1234,
+      "outputTokens": 567,
+      "totalCostUsd": 0.05
+    }
+  }
+}
+```
+
+`aborted`:
+```json
+{
+  "type": "aborted",
+  "agentId": "uuid",
+  "agentType": "main",
+  "agentName": "Main Agent",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {}
+}
+```
+
+**Disconnection handling**:
+- **Client disconnects**: Server cleans up all subscriptions for that connection
+- **Server closes connection**: Client should attempt reconnection with exponential backoff
+- **Reconnection**: On reconnect, client receives current state via `connected` + `status` + `history` events
+- **Agent continues running**: If client disconnects, agents keep running; client can reconnect to resume streaming
+
+#### 2.5.7 WebSocket Connection Health
+
+**Ping/Pong Keepalive**:
+- Server sends a Ping frame every 20 seconds
+- Client must respond with Pong within 20 seconds
+- If no Pong is received, server closes the connection with code 1001 (Going Away)
+- Dart WebSocket handles this via the `pingInterval` property
+
+**Why keepalive matters**:
+- Detects broken connections quickly (instead of 30+ minute TCP timeouts)
+- Prevents proxy infrastructure from terminating idle connections
+- Measures connection latency via round-trip time
+
+#### 2.5.8 WebSocket Close Codes
+
+Standard WebSocket close codes are used (RFC 6455):
+- `1000` - Normal closure
+- `1001` - Going Away (e.g., server shutdown, ping timeout)
+- `1002` - Protocol Error
+- `1003` - Unsupported Data
+- `1006` - Abnormal Closure (connection lost without close frame)
+- `1011` - Internal Error
 
 ---
 
@@ -836,10 +1103,11 @@ If not configured, defaults to user's home directory.
 #### 3.1 Manual Testing
 **Test scenario**: End-to-end chat flow
 1. Start server (from `packages/vide_server`): `dart run bin/vide_server.dart`
-2. Create network (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/networks -d '{"initialMessage":"Hello","workingDirectory":"."}'`
-3. Open WebSocket connection in browser or wscat
-4. Send message: `curl -X POST http://127.0.0.1:<port>/api/v1/networks/{id}/messages -d '{"content":"Write hello.dart"}'`
-5. Watch agent response in WebSocket stream
+2. Create network (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/networks -H "Content-Type: application/json" -d '{"initialMessage":"Hello","workingDirectory":"."}'`
+3. Open WebSocket connection: `wscat -c ws://127.0.0.1:<port>/api/v1/networks/{networkId}/stream`
+4. Receive initial response stream from the initial message
+5. Send follow-up message via WebSocket: `{"type":"user_message","content":"Write hello.dart"}`
+6. Watch agent response in WebSocket stream
 
 #### 3.2 Documentation
 **New files**:
@@ -862,18 +1130,23 @@ If not configured, defaults to user's home directory.
 - `test/posthog_refactor_test.dart` - Verify PostHog refactor
 - `test/provider_override_test.dart` - Verify provider overrides work
 
-**packages/vide_server/** (8 files, ~750 lines total for MVP)
+**packages/vide_server/** (7 files for Phase 2, ~710 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
-- `lib/routes/network_routes.dart` - 3 core endpoints with WebSocket streaming (200 lines)
+- `lib/routes/network_routes.dart` - 4 core endpoints with WebSocket streaming (200 lines)
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
 - `lib/services/network_cache_manager.dart` - Hybrid caching for networks (40 lines)
 - `lib/dto/network_dto.dart` - Request/response schemas including WebSocketEvent (150 lines)
-- `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
 
-**vide_cli (root)** (1 file, TUI-specific)
-- `lib/modules/permissions/permission_service_adapter.dart` - Adapter wrapping PermissionService to implement PermissionProvider interface (40 lines)
+**packages/vide_server/** (additional files for Phase 2.5)
+- `lib/services/server_config.dart` - Config file loading from ~/.vide/api/config.json (~50 lines)
+- `lib/services/interactive_permission_service.dart` - WebSocket-based permission handling with timeout (~100 lines)
+- `lib/routes/filesystem_routes.dart` - Filesystem browsing endpoints (~120 lines)
+
+**vide_cli (root)** (0 new files for Phase 2.5)
+- TUI uses existing `PermissionService` directly with `canUseToolCallbackFactoryProvider` override
+- No adapter file needed - permission logic is shared via `PermissionChecker` in vide_core
 
 ### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
 
@@ -1009,9 +1282,9 @@ If not configured, defaults to user's home directory.
 26. ✅ **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); workingDirProvider overridden to throw error (defensive programming - ensures workingDirectory always passed to startNew())
 27. ✅ Implement CORS middleware (allow all origins for localhost MVP)
 28. ✅ Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
-29. ✅ Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, WebSocketEvent)
+29. ✅ Implement network DTOs (CreateNetworkRequest with mainAgentId in response, WebSocketEvent)
 30. ✅ Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
-31. ✅ Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
+31. ✅ ~~Implement POST /api/v1/networks/:id/messages~~ (REMOVED - messages sent via WebSocket, see Phase 2.5.1)
 32. ✅ Implement WebSocket streaming at /api/v1/networks/:id/agents/:agentId/stream - WebSocket streaming with multiplexed sub-agent activity (changed from SSE to WebSocket for better bidirectional support)
 33. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_server` then `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings; verify all three packages are clean
 34. ✅ **Test MVP end-to-end**: create network → get mainAgentId → open WebSocket stream → send message → watch agent responses
@@ -1019,22 +1292,57 @@ If not configured, defaults to user's home directory.
 36. ✅ **Add integration tests**: End-to-end test and duplicate content detection test in `packages/vide_server/test/integration/end_to_end_test.dart`
 37. ⬜ **Verify TUI still works after Phase 2 changes** (pending manual verification)
 
-### Phase 2.5: GUI App Prerequisites (Day 3.5)
-38. ⬜ Implement multiplexed WebSocket at /api/v1/networks/{networkId}/stream
-39. ⬜ Add bidirectional message handling to WebSocket (client can send permission_response)
-40. ⬜ Implement permission_request event when tool needs approval
-41. ⬜ Add model selection support to POST /messages endpoint (Sonnet/Opus)
-42. ⬜ Implement GET /api/v1/filesystem (directory listing)
-43. ⬜ Implement POST /api/v1/filesystem (create folder)
-44. ⬜ Add integration tests for new endpoints
-45. ⬜ Update WebSocketEvent DTO with permission_request type
+### Phase 2.5: GUI App Prerequisites (Day 3.5-4)
 
-### Phase 3: Testing & Documentation (Day 4)
-46. Manual testing with curl and browser (full chat conversation workflow)
-47. Add error handling for common cases (network errors, invalid requests)
-48. Write API documentation with curl examples (packages/vide_server/API.md)
-49. Create simple HTML test client for testing WebSocket streaming
-50. Update root README.md to explain dual-interface architecture
+**2.5.1 Multiplexed Network WebSocket:**
+38. ⬜ Create `_NetworkStreamManager` class to track all agents in network
+39. ⬜ Implement `streamNetworkWebSocket()` handler at `/api/v1/networks/{networkId}/stream`
+40. ⬜ Add multi-agent subscription logic (subscribe to all current + spawned agents)
+41. ⬜ Add `agent_spawned` and `agent_terminated` event types
+42. ⬜ Remove old per-agent endpoint (`/agents/{agentId}/stream`)
+43. ⬜ Update integration tests for network-level WebSocket
+
+**2.5.2 Bidirectional Permission Handling:**
+44. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
+45. ⬜ Add `permission_request` event type to WebSocketEvent
+46. ⬜ Implement client message handling for `permission_response`
+47. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
+48. ⬜ Add integration tests for permission request/response flow
+
+**2.5.3 Model and Options Selection:**
+49. ⬜ Add `user_message` client→server handler to WebSocket (content, model?, permissionMode?)
+50. ⬜ Add `abort` client→server handler to WebSocket (cancels in-progress agent operation)
+51. ⬜ Add `aborted` server→client event (confirms abort with interrupted agentId)
+52. ⬜ Add `history` server→client event (send full conversation on reconnect)
+53. ⬜ Extend `CreateNetworkRequest` DTO with model, permissionMode (for initial message)
+54. ⬜ Add validation for model (sonnet/opus/haiku) and permissionMode values
+55. ⬜ Add error response for unknown WebSocket message types (include originalMessage)
+56. ⬜ Future work: temperature, maxTokens, allowedTools, disallowedTools
+
+**2.5.4 Filesystem Browsing API:**
+57. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
+58. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
+59. ⬜ Register filesystem routes in server
+60. ⬜ Add integration tests for filesystem browsing
+
+**2.5.5 WebSocket Connection Health:**
+61. ⬜ Configure 20-second ping interval on WebSocket connections
+62. ⬜ Handle ping timeout (close with code 1001)
+
+**2.5.6-8 Documentation & Examples:**
+63. ⬜ Add `ErrorResponse` class to DTOs
+64. ⬜ Document WebSocket lifecycle in code comments
+65. ⬜ Update CLAUDE.md with new API endpoints
+66. ⬜ Update `packages/vide_server/example/client.dart` to use WebSocket messaging (replace HTTP POST)
+
+### Phase 3: Testing & Documentation (Day 5)
+67. Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
+68. Add error handling for common cases (network errors, invalid requests)
+69. Write API documentation with examples (packages/vide_server/API.md)
+70. Create simple HTML test client for testing WebSocket streaming
+71. Update root README.md to explain dual-interface architecture
+72. Fix multi-turn conversation test flakiness (timeout issues)
+73. Add basic rate limiting (e.g., 100 req/min) for production readiness
 
 ---
 
@@ -1128,20 +1436,27 @@ When deploying beyond localhost (post-MVP):
 ✅ **REST server starts on localhost (no auth - testing only)**
 ✅ **REST server auto-selects an unused port and prints the full URL**
 ✅ **Can create network with initial prompt via POST /api/v1/networks**
-✅ **Can send messages via POST .../messages**
 ✅ **Can receive agent responses in real-time via WebSocket stream** (changed from SSE to WebSocket)
 ✅ **WebSocket streaming correctly handles deltas without duplicate content**
-⬜ **Full chat conversation works end-to-end via REST API** (multi-turn test is flaky)
+⬜ **Full chat conversation works end-to-end via REST API** (multi-turn test flaky - moved to Phase 3)
 ⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)** (not yet tested)
 ✅ **Permissions auto-approve safe operations, deny dangerous ones**
 ✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
 
 **Phase 2.5 - GUI Prerequisites (NOT STARTED):**
 ⬜ **Multiplexed WebSocket at /api/v1/networks/{networkId}/stream** (single stream for all agents)
-⬜ **Bidirectional WebSocket support** (client can send permission_response)
-⬜ **Permission request events** (server sends permission_request, client responds)
-⬜ **Model selection support** (Sonnet/Opus per-message via POST /messages)
-⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem)
+⬜ **Agent lifecycle events** (`agent_spawned`, `agent_terminated` event types)
+⬜ **Bidirectional WebSocket support** (client sends `user_message`, `permission_response`, `abort`)
+⬜ **Receive conversation history via `history` event on connect/reconnect**
+⬜ **Abort support** (client sends `abort`, server sends `aborted` event)
+⬜ **Permission request events** (server sends permission_request, client responds, 60s timeout with auto-deny)
+⬜ **Model selection support** (sonnet/opus/haiku per-message via `user_message` WebSocket event)
+⬜ **Per-message options** (model, permissionMode only for MVP; future: temperature, maxTokens, allowedTools, disallowedTools)
+⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem with path validation, symlinks not followed)
+⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystemRoot, permissionTimeout)
+⬜ **Error response schema** (consistent JSON format with error, code, details)
+⬜ **WebSocket keepalive** (20s ping/pong interval, close with 1001 on timeout)
+⬜ **WebSocket lifecycle documented** (connection, disconnection, reconnection handling)
 ⬜ **All GUI prerequisites tested and documented**
 
 ---
