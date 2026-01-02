@@ -4,7 +4,9 @@
 set -e
 
 REPO="Norbert515/vide_cli"
-INSTALL_DIR="$HOME/.local/bin"
+VIDE_HOME="$HOME/.vide"
+VIDE_BIN_DIR="$VIDE_HOME/bin"
+WRAPPER_DIR="$HOME/.local/bin"
 BINARY_NAME="vide"
 
 # Detect OS and architecture
@@ -79,7 +81,7 @@ prompt_add_to_path() {
     local shell_config_name=$(basename "$shell_config")
 
     echo ""
-    echo "$INSTALL_DIR is not in your PATH."
+    echo "$WRAPPER_DIR is not in your PATH."
     printf "Add it to your shell config ($shell_config_name)? [Y/n] "
 
     # Read a single character, default to Y if just Enter
@@ -111,6 +113,27 @@ prompt_add_to_path() {
     esac
 }
 
+# Create the wrapper script that applies updates before launching
+create_wrapper_script() {
+    cat > "$WRAPPER_DIR/$BINARY_NAME" << 'WRAPPER_EOF'
+#!/bin/bash
+VIDE_HOME="$HOME/.vide"
+VIDE_BIN="$VIDE_HOME/bin/vide"
+PENDING_UPDATE="$VIDE_HOME/updates/pending/vide"
+PENDING_META="$VIDE_HOME/updates/pending/metadata.json"
+
+# Apply pending update if exists
+if [ -f "$PENDING_UPDATE" ]; then
+    mv "$PENDING_UPDATE" "$VIDE_BIN"
+    chmod +x "$VIDE_BIN"
+    rm -f "$PENDING_META"
+fi
+
+exec "$VIDE_BIN" "$@"
+WRAPPER_EOF
+    chmod +x "$WRAPPER_DIR/$BINARY_NAME"
+}
+
 main() {
     echo "Installing vide..."
 
@@ -127,8 +150,21 @@ main() {
     fi
     echo "Latest version: $version"
 
-    # Create install directory
-    mkdir -p "$INSTALL_DIR"
+    # Create directories
+    mkdir -p "$VIDE_BIN_DIR"
+    mkdir -p "$WRAPPER_DIR"
+
+    # Handle migration: remove old binary at ~/.local/bin/vide if it's not a wrapper
+    if [ -f "$WRAPPER_DIR/$BINARY_NAME" ]; then
+        # Check if it's already a wrapper script (starts with #!/bin/bash and contains VIDE_HOME)
+        if head -n 5 "$WRAPPER_DIR/$BINARY_NAME" 2>/dev/null | grep -q "VIDE_HOME"; then
+            echo "Wrapper script already exists, updating..."
+        else
+            echo "Migrating existing binary to new location..."
+            # Move the old binary to the new location
+            mv "$WRAPPER_DIR/$BINARY_NAME" "$VIDE_BIN_DIR/$BINARY_NAME"
+        fi
+    fi
 
     # Determine download file and URL based on platform
     local download_file
@@ -156,21 +192,26 @@ main() {
         local temp_dir=$(mktemp -d)
         curl -fsSL "$download_url" -o "$temp_dir/$download_file"
         tar -xzf "$temp_dir/$download_file" -C "$temp_dir"
-        mv "$temp_dir/vide" "$INSTALL_DIR/$BINARY_NAME"
+        mv "$temp_dir/vide" "$VIDE_BIN_DIR/$BINARY_NAME"
         rm -rf "$temp_dir"
     else
         # Download raw binary
-        curl -fsSL "$download_url" -o "$INSTALL_DIR/$BINARY_NAME"
+        curl -fsSL "$download_url" -o "$VIDE_BIN_DIR/$BINARY_NAME"
     fi
 
     # Make executable
-    chmod +x "$INSTALL_DIR/$BINARY_NAME"
+    chmod +x "$VIDE_BIN_DIR/$BINARY_NAME"
+
+    # Create wrapper script
+    create_wrapper_script
 
     echo ""
-    echo "Successfully installed vide $version to $INSTALL_DIR/$BINARY_NAME"
+    echo "Successfully installed vide $version"
+    echo "  Binary: $VIDE_BIN_DIR/$BINARY_NAME"
+    echo "  Wrapper: $WRAPPER_DIR/$BINARY_NAME"
 
-    # Check if install directory is in PATH
-    if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
+    # Check if wrapper directory is in PATH
+    if [[ ":$PATH:" != *":$WRAPPER_DIR:"* ]]; then
         prompt_add_to_path
     fi
 

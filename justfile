@@ -5,9 +5,12 @@ default:
 
 # Install vide globally (native compiled)
 install: compile
-    rm -f ~/.local/bin/vide
-    cp vide ~/.local/bin/vide
-    codesign -s - ~/.local/bin/vide
+    mkdir -p ~/.vide/bin
+    mkdir -p ~/.local/bin
+    cp vide ~/.vide/bin/vide
+    codesign -s - ~/.vide/bin/vide
+    cp scripts/vide-wrapper.sh ~/.local/bin/vide
+    chmod +x ~/.local/bin/vide
 
 # Compile locally (for testing)
 compile:

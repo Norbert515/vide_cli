@@ -105,6 +105,7 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
 
   /// Check for updates in the background
   Future<void> checkForUpdates({bool silent = true}) async {
+
     // Check if auto-updates are disabled via environment variable
     if (Platform.environment['DISABLE_AUTOUPDATER'] == '1') {
       return;
@@ -358,71 +359,6 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
       final binaryExists = File(_pendingUpdatePath).existsSync();
       return pendingVersion == version && binaryExists;
     } catch (e) {
-      return false;
-    }
-  }
-
-  /// Apply the pending update by replacing the current executable
-  ///
-  /// This should be called on startup if there's a pending update.
-  /// Returns true if the update was applied successfully.
-  static Future<bool> applyPendingUpdate(VideConfigManager configManager) async {
-    final updatesDir = path.join(configManager.configRoot, 'updates');
-    final pendingBinaryPath = path.join(
-      updatesDir,
-      'pending',
-      Platform.isWindows ? 'vide.exe' : 'vide',
-    );
-    final metadataPath = path.join(updatesDir, 'pending', 'metadata.json');
-
-    final pendingBinary = File(pendingBinaryPath);
-    final metadataFile = File(metadataPath);
-
-    if (!pendingBinary.existsSync() || !metadataFile.existsSync()) {
-      return false;
-    }
-
-    try {
-      // Get the current executable path
-      final currentExe = Platform.resolvedExecutable;
-
-      // On some systems, we can't replace a running executable directly
-      // So we use a backup-and-replace strategy
-      final backupPath = '$currentExe.backup';
-
-      // Backup current
-      if (File(currentExe).existsSync()) {
-        File(currentExe).copySync(backupPath);
-      }
-
-      // Copy new version
-      pendingBinary.copySync(currentExe);
-
-      // Make executable on Unix
-      if (!Platform.isWindows) {
-        await Process.run('chmod', ['+x', currentExe]);
-      }
-
-      // Clean up pending update
-      pendingBinary.deleteSync();
-      metadataFile.deleteSync();
-
-      // Remove backup after successful update
-      final backup = File(backupPath);
-      if (backup.existsSync()) {
-        backup.deleteSync();
-      }
-
-      return true;
-    } catch (e) {
-      // If anything fails, try to restore backup
-      final currentExe = Platform.resolvedExecutable;
-      final backupPath = '$currentExe.backup';
-      final backup = File(backupPath);
-      if (backup.existsSync()) {
-        backup.copySync(currentExe);
-        backup.deleteSync();
-      }
       return false;
     }
   }
