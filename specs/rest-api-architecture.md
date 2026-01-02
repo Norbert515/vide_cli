@@ -26,7 +26,7 @@
 - ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
 - ⬜ Server configuration file support (~/.vide/api/config.json)
 - ⬜ WebSocket keepalive (20s ping/pong)
-- ⬜ Message streaming: single `message` event with `is-partial` flag and `event-id` for client accumulation
+- ⬜ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` for client accumulation and deduplication
 
 **Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
 - Multi-turn conversation test flakiness fix (moved from Phase 2)
@@ -731,7 +731,7 @@ Replace the per-agent WebSocket streams with a single session-level multiplexed 
 
 **Features**:
 - Single WebSocket connection per session receives events from ALL agents (main + spawned)
-- Each event includes attribution fields: `agent-id`, `agent-type`, `agent-name`, `task-name`
+- Each event includes: `seq` (sequence number), `event-id` (UUID), attribution fields (`agent-id`, `agent-type`, `agent-name`, `task-name`), and `timestamp`
 - WebSocket is fully bidirectional: server sends events, client sends messages and commands
 - Client receives unified timeline without managing multiple connections
 - All session messages sent via WebSocket (no HTTP POST for messages)
@@ -744,14 +744,15 @@ All JSON uses kebab-case for property names and event types.
 
 ```json
 {
-  "type": "message",
+  "seq": 3,
   "event-id": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "message",
   "is-partial": true,
   "agent-id": "660e8400-e29b-41d4-a716-446655440001",
   "agent-type": "implementation",
   "agent-name": "Auth Fix",
   "task-name": "Implementing login flow",
-  "data": {"content": "Let me "},
+  "data": {"role": "assistant", "content": "Let me "},
   "timestamp": "2025-12-21T10:00:00Z"
 }
 ```
@@ -759,15 +760,74 @@ All JSON uses kebab-case for property names and event types.
 **Message streaming model**:
 - Single `message` event type with `is-partial` flag
 - `is-partial: true` for streaming chunks, `is-partial: false` for complete message
-- `event-id` (UUID) correlates chunks for client-side accumulation
+- `event-id` (UUID) uniquely identifies each event, used to correlate partial message chunks
+- `seq` (integer) is a session-scoped sequence number for ordering and deduplication
 - Final event has `is-partial: false` (content may be empty)
 
 **Example streaming sequence**:
 ```json
-{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "Let me "}, ...}
-{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "help you "}, ...}
-{"type": "message", "event-id": "550e8400-...", "is-partial": true, "data": {"content": "with that."}, ...}
-{"type": "message", "event-id": "550e8400-...", "is-partial": false, "data": {"content": ""}, ...}
+{"seq": 3, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "Let me "}, ...}
+{"seq": 4, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "help you "}, ...}
+{"seq": 5, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "with that."}, ...}
+{"seq": 6, "event-id": "550e8400-...", "type": "message", "is-partial": false, "data": {"role": "assistant", "content": ""}, ...}
+```
+
+**Tool event examples**:
+
+`tool-use` event (agent invoking a tool):
+```json
+{
+  "seq": 5,
+  "event-id": "uuid",
+  "type": "tool-use",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "tool-use-id": "tool-uuid-1",
+    "tool-name": "Bash",
+    "tool-input": {"command": "ls -la"}
+  }
+}
+```
+
+`tool-result` event (tool execution completed):
+```json
+{
+  "seq": 6,
+  "event-id": "uuid",
+  "type": "tool-result",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
+  "timestamp": "2025-12-21T10:00:01Z",
+  "data": {
+    "tool-use-id": "tool-uuid-1",
+    "tool-name": "Bash",
+    "result": "file1.txt\nfile2.txt",
+    "is-error": false
+  }
+}
+```
+
+`done` event (agent turn completed):
+```json
+{
+  "seq": 10,
+  "event-id": "uuid",
+  "type": "done",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "reason": "complete"
+  }
+}
 ```
 
 **Message format** (client → server):
@@ -775,7 +835,7 @@ All JSON uses kebab-case for property names and event types.
 | Type | Description | Fields |
 |------|-------------|--------|
 | `user-message` | Send a message to the conversation | `content`, `model?`, `permission-mode?` |
-| `permission-response` | Allow/deny a permission request | `request-id`, `allow`, `updated-input?`, `message?` |
+| `permission-response` | Allow/deny a permission request | `request-id`, `allow`, `message?` |
 | `abort` | Cancel in-progress agent operation | (none) |
 
 **`user-message` example**:
@@ -807,10 +867,13 @@ Note: Tool executions that have already completed cannot be undone. Abort only a
 **Error handling for unknown message types**:
 ```json
 {
+  "seq": 11,
+  "event-id": "990e8400-e29b-41d4-a716-446655440011",
   "type": "error",
   "agent-id": "550e8400-e29b-41d4-a716-446655440000",
   "agent-type": "main",
   "agent-name": "Main Agent",
+  "task-name": null,
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
     "message": "Unknown message type: foo",
@@ -829,6 +892,8 @@ Add permission request/response flow via the WebSocket connection.
 **Permission request** (server → client):
 ```json
 {
+  "seq": 8,
+  "event-id": "770e8400-e29b-41d4-a716-446655440008",
   "type": "permission-request",
   "agent-id": "550e8400-e29b-41d4-a716-446655440000",
   "agent-type": "implementation",
@@ -849,12 +914,11 @@ Add permission request/response flow via the WebSocket connection.
 {
   "type": "permission-response",
   "request-id": "660e8400-e29b-41d4-a716-446655440001",
-  "allow": true,
-  "updated-input": {"command": "rm -rf node_modules"}
+  "allow": true
 }
 ```
 
-Or deny:
+Or deny (with optional message):
 ```json
 {
   "type": "permission-response",
@@ -875,6 +939,8 @@ Or deny:
 2. Sends `permission-timeout` event to client:
 ```json
 {
+  "seq": 9,
+  "event-id": "770e8400-e29b-41d4-a716-446655440009",
   "type": "permission-timeout",
   "agent-id": "550e8400-e29b-41d4-a716-446655440000",
   "agent-type": "implementation",
@@ -894,7 +960,7 @@ Or deny:
 Add optional per-message configuration fields to control model and permissions.
 
 **Where options are specified**:
-1. `POST /api/v1/sessions` - For the initial message (see Section 2.4)
+1. `POST /api/v1/sessions` - For the initial message (see Phase 2.5)
 2. `user-message` WebSocket event - For subsequent messages (see Section 2.5.1)
 
 **Valid model values**:
@@ -987,14 +1053,18 @@ All HTTP endpoints use a consistent error response format.
 - `INVALID_WORKING_DIRECTORY` - Working directory does not exist or is not accessible
 - `NOT_FOUND` - Session, agent, or resource not found
 - `INTERNAL_ERROR` - Unexpected server error
+- `UNKNOWN_MESSAGE_TYPE` - Client sent unrecognized WebSocket message type
 
 **WebSocket errors** use the standard event format with `original-message` for client-triggered errors:
 ```json
 {
+  "seq": 12,
+  "event-id": "990e8400-e29b-41d4-a716-446655440012",
   "type": "error",
   "agent-id": "550e8400-e29b-41d4-a716-446655440000",
   "agent-type": "main",
   "agent-name": "Main Agent",
+  "task-name": null,
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
     "message": "Human-readable error message",
@@ -1011,7 +1081,7 @@ All HTTP endpoints use a consistent error response format.
 1. **Connect**: Client opens WebSocket to `/api/v1/sessions/{session-id}/stream`
 2. **Handshake**: Server sends `connected` event with session metadata
 3. **State sync**: Server sends `status` events for all current agents
-4. **Catch-up**: If conversation has messages, server sends `history` event with full conversation (complete turns only)
+4. **Catch-up**: If conversation has events, server sends `history` event with ALL events (including in-progress)
 5. **Streaming**: Server streams events as agents work
 6. **Bidirectional**: Client can send messages and commands
 
@@ -1019,9 +1089,9 @@ All HTTP endpoints use a consistent error response format.
 | Type | Description |
 |------|-------------|
 | `connected` | Initial connection with session metadata |
-| `history` | Complete conversation turns for client display (partial/in-progress excluded) |
+| `history` | All session events including in-progress (for client display and deduplication) |
 | `status` | Agent status changes (working, waiting-for-agent, waiting-for-user, idle) |
-| `message` | Streaming message chunk with `is-partial` flag and `event-id` |
+| `message` | Streaming message chunk with `seq`, `role`, `is-partial` flag, and `event-id` |
 | `tool-use` | Agent is invoking a tool |
 | `tool-result` | Tool execution completed |
 | `permission-request` | Tool needs user approval |
@@ -1047,30 +1117,33 @@ All HTTP endpoints use a consistent error response format.
   "type": "connected",
   "session-id": "550e8400-e29b-41d4-a716-446655440000",
   "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "last-seq": 0,
   "timestamp": "2025-12-21T10:00:00Z",
   "agents": [
     {
       "id": "660e8400-e29b-41d4-a716-446655440001",
       "type": "main",
-      "name": "Main Agent",
-      "description": "Orchestrates tasks and delegates to specialized agents",
-      "status": "working"
+      "name": "Main Agent"
     }
   ],
   "metadata": {
-    "working-directory": "/path/to/project",
-    "has-existing-conversation": false
+    "working-directory": "/path/to/project"
   }
 }
 ```
 
+Note: Status is NOT included in the `connected` event - status events are sent separately as agents change state.
+
 `status`:
 ```json
 {
+  "seq": 1,
+  "event-id": "550e8400-e29b-41d4-a716-446655440099",
   "type": "status",
   "agent-id": "550e8400-e29b-41d4-a716-446655440000",
   "agent-type": "main",
   "agent-name": "Main Agent",
+  "task-name": null,
   "timestamp": "2025-12-21T10:00:00Z",
   "data": {
     "status": "working"
@@ -1094,39 +1167,76 @@ All HTTP endpoints use a consistent error response format.
 {
   "type": "history",
   "timestamp": "2025-12-21T10:00:00Z",
+  "last-seq": 42,
   "data": {
-    "messages": [
+    "events": [
       {
+        "seq": 1,
+        "event-id": "uuid-1",
+        "type": "message",
+        "is-partial": false,
         "agent-id": "660e8400-e29b-41d4-a716-446655440001",
         "agent-type": "main",
         "agent-name": "Main Agent",
-        "role": "user",
-        "content": "Write hello.dart"
+        "task-name": null,
+        "data": {"role": "user", "content": "Write hello.dart"},
+        "timestamp": "2025-12-21T10:00:00Z"
       },
       {
-        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
-        "agent-type": "main",
-        "agent-name": "Main Agent",
-        "role": "assistant",
-        "content": "I'll delegate this to the implementation agent..."
-      },
-      {
+        "seq": 2,
+        "event-id": "uuid-2",
+        "type": "tool-use",
         "agent-id": "770e8400-e29b-41d4-a716-446655440002",
         "agent-type": "implementation",
         "agent-name": "Code Writer",
-        "role": "assistant",
-        "content": "File created successfully at hello.dart"
+        "task-name": "Writing hello.dart",
+        "data": {
+          "tool-use-id": "tool-1",
+          "tool-name": "Write",
+          "tool-input": {"file-path": "hello.dart", "content": "..."}
+        },
+        "timestamp": "2025-12-21T10:00:01Z"
+      },
+      {
+        "seq": 3,
+        "event-id": "uuid-3",
+        "type": "tool-result",
+        "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+        "agent-type": "implementation",
+        "agent-name": "Code Writer",
+        "task-name": "Writing hello.dart",
+        "data": {
+          "tool-use-id": "tool-1",
+          "tool-name": "Write",
+          "result": "File written successfully",
+          "is-error": false
+        },
+        "timestamp": "2025-12-21T10:00:02Z"
+      },
+      {
+        "seq": 42,
+        "event-id": "uuid-42",
+        "type": "message",
+        "is-partial": true,
+        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+        "agent-type": "main",
+        "agent-name": "Main Agent",
+        "task-name": null,
+        "data": {"role": "assistant", "content": "I'm currently working on..."},
+        "timestamp": "2025-12-21T10:00:10Z"
       }
     ]
   }
 }
 ```
 
-The `history` event contains **complete turns from ALL agents** in the session - partial/in-progress messages are not included. Each message includes agent attribution so the client can display them correctly. If reconnecting while an agent is mid-response, the client will receive the ongoing `message` events with `is-partial: true` after the history.
+The `history` event contains **ALL events from the session** in chronological order, including in-progress events with `is-partial: true`. The `last-seq` field indicates the sequence number of the last event, used by clients for deduplication. Each event includes agent attribution so the client can display them correctly.
 
 `agent-spawned`:
 ```json
 {
+  "seq": 7,
+  "event-id": "880e8400-e29b-41d4-a716-446655440007",
   "type": "agent-spawned",
   "agent-id": "770e8400-e29b-41d4-a716-446655440002",
   "agent-type": "implementation",
@@ -1142,6 +1252,8 @@ The `history` event contains **complete turns from ALL agents** in the session -
 `agent-terminated`:
 ```json
 {
+  "seq": 15,
+  "event-id": "880e8400-e29b-41d4-a716-446655440015",
   "type": "agent-terminated",
   "agent-id": "770e8400-e29b-41d4-a716-446655440002",
   "agent-type": "implementation",
@@ -1158,12 +1270,17 @@ The `history` event contains **complete turns from ALL agents** in the session -
 `aborted`:
 ```json
 {
+  "seq": 20,
+  "event-id": "880e8400-e29b-41d4-a716-446655440020",
   "type": "aborted",
   "agent-id": "660e8400-e29b-41d4-a716-446655440001",
   "agent-type": "main",
   "agent-name": "Main Agent",
+  "task-name": null,
   "timestamp": "2025-12-21T10:00:00Z",
-  "data": {}
+  "data": {
+    "reason": "aborted"
+  }
 }
 ```
 
@@ -1195,6 +1312,108 @@ Standard WebSocket close codes are used (RFC 6455):
 - `1003` - Unsupported Data
 - `1006` - Abnormal Closure (connection lost without close frame)
 - `1011` - Internal Error
+
+#### 2.5.9 Session State Recovery & Reconnection
+
+Robust session state recovery ensures clients always see complete event history without gaps, regardless of when they connect or reconnect.
+
+**Design Principles:**
+- Events stream immediately (no server-side buffering for disconnected clients)
+- All events are persisted to session history as they occur
+- On WebSocket connect, server sends full event history including in-progress events
+- Session-scoped sequence numbers enable client-side deduplication
+- Same event format for persistence (TUI) and API (REST)
+
+**Sequence Numbers:**
+
+Every event includes a session-scoped sequence number (`seq`):
+- Monotonically increasing integer starting at 1
+- Persisted with each event
+- Included in every WebSocket event
+- Enables gap detection and deduplication
+
+**Connection Lifecycle (Atomic Subscribe-Then-History):**
+
+To prevent race conditions between history delivery and live events:
+
+1. Client opens WebSocket connection
+2. Server subscribes client to live event stream (events start buffering internally)
+3. Server reads all events from session persistence
+4. Server sends `connected` event with session metadata and `last-seq`
+5. Server sends `history` event with all events and `last-seq`
+6. Server flushes any buffered live events
+7. Client receives live events with sequence numbers continuing from `last-seq`
+
+**Client-Side Deduplication:**
+
+```
+On receiving history:
+  last_received_seq = history.last-seq
+
+On receiving live event:
+  if event.seq <= last_received_seq:
+    discard (duplicate from race window)
+  else if event.seq == last_received_seq + 1:
+    process event
+    last_received_seq++
+  else if event.seq > last_received_seq + 1:
+    log gap warning (should not happen with atomic pattern)
+    process event anyway
+    last_received_seq = event.seq
+```
+
+**Scenarios Supported:**
+
+| Scenario | Behavior |
+|----------|----------|
+| New client connects to session already started | Receives `history` with all events (including in-progress), then live events |
+| Client reconnects after connection drop | Same - receives full history, deduplicates overlap via sequence numbers |
+| Client connects to idle session | Receives `history` with all events, can send `user-message` to resume |
+| Partial message in progress | History includes partial events (`is-partial: true`), client correlates new chunks via `event-id` |
+
+**Event Format (Shared TUI/REST):**
+
+All events use this format for both TUI persistence and REST API:
+
+```json
+{
+  "seq": 42,
+  "event-id": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "message",
+  "is-partial": true,
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "data": {"role": "assistant", "content": "Let me help you..."},
+  "timestamp": "2025-12-21T10:00:00Z"
+}
+```
+
+**History Event Structure:**
+
+```json
+{
+  "type": "history",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "last-seq": 42,
+  "data": {
+    "events": [
+      {"seq": 1, "event-id": "...", "type": "message", ...},
+      {"seq": 2, "event-id": "...", "type": "tool-use", ...},
+      ...
+      {"seq": 42, "event-id": "...", "type": "message", "is-partial": true, ...}
+    ]
+  }
+}
+```
+
+**Implementation Notes:**
+- TUI and REST server MUST use identical event serialization format
+- Events are append-only (immutable once written)
+- Sequence numbers are assigned at event creation time
+- No server-side buffering for offline clients - history replay provides catch-up
+- For v1, always send full history (no resume optimization with client-provided `last-seq`)
 
 ---
 
@@ -1457,7 +1676,7 @@ Response:
 47. ⬜ Add `agent-spawned` and `agent-terminated` event types
 48. ⬜ Remove old per-agent endpoint (`/api/v1/networks/{networkId}/agents/{agentId}/stream`)
 49. ⬜ Update integration tests for session-level WebSocket
-50. ⬜ Implement message streaming with `is-partial` flag and `event-id` (server does NOT accumulate)
+50. ⬜ Implement message streaming with `seq`, `role`, `is-partial` flag, and `event-id` (server does NOT accumulate)
 
 **2.5.2 Bidirectional Permission Handling:**
 51. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
@@ -1493,14 +1712,23 @@ Response:
 73. ⬜ Update CLAUDE.md with new API endpoints
 74. ⬜ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
 
+**2.5.9 Session State Recovery:**
+75. ⬜ Add `seq` field to all WebSocket events (session-scoped sequence number)
+76. ⬜ Update event persistence to store sequence numbers
+77. ⬜ Implement atomic subscribe-then-history pattern in WebSocket handler
+78. ⬜ Update `history` event to include `last-seq` and full event array (including in-progress)
+79. ⬜ Ensure TUI and REST use identical event serialization format
+80. ⬜ Add integration tests for reconnection scenarios (fresh connect, reconnect, idle resume)
+81. ⬜ Add gap detection logging (warning if seq gap detected)
+
 ### Phase 3: Testing & Documentation (Day 5)
-75. ⬜ Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
-76. ⬜ Add error handling for common cases (network errors, invalid requests)
-77. ⬜ Write API documentation with examples (packages/vide_server/API.md)
-78. ⬜ Create simple HTML test client for testing WebSocket streaming
-79. ⬜ Update root README.md to explain dual-interface architecture
-80. ⬜ Fix multi-turn conversation test flakiness (timeout issues)
-81. ⬜ Add basic rate limiting (e.g., 100 req/min) for production readiness
+82. ⬜ Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
+83. ⬜ Add error handling for common cases (network errors, invalid requests)
+84. ⬜ Write API documentation with examples (packages/vide_server/API.md)
+85. ⬜ Create simple HTML test client for testing WebSocket streaming
+86. ⬜ Update root README.md to explain dual-interface architecture
+87. ⬜ Fix multi-turn conversation test flakiness (timeout issues)
+88. ⬜ Add basic rate limiting (e.g., 100 req/min) for production readiness
 
 ---
 
@@ -1607,18 +1835,19 @@ When deploying beyond localhost (post-MVP):
 ⬜ **Multiplexed WebSocket at /api/v1/sessions/{session-id}/stream** (single stream for all agents)
 ⬜ **Agent lifecycle events** (`agent-spawned`, `agent-terminated` event types)
 ⬜ **Bidirectional WebSocket support** (client sends `user-message`, `permission-response`, `abort`)
-⬜ **Receive conversation history via `history` event on connect/reconnect** (all agents, with attribution)
+⬜ **Receive event history via `history` event on connect/reconnect** (all events including in-progress, with attribution)
 ⬜ **Abort support** (client sends `abort`, server cancels ALL active agents, sends `aborted` per agent)
 ⬜ **Permission request events** (server sends `permission-request`, client responds, 60s timeout with `permission-timeout` event)
 ⬜ **Model selection support** (sonnet/opus/haiku per-message via `user-message` WebSocket event)
 ⬜ **Per-message options** (model, permission-mode only for MVP; future: temperature, max-tokens, allowed-tools, disallowed-tools)
-⬜ **Message streaming** (single `message` event with `is-partial` flag and `event-id` - server does NOT accumulate)
+⬜ **Message streaming** (single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` - server does NOT accumulate)
 ⬜ **Status events** use AgentStatus values (working, waiting-for-agent, waiting-for-user, idle)
 ⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem with path validation, symlinks not followed)
 ⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystem-root, permission-timeout-seconds)
 ⬜ **Error response schema** (consistent JSON format with error, code; WebSocket errors include original-message)
 ⬜ **WebSocket keepalive** (20s ping/pong interval, close with 1001 on timeout)
 ⬜ **WebSocket lifecycle documented** (connection, disconnection, reconnection handling)
+⬜ **Session state recovery** (sequence numbers, atomic subscribe-then-history, client-side deduplication)
 ⬜ **All GUI prerequisites tested and documented**
 
 ---
