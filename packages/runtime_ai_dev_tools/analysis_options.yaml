@@ -2,3 +2,16 @@ include: package:flutter_lints/flutter.yaml
 
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
+
+linter:
+  rules:
+    avoid_print: false
+
+analyzer:
+  errors:
+    # We intentionally use @visibleForTesting APIs for text input injection
+    # TextInput.setChannel() is required to intercept outgoing IME messages
+    invalid_use_of_visible_for_testing_member: ignore
+    # Deprecated APIs are required for low-level platform message handling
+    # and keyboard event injection (handlePlatformMessage, keyEventManager)
+    deprecated_member_use: ignore
