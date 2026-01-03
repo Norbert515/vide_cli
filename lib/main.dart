@@ -28,7 +28,7 @@ final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.ove
   };
 });
 
-void main(List<String> args, {List<Override> overrides = const []}) async {
+Future<void> main(List<String> args, {List<Override> overrides = const []}) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
