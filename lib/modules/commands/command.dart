@@ -36,6 +36,7 @@ class CommandContext {
     this.sendMessage,
     this.clearConversation,
     this.exitApp,
+    this.getConversation,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -55,6 +56,10 @@ class CommandContext {
   /// Callback to exit the application.
   /// Used by /exit command.
   final void Function()? exitApp;
+
+  /// Callback to get the current conversation.
+  /// Used by /graph command for exporting.
+  final dynamic Function()? getConversation;
 }
 
 /// Base interface for all slash commands.
