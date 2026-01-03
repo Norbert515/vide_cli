@@ -9,8 +9,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:http/http.dart' as http;
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'lib/vide_client.dart';
 
@@ -73,13 +71,13 @@ void main(List<String> args) async {
   }
 
   final workingDir = Directory.current.path;
-  final serverUrl = 'http://127.0.0.1:$port';
+  final client = VideClient(port: port);
 
   print('╔════════════════════════════════════════════════════════════════╗');
   print('║              Vide Interactive REPL Client                      ║');
   print('╚════════════════════════════════════════════════════════════════╝');
   print('');
-  print('Server: $serverUrl');
+  print('Server: http://127.0.0.1:$port');
   print('Working Directory: $workingDir');
   print('');
   print('Type /help for available commands.');
@@ -87,29 +85,26 @@ void main(List<String> args) async {
 
   print('→ Connecting to server...');
   try {
-    final healthResponse = await http
-        .get(Uri.parse('$serverUrl/health'))
-        .timeout(const Duration(seconds: 2));
-    if (healthResponse.statusCode != 200 || healthResponse.body != 'OK') {
-      print('✗ Error: Server is not responding correctly');
-      print('  Please start the server first:');
-      print('    cd packages/vide_server && dart run bin/vide_server.dart');
-      exit(1);
-    }
+    await client.checkHealth();
+  } on VideClientException catch (e) {
+    print('✗ Error: ${e.message}');
+    print('  Please start the server first:');
+    print('    cd packages/vide_server && dart run bin/vide_server.dart');
+    exit(1);
   } catch (e) {
-    print('✗ Error: Could not connect to server at $serverUrl');
-    print('  Please check that the server is running on port $port');
+    print('✗ Error: Could not connect to server on port $port');
+    print('  Please check that the server is running.');
     print('  Start the server with:');
     print('    cd packages/vide_server && dart run bin/vide_server.dart');
     exit(1);
   }
-  print('✓ Connected to $serverUrl');
+  print('✓ Connected');
   print('');
 
-  await _runRepl(serverUrl, workingDir, port);
+  await _runRepl(client, workingDir);
 }
 
-Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
+Future<void> _runRepl(VideClient client, String workingDir) async {
   print('╔════════════════════════════════════════════════════════════════╗');
   print('║                    Interactive Session                         ║');
   print('╚════════════════════════════════════════════════════════════════╝');
@@ -118,9 +113,7 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('');
   stdout.write('You: ');
 
-  String? sessionId;
-  WebSocketChannel? channel;
-  var shouldExit = false;
+  Session? session;
   final eventHandler = _EventHandler();
 
   await for (final line
@@ -133,10 +126,9 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
         inputLower == 'exit' ||
         inputLower == 'quit') {
       print('');
-      if (sessionId != null) {
+      if (session != null) {
         print('Ending session...');
-        shouldExit = true;
-        await channel?.sink.close();
+        await session.close();
       }
       break;
     }
@@ -159,62 +151,45 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
       continue;
     }
 
-    if (sessionId == null) {
+    if (session == null) {
       print('');
       print('→ Creating session with your message...');
 
-      final createResponse = await http.post(
-        Uri.parse('$serverUrl/api/v1/sessions'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'initial-message': input,
-          'working-directory': workingDir,
-        }),
-      );
-
-      if (createResponse.statusCode != 200) {
-        print('✗ Error creating session: ${createResponse.body}');
+      try {
+        session = await client.createSession(
+          initialMessage: input,
+          workingDirectory: workingDir,
+        );
+      } on VideClientException catch (e) {
+        print('✗ Error creating session: ${e.message}');
         stdout.write('\nYou: ');
         continue;
       }
 
-      final sessionData = jsonDecode(createResponse.body);
-      sessionId = sessionData['session-id'];
-
-      print('✓ Session created (ID: $sessionId)');
+      print('✓ Session created (ID: ${session.id})');
       print('');
-      print('→ Connecting to session stream...');
 
-      final wsUrl = 'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
-      channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-      channel.stream.listen(
-        (message) {
-          final json = jsonDecode(message as String) as Map<String, dynamic>;
-          final event = VideEvent.fromJson(json);
+      final s = session;
+      s.events.listen(
+        (event) {
           eventHandler.handle(event);
 
-          if (event is DoneEvent && !shouldExit) {
+          if (event is DoneEvent && s.status == SessionStatus.open) {
             stdout.write('\nYou: ');
           }
         },
         onError: (error) {
-          print('\n✗ WebSocket error: $error');
-          shouldExit = true;
+          print('\n✗ Stream error: $error');
         },
         onDone: () {
-          if (!shouldExit) {
-            print('\n✗ WebSocket connection closed unexpectedly');
+          if (s.status == SessionStatus.error) {
+            print('\n✗ Connection error: ${s.error}');
           }
-          shouldExit = true;
         },
       );
-
-      print('✓ Connected');
-      print('');
     } else {
       print('');
-      channel!.sink.add(jsonEncode({'type': 'user-message', 'content': input}));
+      session.send(input);
     }
   }
 
@@ -224,7 +199,7 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('╚════════════════════════════════════════════════════════════════╝');
 }
 
-/// Handles incoming WebSocket events with streaming message support.
+/// Handles incoming events with streaming message support.
 class _EventHandler {
   String? _currentEventId;
   MessageRole? _currentStreamRole;
@@ -314,7 +289,6 @@ class _EventHandler {
     String? eventId,
   ) {
     if (_currentEventId != eventId) {
-      // New message - close previous if needed
       if (_currentStreamRole == MessageRole.assistant &&
           _buffer.isNotEmpty) {
         print('');
@@ -337,14 +311,12 @@ class _EventHandler {
         stdout.write('│ $content');
       }
     } else {
-      // Same message - append delta (streaming)
       if (_currentStreamRole == MessageRole.assistant && content.isNotEmpty) {
         _buffer.write(content);
         stdout.write(content);
       }
     }
 
-    // If message is complete, close it
     if (!isPartial && _currentStreamRole == MessageRole.assistant) {
       print('');
       print('└─');
