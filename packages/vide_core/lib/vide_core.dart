@@ -43,6 +43,8 @@ export 'mcp/memory_mcp_server.dart';
 export 'mcp/git/git_client.dart';
 export 'mcp/git/git_models.dart';
 export 'mcp/git/git_exception.dart';
+export 'mcp/git/git_status_watcher.dart';
+export 'mcp/git/git_providers.dart';
 export 'mcp/ask_user_question/ask_user_question_types.dart';
 export 'mcp/ask_user_question/ask_user_question_service.dart';
 export 'mcp/ask_user_question/ask_user_question_server.dart';

@@ -7,6 +7,7 @@ import 'package:vide_cli/modules/agent_network/pages/networks_list_page.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
+import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
@@ -100,6 +101,7 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                   color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
                 ),
               ),
+              GitBranchIndicator(repoPath: currentDir),
               const SizedBox(height: 1),
               // Project type (only if detected and not unknown)
               if (showProjectType) ...[

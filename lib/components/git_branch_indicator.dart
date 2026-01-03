@@ -1,65 +1,39 @@
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/theme/theme.dart';
 
-class GitBranchIndicator extends StatefulComponent {
-  final String sessionId;
+class GitBranchIndicator extends StatelessComponent {
+  final String repoPath;
 
-  const GitBranchIndicator({required this.sessionId, super.key});
-
-  @override
-  State<GitBranchIndicator> createState() => _GitBranchIndicatorState();
-}
-
-class _GitBranchIndicatorState extends State<GitBranchIndicator> {
-  String? _currentBranch;
-  bool _isLoading = true;
-  DateTime? _lastFetch;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadGitStatus();
-  }
-
-  Future<void> _loadGitStatus() async {
-    // Check cache (5 second TTL)
-    if (_lastFetch != null &&
-        DateTime.now().difference(_lastFetch!) < Duration(seconds: 5)) {
-      return;
-    }
-
-    try {
-      final git = GitClient();
-      final branch = await git.currentBranch();
-
-      if (branch.isNotEmpty) {
-        setState(() {
-          _currentBranch = branch;
-          _isLoading = false;
-          _lastFetch = DateTime.now();
-        });
-        return;
-      }
-    } catch (e) {
-      // Silently fail - not in a git repo or git not available
-    }
-
-    setState(() {
-      _isLoading = false;
-      _lastFetch = DateTime.now();
-    });
-  }
+  const GitBranchIndicator({required this.repoPath, super.key});
 
   @override
   Component build(BuildContext context) {
-    if (_isLoading || _currentBranch == null) {
+    final theme = VideTheme.of(context);
+    final gitStatusAsync = context.watch(gitStatusStreamProvider(repoPath));
+    final gitStatus = gitStatusAsync.valueOrNull;
+
+    if (gitStatus == null) {
       return SizedBox();
     }
 
-    return Text(
-      '[git: $_currentBranch]',
-      style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      decoration: BoxDecoration(color: theme.base.surface),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '',
+            style: TextStyle(color: theme.base.primary),
+          ),
+          Text(
+            ' ${gitStatus.branch}',
+            style: TextStyle(color: theme.base.onSurface),
+          ),
+        ],
+      ),
     );
   }
 }
