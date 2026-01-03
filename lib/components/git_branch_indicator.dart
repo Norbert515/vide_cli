@@ -18,21 +18,11 @@ class GitBranchIndicator extends StatelessComponent {
       return SizedBox();
     }
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      decoration: BoxDecoration(color: theme.base.secondary),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '',
-            style: TextStyle(color: theme.base.background),
-          ),
-          Text(
-            ' ${gitStatus.branch}',
-            style: TextStyle(color: theme.base.background),
-          ),
-        ],
+    return Text(
+      ' ${gitStatus.branch} ',
+      style: TextStyle(
+        color: theme.base.background,
+        backgroundColor: theme.base.secondary,
       ),
     );
   }

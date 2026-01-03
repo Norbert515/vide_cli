@@ -94,14 +94,32 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                 style: TextStyle(color: theme.base.primary),
               ),
               const SizedBox(height: 1),
-              // Running in path (lighter text)
-              Text(
-                'Running in $abbreviatedPath',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                ),
+              // Running in path with git branch (both as badges)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Running in ',
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                    ),
+                  ),
+                  Text(
+                    ' $abbreviatedPath ',
+                    style: TextStyle(
+                      color: theme.base.background,
+                      backgroundColor: theme.base.primary,
+                    ),
+                  ),
+                  Text(
+                    ' on ',
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                    ),
+                  ),
+                  GitBranchIndicator(repoPath: currentDir),
+                ],
               ),
-              GitBranchIndicator(repoPath: currentDir),
               const SizedBox(height: 1),
               // Project type (only if detected and not unknown)
               if (showProjectType) ...[
