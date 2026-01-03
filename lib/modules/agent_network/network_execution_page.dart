@@ -14,6 +14,7 @@ import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
+import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_core/vide_core.dart';
@@ -125,6 +126,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   Component build(BuildContext context) {
     final networkState = context.watch(agentNetworkManagerProvider);
     final currentNetwork = networkState.currentNetwork;
+    final workingDirectory = context.read(agentNetworkManagerProvider.notifier).effectiveWorkingDirectory;
 
     // Display the network goal
     final goalText = currentNetwork?.goal ?? 'Loading...';
@@ -155,10 +157,17 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Display the network goal with typing animation
-                TypingText(
-                  text: goalText,
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                // Display the network goal with git branch indicator
+                Row(
+                  children: [
+                    Expanded(
+                      child: TypingText(
+                        text: goalText,
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    GitBranchIndicator(repoPath: workingDirectory),
+                  ],
                 ),
                 Divider(),
                 RunningAgentsBar(agents: networkState.agents, selectedIndex: selectedAgentIndex),
