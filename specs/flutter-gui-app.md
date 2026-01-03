@@ -69,7 +69,7 @@ vide_cli/
 │                    Application Layer                         │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │              Riverpod Providers (State)                 ││
-│  │  networkProvider, agentProvider, chatProvider, etc.     ││
+│  │  sessionProvider, agentProvider, chatProvider, etc.     ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -78,7 +78,7 @@ vide_cli/
 │                      Domain Layer                            │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐│
 │  │   Models    │ │ Repositories│ │ ChatHistoryProvider     ││
-│  │  (Network,  │ │ (Interfaces)│ │  (Custom) for           ││
+│  │  (Session,  │ │ (Interfaces)│ │  (Custom) for           ││
 │  │   Agent)    │ │             │ │                         ││
 │  └─────────────┘ └─────────────┘ └─────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
@@ -88,8 +88,9 @@ vide_cli/
 │                       Data Layer                             │
 │  ┌─────────────────────────────────────────────────────────┐│
 │  │                  VideApiClient (dio + WebSocket)        ││
-│  │  - REST endpoints (POST /networks, POST /messages)      ││
-│  │  - WebSocket streaming (ws://.../stream)                ││
+│  │  - REST: POST /api/v1/sessions (create session)         ││
+│  │  - WebSocket: ws://.../api/v1/sessions/{id}/stream      ││
+│  │  - Bidirectional: server events + client messages       ││
 │  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────┘
                               │
@@ -106,9 +107,9 @@ vide_cli/
 - Data layer is the only layer that knows about HTTP/REST
 
 ### State Management Strategy (Riverpod v3)
-- **AsyncNotifierProvider** for async state (network creation, message sending)
+- **AsyncNotifierProvider** for async state (session creation, message sending)
 - **StreamProvider** for WebSocket event streams
-- **StateProvider** for simple UI state (selected network, theme)
+- **StateProvider** for simple UI state (selected session, theme)
 - **Provider** for computed/derived state
 
 ### Navigation (go_router)
@@ -118,60 +119,95 @@ vide_cli/
 
 ---
 
-## 2.5 Prerequisites (vide_server)
+## 2.5 Prerequisites (vide_server) - ✅ COMPLETE
 
-Before starting vide_flutter development, the following vide_server features must be implemented and tested:
+The following vide_server features have been implemented and are ready for vide_flutter development:
 
-### Multiplexed WebSocket Streaming
-- Single WebSocket endpoint per network: `ws://.../api/v1/networks/:id/stream`
+### Multiplexed WebSocket Streaming ✅
+- Single WebSocket endpoint per session: `ws://.../api/v1/sessions/{session-id}/stream`
 - All agent events (main + spawned agents) multiplexed on this single stream
-- Each event includes attribution fields: `agentId`, `agentType`, `agentName`, `taskName`
+- Each event includes:
+  - `seq` - sequence number for ordering/deduplication
+  - `event-id` - UUID shared across partial chunks for accumulation
+  - Attribution fields: `agent-id`, `agent-type`, `agent-name`, `task-name`
+  - `timestamp` - when event occurred
 - Client receives unified timeline without managing multiple WebSocket connections
+- Server does NOT accumulate message content - sends each chunk as received
+- Client is responsible for accumulating chunks with matching `event-id`
 
-### Bidirectional WebSocket for Permission Requests
-- WebSocket is bidirectional: server sends events, client can send responses
-- Permission requests sent as `permission_request` event type:
-  ```json
-  {
-    "type": "permission_request",
-    "agentId": "...",
-    "data": {
-      "requestId": "uuid",
-      "toolName": "Bash",
-      "toolInput": {"command": "rm -rf node_modules"},
-      "permissionSuggestions": ["Bash(rm *)"]
-    }
-  }
-  ```
-- Client responds by sending a message through the same WebSocket:
-  ```json
-  {
-    "type": "permission_response",
-    "requestId": "uuid",
-    "allow": true,
-    "updatedInput": { ... }
-  }
-  ```
-- Mimics the `CanUseToolCallback` pattern from claude_sdk:
-  - Receives: `toolName`, `toolInput`, `context` (with `permissionSuggestions`, `blockedPath`)
-  - Returns: allow (with optional `updatedInput`) or deny (with `message`)
-- Server blocks agent execution until client responds or times out
+### Bidirectional WebSocket ✅
+- WebSocket is fully bidirectional: server sends events, client sends messages and commands
+- All session messages sent via WebSocket (no HTTP POST for messages after session creation)
 
-### Model Selection Support
-- `POST /api/v1/networks/:id/messages` accepts optional `model` field
-- Valid values: `"sonnet"` or `"opus"` (default: `"sonnet"`)
+**Permission requests** (server → client):
+```json
+{
+  "seq": 8,
+  "event-id": "770e8400-e29b-41d4-a716-446655440008",
+  "type": "permission-request",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "request-id": "660e8400-e29b-41d4-a716-446655440001",
+    "tool-name": "Bash",
+    "tool-input": {"command": "rm -rf node_modules"},
+    "permission-suggestions": ["Bash(rm *)"]
+  }
+}
+```
+
+**Client responds** via WebSocket message:
+```json
+{
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
+  "allow": true
+}
+```
+
+Or deny with optional message:
+```json
+{
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
+  "allow": false,
+  "message": "User declined"
+}
+```
+
+- Server blocks agent execution until client responds or times out (60s default)
+- On timeout, server auto-denies and sends `permission-timeout` event
+
+### Model Selection Support ✅
+- Model selection via `user-message` WebSocket event (not HTTP POST)
+- Valid values: `"sonnet"` (default), `"opus"`, `"haiku"`
 - Model selection applies per-message, allowing users to switch mid-conversation
 
-### Filesystem Browsing API
+### WebSocket Keepalive & Reconnection ⬜ (Pending)
+- **Protocol-level ping/pong**: The `web_socket_channel` package handles WebSocket ping/pong frames automatically at the protocol level. No application code needed.
+- **Application-level heartbeat** (optional): For additional reliability, clients may send periodic lightweight messages (e.g., every 30s) to detect dead connections faster than TCP timeout.
+- **Reconnection with exponential backoff**: The most critical component. When connection drops:
+  1. Attempt reconnect with exponential backoff (e.g., 1s, 2s, 4s, 8s... capped at 30s)
+  2. On successful reconnect, receive `connected` event with `last-seq`
+  3. Receive `history` event with all session events
+  4. Deduplicate by comparing `event.seq` against tracked `last-seq`
+  5. Resume normal event processing
+- **State recovery**: The `seq` field on all events enables reliable ordering and deduplication. Clients should track the highest `seq` seen and ignore events with `seq <= lastSeq` on reconnect.
+
+### Filesystem Browsing API ⬜ (In Progress)
 - `GET /api/v1/filesystem?parent=...` endpoint for hierarchical directory listing
   - `parent` parameter: path to list children of; `null`/omitted = server-configured root
-  - Returns entries: `{ name, path, isDirectory }` for both files and folders
+  - Returns entries: `{ "name", "path", "is-directory" }` for both files and folders
 - `POST /api/v1/filesystem` endpoint for creating new folders
-  - Body: `{ parent: string, name: string }`
+  - Body: `{ "parent": "...", "name": "..." }`
   - Creates folder at `parent/name`; `parent` must be within server root
-  - Returns: `{ path: string }` of created folder
+  - Returns: `{ "path": "..." }` of created folder
 - Root directory configured via server config file (`~/.vide/api/config.json`)
 - Server enforces a configurable root directory (prevents access outside allowed scope)
+- **Symlinks are NOT followed** to prevent escaping the configured filesystem root
 - **Client behavior for folder selection:**
   - Filters results to show folders only
   - Caches directory listings for the duration of the browsing session
@@ -187,34 +223,35 @@ Before starting vide_flutter development, the following vide_server features mus
 
 #### Features
 - [ ] Connect to vide_server (configurable URL)
-- [ ] Create new network with initial message
-- [ ] Send messages to network
+- [ ] Create new session with initial message
+- [ ] Send messages to session via WebSocket
 - [ ] Stream WebSocket responses and display in chat
 - [ ] Basic markdown rendering in responses
 - [ ] Server URL configuration (localhost default)
 - [ ] Working directory browser (server filesystem API)
 
 #### Screens/Pages
-1. **HomePage** - Server connection + network list
+1. **HomePage** - Server connection + session list
 2. **ChatPage** - Main chat interface with dartantic_chat
 
 #### Widgets/Components
 - `ServerConfigDialog` - Configure server URL
 - `FolderBrowserDialog` - Browse and select working directory from server filesystem
-- `NetworkListTile` - Display network in list
+- `SessionListTile` - Display session in list
 - `ChatView` - dartantic_chat AgentChatView wrapper
 - `MessageBubble` - Basic message display
 
 #### API Integration
-- `POST /api/v1/networks` - Create network
-- `POST /api/v1/networks/:id/messages` - Send message
-- `ws://.../api/v1/networks/:id/stream` - WebSocket stream (multiplexed, all agents)
-- `GET /api/v1/filesystem?parent=...` - List directory contents (prerequisite)
+- `POST /api/v1/sessions` - Create session (returns `session-id`, `main-agent-id`)
+- `ws://.../api/v1/sessions/{session-id}/stream` - Bidirectional WebSocket (all agents multiplexed)
+  - Send messages via `user-message` WebSocket event
+  - Receive events: `connected`, `history`, `status`, `message`, `tool-use`, `tool-result`, `done`, `error`
+- `GET /api/v1/filesystem?parent=...` - List directory contents
 
 #### Success Criteria
 - Can connect to localhost vide_server
-- Can create network and see response
-- Can send follow-up messages
+- Can create session and see response
+- Can send follow-up messages via WebSocket
 - Real-time streaming works
 
 ---
@@ -243,9 +280,21 @@ Before starting vide_flutter development, the following vide_server features mus
 - `ToolCallCard` - Generic tool call wrapper
 
 #### API Integration
-- Parse WebSocket events by type: `connected`, `status`, `message`, `message_delta`, `tool_use`, `tool_result`, `done`, `error`
-- Handle multiplexed agent events (different agentId in stream)
-- Correlate tool calls with results via `toolUseId`
+- Parse WebSocket events by type (all use kebab-case):
+  - `connected` - session metadata on connect
+  - `history` - all events for reconnection/state recovery
+  - `status` - agent status changes (working, waiting-for-agent, waiting-for-user, idle)
+  - `message` - streaming text with `is-partial` flag and `event-id` for accumulation
+  - `tool-use` - agent invoking a tool
+  - `tool-result` - tool execution result
+  - `agent-spawned` - new agent added to session
+  - `agent-terminated` - agent removed from session
+  - `permission-request` - tool needs user approval
+  - `done` - agent turn complete
+  - `error` - error occurred
+- Handle multiplexed agent events (different `agent-id` in stream)
+- Correlate tool calls with results via `tool-use-id`
+- Accumulate `message` chunks with same `event-id` until `is-partial: false`
 
 #### Success Criteria
 - Tool calls render with appropriate visualization
@@ -258,33 +307,33 @@ Before starting vide_flutter development, the following vide_server features mus
 ### Phase 3: Advanced Features (~2-3 days)
 
 #### Features
-- [ ] Network history and persistence (local storage)
-- [ ] Resume previous networks
+- [ ] Session history and persistence (local storage)
+- [ ] Resume previous sessions
 - [ ] Permission mode UI (surfaces tool approval requests from WebSocket stream)
-- [ ] Model selection dropdown (Sonnet, Opus - set per-message)
+- [ ] Model selection dropdown (Sonnet, Opus, Haiku - set per-message)
 - [ ] Memory viewer (read-only)
 - [ ] Settings page (theme, server URL, preferences)
 - [ ] Responsive design (mobile-friendly)
 
 #### Screens/Pages
-1. **HistoryPage** - List of past networks
+1. **HistoryPage** - List of past sessions
 2. **SettingsPage** - App configuration
 3. **MemoryViewerPage** - View agent memories
 
 #### Widgets/Components
 - `ToolApprovalDialog` - Displays pending tool calls requiring user approval
-- `ModelDropdown` - Model selection (Sonnet/Opus, persisted per-session, applied per-message)
+- `ModelDropdown` - Model selection (Sonnet/Opus/Haiku, persisted per-session, applied per-message)
 - `MemoryEntryCard` - Display memory entry
-- `NetworkHistoryList` - Searchable history
+- `SessionHistoryList` - Searchable history
 - `ThemeToggle` - Light/dark mode
 
 #### API Integration
-- `GET /api/v1/networks` - List networks (future server endpoint)
-- `GET /api/v1/networks/:id` - Get network details
-- `GET /api/v1/networks/:id/memory` - Get memories (future)
+- `GET /api/v1/sessions` - List sessions (future server endpoint)
+- `GET /api/v1/sessions/:id` - Get session details (future)
+- `GET /api/v1/sessions/:id/memory` - Get memories (future)
 
 #### Success Criteria
-- Can browse network history
+- Can browse session history
 - Tool approval requests display and user can approve/deny
 - Responsive on mobile viewport
 - Settings persist across sessions
@@ -322,23 +371,24 @@ Before starting vide_flutter development, the following vide_server features mus
 
 ### JSON Event Accumulation Model
 
-The server sends raw WebSocket events (deltas). The **client** is responsible for accumulating these into a JSON structure stored in `ChatMessage.text`. The `responseBuilder` parses this JSON to render rich Flutter widgets.
+The server sends raw WebSocket events as partial chunks. The **client** is responsible for accumulating these into a JSON structure stored in `ChatMessage.text`. The `responseBuilder` parses this JSON to render rich Flutter widgets.
 
 **Event accumulation flow (client-side):**
-1. WebSocket receives `message_delta` → Append text to current text event in JSON
-2. WebSocket receives `tool_use` → Append tool call event to JSON
-3. WebSocket receives `tool_result` → Append tool result event to JSON
-4. On each update, `responseBuilder` re-parses the JSON and renders widgets
+1. WebSocket receives `message` with `is-partial: true` → Append text to current text event in JSON (use `event-id` to correlate chunks)
+2. WebSocket receives `message` with `is-partial: false` → Finalize current message
+3. WebSocket receives `tool-use` → Append tool call event to JSON
+4. WebSocket receives `tool-result` → Append tool result event to JSON
+5. On each update, `responseBuilder` re-parses the JSON and renders widgets
 
-**Important**: The server sends raw delta events. The client accumulates them. This allows for real-time streaming UI updates as each delta arrives.
+**Important**: The server does NOT accumulate message content - it sends each chunk as received. The client must accumulate chunks with matching `event-id`. All events include `seq` for ordering and deduplication on reconnect.
 
 **ChatMessage.text JSON structure:**
 ```json
 {
   "events": [
     {"type": "text", "content": "Let me help you with that."},
-    {"type": "tool_call", "callId": "123", "name": "Bash", "args": {"command": "ls -la"}},
-    {"type": "tool_result", "callId": "123", "result": "file1.txt\nfile2.txt", "isError": false},
+    {"type": "tool-call", "call-id": "123", "name": "Bash", "args": {"command": "ls -la"}},
+    {"type": "tool-result", "call-id": "123", "result": "file1.txt\nfile2.txt", "is-error": false},
     {"type": "text", "content": "Here are your files."}
   ]
 }
@@ -374,15 +424,15 @@ responseBuilder: (context, response) {
 Widget _buildEventWidget(Map<String, dynamic> event) {
   return switch (event['type']) {
     'text' => MarkdownBody(data: event['content'] as String),
-    'tool_call' => ToolCallWidget(
-      callId: event['callId'] as String,
+    'tool-call' => ToolCallWidget(
+      callId: event['call-id'] as String,
       name: event['name'] as String,
       args: event['args'] as Map<String, dynamic>,
     ),
-    'tool_result' => ToolResultWidget(
-      callId: event['callId'] as String,
+    'tool-result' => ToolResultWidget(
+      callId: event['call-id'] as String,
       result: event['result'] as String,
-      isError: event['isError'] as bool? ?? false,
+      isError: event['is-error'] as bool? ?? false,
     ),
     _ => const SizedBox.shrink(),
   };
@@ -401,16 +451,17 @@ The dartantic_chat package requires implementing the `ChatHistoryProvider` inter
 import 'package:dartantic_chat/dartantic_chat.dart';
 
 class VideChatHistoryProvider implements ChatHistoryProvider {
-  final VideApiClient _apiClient;
-  final String _networkId;
-  final String _mainAgentId;
+  final String _sessionId;
   final WebSocketClient _wsClient;
 
   // Internal message history (provider manages this)
   final List<ChatMessage> _history = [];
 
-  // Accumulated text for current response (built from deltas)
+  // Accumulated text for current response (built from partial chunks)
   String _currentResponseText = '';
+
+  // Current event-id for accumulating partial message chunks
+  String? _currentEventId;
 
   // Current agent context (for multi-agent timeline attribution)
   String? _currentAgentId;
@@ -418,13 +469,9 @@ class VideChatHistoryProvider implements ChatHistoryProvider {
   String? _currentAgentName;
 
   VideChatHistoryProvider({
-    required VideApiClient apiClient,
-    required String networkId,
-    required String mainAgentId,
+    required String sessionId,
     required WebSocketClient wsClient,
-  }) : _apiClient = apiClient,
-       _networkId = networkId,
-       _mainAgentId = mainAgentId,
+  }) : _sessionId = sessionId,
        _wsClient = wsClient;
 
   @override
@@ -432,9 +479,13 @@ class VideChatHistoryProvider implements ChatHistoryProvider {
     // 1. Add user message to history
     _history.add(ChatMessage.user(message));
     _currentResponseText = '';
+    _currentEventId = null;
 
-    // 2. Send to vide_server (returns immediately)
-    await _apiClient.sendMessage(_networkId, message);
+    // 2. Send message via WebSocket (not HTTP POST)
+    _wsClient.sendMessage({
+      'type': 'user-message',
+      'content': message,
+    });
 
     // 3. Listen to WebSocket stream for events
     await for (final event in _wsClient.events) {
@@ -445,18 +496,26 @@ class VideChatHistoryProvider implements ChatHistoryProvider {
 
       switch (event.type) {
         case 'message':
-          // Full message (first chunk or non-streaming)
+          // Streaming message chunk - accumulate using event-id
           final content = event.data['content'] as String?;
+          final eventId = event.eventId;
+          final isPartial = event.isPartial;
+
           if (content != null) {
-            _currentResponseText = content;
+            // If new event-id, start fresh accumulation
+            if (_currentEventId != eventId) {
+              _currentEventId = eventId;
+              _currentResponseText = content;
+            } else {
+              // Same event-id, append to accumulated text
+              _currentResponseText += content;
+            }
             yield _currentResponseText;
           }
-        case 'message_delta':
-          // Streaming delta - append to current response
-          final delta = event.data['delta'] as String?;
-          if (delta != null) {
-            _currentResponseText += delta;
-            yield _currentResponseText;
+
+          // If is-partial is false, message is complete
+          if (!isPartial) {
+            _currentEventId = null;
           }
         case 'done':
           // Turn complete - finalize history with agent attribution
@@ -464,15 +523,15 @@ class VideChatHistoryProvider implements ChatHistoryProvider {
             role: ChatMessageRole.model,
             parts: [TextPart(_currentResponseText)],
             metadata: {
-              'agentId': _currentAgentId,
-              'agentType': _currentAgentType,
-              'agentName': _currentAgentName,
+              'agent-id': _currentAgentId,
+              'agent-type': _currentAgentType,
+              'agent-name': _currentAgentName,
             },
           ));
           return;
         case 'error':
           throw Exception(event.data['message'] as String? ?? 'Unknown error');
-        // tool_use and tool_result handled via responseBuilder
+        // tool-use and tool-result handled via responseBuilder
       }
     }
   }
@@ -487,7 +546,7 @@ class VideChatHistoryProvider implements ChatHistoryProvider {
 }
 ```
 
-### WebSocket Event Streaming
+### WebSocket Client
 
 ```dart
 // lib/data/api/websocket_client.dart
@@ -501,7 +560,7 @@ class WebSocketClient {
 
   Stream<WebSocketEvent> get events => _eventController.stream;
 
-  /// Connect to the WebSocket stream for a network/agent
+  /// Connect to the WebSocket stream for a session
   Future<void> connect(String wsUrl) async {
     _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
@@ -517,6 +576,11 @@ class WebSocketClient {
         _eventController.close();
       },
     );
+  }
+
+  /// Send a message to the server (bidirectional WebSocket)
+  void sendMessage(Map<String, dynamic> message) {
+    _channel?.sink.add(jsonEncode(message));
   }
 
   /// Disconnect from WebSocket
@@ -538,9 +602,9 @@ AgentChatView(
   provider: videChatHistoryProvider,
   responseBuilder: (context, message) {
     // Access agent metadata for multi-agent timeline attribution
-    final agentId = message.metadata?['agentId'] as String?;
-    final agentType = message.metadata?['agentType'] as String?;
-    final agentName = message.metadata?['agentName'] as String?;
+    final agentId = message.metadata?['agent-id'] as String?;
+    final agentType = message.metadata?['agent-type'] as String?;
+    final agentName = message.metadata?['agent-name'] as String?;
 
     // Parse response for tool calls
     final toolCalls = _parseToolCalls(message);
@@ -584,43 +648,103 @@ Widget _buildToolWidget(ToolCall tool) {
 
 ### Integration with WebSocket Events
 
-The provider needs to handle the multiplexed WebSocket event structure:
+The provider needs to handle the multiplexed WebSocket event structure. Following the pattern from `vide_server/example`, we use a **sealed class hierarchy** with manual JSON parsing for clean kebab-case → camelCase conversion:
 
 ```dart
 // lib/data/models/websocket_event.dart
 
-@freezed
-class WebSocketEvent with _$WebSocketEvent {
-  const factory WebSocketEvent({
-    required String agentId,
-    required String agentType,      // "main", "implementation", "planning", "contextCollection"
-    String? agentName,
-    String? taskName,
-    required String type,           // Event types listed below
-    required dynamic data,
-    required DateTime timestamp,
-  }) = _WebSocketEvent;
+/// Base class for all WebSocket events.
+/// See vide_server/example/lib/src/events.dart for reference implementation.
+sealed class WebSocketEvent {
+  final int? seq;
+  final String? eventId;
+  final DateTime timestamp;
+  final AgentInfo? agent;
 
-  factory WebSocketEvent.fromJson(Map<String, dynamic> json) =>
-      _$WebSocketEventFromJson(json);
+  const WebSocketEvent({
+    this.seq,
+    this.eventId,
+    required this.timestamp,
+    this.agent,
+  });
+
+  factory WebSocketEvent.fromJson(Map<String, dynamic> json) {
+    final type = json['type'] as String;
+    final timestamp = DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now();
+    final seq = json['seq'] as int?;
+    final eventId = json['event-id'] as String?;
+    final agent = json['agent-id'] != null ? AgentInfo.fromJson(json) : null;
+    final data = json['data'] as Map<String, dynamic>?;
+
+    return switch (type) {
+      'connected' => ConnectedEvent(...),
+      'history' => HistoryEvent(...),
+      'message' => MessageEvent(
+          seq: seq,
+          eventId: eventId,
+          timestamp: timestamp,
+          agent: agent,
+          role: data?['role'] as String? ?? 'assistant',
+          content: data?['content'] as String? ?? '',
+          isPartial: json['is-partial'] as bool? ?? false,
+        ),
+      'status' => StatusEvent(...),
+      'tool-use' => ToolUseEvent(...),
+      'tool-result' => ToolResultEvent(...),
+      'permission-request' => PermissionRequestEvent(...),
+      'done' => DoneEvent(...),
+      'error' => ErrorEvent(...),
+      _ => UnknownEvent(type: type, rawData: json, ...),
+    };
+  }
 }
 
-/// Event Types:
-/// - `connected` - Initial WebSocket connection established (not a status value)
-/// - `status` - Agent status changed (data: {status: "idle" | "working" | "waitingForAgent" | "waitingForUser"})
-/// - `message` - New full message (data: {role: string, content: string})
-/// - `message_delta` - Streaming text chunk (data: {role: string, delta: string})
-/// - `tool_use` - Agent invoking a tool (data: {toolName: string, toolInput: object, toolUseId: string})
-/// - `tool_result` - Tool execution result (data: {toolName: string, result: string, isError: bool, toolUseId: string})
-/// - `done` - Agent turn complete
-/// - `error` - Error occurred (data: {message: string, stack?: string})
+/// Agent metadata attached to events.
+class AgentInfo {
+  final String id;
+  final String type;      // "main", "implementation", "planning", "context-collection"
+  final String name;
+  final String? taskName;
+
+  factory AgentInfo.fromJson(Map<String, dynamic> json) => AgentInfo(
+    id: json['agent-id'] as String? ?? '',
+    type: json['agent-type'] as String? ?? '',
+    name: json['agent-name'] as String? ?? 'Agent',
+    taskName: json['task-name'] as String?,
+  );
+}
+
+/// Streaming message chunk or complete message.
+class MessageEvent extends WebSocketEvent {
+  final String role;
+  final String content;
+  final bool isPartial;
+  // ... constructor
+}
+
+// See vide_server/example/lib/src/events.dart for complete event class definitions
 ```
+
+**Event Types** (all use kebab-case):
+- `connected` - Initial WebSocket connection with session metadata
+- `history` - All session events for reconnection/state recovery
+- `status` - Agent status changed (data: `{status: "working" | "waiting-for-agent" | "waiting-for-user" | "idle"}`)
+- `message` - Streaming text chunk (data: `{role, content}`) with `is-partial` flag
+- `tool-use` - Agent invoking a tool (data: `{tool-name, tool-input, tool-use-id}`)
+- `tool-result` - Tool execution result (data: `{tool-name, result, is-error, tool-use-id}`)
+- `permission-request` - Tool needs user approval (data: `{request-id, tool-name, ...}`)
+- `permission-timeout` - Permission request timed out (auto-denied)
+- `agent-spawned` - New agent added to session
+- `agent-terminated` - Agent removed from session
+- `aborted` - Operation cancelled via abort command
+- `done` - Agent turn complete (data: `{reason}`)
+- `error` - Error occurred (data: `{message, code}`)
 
 ### Multi-Agent Timeline Support
 
 The unified timeline displays messages from all agents (main, implementation, planning, etc.) in chronological order with visual attribution. This is achieved by:
 
-1. **Agent metadata in ChatMessage**: Each message stores `agentId`, `agentType`, and `agentName` in `ChatMessage.metadata`
+1. **Agent metadata in ChatMessage**: Each message stores `agent-id`, `agent-type`, and `agent-name` in `ChatMessage.metadata`
 2. **WebSocket event tracking**: The provider captures agent context from each WebSocket event
 3. **Custom responseBuilder**: Uses metadata to render `AgentAttributionBadge` showing which agent sent each message
 4. **Visual differentiation**: Different agent types can have distinct colors/icons (e.g., main agent = blue, implementation = green)
@@ -636,7 +760,7 @@ class AgentAttributionBadge extends StatelessWidget {
     'main' => Colors.blue,
     'implementation' => Colors.green,
     'planning' => Colors.purple,
-    'contextCollection' => Colors.orange,
+    'context-collection' => Colors.orange,
     _ => Colors.grey,
   };
 
@@ -672,12 +796,12 @@ class AgentAttributionBadge extends StatelessWidget {
 ├──┴─────────┴────────────────────────────────────────────────────┤
 │ ┌──────────────┐ ┌────────────────────────────────────────────┐ │
 │ │              │ │                                            │ │
-│ │   Network    │ │              Chat Area                     │ │
+│ │   Session    │ │              Chat Area                     │ │
 │ │   History    │ │                                            │ │
 │ │              │ │  ┌──────────────────────────────────────┐  │ │
-│ │  • Network 1 │ │  │ Agent: Thinking...              🟢   │  │ │
-│ │  • Network 2 │ │  └──────────────────────────────────────┘  │ │
-│ │  • Network 3 │ │                                            │ │
+│ │  • Session 1 │ │  │ Agent: Thinking...              🟢   │  │ │
+│ │  • Session 2 │ │  └──────────────────────────────────────┘  │ │
+│ │  • Session 3 │ │                                            │ │
 │ │              │ │  [Message bubbles with tool widgets]       │ │
 │ │              │ │                                            │ │
 │ │              │ │                                            │ │
@@ -707,7 +831,7 @@ class AgentAttributionBadge extends StatelessWidget {
 ```
 
 ### Navigation Patterns
-- **Web**: Persistent sidebar with network list
+- **Web**: Persistent sidebar with session list
 - **Mobile**: Hamburger menu with drawer
 - **Desktop**: Same as web
 
@@ -774,30 +898,25 @@ class VideApiClient {
       : _baseUrl = baseUrl,
         _dio = Dio(BaseOptions(baseUrl: baseUrl));
 
-  /// Create a new network
-  Future<CreateNetworkResponse> createNetwork({
+  /// Create a new session
+  /// Returns session-id and main-agent-id for immediate WebSocket connection
+  Future<CreateSessionResponse> createSession({
     required String initialMessage,
     required String workingDirectory,
+    String? model,           // optional: "sonnet" (default), "opus", "haiku"
+    String? permissionMode,  // optional: "accept-edits" (default), "plan", "ask", "deny"
   }) async {
-    final response = await _dio.post('/api/v1/networks', data: {
-      'initialMessage': initialMessage,
-      'workingDirectory': workingDirectory,
+    final response = await _dio.post('/api/v1/sessions', data: {
+      'initial-message': initialMessage,
+      'working-directory': workingDirectory,
+      if (model != null) 'model': model,
+      if (permissionMode != null) 'permission-mode': permissionMode,
     });
-    return CreateNetworkResponse.fromJson(response.data);
+    return CreateSessionResponse.fromJson(response.data);
   }
 
-  /// Send message to network
-  /// [model] - optional model override: "sonnet" or "opus" (default: sonnet)
-  Future<void> sendMessage(
-    String networkId,
-    String content, {
-    String? model,
-  }) async {
-    await _dio.post('/api/v1/networks/$networkId/messages', data: {
-      'content': content,
-      if (model != null) 'model': model,
-    });
-  }
+  // NOTE: Messages are sent via WebSocket, not HTTP POST
+  // Use WebSocketClient.sendMessage({'type': 'user-message', 'content': '...'})
 
   /// List directory contents for folder browser
   /// [parent] - path to list children of; null = server root
@@ -822,10 +941,10 @@ class VideApiClient {
     return response.data['path'] as String;
   }
 
-  /// Get WebSocket URL for streaming events (multiplexed stream for all agents)
-  String getWebSocketUrl(String networkId) {
+  /// Get WebSocket URL for bidirectional streaming (multiplexed, all agents)
+  String getWebSocketUrl(String sessionId) {
     final wsBase = _baseUrl.replaceFirst('http', 'ws');
-    return '$wsBase/api/v1/networks/$networkId/stream';
+    return '$wsBase/api/v1/sessions/$sessionId/stream';
   }
 }
 ```
@@ -833,10 +952,10 @@ class VideApiClient {
 ### Models
 
 ```dart
-// lib/data/models/network.dart
+// lib/data/models/session.dart
 @freezed
-class Network with _$Network {
-  const factory Network({
+class Session with _$Session {
+  const factory Session({
     required String id,
     required String goal,
     required List<Agent> agents,
@@ -844,7 +963,20 @@ class Network with _$Network {
     required DateTime lastActiveAt,
     String? workingDirectory,
     String? worktreePath,         // Git worktree path if using worktrees
-  }) = _Network;
+  }) = _Session;
+}
+
+// lib/data/models/create_session_response.dart
+@freezed
+class CreateSessionResponse with _$CreateSessionResponse {
+  const factory CreateSessionResponse({
+    @JsonKey(name: 'session-id') required String sessionId,
+    @JsonKey(name: 'main-agent-id') required String mainAgentId,
+    @JsonKey(name: 'created-at') required DateTime createdAt,
+  }) = _CreateSessionResponse;
+
+  factory CreateSessionResponse.fromJson(Map<String, dynamic> json) =>
+      _$CreateSessionResponseFromJson(json);
 }
 
 // lib/data/models/agent.dart
@@ -873,7 +1005,7 @@ enum AgentStatus {
 // The ChatHistoryProvider interface requires ChatMessage, which supports:
 // - ChatMessageRole.user, ChatMessageRole.model, ChatMessageRole.system
 // - Parts: TextPart, DataPart, LinkPart, ToolPart
-// - Metadata map for agent attribution (agentId, agentType, agentName)
+// - Metadata map for agent attribution (agent-id, agent-type, agent-name)
 
 // lib/data/models/tool_call.dart
 @freezed
@@ -892,7 +1024,7 @@ class DirectoryEntry with _$DirectoryEntry {
   const factory DirectoryEntry({
     required String name,
     required String path,
-    required bool isDirectory,
+    @JsonKey(name: 'is-directory') required bool isDirectory,
   }) = _DirectoryEntry;
 
   factory DirectoryEntry.fromJson(Map<String, dynamic> json) =>
@@ -901,7 +1033,7 @@ class DirectoryEntry with _$DirectoryEntry {
 ```
 
 ### Caching Strategy
-- **Network list**: Cache in Riverpod provider, refresh on demand
+- **Session list**: Cache in Riverpod provider, refresh on demand
 - **Messages**: Keep in memory during session, optionally persist to local storage
 - **WebSocket events**: Process and discard (not cached)
 
@@ -928,22 +1060,22 @@ VideApiClient apiClient(ApiClientRef ref) {
   return VideApiClient(baseUrl: serverUrl);
 }
 
-// lib/providers/network_provider.dart
+// lib/providers/session_provider.dart
 @riverpod
-class CurrentNetwork extends _$CurrentNetwork {
+class CurrentSession extends _$CurrentSession {
   @override
-  AsyncValue<Network?> build() => const AsyncValue.data(null);
+  AsyncValue<Session?> build() => const AsyncValue.data(null);
 
-  Future<void> createNetwork(String initialMessage, String workingDir) async {
+  Future<void> createSession(String initialMessage, String workingDir) async {
     state = const AsyncValue.loading();
     try {
       final api = ref.read(apiClientProvider);
-      final response = await api.createNetwork(
+      final response = await api.createSession(
         initialMessage: initialMessage,
         workingDirectory: workingDir,
       );
-      state = AsyncValue.data(Network(
-        id: response.networkId,
+      state = AsyncValue.data(Session(
+        id: response.sessionId,
         goal: initialMessage,
         agents: [Agent(id: response.mainAgentId, ...)],
         ...
@@ -965,9 +1097,9 @@ class WebSocketConnection extends _$WebSocketConnection {
   WebSocketClient? _client;
 
   @override
-  Stream<WebSocketEvent> build(String networkId) async* {
+  Stream<WebSocketEvent> build(String sessionId) async* {
     final api = ref.watch(apiClientProvider);
-    final wsUrl = api.getWebSocketUrl(networkId);
+    final wsUrl = api.getWebSocketUrl(sessionId);
 
     _client = WebSocketClient();
     await _client!.connect(wsUrl);
@@ -975,6 +1107,7 @@ class WebSocketConnection extends _$WebSocketConnection {
     ref.onDispose(() => _client?.disconnect());
 
     // All agent events are multiplexed on this single stream
+    // Client can send messages via _client.sendMessage()
     yield* _client!.events;
   }
 }
@@ -994,28 +1127,37 @@ class AgentStatuses extends _$AgentStatuses {
 ### Repository Pattern
 
 ```dart
-// lib/domain/repositories/network_repository.dart
-abstract class NetworkRepository {
-  Future<Network> createNetwork(String message, String workingDir);
-  Future<void> sendMessage(String networkId, String content);
-  Stream<WebSocketEvent> streamEvents(String networkId);  // Multiplexed stream
+// lib/domain/repositories/session_repository.dart
+abstract class SessionRepository {
+  Future<Session> createSession(String message, String workingDir);
+  Stream<WebSocketEvent> streamEvents(String sessionId);  // Multiplexed stream
+  void sendMessage(String sessionId, String content);     // Via WebSocket
 }
 
-// lib/data/repositories/network_repository_impl.dart
-class NetworkRepositoryImpl implements NetworkRepository {
+// lib/data/repositories/session_repository_impl.dart
+class SessionRepositoryImpl implements SessionRepository {
   final VideApiClient _apiClient;
-  
-  NetworkRepositoryImpl(this._apiClient);
-  
+  final WebSocketClient _wsClient;
+
+  SessionRepositoryImpl(this._apiClient, this._wsClient);
+
   @override
-  Future<Network> createNetwork(String message, String workingDir) async {
-    final response = await _apiClient.createNetwork(
+  Future<Session> createSession(String message, String workingDir) async {
+    final response = await _apiClient.createSession(
       initialMessage: message,
       workingDirectory: workingDir,
     );
-    return Network(id: response.networkId, ...);
+    return Session(id: response.sessionId, ...);
   }
-  
+
+  @override
+  void sendMessage(String sessionId, String content) {
+    _wsClient.sendMessage({
+      'type': 'user-message',
+      'content': content,
+    });
+  }
+
   // ... other methods
 }
 ```
@@ -1043,8 +1185,8 @@ class ServerConnectionException extends AppException {
 
 // Usage in providers
 @riverpod
-class CurrentNetwork extends _$CurrentNetwork {
-  Future<void> createNetwork(...) async {
+class CurrentSession extends _$CurrentSession {
+  Future<void> createSession(...) async {
     state = const AsyncValue.loading();
     try {
       // ...
@@ -1097,20 +1239,20 @@ class CurrentNetwork extends _$CurrentNetwork {
 
 ### Unit Tests
 ```dart
-// test/providers/network_provider_test.dart
+// test/providers/session_provider_test.dart
 void main() {
-  group('CurrentNetwork', () {
-    test('createNetwork updates state on success', () async {
+  group('CurrentSession', () {
+    test('createSession updates state on success', () async {
       final container = ProviderContainer(overrides: [
         apiClientProvider.overrideWithValue(MockVideApiClient()),
       ]);
-      
-      await container.read(currentNetworkProvider.notifier)
-        .createNetwork('Test message', '/path');
-      
+
+      await container.read(currentSessionProvider.notifier)
+        .createSession('Test message', '/path');
+
       expect(
-        container.read(currentNetworkProvider),
-        isA<AsyncData<Network>>(),
+        container.read(currentSessionProvider),
+        isA<AsyncData<Session>>(),
       );
     });
   });
@@ -1146,7 +1288,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'http://localhost:8080');
     await tester.tap(find.text('Connect'));
     
-    // Create network
+    // Create session
     await tester.enterText(find.byKey(Key('message_input')), 'Hello');
     await tester.tap(find.byIcon(Icons.send));
     
@@ -1159,7 +1301,7 @@ void main() {
 
 ### E2E Tests
 - Use `integration_test` package with real vide_server
-- Test complete flows: create network → chat → view history
+- Test complete flows: create session → chat → view history
 
 ---
 
@@ -1192,22 +1334,23 @@ packages/vide_flutter/
 │   │   │   ├── vide_api_client.dart        # Main API client
 │   │   │   └── websocket_client.dart       # WebSocket stream handler
 │   │   ├── models/
-│   │   │   ├── network.dart
-│   │   │   ├── network.freezed.dart
-│   │   │   ├── network.g.dart
+│   │   │   ├── session.dart
+│   │   │   ├── session.freezed.dart
+│   │   │   ├── session.g.dart
+│   │   │   ├── create_session_response.dart
 │   │   │   ├── agent.dart
 │   │   │   ├── chat_message.dart
 │   │   │   ├── tool_call.dart
 │   │   │   ├── websocket_event.dart
 │   │   │   └── directory_entry.dart        # For folder browser
 │   │   └── repositories/
-│   │       └── network_repository_impl.dart
+│   │       └── session_repository_impl.dart
 │   │
 │   ├── domain/
 │   │   ├── models/                          # Domain-specific models if needed
 │   │   ├── repositories/
-│   │   │   └── network_repository.dart      # Abstract interface
-│   │   └── vide_llm_provider.dart           # dartantic_chat provider
+│   │   │   └── session_repository.dart      # Abstract interface
+│   │   └── vide_chat_history_provider.dart  # dartantic_chat provider
 │   │
 │   ├── presentation/
 │   │   ├── pages/
@@ -1239,7 +1382,7 @@ packages/vide_flutter/
 │       ├── config_provider.dart
 │       ├── config_provider.g.dart
 │       ├── api_client_provider.dart
-│       ├── network_provider.dart
+│       ├── session_provider.dart
 │       ├── chat_provider.dart
 │       ├── websocket_provider.dart         # WebSocket connection management
 │       └── agent_status_provider.dart
@@ -1403,7 +1546,7 @@ class EnvConfig {
 ## 13. Future Considerations
 
 ### Desktop Platform Adaptations
-- **Window management**: Multiple windows for different networks
+- **Window management**: Multiple windows for different sessions
 - **System tray**: Background agent monitoring
 - **File system access**: Native file picker for working directory
 - **Keyboard shortcuts**: System-level shortcuts
@@ -1412,7 +1555,7 @@ class EnvConfig {
 - **Push notifications**: Agent completion alerts
 - **Background sync**: Fetch updates when app backgrounded
 - **Compact UI**: Optimized for smaller screens
-- **Gesture navigation**: Swipe to switch networks
+- **Gesture navigation**: Swipe to switch sessions
 
 ### Offline Support
 - **Message queuing**: Queue messages when offline, send when reconnected
@@ -1420,7 +1563,7 @@ class EnvConfig {
 - **Sync protocol**: Reconcile local and server state
 
 ### Advanced Features Beyond Phase 4
-- **Collaborative editing**: Multiple users on same network (requires auth)
+- **Collaborative editing**: Multiple users on same session (requires auth)
 - **Image attachments**: Send screenshots to agent
 - **Plugin system**: Custom tool visualization plugins
 - **Export/import**: Export conversations to Markdown/JSON
@@ -1429,86 +1572,166 @@ class EnvConfig {
 
 ## Appendix A: WebSocket Event Types Reference
 
+All events include these common fields:
+- `seq` - Session-scoped sequence number for ordering and deduplication
+- `event-id` - UUID for this event (shared across partial message chunks)
+- `agent-id` - Which agent produced this event
+- `agent-type` - Agent type: "main", "implementation", "planning", "context-collection"
+- `agent-name` - Human-readable agent name (optional)
+- `task-name` - Current task name (optional)
+- `timestamp` - ISO 8601 timestamp
+
+### Server → Client Events
+
 | Type | Description | Data Fields |
 |------|-------------|-------------|
-| `connected` | Initial WebSocket connection | `networkId: string, agentId: string` |
-| `status` | Agent status changed | `status: string` (idle/working/waitingForAgent/waitingForUser) |
-| `message` | New full message (first chunk) | `role: string, content: string` |
-| `message_delta` | Streaming text chunk | `role: string, delta: string` |
-| `tool_use` | Agent invoking a tool | `toolName: string, toolInput: object, toolUseId: string` |
-| `tool_result` | Result from tool execution | `toolName: string, result: string, isError: bool, toolUseId: string` |
-| `permission_request` | Tool needs user approval | `requestId: string, toolName: string, toolInput: object, permissionSuggestions?: string[]` |
-| `done` | Agent turn complete | (no data) |
-| `error` | Error occurred | `message: string, stack?: string` |
+| `connected` | Initial connection established | `session-id`, `main-agent-id`, `last-seq`, `agents[]`, `metadata` |
+| `history` | All session events for state recovery | `events[]`, `last-seq` |
+| `status` | Agent status changed | `status`: "working" / "waiting-for-agent" / "waiting-for-user" / "idle" |
+| `message` | Streaming text (+ `is-partial` flag) | `role`, `content` |
+| `tool-use` | Agent invoking a tool | `tool-use-id`, `tool-name`, `tool-input` |
+| `tool-result` | Tool execution result | `tool-use-id`, `tool-name`, `result`, `is-error` |
+| `permission-request` | Tool needs user approval | `request-id`, `tool-name`, `tool-input`, `permission-suggestions?` |
+| `permission-timeout` | Permission request timed out | `request-id`, `tool-name`, `timeout-seconds` |
+| `agent-spawned` | New agent added to session | `spawned-by` |
+| `agent-terminated` | Agent removed from session | `terminated-by`, `reason` |
+| `aborted` | Operation cancelled | `reason` |
+| `done` | Agent turn complete | `reason` |
+| `error` | Error occurred | `message`, `code`, `original-message?` |
 
 ### Streaming Behavior
 
-1. When Claude generates text, the first event is `message` with initial content
-2. Subsequent events are `message_delta` containing only the new characters
-3. Client should append deltas to build the complete response
-4. Tool events (`tool_use`, `tool_result`) are sent when detected
-5. `permission_request` events pause agent execution until client responds
-6. `done` signals the agent has finished its turn
+1. Server sends `message` events with `is-partial: true` for streaming chunks
+2. All chunks for the same logical message share the same `event-id`
+3. Client accumulates chunks with matching `event-id`
+4. Final chunk has `is-partial: false` (content may be empty)
+5. `seq` enables ordering and deduplication on reconnect
+6. Tool events (`tool-use`, `tool-result`) are sent when detected
+7. `permission-request` events pause agent execution until client responds or timeout
+8. `done` signals the agent has finished its turn
 
-### Client-to-Server Messages (Bidirectional WebSocket)
+**Example streaming sequence:**
+```json
+{"seq": 3, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "Let me "}, ...}
+{"seq": 4, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "help you "}, ...}
+{"seq": 5, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "with that."}, ...}
+{"seq": 6, "event-id": "550e8400-...", "type": "message", "is-partial": false, "data": {"role": "assistant", "content": ""}, ...}
+```
+
+### Client → Server Messages
 
 The client can send JSON messages through the WebSocket connection:
 
 | Type | Description | Fields |
 |------|-------------|--------|
-| `permission_response` | Respond to permission request | `requestId: string, allow: bool, updatedInput?: object, message?: string` |
+| `user-message` | Send message to conversation | `content`, `model?`, `permission-mode?` |
+| `permission-response` | Respond to permission request | `request-id`, `allow`, `message?` |
+| `abort` | Cancel all active agent operations | (none) |
 
-**Permission Response Examples:**
+**user-message Example:**
 ```json
-// Allow the tool
-{"type": "permission_response", "requestId": "abc-123", "allow": true}
-
-// Allow with modified input
-{"type": "permission_response", "requestId": "abc-123", "allow": true, "updatedInput": {"command": "ls"}}
-
-// Deny the tool
-{"type": "permission_response", "requestId": "abc-123", "allow": false, "message": "User declined"}
+{
+  "type": "user-message",
+  "content": "Now make it print goodbye too",
+  "model": "opus",
+  "permission-mode": "ask"
+}
 ```
 
+**permission-response Examples:**
+```json
+// Allow the tool
+{"type": "permission-response", "request-id": "abc-123", "allow": true}
+
+// Deny the tool
+{"type": "permission-response", "request-id": "abc-123", "allow": false, "message": "User declined"}
+```
+
+**abort Example:**
+```json
+{"type": "abort"}
+```
+When client sends `abort`, server cancels ALL active agents and sends an `aborted` event for each.
+
 ## Appendix B: REST API Quick Reference
+
+All JSON uses kebab-case for property names.
 
 ### Implemented Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/networks` | POST | Create new network |
-| `/api/v1/networks/:id/messages` | POST | Send message (body: `{content, model?}` where model is "sonnet" or "opus") |
+| `GET /health` | GET | Health check (returns `{"status": "ok", "version": "0.1.0"}`) |
+| `POST /api/v1/sessions` | POST | Create new session |
+| `ws://.../api/v1/sessions/{session-id}/stream` | WS | Bidirectional WebSocket (all agents multiplexed) |
+| `GET /api/v1/filesystem` | GET | List directory contents |
+| `POST /api/v1/filesystem` | POST | Create new folder |
 
-### Prerequisite Endpoints (must be implemented before vide_flutter)
+### POST /api/v1/sessions - Create Session
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/networks/:id/stream` | WS | Multiplexed bidirectional WebSocket stream (all agents) |
-| `/api/v1/filesystem` | GET | List directory contents |
-| `/api/v1/filesystem` | POST | Create new folder |
+**Request:**
+```json
+{
+  "initial-message": "Write a hello world program",
+  "working-directory": "/Users/chris/myproject",
+  "model": "opus",              // optional: "sonnet" (default), "opus", "haiku"
+  "permission-mode": "ask"      // optional: "accept-edits" (default), "plan", "ask", "deny"
+}
+```
 
-**Multiplexed Bidirectional WebSocket Details:**
-- Single connection per network, receives events from all agents
-- Each event includes: `agentId`, `agentType`, `agentName`, `taskName` for attribution
-- Replaces per-agent streams with unified timeline approach
-- Client can send messages (e.g., `permission_response`) through the same connection
-- See "Client-to-Server Messages" in Appendix A for message types
+**Response:**
+```json
+{
+  "session-id": "550e8400-e29b-41d4-a716-446655440000",
+  "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "created-at": "2025-12-21T10:00:00Z"
+}
+```
 
-**Filesystem GET Endpoint:**
+### Bidirectional WebSocket
+
+**Endpoint:** `ws://{host}:{port}/api/v1/sessions/{session-id}/stream`
+
+**Features:**
+- Single connection per session, receives events from ALL agents (main + spawned)
+- Each event includes: `seq`, `event-id`, `agent-id`, `agent-type`, `agent-name`, `task-name`, `timestamp`
+- Unified timeline approach - no per-agent connections needed
+- Client sends messages via WebSocket (not HTTP POST):
+  - `user-message` - Send message to conversation
+  - `permission-response` - Allow/deny tool approval request
+  - `abort` - Cancel all active agent operations
+- See Appendix A for complete event and message type reference
+
+### Filesystem Endpoints
+
+**GET /api/v1/filesystem** - List directory contents
 - Query param: `parent` (optional) - path to list children of; null/omitted = server root
-- Response: `{ entries: [{ name: string, path: string, isDirectory: bool }] }`
+- Response: `{ "entries": [{ "name": "...", "path": "...", "is-directory": true }] }`
 - Returns both files and folders; client filters as needed
+- Symlinks are NOT followed (security measure)
 
-**Filesystem POST Endpoint:**
-- Body: `{ parent: string, name: string }`
-- Creates folder at `parent/name`
-- Response: `{ path: string }` of created folder
-- Server configures root directory to restrict all operations within allowed scope
+**POST /api/v1/filesystem** - Create folder
+- Body: `{ "parent": "/path/to/parent", "name": "new-folder" }`
+- Response: `{ "path": "/path/to/parent/new-folder" }`
+- Server enforces root directory restriction
+
+### Error Response Format
+
+All errors return consistent JSON:
+```json
+{
+  "error": "Human-readable error message",
+  "code": "ERROR_CODE"
+}
+```
+
+Common error codes: `INVALID_REQUEST`, `INVALID_WORKING_DIRECTORY`, `NOT_FOUND`, `INTERNAL_ERROR`
 
 ### Future Endpoints (Not Yet Implemented)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/v1/networks` | GET | List networks |
-| `/api/v1/networks/:id` | GET | Get network details |
-| `/api/v1/networks/:id/memory` | GET | Get agent memories |
+| `GET /api/v1/sessions` | GET | List sessions |
+| `GET /api/v1/sessions/:id` | GET | Get session details |
+| `DELETE /api/v1/sessions/:id` | DELETE | Delete session |
+| `GET /api/v1/sessions/:id/memory` | GET | Get agent memories |
