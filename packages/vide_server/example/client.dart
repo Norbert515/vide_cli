@@ -1,6 +1,6 @@
 #!/usr/bin/env dart
 
-/// Interactive REPL client for Vide Server
+/// Interactive REPL client for Vide Server (Phase 2.5 Session API)
 ///
 /// Usage:
 ///   dart run example/client.dart --port 63139
@@ -107,7 +107,7 @@ void main(List<String> args) async {
   print('✓ Connected to $serverUrl');
   print('');
 
-  // Step 2: Start REPL loop (network will be created on first message)
+  // Step 2: Start REPL loop (session will be created on first message)
   await _runRepl(serverUrl, workingDir, port);
 }
 
@@ -121,8 +121,7 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('');
   stdout.write('You: ');
 
-  String? networkId;
-  String? mainAgentId;
+  String? sessionId;
   WebSocketChannel? channel;
   var shouldExit = false;
 
@@ -137,7 +136,7 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
         inputLower == 'exit' ||
         inputLower == 'quit') {
       print('');
-      if (networkId != null) {
+      if (sessionId != null) {
         print('Ending session...');
         shouldExit = true;
         await channel?.sink.close();
@@ -164,17 +163,18 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
       continue;
     }
 
-    // First message - create network and connect WebSocket
-    if (networkId == null) {
+    // First message - create session and connect WebSocket
+    if (sessionId == null) {
       print('');
       print('→ Creating session with your message...');
 
+      // Create session with kebab-case JSON (Phase 2.5 format)
       final createResponse = await http.post(
-        Uri.parse('$serverUrl/api/v1/networks'),
+        Uri.parse('$serverUrl/api/v1/sessions'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'initialMessage': input,
-          'workingDirectory': workingDir,
+          'initial-message': input,
+          'working-directory': workingDir,
         }),
       );
 
@@ -184,17 +184,16 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
         continue;
       }
 
-      final networkData = jsonDecode(createResponse.body);
-      networkId = networkData['networkId'];
-      mainAgentId = networkData['mainAgentId'];
+      // Parse kebab-case response
+      final sessionData = jsonDecode(createResponse.body);
+      sessionId = sessionData['session-id'];
 
-      print('✓ Session created (ID: $networkId)');
+      print('✓ Session created (ID: $sessionId)');
       print('');
-      print('→ Connecting to agent stream...');
+      print('→ Connecting to session stream...');
 
-      // Connect to WebSocket
-      final wsUrl =
-          'ws://127.0.0.1:$port/api/v1/networks/$networkId/agents/$mainAgentId/stream';
+      // Connect to multiplexed WebSocket (all agents)
+      final wsUrl = 'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
       channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
       // Listen for WebSocket messages in background
@@ -227,20 +226,10 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
 
       // Wait for first response (event handler will prompt for next input)
     } else {
-      // Subsequent messages - send via /messages endpoint
+      // Subsequent messages - send via WebSocket user-message
       print('');
 
-      final sendResponse = await http.post(
-        Uri.parse('$serverUrl/api/v1/networks/$networkId/messages'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'content': input}),
-      );
-
-      if (sendResponse.statusCode != 200) {
-        print('✗ Error sending message: ${sendResponse.body}');
-        stdout.write('\nYou: ');
-        continue;
-      }
+      channel!.sink.add(jsonEncode({'type': 'user-message', 'content': input}));
 
       // Wait for response (event handler will prompt for next input)
     }
@@ -252,78 +241,141 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('╚════════════════════════════════════════════════════════════════╝');
 }
 
-/// Track current streaming message
+/// Track current streaming message state
+String? _currentEventId;
 String? _currentStreamRole;
 final _currentStreamBuffer = StringBuffer();
 
-/// Handle different WebSocket event types
+/// Handle different WebSocket event types (Phase 2.5 format with kebab-case)
 void _handleEvent(Map<String, dynamic> event) {
   final type = event['type'];
-  final agentName = event['agentName'] ?? 'Agent';
-  final data = event['data'];
+  final agentName = event['agent-name'] ?? 'Agent';
+  final data = event['data'] as Map<String, dynamic>?;
 
   switch (type) {
+    case 'connected':
+      final sessionId = event['session-id'];
+      final mainAgentId = event['main-agent-id'];
+      print('[$agentName] Connected to session $sessionId');
+      print('  Main agent: $mainAgentId');
+      break;
+
+    case 'history':
+      final lastSeq = event['last-seq'];
+      final events = data?['events'] as List? ?? [];
+      if (events.isNotEmpty) {
+        print(
+          '[$agentName] Loaded ${events.length} history events (seq: $lastSeq)',
+        );
+      }
+      break;
+
     case 'status':
-      print('[$agentName] Status: ${data['status']}');
+      print('[$agentName] Status: ${data?['status']}');
       break;
 
     case 'message':
-      // Full message (start of new message)
-      final role = data['role'];
-      final content = data['content'];
+      // Phase 2.5: Single message event with is-partial flag
+      final role = data?['role'];
+      final content = data?['content'] ?? '';
+      final isPartial = event['is-partial'] ?? false;
+      final eventId = event['event-id'];
 
-      // Start tracking this message for streaming
-      _currentStreamRole = role;
-      _currentStreamBuffer.clear();
-      _currentStreamBuffer.write(content);
+      // Check if this is a new message or continuation of streaming
+      if (_currentEventId != eventId) {
+        // New message - close any previous streaming message
+        if (_currentStreamRole == 'assistant' &&
+            _currentStreamBuffer.isNotEmpty) {
+          print('');
+          print('└─');
+        }
 
-      if (role == 'user') {
-        print('');
-        print('┌─ User');
-        print('│ $content');
-        print('└─');
+        // Start new message
+        _currentEventId = eventId;
+        _currentStreamRole = role;
+        _currentStreamBuffer.clear();
+        _currentStreamBuffer.write(content);
+
+        if (role == 'user') {
+          print('');
+          print('┌─ User');
+          print('│ $content');
+          print('└─');
+        } else {
+          print('');
+          print('┌─ Assistant');
+          stdout.write('│ $content');
+        }
       } else {
+        // Same message - append delta (streaming)
+        // Server sends deltas directly, just append and display
+        if (_currentStreamRole == 'assistant' && content.isNotEmpty) {
+          _currentStreamBuffer.write(content);
+          stdout.write(content);
+        }
+      }
+
+      // If message is complete, close it
+      if (!isPartial && _currentStreamRole == 'assistant') {
         print('');
-        print('┌─ Assistant');
-        stdout.write('│ $content');
+        print('└─');
+        _currentEventId = null;
+        _currentStreamRole = null;
+        _currentStreamBuffer.clear();
       }
       break;
 
-    case 'message_delta':
-      // Streaming chunk (delta to current message)
-      final delta = data['delta'];
-
-      if (_currentStreamRole == 'assistant') {
-        // Append to buffer
-        _currentStreamBuffer.write(delta);
-
-        // Write delta directly to stdout (no newline)
-        stdout.write(delta);
-      }
-      break;
-
-    case 'tool_use':
+    case 'tool-use':
       // Close any open streaming message before showing tool use
       if (_currentStreamRole == 'assistant') {
         print('');
         print('└─');
+        _currentEventId = null;
         _currentStreamRole = null;
         _currentStreamBuffer.clear();
       }
 
-      final toolName = data['toolName'];
+      final toolName = data?['tool-name'];
       print('');
       print('🔧 Using tool: $toolName');
       break;
 
-    case 'tool_result':
-      final toolName = data['toolName'];
-      final isError = data['isError'] ?? false;
+    case 'tool-result':
+      final toolName = data?['tool-name'];
+      final isError = data?['is-error'] ?? false;
       if (isError) {
         print('   ✗ Error from $toolName');
       } else {
         print('   ✓ $toolName completed');
       }
+      break;
+
+    case 'agent-spawned':
+      final spawnedAgentId = event['agent-id'];
+      final spawnedBy = data?['spawned-by'];
+      print('');
+      print('🚀 Agent spawned: $agentName ($spawnedAgentId)');
+      print('   by: $spawnedBy');
+      break;
+
+    case 'agent-terminated':
+      final reason = data?['reason'];
+      print('');
+      print('🛑 Agent terminated: $agentName');
+      if (reason != null) {
+        print('   reason: $reason');
+      }
+      break;
+
+    case 'permission-request':
+      final requestId = data?['request-id'];
+      final tool = data?['tool'] as Map<String, dynamic>?;
+      final toolName = tool?['name'];
+      print('');
+      print('⚠️  Permission requested: $toolName');
+      print('   Request ID: $requestId');
+      print('   (Auto-approving in this client)');
+      // TODO: Implement interactive permission handling
       break;
 
     case 'done':
@@ -332,6 +384,7 @@ void _handleEvent(Map<String, dynamic> event) {
         print('');
         print('└─');
       }
+      _currentEventId = null;
       _currentStreamRole = null;
       _currentStreamBuffer.clear();
 
@@ -341,9 +394,10 @@ void _handleEvent(Map<String, dynamic> event) {
 
     case 'error':
       print('');
-      print('✗ Error: ${data['message']}');
-      if (data['stack'] != null) {
-        print('  Stack: ${data['stack']}');
+      print('✗ Error: ${data?['message']}');
+      final code = data?['code'];
+      if (code != null) {
+        print('  Code: $code');
       }
       break;
 

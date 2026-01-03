@@ -48,13 +48,19 @@ abstract class ClaudeClient {
   /// This is the clean way to detect when an agent has finished its work.
   Stream<void> get onTurnComplete;
 
-  /// Stream of Claude's current processing status.
+/// Stream of Claude's current processing status.
   /// Emits status updates like processing, thinking, responding, completed.
   /// Useful for showing real-time activity indicators in the UI.
   Stream<ClaudeStatus> get statusStream;
 
   /// The most recent status from Claude.
   ClaudeStatus get currentStatus;
+
+  /// Sets the permission mode for subsequent tool use.
+  ///
+  /// [mode] - The permission mode to set (e.g., 'acceptEdits', 'plan', 'ask', 'deny').
+  /// This is sent as a control request to the Claude CLI.
+  Future<void> setPermissionMode(String mode);
 
   T? getMcpServer<T extends McpServerBase>(String name);
 
@@ -536,6 +542,17 @@ class ClaudeClientImpl implements ClaudeClient {
         _currentConversation.withError('Failed to abort: $e'),
       );
     }
+  }
+
+  @override
+  Future<void> setPermissionMode(String mode) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      // Client not initialized yet - this will take effect when it starts
+      // via the config's permissionMode field
+      return;
+    }
+    await controlProtocol.setPermissionMode(mode);
   }
 
   @override

@@ -55,20 +55,19 @@ final currentRepoPathProvider = Provider<String>((ref) {
 ///
 /// This provider creates callbacks that can be passed to ClaudeClient.create() for
 /// permission checking via the control protocol.
-final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider
-    .overrideWith((ref) {
-      final permissionService = ref.read(permissionServiceProvider);
-      return (String cwd) {
-        return (toolName, input, context) async {
-          return permissionService.checkToolPermission(
-            toolName,
-            input,
-            context,
-            cwd: cwd,
-          );
-        };
-      };
-    });
+final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.overrideWith((ref) {
+  final permissionService = ref.read(permissionServiceProvider);
+  return (PermissionCallbackContext ctx) {
+    return (toolName, input, context) async {
+      return permissionService.checkToolPermission(
+        toolName,
+        input,
+        context,
+        cwd: ctx.cwd,
+      );
+    };
+  };
+});
 
 void main(List<String> args, {List<Override> overrides = const []}) async {
   // Initialize Sentry and set up nocterm error handler

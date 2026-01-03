@@ -17,16 +17,16 @@
 - ✅ Fixed duplicate content bug in WebSocket streaming (see Bug Fixes below)
 - ✅ Added integration tests for end-to-end flow and duplicate content detection
 
-**Phase 2.5: GUI App Prerequisites 🆕** (Required before vide_flutter)
-- ⬜ Multiplexed bidirectional WebSocket at /api/v1/sessions/{session-id}/stream (replaces per-agent streams)
-- ⬜ Client→server messages: `user-message`, `permission-response`, `abort`
-- ⬜ Server→client events: `connected`, `history`, `status`, `message`, `tool-use`, `tool-result`, `permission-request`, `permission-timeout`, `agent-spawned`, `agent-terminated`, `aborted`, `done`, `error`
-- ⬜ Permission handling: server sends `permission-request`, client responds, 60s timeout with auto-deny
-- ⬜ Model selection: sonnet/opus/haiku per-message via `user-message` (plus permission-mode)
+**Phase 2.5: GUI App Prerequisites 🆕** (In Progress - Core Features Complete)
+- ✅ Multiplexed bidirectional WebSocket at /api/v1/sessions/{session-id}/stream (replaces per-agent streams)
+- ✅ Client→server messages: `user-message`, `permission-response`, `abort`
+- ✅ Server→client events: `connected`, `history`, `status`, `message`, `tool-use`, `tool-result`, `permission-request`, `permission-timeout`, `agent-spawned`, `agent-terminated`, `aborted`, `done`, `error`
+- ✅ Permission handling: server sends `permission-request`, client responds, 60s timeout with auto-deny
+- ✅ Model selection: sonnet/opus/haiku per-message via `user-message` (plus permission-mode)
+- ✅ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` (shared across partial chunks) for client accumulation and deduplication
 - ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
 - ⬜ Server configuration file support (~/.vide/api/config.json)
 - ⬜ WebSocket keepalive (20s ping/pong)
-- ⬜ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` (shared across partial chunks) for client accumulation and deduplication
 
 **Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
 - Multi-turn conversation test flakiness fix (moved from Phase 2)
@@ -1623,12 +1623,12 @@ All events use this format for both TUI persistence and REST API:
 > - **JSON format**: All properties use kebab-case (breaking change from Phase 2's camelCase)
 
 **2.5.0 Terminology & Convention Migration:**
-38. ⬜ Rename all DTOs: `CreateNetworkRequest` → `CreateSessionRequest`, `NetworkCacheManager` → `SessionCacheManager`
-39. ⬜ Rename route file: `network_routes.dart` → `session_routes.dart`
-40. ⬜ Create `POST /api/v1/sessions` endpoint (replaces `POST /api/v1/networks`)
-41. ⬜ Remove `POST /api/v1/networks` endpoint
-42. ⬜ Update all JSON responses to use kebab-case: `session-id`, `main-agent-id`, `working-directory`, etc.
-43. ⬜ Update all JSON requests to use kebab-case: `initial-message`, `permission-mode`, etc.
+38. ✅ Rename all DTOs: `CreateNetworkRequest` → `CreateSessionRequest`, `NetworkCacheManager` → `SessionCacheManager`
+39. ✅ Rename route file: `network_routes.dart` → `session_routes.dart`
+40. ✅ Create `POST /api/v1/sessions` endpoint (replaces `POST /api/v1/networks`)
+41. ✅ Remove `POST /api/v1/networks` endpoint
+42. ✅ Update all JSON responses to use kebab-case: `session-id`, `main-agent-id`, `working-directory`, etc.
+43. ✅ Update all JSON requests to use kebab-case: `initial-message`, `permission-mode`, etc.
 
 **POST /api/v1/sessions** - Create session and start agent (replaces Phase 2's POST /api/v1/networks):
 ```
@@ -1654,30 +1654,30 @@ Response:
 - After receiving response, client connects to WebSocket at `/api/v1/sessions/{session-id}/stream`
 
 **2.5.1 Multiplexed Session WebSocket:**
-44. ⬜ Create `_SessionStreamManager` class to track all agents in session
-45. ⬜ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
-46. ⬜ Add multi-agent subscription logic (subscribe to all current + spawned agents)
-47. ⬜ Add `agent-spawned` and `agent-terminated` event types
-48. ⬜ Remove old per-agent endpoint (`/api/v1/networks/{networkId}/agents/{agentId}/stream`)
-49. ⬜ Update integration tests for session-level WebSocket
-50. ⬜ Implement message streaming with `seq`, `role`, `is-partial` flag, and `event-id` (server does NOT accumulate)
+44. ✅ Create `_SessionStreamManager` class to track all agents in session
+45. ✅ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
+46. ✅ Add multi-agent subscription logic (subscribe to all current + spawned agents)
+47. ✅ Add `agent-spawned` and `agent-terminated` event types
+48. ✅ Remove old per-agent endpoint (`/api/v1/networks/{networkId}/agents/{agentId}/stream`)
+49. ✅ Update integration tests for session-level WebSocket
+50. ✅ Implement message streaming with `seq`, `role`, `is-partial` flag, and `event-id` (server does NOT accumulate)
 
 **2.5.2 Bidirectional Permission Handling:**
-51. ⬜ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
-52. ⬜ Add `permission-request` event type to WebSocketEvent
-53. ⬜ Implement client message handling for `permission-response`
-54. ⬜ Add `permission-timeout` event type (sent when permission request times out)
-55. ⬜ Add `ServerConfig` class to load `~/.vide/api/config.json`
-56. ⬜ Add integration tests for permission request/response flow
+51. ✅ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
+52. ✅ Add `permission-request` event type to WebSocketEvent
+53. ✅ Implement client message handling for `permission-response`
+54. ✅ Add `permission-timeout` event type (sent when permission request times out)
+55. ✅ Add `ServerConfig` class to load `~/.vide/api/config.json`
+56. ✅ Add integration tests for permission request/response flow
 
 **2.5.3 Model and Options Selection:**
-57. ⬜ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
-58. ⬜ Add `abort` client→server handler to WebSocket (cancels ALL active agents)
-59. ⬜ Add `aborted` server→client event (one per cancelled agent)
-60. ⬜ Add `history` server→client event (all messages from ALL agents, with agent attribution)
-61. ⬜ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
-62. ⬜ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
-63. ⬜ Add error response for unknown WebSocket message types (include original-message)
+57. ✅ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
+58. ✅ Add `abort` client→server handler to WebSocket (cancels ALL active agents)
+59. ✅ Add `aborted` server→client event (one per cancelled agent)
+60. ✅ Add `history` server→client event (all messages from ALL agents, with agent attribution)
+61. ✅ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
+62. ✅ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
+63. ✅ Add error response for unknown WebSocket message types (include original-message)
 64. ⬜ Future work: temperature, max-tokens, allowed-tools, disallowed-tools
 
 **2.5.4 Filesystem Browsing API:**
@@ -1691,18 +1691,18 @@ Response:
 70. ⬜ Handle ping timeout (close with code 1001)
 
 **2.5.6-8 Documentation & Examples:**
-71. ⬜ Add `ErrorResponse` class to DTOs
-72. ⬜ Document WebSocket lifecycle in code comments
-73. ⬜ Update CLAUDE.md with new API endpoints
-74. ⬜ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
+71. ✅ Add `ErrorResponse` class to DTOs
+72. ✅ Document WebSocket lifecycle in code comments
+73. ✅ Update CLAUDE.md with new API endpoints
+74. ✅ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
 
 **2.5.9 Session State Recovery:**
-75. ⬜ Add `seq` field to all WebSocket events (session-scoped sequence number)
-76. ⬜ Update event persistence to store sequence numbers
-77. ⬜ Implement atomic subscribe-then-history pattern in WebSocket handler
-78. ⬜ Update `history` event to include `last-seq` and full event array (including in-progress)
-79. ⬜ Ensure TUI and REST use identical event serialization format
-80. ⬜ Add integration tests for reconnection scenarios (fresh connect, reconnect, idle resume)
+75. ✅ Add `seq` field to all WebSocket events (session-scoped sequence number)
+76. ✅ Update event persistence to store sequence numbers
+77. ✅ Implement atomic subscribe-then-history pattern in WebSocket handler
+78. ✅ Update `history` event to include `last-seq` and full event array (including in-progress)
+79. ✅ Ensure TUI and REST use identical event serialization format
+80. ✅ Add integration tests for reconnection scenarios (fresh connect, reconnect, idle resume)
 81. ⬜ Add gap detection logging (warning if seq gap detected)
 
 ### Phase 3: Testing & Documentation (Day 5)

@@ -15,15 +15,25 @@ final flutterRuntimeServerProvider =
       return FlutterRuntimeServer();
     });
 
+/// Parameters for creating an MCP server instance.
+///
+/// Includes the agent ID, server type, and the project path (working directory)
+/// that the server should be scoped to. This ensures MCP servers use the correct
+/// project context, not the server's working directory.
 class AgentIdAndMcpServerType {
   final AgentId agentId;
   final McpServerType mcpServerType;
+  final String projectPath;
 
-  AgentIdAndMcpServerType({required this.agentId, required this.mcpServerType});
+  AgentIdAndMcpServerType({
+    required this.agentId,
+    required this.mcpServerType,
+    required this.projectPath,
+  });
 
   @override
   String toString() {
-    return 'AgentIdAndMcpServerType(agentId: $agentId, mcpServerType: $mcpServerType)';
+    return 'AgentIdAndMcpServerType(agentId: $agentId, mcpServerType: $mcpServerType, projectPath: $projectPath)';
   }
 
   @override
@@ -31,39 +41,28 @@ class AgentIdAndMcpServerType {
     if (identical(this, other)) return true;
     return other is AgentIdAndMcpServerType &&
         other.agentId == agentId &&
-        other.mcpServerType == mcpServerType;
+        other.mcpServerType == mcpServerType &&
+        other.projectPath == projectPath;
   }
 
   @override
-  int get hashCode => agentId.hashCode ^ mcpServerType.hashCode;
+  int get hashCode => agentId.hashCode ^ mcpServerType.hashCode ^ projectPath.hashCode;
 }
 
-final genericMcpServerProvider =
-    Provider.family<McpServerBase, AgentIdAndMcpServerType>((
-      ref,
-      agentIdAndMcpServerType,
-    ) {
-      return switch (agentIdAndMcpServerType.mcpServerType) {
-        McpServerType.git => ref.watch(
-          gitServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        McpServerType.agent => ref.watch(
-          agentServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        McpServerType.memory => ref.watch(
-          memoryServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        McpServerType.taskManagement => ref.watch(
-          taskManagementServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        McpServerType.askUserQuestion => ref.watch(
-          askUserQuestionServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        McpServerType.flutterRuntime => ref.watch(
-          flutterRuntimeServerProvider(agentIdAndMcpServerType.agentId),
-        ),
-        _ => throw Exception(
-          'MCP server type not supported: ${agentIdAndMcpServerType.mcpServerType}',
-        ),
-      };
-    });
+final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpServerType>((
+  ref,
+  params,
+) {
+  return switch (params.mcpServerType) {
+    McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
+    McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
+    McpServerType.memory => ref.watch(memoryServerProvider((
+          agentId: params.agentId,
+          projectPath: params.projectPath,
+        ))),
+    McpServerType.taskManagement => ref.watch(taskManagementServerProvider(params.agentId)),
+    McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(params.agentId)),
+    McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(params.agentId)),
+    _ => throw Exception('MCP server type not supported: ${params.mcpServerType}'),
+  };
+});

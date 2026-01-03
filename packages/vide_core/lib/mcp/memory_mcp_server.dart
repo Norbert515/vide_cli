@@ -2,18 +2,22 @@ import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:sentry/sentry.dart';
 import '../services/memory_service.dart';
-import '../utils/working_dir_provider.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
 
-final memoryServerProvider = Provider.family<MemoryMCPServer, AgentId>((
-  ref,
-  agentId,
-) {
+/// Parameters for creating a memory server instance.
+typedef MemoryServerParams = ({AgentId agentId, String projectPath});
+
+/// Provider for creating MemoryMCPServer instances scoped to a specific project path.
+///
+/// The projectPath is passed explicitly from the ClaudeClientFactory, ensuring
+/// each network's memory operations are scoped to its working directory, not
+/// the server's current directory.
+final memoryServerProvider = Provider.family<MemoryMCPServer, MemoryServerParams>((ref, params) {
   return MemoryMCPServer(
     memoryService: ref.watch(memoryServiceProvider),
-    projectPath: ref.watch(workingDirProvider),
+    projectPath: params.projectPath,
   );
 });
 
