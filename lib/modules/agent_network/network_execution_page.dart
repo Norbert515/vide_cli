@@ -264,6 +264,7 @@ class _AgentChatState extends State<_AgentChat> {
         });
       },
       exitApp: shutdownApp,
+      getConversation: () => _conversation,
     );
 
     final result = await dispatcher.dispatch(commandInput, commandContext);
