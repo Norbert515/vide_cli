@@ -348,7 +348,7 @@ class _SessionStreamManager {
           agentType: agent.type,
           agentName: agent.name,
           taskName: agent.taskName,
-          terminatedBy: 'unknown', // TODO: Track who terminated
+          terminatedBy: 'unknown', // See vide_cli-uju for tracking this
         );
         _emitEvent(event);
 
@@ -363,10 +363,10 @@ class _SessionStreamManager {
 
     final claudeClient = container.read(claudeProvider(agent.id));
     if (claudeClient == null) {
-      _log.warning(
-        '[Session $sessionId] No ClaudeClient for agent ${agent.id}',
+      throw StateError(
+        '[Session $sessionId] No ClaudeClient for agent ${agent.id}. '
+        'This indicates the agent was not properly initialized.',
       );
-      return;
     }
 
     final subscription = _AgentSubscription(

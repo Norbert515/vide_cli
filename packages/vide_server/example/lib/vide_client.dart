@@ -26,5 +26,4 @@ library;
 export 'src/agent_info.dart';
 export 'src/enums.dart';
 export 'src/events.dart';
-export 'src/message_accumulator.dart';
 export 'src/vide_client.dart';

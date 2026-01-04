@@ -110,6 +110,11 @@ class SessionPermissionManager {
 
   SessionPermissionManager._();
 
+  /// Maximum time to wait for a session to be registered before denying.
+  /// This handles the race condition where Claude tries to use a tool
+  /// before the WebSocket connects.
+  static const _sessionRegistrationTimeout = Duration(seconds: 10);
+
   /// Server config (loaded once at startup)
   ServerConfig _config = ServerConfig.defaultConfig;
 
@@ -118,6 +123,9 @@ class SessionPermissionManager {
 
   /// Pending permission requests by request ID
   final Map<String, _PendingPermission> _pendingRequests = {};
+
+  /// Completers waiting for session registration, keyed by session ID
+  final Map<String, List<Completer<_RegisteredSession?>>> _sessionWaiters = {};
 
   /// Initialize with server config
   void initialize(ServerConfig config) {
@@ -130,11 +138,23 @@ class SessionPermissionManager {
     required PermissionRequestCallback onPermissionRequest,
     required PermissionTimeoutCallback onPermissionTimeout,
   }) {
-    _sessions[sessionId] = _RegisteredSession(
+    final session = _RegisteredSession(
       sessionId: sessionId,
       onPermissionRequest: onPermissionRequest,
       onPermissionTimeout: onPermissionTimeout,
     );
+    _sessions[sessionId] = session;
+
+    // Complete any waiters for this session
+    final waiters = _sessionWaiters.remove(sessionId);
+    if (waiters != null) {
+      for (final waiter in waiters) {
+        if (!waiter.isCompleted) {
+          waiter.complete(session);
+        }
+      }
+    }
+
     _log.info('Session registered: $sessionId');
   }
 
@@ -179,15 +199,7 @@ class SessionPermissionManager {
     _RegisteredSession? session = _sessions[sessionId];
     if (session == null) {
       _log.fine('Session $sessionId not registered yet, waiting...');
-      // Wait up to 10 seconds for session to be registered
-      for (var i = 0; i < 100; i++) {
-        await Future.delayed(const Duration(milliseconds: 100));
-        session = _sessions[sessionId];
-        if (session != null) {
-          _log.fine('Session $sessionId registered after ${(i + 1) * 100}ms');
-          break;
-        }
-      }
+      session = await _waitForSession(sessionId);
     }
 
     if (session == null) {
@@ -297,6 +309,35 @@ class SessionPermissionManager {
         'Permission request timed out after ${_config.permissionTimeoutSeconds} seconds',
       ),
     );
+  }
+
+  /// Wait for a session to be registered, with timeout.
+  ///
+  /// Returns the session if registered within timeout, null otherwise.
+  Future<_RegisteredSession?> _waitForSession(String sessionId) async {
+    final completer = Completer<_RegisteredSession?>();
+
+    // Add to waiters list
+    _sessionWaiters.putIfAbsent(sessionId, () => []).add(completer);
+
+    // Set up timeout
+    final timer = Timer(_sessionRegistrationTimeout, () {
+      if (!completer.isCompleted) {
+        // Remove from waiters and complete with null
+        _sessionWaiters[sessionId]?.remove(completer);
+        completer.complete(null);
+      }
+    });
+
+    try {
+      final session = await completer.future;
+      if (session != null) {
+        _log.fine('Session $sessionId registered');
+      }
+      return session;
+    } finally {
+      timer.cancel();
+    }
   }
 
   /// Number of pending requests (for testing)

@@ -29,7 +29,7 @@ CanUseToolCallback createSmartPermissionCallback(PermissionCallbackContext ctx) 
       cwd: ctx.cwd,
       sessionId: ctx.networkId!,
       agentId: ctx.agentId.toString(),
-      agentType: 'main', // Default since we don't have type in context
+      agentType: ctx.agentType ?? 'unknown',
       agentName: ctx.agentName,
     );
   }

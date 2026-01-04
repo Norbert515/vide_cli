@@ -15,6 +15,12 @@ sealed class VideEvent {
     this.agent,
   });
 
+  /// Parse a JSON event from the server.
+  ///
+  /// IMPORTANT: Required fields use non-nullable casts (e.g., `as String`)
+  /// intentionally. If a required field is missing, this will throw at runtime.
+  /// This is by design - we want to catch server/client mismatches immediately
+  /// rather than silently substituting empty strings that hide errors.
   factory VideEvent.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String;
     final timestamp = DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now();
@@ -29,8 +35,9 @@ sealed class VideEvent {
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          sessionId: json['session-id'] as String? ?? '',
-          mainAgentId: json['main-agent-id'] as String? ?? '',
+          // Required fields - will throw if missing (intentional)
+          sessionId: json['session-id'] as String,
+          mainAgentId: json['main-agent-id'] as String,
           lastSeq: json['last-seq'] as int? ?? 0,
           agents: (json['agents'] as List<dynamic>?)
                   ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
@@ -66,49 +73,55 @@ sealed class VideEvent {
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          toolUseId: data?['tool-use-id'] as String? ?? '',
-          toolName: data?['tool-name'] as String? ?? '',
-          toolInput: data?['tool-input'] as Map<String, dynamic>? ?? {},
+          // Required fields - will throw if missing (intentional)
+          toolUseId: data!['tool-use-id'] as String,
+          toolName: data['tool-name'] as String,
+          toolInput: data['tool-input'] as Map<String, dynamic>? ?? {},
         ),
       'tool-result' => ToolResultEvent(
           seq: seq,
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          toolUseId: data?['tool-use-id'] as String? ?? '',
-          toolName: data?['tool-name'] as String? ?? '',
-          result: data?['result'],
-          isError: data?['is-error'] as bool? ?? false,
+          // Required fields - will throw if missing (intentional)
+          toolUseId: data!['tool-use-id'] as String,
+          toolName: data['tool-name'] as String,
+          result: data['result'],
+          isError: data['is-error'] as bool? ?? false,
         ),
       'permission-request' => PermissionRequestEvent(
           seq: seq,
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          requestId: data?['request-id'] as String? ?? '',
-          tool: data?['tool'] as Map<String, dynamic>? ?? {},
+          // Required fields - will throw if missing (intentional)
+          requestId: data!['request-id'] as String,
+          tool: data['tool'] as Map<String, dynamic>,
         ),
       'permission-timeout' => PermissionTimeoutEvent(
           seq: seq,
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          requestId: data?['request-id'] as String? ?? '',
+          // Required field - will throw if missing (intentional)
+          requestId: data!['request-id'] as String,
         ),
       'agent-spawned' => AgentSpawnedEvent(
           seq: seq,
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          spawnedBy: data?['spawned-by'] as String? ?? '',
+          // Required field - will throw if missing (intentional)
+          spawnedBy: data!['spawned-by'] as String,
         ),
       'agent-terminated' => AgentTerminatedEvent(
           seq: seq,
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          terminatedBy: data?['terminated-by'] as String? ?? '',
-          reason: data?['reason'] as String?,
+          // Required field - will throw if missing (intentional)
+          terminatedBy: data!['terminated-by'] as String,
+          reason: data['reason'] as String?,
         ),
       'done' => DoneEvent(
           seq: seq,
@@ -128,8 +141,9 @@ sealed class VideEvent {
           eventId: eventId,
           timestamp: timestamp,
           agent: agent,
-          message: data?['message'] as String? ?? 'Unknown error',
-          code: data?['code'] as String?,
+          // Required field - will throw if missing (intentional)
+          message: data!['message'] as String,
+          code: data['code'] as String?,
         ),
       _ => UnknownEvent(
           seq: seq,

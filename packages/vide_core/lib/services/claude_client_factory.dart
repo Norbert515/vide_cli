@@ -16,19 +16,23 @@ abstract class ClaudeClientFactory {
   /// The client will be usable immediately but may queue messages until init completes.
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
+  /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   ClaudeClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
+    String? agentType,
   });
 
   /// Creates a ClaudeClient asynchronously, waiting for full initialization.
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
+  /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   Future<ClaudeClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
+    String? agentType,
   });
 }
 
@@ -54,6 +58,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
+    String? agentType,
   }) {
     final cwd = _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
@@ -78,6 +83,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       cwd: cwd,
       agentId: agentId,
       agentName: config.name,
+      agentType: agentType,
       permissionMode: config.permissionMode,
       networkId: networkId,
     ));
@@ -94,6 +100,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
+    String? agentType,
   }) async {
     final cwd = _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
@@ -118,6 +125,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       cwd: cwd,
       agentId: agentId,
       agentName: config.name,
+      agentType: agentType,
       permissionMode: config.permissionMode,
       networkId: networkId,
     ));

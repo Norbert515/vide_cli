@@ -11,6 +11,7 @@ class PermissionCallbackContext {
   final String cwd;
   final AgentId agentId;
   final String? agentName;
+  final String? agentType;
   final String? permissionMode;
   final String? networkId; // Session ID in REST API terms
 
@@ -18,6 +19,7 @@ class PermissionCallbackContext {
     required this.cwd,
     required this.agentId,
     this.agentName,
+    this.agentType,
     this.permissionMode,
     this.networkId,
   });

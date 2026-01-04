@@ -154,6 +154,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agentId: mainAgentId,
       config: mainAgentConfig,
       networkId: networkId,
+      agentType: 'main',
     );
     _ref
         .read(claudeManagerProvider.notifier)
@@ -196,6 +197,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         agentId: agentMetadata.id,
         config: config,
         networkId: updatedNetwork.id,
+        agentType: agentMetadata.type,
       );
       _ref
           .read(claudeManagerProvider.notifier)
@@ -245,6 +247,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agentId: agentId,
       config: config,
       networkId: network.id,
+      agentType: metadata.type,
     );
     _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
 
