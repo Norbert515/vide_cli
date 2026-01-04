@@ -41,7 +41,9 @@ Future<Response> listDirectory(Request request, ServerConfig config) async {
 
   // Security: Validate path is within filesystem root
   if (!_isWithinRoot(targetPath, rootPath)) {
-    _log.warning('Path traversal attempt: $targetPath is outside root $rootPath');
+    _log.warning(
+      'Path traversal attempt: $targetPath is outside root $rootPath',
+    );
     return Response.forbidden(
       jsonEncode({
         'error': 'Path is outside allowed filesystem root',
@@ -79,7 +81,10 @@ Future<Response> listDirectory(Request request, ServerConfig config) async {
   final entries = <Map<String, dynamic>>[];
 
   await for (final entity in dir.list(followLinks: false)) {
-    final entityType = FileSystemEntity.typeSync(entity.path, followLinks: false);
+    final entityType = FileSystemEntity.typeSync(
+      entity.path,
+      followLinks: false,
+    );
 
     // Skip symlinks entirely
     if (entityType == FileSystemEntityType.link) {
@@ -104,8 +109,8 @@ Future<Response> listDirectory(Request request, ServerConfig config) async {
       return aIsDir ? -1 : 1;
     }
     return (a['name'] as String).toLowerCase().compareTo(
-          (b['name'] as String).toLowerCase(),
-        );
+      (b['name'] as String).toLowerCase(),
+    );
   });
 
   _log.fine('Listed ${entries.length} entries in $targetPath');
@@ -139,6 +144,7 @@ Future<Response> createDirectory(Request request, ServerConfig config) async {
   try {
     json = jsonDecode(body) as Map<String, dynamic>;
   } catch (e) {
+    _log.warning('Invalid JSON in filesystem request: $e');
     return Response.badRequest(
       body: jsonEncode({
         'error': 'Invalid JSON body',
@@ -187,11 +193,15 @@ Future<Response> createDirectory(Request request, ServerConfig config) async {
   final newPath = p.join(parentPath, name);
   final canonicalNewPath = p.canonicalize(newPath);
 
-  _log.fine('POST /filesystem: parent=$parent, name=$name, resolved=$canonicalNewPath');
+  _log.fine(
+    'POST /filesystem: parent=$parent, name=$name, resolved=$canonicalNewPath',
+  );
 
   // Security: Validate parent and new path are within filesystem root
   if (!_isWithinRoot(parentPath, rootPath)) {
-    _log.warning('Path traversal attempt: $parentPath is outside root $rootPath');
+    _log.warning(
+      'Path traversal attempt: $parentPath is outside root $rootPath',
+    );
     return Response.forbidden(
       jsonEncode({
         'error': 'Parent path is outside allowed filesystem root',
@@ -202,7 +212,9 @@ Future<Response> createDirectory(Request request, ServerConfig config) async {
   }
 
   if (!_isWithinRoot(canonicalNewPath, rootPath)) {
-    _log.warning('Path traversal attempt: $canonicalNewPath is outside root $rootPath');
+    _log.warning(
+      'Path traversal attempt: $canonicalNewPath is outside root $rootPath',
+    );
     return Response.forbidden(
       jsonEncode({
         'error': 'New path is outside allowed filesystem root',

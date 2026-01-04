@@ -56,7 +56,8 @@ Future<Response> createSession(
     _log.warning('Invalid request: missing or invalid fields - $e');
     return Response.badRequest(
       body: jsonEncode({
-        'error': 'Missing required fields. Expected: initial-message, working-directory',
+        'error':
+            'Missing required fields. Expected: initial-message, working-directory',
         'code': 'INVALID_REQUEST',
       }),
       headers: {'Content-Type': 'application/json'},
@@ -173,6 +174,111 @@ class _SessionStreamManager {
   /// Get the next sequence number for this session
   int _nextSeq() => _eventStore.nextSeq(sessionId);
 
+  /// Creates a message event with agent attribution from a subscription.
+  SessionEvent _createMessageEvent({
+    required _AgentSubscription sub,
+    required String eventId,
+    required String role,
+    required String content,
+    required bool isPartial,
+  }) {
+    return SessionEvent.message(
+      seq: _nextSeq(),
+      eventId: eventId,
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+      role: role,
+      content: content,
+      isPartial: isPartial,
+    );
+  }
+
+  /// Creates an error event with agent attribution from a subscription.
+  SessionEvent _createErrorEvent({
+    required _AgentSubscription sub,
+    required String message,
+    String? code,
+  }) {
+    return SessionEvent.error(
+      seq: _nextSeq(),
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+      message: message,
+      code: code,
+    );
+  }
+
+  /// Creates a status event with agent attribution from a subscription.
+  SessionEvent _createStatusEvent({
+    required _AgentSubscription sub,
+    required String status,
+    int? seqOverride,
+  }) {
+    return SessionEvent.status(
+      seq: seqOverride ?? _nextSeq(),
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+      status: status,
+    );
+  }
+
+  /// Creates a done event with agent attribution from a subscription.
+  SessionEvent _createDoneEvent({required _AgentSubscription sub}) {
+    return SessionEvent.done(
+      seq: _nextSeq(),
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+    );
+  }
+
+  /// Creates a tool-use event with agent attribution from a subscription.
+  SessionEvent _createToolUseEvent({
+    required _AgentSubscription sub,
+    required String toolUseId,
+    required String toolName,
+    required Map<String, dynamic> toolInput,
+  }) {
+    return SessionEvent.toolUse(
+      seq: _nextSeq(),
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+      toolUseId: toolUseId,
+      toolName: toolName,
+      toolInput: toolInput,
+    );
+  }
+
+  /// Creates a tool-result event with agent attribution from a subscription.
+  SessionEvent _createToolResultEvent({
+    required _AgentSubscription sub,
+    required String toolUseId,
+    required String toolName,
+    required String result,
+    required bool isError,
+  }) {
+    return SessionEvent.toolResult(
+      seq: _nextSeq(),
+      agentId: sub.agentId,
+      agentType: sub.agentType,
+      agentName: sub.agentName,
+      taskName: sub.taskName,
+      toolUseId: toolUseId,
+      toolName: toolName,
+      result: result,
+      isError: isError,
+    );
+  }
+
   /// Set up the session stream
   Future<void> setup() async {
     _log.info('[Session $sessionId] Setting up stream');
@@ -226,7 +332,9 @@ class _SessionStreamManager {
       events: _eventStore.getEvents(sessionId),
     );
     channel.sink.add(historyEvent.toJsonString());
-    _log.info('[Session $sessionId] Sent history event with ${historyEvent.events.length} events');
+    _log.info(
+      '[Session $sessionId] Sent history event with ${historyEvent.events.length} events',
+    );
 
     // Flush buffered events
     _isBuffering = false;
@@ -385,12 +493,8 @@ class _SessionStreamManager {
         _log.warning(
           '[Session $sessionId] Conversation error for ${agent.id}: $error',
         );
-        final event = SessionEvent.error(
-          seq: _nextSeq(),
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: subscription.taskName,
+        final event = _createErrorEvent(
+          sub: subscription,
           message: error.toString(),
         );
         _emitEvent(event);
@@ -406,13 +510,9 @@ class _SessionStreamManager {
       // Finalize any in-progress message
       final eventId = _currentMessageEventIds[agent.id];
       if (eventId != null) {
-        final finalEvent = SessionEvent.message(
-          seq: _nextSeq(),
+        final finalEvent = _createMessageEvent(
+          sub: subscription,
           eventId: eventId,
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: subscription.taskName,
           role: 'assistant',
           content: '',
           isPartial: false,
@@ -421,25 +521,16 @@ class _SessionStreamManager {
         _currentMessageEventIds.remove(agent.id);
       }
 
-      final event = SessionEvent.done(
-        seq: _nextSeq(),
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: subscription.taskName,
-      );
+      final event = _createDoneEvent(sub: subscription);
       _emitEvent(event);
     });
 
     // Send initial status event (not stored in event history - it's handshake state sync)
     final initialStatus = container.read(agentStatusProvider(agent.id));
-    final initialStatusEvent = SessionEvent.status(
-      seq: 0, // Use seq=0 for handshake events (not stored)
-      agentId: agent.id,
-      agentType: agent.type,
-      agentName: agent.name,
-      taskName: subscription.taskName,
+    final initialStatusEvent = _createStatusEvent(
+      sub: subscription,
       status: _mapAgentStatus(initialStatus),
+      seqOverride: 0, // Use seq=0 for handshake events (not stored)
     );
     channel.sink.add(initialStatusEvent.toJsonString());
 
@@ -448,13 +539,11 @@ class _SessionStreamManager {
       agentStatusProvider(agent.id),
       (previous, next) {
         if (previous != null && previous != next) {
-          _log.fine('[Session $sessionId] Agent ${agent.id} status: $previous -> $next');
-          final event = SessionEvent.status(
-            seq: _nextSeq(),
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: subscription.taskName,
+          _log.fine(
+            '[Session $sessionId] Agent ${agent.id} status: $previous -> $next',
+          );
+          final event = _createStatusEvent(
+            sub: subscription,
             status: _mapAgentStatus(next),
           );
           _emitEvent(event);
@@ -508,13 +597,9 @@ class _SessionStreamManager {
       _currentMessageEventIds[subscription.agentId] = eventId;
 
       if (latestMessage.content.isNotEmpty) {
-        final event = SessionEvent.message(
-          seq: _nextSeq(),
+        final event = _createMessageEvent(
+          sub: subscription,
           eventId: eventId,
-          agentId: subscription.agentId,
-          agentType: subscription.agentType,
-          agentName: subscription.agentName,
-          taskName: subscription.taskName,
           role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
           content: latestMessage.content,
           isPartial: true,
@@ -533,13 +618,9 @@ class _SessionStreamManager {
       if (delta.isNotEmpty) {
         final eventId =
             _currentMessageEventIds[subscription.agentId] ?? const Uuid().v4();
-        final event = SessionEvent.message(
-          seq: _nextSeq(),
+        final event = _createMessageEvent(
+          sub: subscription,
           eventId: eventId,
-          agentId: subscription.agentId,
-          agentType: subscription.agentType,
-          agentName: subscription.agentName,
-          taskName: subscription.taskName,
           role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
           content: delta,
           isPartial: true,
@@ -555,12 +636,8 @@ class _SessionStreamManager {
 
     // Check for errors
     if (conversation.currentError != null) {
-      final event = SessionEvent.error(
-        seq: _nextSeq(),
-        agentId: subscription.agentId,
-        agentType: subscription.agentType,
-        agentName: subscription.agentName,
-        taskName: subscription.taskName,
+      final event = _createErrorEvent(
+        sub: subscription,
         message: conversation.currentError!,
       );
       _emitEvent(event);
@@ -580,12 +657,8 @@ class _SessionStreamManager {
       if (response is ToolUseResponse) {
         subscription.toolNamesByUseId[response.toolUseId ?? ''] =
             response.toolName;
-        final event = SessionEvent.toolUse(
-          seq: _nextSeq(),
-          agentId: subscription.agentId,
-          agentType: subscription.agentType,
-          agentName: subscription.agentName,
-          taskName: subscription.taskName,
+        final event = _createToolUseEvent(
+          sub: subscription,
           toolUseId: response.toolUseId ?? const Uuid().v4(),
           toolName: response.toolName,
           toolInput: response.parameters,
@@ -594,12 +667,8 @@ class _SessionStreamManager {
       } else if (response is ToolResultResponse) {
         final toolName =
             subscription.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        final event = SessionEvent.toolResult(
-          seq: _nextSeq(),
-          agentId: subscription.agentId,
-          agentType: subscription.agentType,
-          agentName: subscription.agentName,
-          taskName: subscription.taskName,
+        final event = _createToolResultEvent(
+          sub: subscription,
           toolUseId: response.toolUseId,
           toolName: toolName,
           result: response.content,
@@ -620,6 +689,7 @@ class _SessionStreamManager {
     try {
       json = jsonDecode(message as String) as Map<String, dynamic>;
     } catch (e) {
+      _log.warning('[Session $sessionId] Invalid JSON from client: $e');
       _sendError('Invalid JSON', code: 'INVALID_REQUEST');
       return;
     }
@@ -628,6 +698,9 @@ class _SessionStreamManager {
     try {
       clientMsg = ClientMessage.fromJson(json);
     } catch (e) {
+      _log.warning(
+        '[Session $sessionId] Unknown message type: ${json['type']} - $e',
+      );
       _sendError(
         'Unknown message type: ${json['type']}',
         code: 'UNKNOWN_MESSAGE_TYPE',
@@ -663,12 +736,18 @@ class _SessionStreamManager {
     if (msg.permissionMode != null && claudeClient != null) {
       try {
         await claudeClient.setPermissionMode(msg.permissionMode!);
-        _log.fine('[Session $sessionId] Permission mode set to: ${msg.permissionMode}');
-      } catch (e) {
-        _log.warning('[Session $sessionId] Failed to set permission mode: $e');
+        _log.fine(
+          '[Session $sessionId] Permission mode set to: ${msg.permissionMode}',
+        );
+      } catch (e, stack) {
+        _log.severe(
+          '[Session $sessionId] Failed to set permission mode: $e',
+          e,
+          stack,
+        );
         _sendError(
           'Failed to set permission mode: $e',
-          code: 'INTERNAL_ERROR',
+          code: 'PERMISSION_ERROR',
         );
         return;
       }
@@ -677,7 +756,9 @@ class _SessionStreamManager {
     // Note: Model cannot be changed mid-conversation with current Claude SDK.
     // Model is set at session creation time via CreateSessionRequest.
     if (msg.model != null) {
-      _log.fine('[Session $sessionId] Model override requested but not supported mid-conversation');
+      _log.fine(
+        '[Session $sessionId] Model override requested but not supported mid-conversation',
+      );
     }
 
     // Send to main agent
@@ -810,9 +891,8 @@ Handler streamSessionWebSocket(
   ProviderContainer container,
   NetworkCacheManager cacheManager,
 ) {
-  return webSocketHandler(
-    (WebSocketChannel channel, String? protocol) {
-      _log.info('[WebSocket] Client connected for session=$sessionId');
+  return webSocketHandler((WebSocketChannel channel, String? protocol) {
+    _log.info('[WebSocket] Client connected for session=$sessionId');
 
     final manager = _SessionStreamManager(
       sessionId: sessionId,
@@ -831,7 +911,5 @@ Handler streamSessionWebSocket(
       );
       channel.sink.close();
     });
-    },
-    pingInterval: _keepalivePingInterval,
-  );
+  }, pingInterval: _keepalivePingInterval);
 }
