@@ -12,6 +12,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       theme: json['theme'] as String?,
       enableStreaming: json['enableStreaming'] as bool? ?? true,
       autoUpdatesEnabled: json['autoUpdatesEnabled'] as bool? ?? true,
+      ideModeEnabled: json['ideModeEnabled'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
@@ -20,4 +21,5 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       if (instance.theme case final value?) 'theme': value,
       'enableStreaming': instance.enableStreaming,
       'autoUpdatesEnabled': instance.autoUpdatesEnabled,
+      'ideModeEnabled': instance.ideModeEnabled,
     };

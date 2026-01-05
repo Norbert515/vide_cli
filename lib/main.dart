@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_cli/components/file_preview_overlay.dart';
+import 'package:vide_cli/components/git_sidebar.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
@@ -10,6 +14,15 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
+
+/// Provider for sidebar focus state, shared across the app.
+/// Pages can update this to give focus to the sidebar.
+/// When focused, the sidebar expands; when unfocused, it collapses.
+final sidebarFocusProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for file preview path. When set, file preview is shown.
+/// Null means no file preview is open.
+final filePreviewPathProvider = StateProvider<String?>((ref) => null);
 
 /// Provider override for canUseToolCallbackFactory that bridges PermissionService to ClaudeClient.
 ///
@@ -76,17 +89,31 @@ class VideApp extends StatelessComponent {
           // If we have an explicit theme, wrap with matching VideTheme
           ? VideTheme(
               data: VideThemeData.fromBrightness(explicitTheme),
-              child: _buildContent(),
+              child: _VideAppContent(),
             )
           // Otherwise, use auto-detection
-          : VideTheme.auto(child: _buildContent()),
+          : VideTheme.auto(child: _VideAppContent()),
     );
   }
+}
 
-  Component _buildContent() {
-    return Column(
+/// Internal widget that handles the app content with optional sidebar.
+/// Separated to allow watching providers that depend on theme being set up.
+class _VideAppContent extends StatelessComponent {
+  @override
+  Component build(BuildContext context) {
+    // Check if IDE mode is enabled
+    final configManager = context.read(videConfigManagerProvider);
+    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
+
+    // Watch sidebar focus state and file preview path
+    final sidebarFocused = context.watch(sidebarFocusProvider);
+    final filePreviewPath = context.watch(filePreviewPathProvider);
+    final filePreviewOpen = filePreviewPath != null;
+
+    // Main navigator content
+    final navigatorContent = Column(
       children: [
-        // Main content
         Expanded(
           child: Padding(
             padding: EdgeInsets.only(left: 1, right: 1, top: 1),
@@ -107,5 +134,43 @@ class VideApp extends StatelessComponent {
         ),
       ],
     );
+
+    // If IDE mode is not enabled, just return the navigator
+    if (!ideModeEnabled) {
+      return navigatorContent;
+    }
+
+    // IDE mode: sidebar + main content (either file preview or navigator)
+    // Sidebar stays expanded when file preview is open
+    final sidebarExpanded = sidebarFocused || filePreviewOpen;
+
+    return Row(
+      children: [
+        GitSidebar(
+          width: 30,
+          focused: sidebarFocused,
+          expanded: sidebarExpanded,
+          repoPath: Directory.current.path,
+          onExitRight: () {
+            context.read(sidebarFocusProvider.notifier).state = false;
+          },
+        ),
+        // Main content: file preview (when open) or navigator
+        Expanded(
+          child: filePreviewOpen
+              ? FilePreviewOverlay(
+                  filePath: filePreviewPath,
+                  focused: !sidebarFocused,
+                  onClose: () {
+                    // Close file preview, return focus to sidebar
+                    context.read(filePreviewPathProvider.notifier).state = null;
+                    context.read(sidebarFocusProvider.notifier).state = true;
+                  },
+                )
+              : navigatorContent,
+        ),
+      ],
+    );
   }
 }
+

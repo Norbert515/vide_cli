@@ -2,12 +2,14 @@ import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:claude_sdk/claude_sdk.dart';
+import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_list_page.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/git_branch_indicator.dart';
+import 'package:vide_cli/components/shimmer.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
@@ -72,12 +74,15 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
     final currentDir = Directory.current.path;
     final abbreviatedPath = _abbreviatePath(currentDir);
 
-    // Check if we should show project type (not unknown)
-    final showProjectType =
-        projectType != null && projectType != ProjectType.unknown;
+    // Check if IDE mode is enabled
+    final configManager = context.read(videConfigManagerProvider);
+    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
+
+    // Watch sidebar focus state from app-level provider
+    final sidebarFocused = context.watch(sidebarFocusProvider);
 
     return Focusable(
-      focused: true,
+      focused: !sidebarFocused,
       onKeyEvent: (event) {
         if (event.logicalKey == LogicalKey.tab) {
           NetworksListPage.push(context);
@@ -93,11 +98,17 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ASCII Logo
-              AsciiText(
-                'VIDE',
-                font: AsciiFont.standard,
-                style: TextStyle(color: theme.base.primary),
+              // ASCII Logo with shimmer effect
+              Shimmer(
+                delay: Duration(seconds: 4),
+                duration: Duration(milliseconds: 1000),
+                angle: 0.7,
+                highlightWidth: 6,
+                child: AsciiText(
+                  'VIDE',
+                  font: AsciiFont.standard,
+                  style: TextStyle(color: theme.base.primary),
+                ),
               ),
               const SizedBox(height: 1),
               // Running in path with git branch (both as badges)
@@ -131,29 +142,16 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                 ],
               ),
               const SizedBox(height: 1),
-              // Project type (only if detected and not unknown)
-              if (showProjectType) ...[
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Detected project type: ',
-                      style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(
-                          TextOpacity.tertiary,
-                        ),
-                      ),
-                    ),
-                    _ProjectTypeBadge(projectType: projectType!),
-                  ],
-                ),
-                const SizedBox(height: 1),
-              ],
               Container(
                 child: AttachmentTextField(
-                  focused: true,
+                  focused: !sidebarFocused,
                   placeholder: 'Describe your goal (you can attach images)',
                   onSubmit: _handleSubmit,
+                  onLeftEdge: ideModeEnabled
+                      ? () =>
+                            context.read(sidebarFocusProvider.notifier).state =
+                                true
+                      : null,
                 ),
                 padding: EdgeInsets.all(1),
               ),
@@ -167,55 +165,6 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Project type badge component
-class _ProjectTypeBadge extends StatelessComponent {
-  const _ProjectTypeBadge({required this.projectType});
-
-  final ProjectType projectType;
-
-  // Brand colors for project types
-  static const _flutterBlue = Color(0xFF02569B);
-  static const _dartBlue = Color(0xFF0175C2);
-  static const _noctermPurple = Color(0xFF9B30FF);
-
-  @override
-  Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
-    String label;
-    Color bgColor;
-
-    switch (projectType) {
-      case ProjectType.flutter:
-        label = 'Flutter';
-        bgColor = _flutterBlue;
-        break;
-      case ProjectType.dart:
-        label = 'Dart';
-        bgColor = _dartBlue;
-        break;
-      case ProjectType.nocterm:
-        label = 'Nocterm';
-        bgColor = _noctermPurple;
-        break;
-      case ProjectType.unknown:
-        label = 'Unknown';
-        bgColor = theme.base.outline;
-        break;
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      decoration: BoxDecoration(color: bgColor),
-      child: Text(
-        label,
-        // Use white text for contrast on colored backgrounds
-        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
       ),
     );
   }
