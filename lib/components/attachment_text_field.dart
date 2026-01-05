@@ -35,6 +35,10 @@ class AttachmentTextField extends StatefulComponent {
   /// Called with the text after "/" and should return matching command names.
   final List<CommandSuggestion> Function(String prefix)? commandSuggestions;
 
+  /// Called when the left arrow key is pressed and the cursor is at position 0.
+  /// Used to enable focus navigation to a sidebar.
+  final void Function()? onLeftEdge;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -45,6 +49,7 @@ class AttachmentTextField extends StatefulComponent {
     this.onEscape,
     this.onCommand,
     this.commandSuggestions,
+    this.onLeftEdge,
     super.key,
   });
 
@@ -302,7 +307,11 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
-              border: BoxBorder.all(color: theme.base.outline),
+              border: BoxBorder.all(
+                color: component.focused
+                    ? theme.base.primary
+                    : theme.base.outline,
+              ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,6 +360,16 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                           return true;
                         }
                       }
+
+                      // Left arrow at position 0: trigger onLeftEdge callback
+                      if (event.logicalKey == LogicalKey.arrowLeft &&
+                          component.onLeftEdge != null &&
+                          _controller.selection.baseOffset == 0 &&
+                          _controller.selection.extentOffset == 0) {
+                        component.onLeftEdge!();
+                        return true;
+                      }
+
                       return false;
                     },
                     onSubmitted: (_) {

@@ -12,6 +12,7 @@ import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
 import 'package:vide_cli/components/git_branch_indicator.dart';
@@ -50,8 +51,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   Component _buildAgentChat(
     BuildContext context,
-    AgentNetworkState networkState,
-  ) {
+    AgentNetworkState networkState, {
+    bool ideModeEnabled = false,
+  }) {
     // Clamp selectedAgentIndex to valid bounds after agents may have been removed
     final safeIndex = selectedAgentIndex.clamp(
       0,
@@ -103,6 +105,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         client: client,
         networkId: component.networkId,
         showQuitWarning: _showQuitWarning,
+        ideModeEnabled: ideModeEnabled,
       ),
     );
   }
@@ -141,8 +144,47 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         .read(agentNetworkManagerProvider.notifier)
         .effectiveWorkingDirectory;
 
+    // Check if IDE mode is enabled
+    final configManager = context.read(videConfigManagerProvider);
+    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
+
     // Display the network goal
     final goalText = currentNetwork?.goal ?? 'Loading...';
+
+    // Build the main content column
+    final content = Container(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Display the network goal with git branch indicator
+          Row(
+            children: [
+              Expanded(
+                child: TypingText(
+                  text: goalText,
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              GitBranchIndicator(repoPath: workingDirectory),
+            ],
+          ),
+          Divider(),
+          RunningAgentsBar(
+            agents: networkState.agents,
+            selectedIndex: selectedAgentIndex,
+          ),
+          if (networkState.agentIds.isEmpty)
+            Center(child: Text('No agents'))
+          else
+            _buildAgentChat(
+              context,
+              networkState,
+              ideModeEnabled: ideModeEnabled,
+            ),
+        ],
+      ),
+    );
 
     return PermissionScope(
       child: Focusable(
@@ -166,37 +208,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
           return false;
         },
-        child: MouseRegion(
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 1),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Display the network goal with git branch indicator
-                Row(
-                  children: [
-                    Expanded(
-                      child: TypingText(
-                        text: goalText,
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    GitBranchIndicator(repoPath: workingDirectory),
-                  ],
-                ),
-                Divider(),
-                RunningAgentsBar(
-                  agents: networkState.agents,
-                  selectedIndex: selectedAgentIndex,
-                ),
-                if (networkState.agentIds.isEmpty)
-                  Center(child: Text('No agents'))
-                else
-                  _buildAgentChat(context, networkState),
-              ],
-            ),
-          ),
-        ),
+        child: MouseRegion(child: content),
       ),
     );
   }
@@ -207,12 +219,14 @@ class _AgentChat extends StatefulComponent {
   final ClaudeClient client;
   final String networkId;
   final bool showQuitWarning;
+  final bool ideModeEnabled;
 
   const _AgentChat({
     required this.agentId,
     required this.client,
     required this.networkId,
     this.showQuitWarning = false,
+    this.ideModeEnabled = false,
     super.key,
   });
 
@@ -652,6 +666,13 @@ class _AgentChatState extends State<_AgentChat> {
                     onSubmit: _sendMessage,
                     onCommand: _handleCommand,
                     commandSuggestions: _getCommandSuggestions,
+                    onLeftEdge: component.ideModeEnabled
+                        ? () =>
+                              context
+                                      .read(sidebarFocusProvider.notifier)
+                                      .state =
+                                  true
+                        : null,
                     onEscape: () {
                       // If there's a queued message, clear it first
                       if (_queuedMessage != null) {

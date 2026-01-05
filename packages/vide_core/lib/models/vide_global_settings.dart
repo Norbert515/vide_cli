@@ -28,11 +28,16 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool autoUpdatesEnabled;
 
+  /// Whether IDE mode (git sidebar) is enabled
+  @JsonKey(defaultValue: false)
+  final bool ideModeEnabled;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
     this.enableStreaming = true,
     this.autoUpdatesEnabled = true,
+    this.ideModeEnabled = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -47,12 +52,14 @@ class VideGlobalSettings {
     String? Function()? theme,
     bool? enableStreaming,
     bool? autoUpdatesEnabled,
+    bool? ideModeEnabled,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
       theme: theme != null ? theme() : this.theme,
       enableStreaming: enableStreaming ?? this.enableStreaming,
       autoUpdatesEnabled: autoUpdatesEnabled ?? this.autoUpdatesEnabled,
+      ideModeEnabled: ideModeEnabled ?? this.ideModeEnabled,
     );
   }
 }
