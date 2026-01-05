@@ -96,10 +96,11 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Future<void> _runClaudeTest() async {
     try {
-      final result = await Process.run('claude', [
-        '--print',
-        'Respond with exactly: "Connected and ready to help!"',
-      ]);
+      final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
+      final result = await Process.run(
+        executable,
+        ['--print', 'Respond with exactly: "Connected and ready to help!"'],
+      );
 
       if (result.exitCode != 0) {
         setState(() {

@@ -55,10 +55,12 @@ class ProcessLifecycleManager {
     }
 
     // Start the process
+    // On Windows, use 'claude.cmd' since npm installs it as a .cmd wrapper
+    final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
     Process process;
     try {
       process = await Process.start(
-        'claude',
+        executable,
         args,
         environment: <String, String>{'MCP_TOOL_TIMEOUT': '30000000'},
         runInShell: true,
