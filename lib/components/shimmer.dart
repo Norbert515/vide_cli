@@ -163,11 +163,11 @@ class _RenderShimmer extends RenderObject
     Color? highlightColor,
     required double angle,
     required int highlightWidth,
-  })  : _progress = progress,
-        _baseColor = baseColor,
-        _highlightColor = highlightColor,
-        _angle = angle,
-        _highlightWidth = highlightWidth;
+  }) : _progress = progress,
+       _baseColor = baseColor,
+       _highlightColor = highlightColor,
+       _angle = angle,
+       _highlightWidth = highlightWidth;
 
   double _progress;
   double get progress => _progress;
@@ -252,7 +252,8 @@ class _RenderShimmer extends RenderObject
     // Calculate shimmer position based on progress
     // The shimmer travels from left-bottom to right-top (diagonal)
     final totalDiagonal = width + height * _angle;
-    final shimmerCenter = -_highlightWidth + _progress * (totalDiagonal + _highlightWidth * 2);
+    final shimmerCenter =
+        -_highlightWidth + _progress * (totalDiagonal + _highlightWidth * 2);
 
     // Now paint from temp buffer to real canvas with shimmer effect
     for (int y = 0; y < height; y++) {
@@ -274,7 +275,9 @@ class _RenderShimmer extends RenderObject
         if (_progress >= 0 && distFromShimmer < _highlightWidth) {
           // Apply shimmer highlight
           final intensity = 1.0 - (distFromShimmer / _highlightWidth);
-          final easedIntensity = math.sin(intensity * math.pi / 2); // Smooth falloff
+          final easedIntensity = math.sin(
+            intensity * math.pi / 2,
+          ); // Smooth falloff
 
           if (_highlightColor != null) {
             newColor = Color.lerp(

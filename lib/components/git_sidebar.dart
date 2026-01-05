@@ -185,31 +185,37 @@ class _GitSidebarState extends State<GitSidebar> {
     final changedFiles = _buildChangedFiles(context);
 
     // 1. Changes header (always present)
-    items.add(NavigableItem(
-      type: NavigableItemType.changesHeader,
-      name: 'Changes',
-      fileCount: changedFiles.length,
-      isExpanded: _changesExpanded,
-    ));
+    items.add(
+      NavigableItem(
+        type: NavigableItemType.changesHeader,
+        name: 'Changes',
+        fileCount: changedFiles.length,
+        isExpanded: _changesExpanded,
+      ),
+    );
 
     // 2. File items (if Changes is expanded)
     if (_changesExpanded) {
       for (final file in changedFiles) {
-        items.add(NavigableItem(
-          type: NavigableItemType.file,
-          name: file.path,
-          fullPath: file.path,
-          status: file.status,
-        ));
+        items.add(
+          NavigableItem(
+            type: NavigableItemType.file,
+            name: file.path,
+            fullPath: file.path,
+            status: file.status,
+          ),
+        );
       }
     }
 
     // 3. Branches header (always present)
-    items.add(NavigableItem(
-      type: NavigableItemType.branchesHeader,
-      name: 'Branches',
-      isExpanded: _branchesExpanded,
-    ));
+    items.add(
+      NavigableItem(
+        type: NavigableItemType.branchesHeader,
+        name: 'Branches',
+        isExpanded: _branchesExpanded,
+      ),
+    );
 
     // 4. Branch items (if Branches is expanded)
     if (_branchesExpanded && _cachedBranches != null && !_branchesLoading) {
@@ -219,18 +225,19 @@ class _GitSidebarState extends State<GitSidebar> {
           : _initialBranchCount.clamp(0, branches.length);
 
       for (var i = 0; i < displayCount; i++) {
-        items.add(NavigableItem(
-          type: NavigableItemType.branch,
-          name: branches[i].name,
-        ));
+        items.add(
+          NavigableItem(type: NavigableItemType.branch, name: branches[i].name),
+        );
       }
 
       // Show more option
       if (!_showAllBranches && branches.length > _initialBranchCount) {
-        items.add(NavigableItem(
-          type: NavigableItemType.showMoreBranches,
-          name: 'Show more (${branches.length - _initialBranchCount})',
-        ));
+        items.add(
+          NavigableItem(
+            type: NavigableItemType.showMoreBranches,
+            name: 'Show more (${branches.length - _initialBranchCount})',
+          ),
+        );
       }
     }
 
@@ -409,9 +416,7 @@ class _GitSidebarState extends State<GitSidebar> {
         // Header area matching expanded state
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            color: theme.base.outline.withOpacity(0.3),
-          ),
+          decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
           child: Center(
             child: Text(
               '›',
@@ -439,7 +444,8 @@ class _GitSidebarState extends State<GitSidebar> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Available width for content (subtract padding)
-        final availableWidth = constraints.maxWidth.toInt() - 2; // 1 padding on each side
+        final availableWidth =
+            constraints.maxWidth.toInt() - 2; // 1 padding on each side
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,7 +462,10 @@ class _GitSidebarState extends State<GitSidebar> {
                   SizedBox(width: 1),
                   Expanded(
                     child: Text(
-                      _ellipsize(gitStatus?.branch ?? 'Loading...', availableWidth - 3), // -3 for icon and space
+                      _ellipsize(
+                        gitStatus?.branch ?? 'Loading...',
+                        availableWidth - 3,
+                      ), // -3 for icon and space
                       style: TextStyle(
                         color: theme.base.onSurface,
                         fontWeight: FontWeight.bold,
@@ -473,7 +482,13 @@ class _GitSidebarState extends State<GitSidebar> {
                 controller: _scrollController,
                 children: [
                   for (var i = 0; i < items.length; i++)
-                    _buildNavigableItemRow(context, items[i], i, theme, availableWidth),
+                    _buildNavigableItemRow(
+                      context,
+                      items[i],
+                      i,
+                      theme,
+                      availableWidth,
+                    ),
                 ],
               ),
             ),
@@ -505,7 +520,13 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Builds a row for any navigable item type.
-  Component _buildNavigableItemRow(BuildContext context, NavigableItem item, int index, VideThemeData theme, int availableWidth) {
+  Component _buildNavigableItemRow(
+    BuildContext context,
+    NavigableItem item,
+    int index,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final isSelected = component.focused && _selectedIndex == index;
     final isHovered = _hoveredIndex == index;
 
@@ -518,34 +539,84 @@ class _GitSidebarState extends State<GitSidebar> {
           setState(() => _selectedIndex = index);
           _activateItem(item, context);
         },
-        child: _buildItemContent(item, isSelected, isHovered, theme, availableWidth),
+        child: _buildItemContent(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        ),
       ),
     );
   }
 
   /// Builds the content for a navigable item row.
-  Component _buildItemContent(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildItemContent(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     switch (item.type) {
       case NavigableItemType.changesHeader:
-        return _buildChangesHeaderRow(item, isSelected, isHovered, theme, availableWidth);
+        return _buildChangesHeaderRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.file:
-        return _buildFileRow(item, isSelected, isHovered, theme, availableWidth);
+        return _buildFileRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.branchesHeader:
-        return _buildBranchesHeaderRow(item, isSelected, isHovered, theme, availableWidth);
+        return _buildBranchesHeaderRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.branch:
-        return _buildBranchRow(item, isSelected, isHovered, theme, availableWidth);
+        return _buildBranchRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.showMoreBranches:
-        return _buildShowMoreBranchesRow(item, isSelected, isHovered, theme, availableWidth);
+        return _buildShowMoreBranchesRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
     }
   }
 
   /// Builds the Changes section header row.
-  Component _buildChangesHeaderRow(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildChangesHeaderRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final highlight = isSelected || isHovered;
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: highlight
-          ? BoxDecoration(color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15))
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
           : null,
       child: Row(
         children: [
@@ -586,7 +657,13 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Builds a file row showing status indicator and filename only.
-  Component _buildFileRow(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildFileRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final statusIndicator = _getStatusIndicator(item.status);
     final color = _getStatusColor(item.status, theme);
     // Extract just the filename from the full path
@@ -598,7 +675,9 @@ class _GitSidebarState extends State<GitSidebar> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: highlight
-          ? BoxDecoration(color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15))
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
           : null,
       child: Text(
         ' $statusIndicator $displayName',
@@ -608,7 +687,13 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Builds the Branches section header row.
-  Component _buildBranchesHeaderRow(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildBranchesHeaderRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final highlight = isSelected || isHovered;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -618,16 +703,18 @@ class _GitSidebarState extends State<GitSidebar> {
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Text(
             '─' * (availableWidth > 0 ? availableWidth : 20),
-            style: TextStyle(
-              color: theme.base.outline.withOpacity(0.5),
-            ),
+            style: TextStyle(color: theme.base.outline.withOpacity(0.5)),
           ),
         ),
         // Header
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
           decoration: highlight
-              ? BoxDecoration(color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15))
+              ? BoxDecoration(
+                  color: theme.base.primary.withOpacity(
+                    isSelected ? 0.3 : 0.15,
+                  ),
+                )
               : null,
           child: Row(
             children: [
@@ -665,10 +752,21 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Builds a branch row.
-  Component _buildBranchRow(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildBranchRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final branch = _cachedBranches?.firstWhere(
       (b) => b.name == item.name,
-      orElse: () => GitBranch(name: item.name, isCurrent: false, isRemote: false, lastCommit: ''),
+      orElse: () => GitBranch(
+        name: item.name,
+        isCurrent: false,
+        isRemote: false,
+        lastCommit: '',
+      ),
     );
     final isWorktree = _isWorktreeBranch(item.name);
     final indicator = branch?.isCurrent == true ? '*' : ' ';
@@ -681,7 +779,9 @@ class _GitSidebarState extends State<GitSidebar> {
     return Container(
       padding: EdgeInsets.only(left: 2),
       decoration: highlight
-          ? BoxDecoration(color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15))
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
           : null,
       child: Text(
         '$indicator $displayName$worktreeMarker',
@@ -689,19 +789,29 @@ class _GitSidebarState extends State<GitSidebar> {
           color: branch?.isCurrent == true
               ? theme.base.primary
               : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-          fontWeight: branch?.isCurrent == true ? FontWeight.bold : FontWeight.normal,
+          fontWeight: branch?.isCurrent == true
+              ? FontWeight.bold
+              : FontWeight.normal,
         ),
       ),
     );
   }
 
   /// Builds the "Show more branches" row.
-  Component _buildShowMoreBranchesRow(NavigableItem item, bool isSelected, bool isHovered, VideThemeData theme, int availableWidth) {
+  Component _buildShowMoreBranchesRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
     final highlight = isSelected || isHovered;
     return Container(
       padding: EdgeInsets.only(left: 3),
       decoration: highlight
-          ? BoxDecoration(color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15))
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
           : null,
       child: Text(
         _ellipsize('─ ${item.name} ─', availableWidth - 1),

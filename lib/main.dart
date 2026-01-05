@@ -173,4 +173,3 @@ class _VideAppContent extends StatelessComponent {
     );
   }
 }
-

@@ -131,7 +131,9 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     for (final line in lines) {
       // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
       if (line.startsWith('@@')) {
-        final match = RegExp(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@').firstMatch(line);
+        final match = RegExp(
+          r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@',
+        ).firstMatch(line);
         if (match != null) {
           currentNewLine = int.parse(match.group(1)!);
         }
@@ -180,7 +182,9 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final fileName = component.filePath.split('/').last;
-    final borderColor = component.focused ? theme.base.primary : theme.base.outline;
+    final borderColor = component.focused
+        ? theme.base.primary
+        : theme.base.outline;
 
     return Padding(
       padding: EdgeInsets.only(left: 1, right: 1, top: 1),
@@ -225,16 +229,16 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
                     Text(
                       '← to close',
                       style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.tertiary,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
               // File content
-              Expanded(
-                child: _buildContent(theme),
-              ),
+              Expanded(child: _buildContent(theme)),
             ],
           ),
         ),
@@ -245,10 +249,7 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   Component _buildContent(VideThemeData theme) {
     if (_error != null) {
       return Center(
-        child: Text(
-          _error!,
-          style: TextStyle(color: theme.base.error),
-        ),
+        child: Text(_error!, style: TextStyle(color: theme.base.error)),
       );
     }
 
