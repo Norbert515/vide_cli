@@ -10,8 +10,12 @@ class StartInstanceDialog extends StatefulComponent {
 }
 
 class _StartInstanceDialogState extends State<StartInstanceDialog> {
-  final TextEditingController _commandController = TextEditingController(text: 'flutter run -d macos');
-  final TextEditingController _workingDirController = TextEditingController(text: Directory.current.path);
+  final TextEditingController _commandController = TextEditingController(
+    text: 'flutter run -d macos',
+  );
+  final TextEditingController _workingDirController = TextEditingController(
+    text: Directory.current.path,
+  );
   int _focusedField = 0; // 0 = command, 1 = working dir, 2 = buttons
 
   @override
@@ -65,7 +69,10 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
               const Center(
                 child: Text(
                   'Start New Flutter Instance',
-                  style: TextStyle(color: Colors.brightGreen, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.brightGreen,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 1),
@@ -73,13 +80,18 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
               // Command field
               const Text(
                 'Command:',
-                style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.cyan,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
                 decoration: BoxDecoration(
                   border: BoxBorder.all(
                     color: _focusedField == 0 ? Colors.brightCyan : Colors.gray,
-                    style: _focusedField == 0 ? BoxBorderStyle.double : BoxBorderStyle.solid,
+                    style: _focusedField == 0
+                        ? BoxBorderStyle.double
+                        : BoxBorderStyle.solid,
                   ),
                   color: const Color.fromRGB(10, 10, 30),
                 ),
@@ -96,13 +108,18 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
               // Working directory field
               const Text(
                 'Working Directory:',
-                style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.cyan,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
                 decoration: BoxDecoration(
                   border: BoxBorder.all(
                     color: _focusedField == 1 ? Colors.brightCyan : Colors.gray,
-                    style: _focusedField == 1 ? BoxBorderStyle.double : BoxBorderStyle.solid,
+                    style: _focusedField == 1
+                        ? BoxBorderStyle.double
+                        : BoxBorderStyle.solid,
                   ),
                   color: const Color.fromRGB(10, 10, 30),
                 ),
@@ -124,14 +141,26 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
                   GestureDetector(
                     onTap: () => _handleSubmit(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: _focusedField == 2 ? Colors.green : const Color.fromRGB(0, 60, 0),
-                        border: BoxBorder.all(color: _focusedField == 2 ? Colors.brightGreen : Colors.green),
+                        color: _focusedField == 2
+                            ? Colors.green
+                            : const Color.fromRGB(0, 60, 0),
+                        border: BoxBorder.all(
+                          color: _focusedField == 2
+                              ? Colors.brightGreen
+                              : Colors.green,
+                        ),
                       ),
                       child: const Text(
                         '[ Start ]',
-                        style: TextStyle(color: Colors.brightWhite, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.brightWhite,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -139,12 +168,18 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color.fromRGB(60, 0, 0),
                         border: BoxBorder.all(color: Colors.red),
                       ),
-                      child: const Text('[ Cancel ]', style: TextStyle(color: Colors.brightWhite)),
+                      child: const Text(
+                        '[ Cancel ]',
+                        style: TextStyle(color: Colors.brightWhite),
+                      ),
                     ),
                   ),
                 ],
@@ -155,7 +190,10 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
               const Center(
                 child: Text(
                   '[Enter] Start • [Tab] Switch fields • [Esc] Cancel',
-                  style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.gray,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ],
@@ -174,8 +212,9 @@ class _StartInstanceDialogState extends State<StartInstanceDialog> {
       return;
     }
 
-    Navigator.of(
-      context,
-    ).pop({'command': command, 'workingDir': workingDir.isEmpty ? Directory.current.path : workingDir});
+    Navigator.of(context).pop({
+      'command': command,
+      'workingDir': workingDir.isEmpty ? Directory.current.path : workingDir,
+    });
   }
 }

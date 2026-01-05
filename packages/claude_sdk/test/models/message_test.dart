@@ -96,7 +96,10 @@ Line 3''';
       test('toJson and fromJson round-trip with metadata', () {
         final original = Message(
           text: 'With metadata',
-          metadata: {'key': 'value', 'nested': {'a': 1}},
+          metadata: {
+            'key': 'value',
+            'nested': {'a': 1},
+          },
         );
         final json = original.toJson();
         final restored = Message.fromJson(json);
@@ -403,7 +406,10 @@ Line 3''';
       final restored = Message.fromJson(decodedJson);
 
       expect(restored.text, equals(original.text));
-      expect(restored.attachments?.length, equals(original.attachments?.length));
+      expect(
+        restored.attachments?.length,
+        equals(original.attachments?.length),
+      );
       expect(restored.metadata, equals(original.metadata));
     });
 

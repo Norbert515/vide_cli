@@ -46,7 +46,7 @@ void main() {
               'id': 'tool_123',
               'name': 'Read',
               'input': {'file_path': '/path/to/file.txt'},
-            }
+            },
           ],
         },
       };
@@ -62,7 +62,7 @@ void main() {
               'type': 'tool_result',
               'tool_use_id': 'tool_123',
               'content': 'File contents here',
-            }
+            },
           ],
         },
       };
@@ -103,7 +103,7 @@ void main() {
               'id': 'tool_1',
               'name': 'Read',
               'input': {'file_path': '/file1.txt'},
-            }
+            },
           ],
         },
       };
@@ -118,7 +118,7 @@ void main() {
               'type': 'tool_result',
               'tool_use_id': 'tool_1',
               'content': 'Content 1',
-            }
+            },
           ],
         },
       };
@@ -135,7 +135,7 @@ void main() {
               'id': 'tool_2',
               'name': 'Write',
               'input': {'file_path': '/file2.txt', 'content': 'New content'},
-            }
+            },
           ],
         },
       };
@@ -150,7 +150,7 @@ void main() {
               'type': 'tool_result',
               'tool_use_id': 'tool_2',
               'content': 'File written successfully',
-            }
+            },
           ],
         },
       };
@@ -276,7 +276,7 @@ void main() {
               'id': 'tool_1',
               'name': 'Read',
               'input': {'file_path': '/path/with&amp;special&lt;chars&gt;.txt'},
-            }
+            },
           ],
         },
       };
@@ -286,7 +286,10 @@ void main() {
       expect(response, isA<ToolUseResponse>());
       final toolUse = response as ToolUseResponse;
       // HTML entities should be decoded
-      expect(toolUse.parameters['file_path'], equals('/path/with&special<chars>.txt'));
+      expect(
+        toolUse.parameters['file_path'],
+        equals('/path/with&special<chars>.txt'),
+      );
     });
 
     test('handles tool result with MCP content array format', () {
@@ -303,7 +306,7 @@ void main() {
                 {'type': 'text', 'text': 'First line'},
                 {'type': 'text', 'text': ' and second line'},
               ],
-            }
+            },
           ],
         },
       };
@@ -327,7 +330,7 @@ void main() {
               'tool_use_id': 'tool_123',
               'content': 'File not found',
               'is_error': true,
-            }
+            },
           ],
         },
       };
@@ -403,7 +406,7 @@ void main() {
               'id': 'tool_read',
               'name': 'Read',
               'input': {'file_path': 'config.yaml'},
-            }
+            },
           ],
         },
       };
@@ -418,7 +421,7 @@ void main() {
               'type': 'tool_result',
               'tool_use_id': 'tool_read',
               'content': 'port: 8080\nhost: localhost',
-            }
+            },
           ],
         },
       };
@@ -430,7 +433,11 @@ void main() {
           'id': 'msg_2',
           'role': 'assistant',
           'content': [
-            {'type': 'text', 'text': 'The config file sets port to 8080 and host to localhost.'}
+            {
+              'type': 'text',
+              'text':
+                  'The config file sets port to 8080 and host to localhost.',
+            },
           ],
         },
       };

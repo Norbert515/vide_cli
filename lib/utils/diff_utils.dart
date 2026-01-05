@@ -6,8 +6,10 @@
 enum LineChangeType {
   /// Line was added (in new but not old)
   added,
+
   /// Line was removed (in old but not new)
   removed,
+
   /// Line is unchanged (in both or in neither)
   unchanged,
 }

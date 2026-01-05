@@ -62,10 +62,7 @@ void main() {
 
         await server.start();
 
-        expect(
-          () => server.start(),
-          throwsA(isA<StateError>()),
-        );
+        expect(() => server.start(), throwsA(isA<StateError>()));
       });
     });
 

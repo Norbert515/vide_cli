@@ -34,19 +34,19 @@ class VideThemeData {
 
   /// Dark theme for Vide CLI.
   factory VideThemeData.dark() => const VideThemeData(
-        base: TuiThemeData.dark,
-        status: VideStatusColors.dark,
-        diff: VideDiffColors.dark,
-        syntax: VideSyntaxColors.dark,
-      );
+    base: TuiThemeData.dark,
+    status: VideStatusColors.dark,
+    diff: VideDiffColors.dark,
+    syntax: VideSyntaxColors.dark,
+  );
 
   /// Light theme for Vide CLI.
   factory VideThemeData.light() => const VideThemeData(
-        base: TuiThemeData.light,
-        status: VideStatusColors.light,
-        diff: VideDiffColors.light,
-        syntax: VideSyntaxColors.light,
-      );
+    base: TuiThemeData.light,
+    status: VideStatusColors.light,
+    diff: VideDiffColors.light,
+    syntax: VideSyntaxColors.light,
+  );
 
   /// Creates a Vide theme based on the brightness of a [TuiThemeData].
   ///

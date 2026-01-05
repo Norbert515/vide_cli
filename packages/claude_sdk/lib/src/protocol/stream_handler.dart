@@ -23,11 +23,7 @@ class StreamHandler {
     // Handle stdout
     _subscription = process.stdout
         .transform(utf8.decoder)
-        .listen(
-          _handleLine,
-          onError: _handleError,
-          onDone: _handleDone,
-        );
+        .listen(_handleLine, onError: _handleError, onDone: _handleDone);
 
     // Handle stderr for errors
     process.stderr

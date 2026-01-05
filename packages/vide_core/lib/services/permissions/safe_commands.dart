@@ -39,10 +39,8 @@ class SafeCommands {
     'egrep',
     'fgrep',
     'rg', // ripgrep
-
     // Git read operations
     'git', // We'll validate the subcommand separately
-
     // Process inspection
     'ps',
     'top',

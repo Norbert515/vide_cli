@@ -81,13 +81,13 @@ class VideSyntaxColors {
 
   @override
   int get hashCode => Object.hash(
-        keyword,
-        type,
-        string,
-        number,
-        comment,
-        function,
-        variable,
-        plain,
-      );
+    keyword,
+    type,
+    string,
+    number,
+    comment,
+    function,
+    variable,
+    plain,
+  );
 }

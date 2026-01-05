@@ -39,7 +39,8 @@ class ResponseToMessageConverter {
   }
 
   /// Check if a response is a tool result that should be merged with assistant messages.
-  static bool isToolResult(ClaudeResponse response) => response is ToolResultResponse;
+  static bool isToolResult(ClaudeResponse response) =>
+      response is ToolResultResponse;
 
   /// Check if a response produces an assistant message.
   static bool isAssistantResponse(ClaudeResponse response) =>

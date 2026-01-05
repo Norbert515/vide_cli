@@ -27,7 +27,9 @@ class MainAgentConfig {
   static const String version = '2.0.0';
 
   /// Creates a configuration for the main triage agent
-  static AgentConfiguration create({ProjectType projectType = ProjectType.unknown}) {
+  static AgentConfiguration create({
+    ProjectType projectType = ProjectType.unknown,
+  }) {
     return AgentConfiguration(
       name: agentName,
       description:

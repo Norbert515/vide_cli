@@ -7,10 +7,7 @@ class AskUserQuestionOption {
   final String label;
   final String description;
 
-  const AskUserQuestionOption({
-    required this.label,
-    required this.description,
-  });
+  const AskUserQuestionOption({required this.label, required this.description});
 
   factory AskUserQuestionOption.fromJson(Map<String, dynamic> json) {
     return AskUserQuestionOption(
@@ -19,10 +16,7 @@ class AskUserQuestionOption {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'label': label,
-        'description': description,
-      };
+  Map<String, dynamic> toJson() => {'label': label, 'description': description};
 }
 
 /// A single question with its options
@@ -45,16 +39,18 @@ class AskUserQuestion {
       question: json['question'] as String,
       header: json['header'] as String?,
       multiSelect: json['multiSelect'] as bool? ?? false,
-      options: optionsList.map((o) => AskUserQuestionOption.fromJson(o as Map<String, dynamic>)).toList(),
+      options: optionsList
+          .map((o) => AskUserQuestionOption.fromJson(o as Map<String, dynamic>))
+          .toList(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-        'question': question,
-        if (header != null) 'header': header,
-        'multiSelect': multiSelect,
-        'options': options.map((o) => o.toJson()).toList(),
-      };
+    'question': question,
+    if (header != null) 'header': header,
+    'multiSelect': multiSelect,
+    'options': options.map((o) => o.toJson()).toList(),
+  };
 }
 
 /// Request sent to the UI to display questions

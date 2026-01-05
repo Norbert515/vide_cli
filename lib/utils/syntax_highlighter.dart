@@ -16,7 +16,6 @@ import 'package:nocterm/src/painting/text_span.dart';
 import 'package:vide_cli/theme/colors/syntax_colors.dart';
 
 class SyntaxHighlighter {
-
   // Language mapping from file extensions
   static final Map<String, String> _languageMap = {
     '.dart': 'dart',
@@ -72,7 +71,10 @@ class SyntaxHighlighter {
       // Fallback to plain text if highlighting fails
       return TextSpan(
         text: code,
-        style: TextStyle(color: syntaxColors.plain, backgroundColor: backgroundColor),
+        style: TextStyle(
+          color: syntaxColors.plain,
+          backgroundColor: backgroundColor,
+        ),
       );
     }
   }
@@ -123,7 +125,8 @@ class SyntaxHighlighter {
       // Determine the effective className: use node's className if valid,
       // otherwise fall back to parentClassName
       final nodeClassName = node.className;
-      final effectiveClassName = (nodeClassName != null && nodeClassName != 'none')
+      final effectiveClassName =
+          (nodeClassName != null && nodeClassName != 'none')
           ? nodeClassName
           : parentClassName;
 
@@ -171,12 +174,19 @@ class SyntaxHighlighter {
   }
 
   /// Get color for a given class name using theme-aware syntax colors.
-  static Color _getColorForClass(String className, VideSyntaxColors syntaxColors) {
+  static Color _getColorForClass(
+    String className,
+    VideSyntaxColors syntaxColors,
+  ) {
     // Map highlight.js class names to theme syntax colors
-    if (className.contains('keyword') || className.contains('built_in') || className.contains('tag')) {
+    if (className.contains('keyword') ||
+        className.contains('built_in') ||
+        className.contains('tag')) {
       return syntaxColors.keyword;
     }
-    if (className.contains('type') || className.contains('class') || className.contains('name')) {
+    if (className.contains('type') ||
+        className.contains('class') ||
+        className.contains('name')) {
       return syntaxColors.type;
     }
     if (className.contains('string')) {
@@ -191,7 +201,9 @@ class SyntaxHighlighter {
     if (className.contains('function') || className.contains('title')) {
       return syntaxColors.function;
     }
-    if (className.contains('variable') || className.contains('attr') || className.contains('property')) {
+    if (className.contains('variable') ||
+        className.contains('attr') ||
+        className.contains('property')) {
       return syntaxColors.variable;
     }
 

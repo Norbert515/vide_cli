@@ -43,8 +43,9 @@ void main() {
     });
 
     test('parses complex command with && and |', () {
-      final result =
-          BashCommandParser.parse('cd /path && dart pub deps | grep uuid');
+      final result = BashCommandParser.parse(
+        'cd /path && dart pub deps | grep uuid',
+      );
       expect(result.length, 3);
       expect(result[0].command, 'cd /path');
       expect(result[0].type, CommandType.cd);
@@ -55,7 +56,9 @@ void main() {
     });
 
     test('handles || operator (not pipe)', () {
-      final result = BashCommandParser.parse('test -f file || echo "not found"');
+      final result = BashCommandParser.parse(
+        'test -f file || echo "not found"',
+      );
       expect(result.length, 2);
       expect(result[0].command, 'test -f file');
       expect(result[0].type, CommandType.simple);
@@ -64,8 +67,7 @@ void main() {
     });
 
     test('handles quoted strings with operators', () {
-      final result =
-          BashCommandParser.parse('echo "foo && bar" && echo "baz"');
+      final result = BashCommandParser.parse('echo "foo && bar" && echo "baz"');
       expect(result.length, 2);
       expect(result[0].command, 'echo "foo && bar"');
       expect(result[1].command, 'echo "baz"');
@@ -77,8 +79,7 @@ void main() {
     });
 
     test('handles multiple pipes', () {
-      final result =
-          BashCommandParser.parse('cat file.txt | grep foo | sort');
+      final result = BashCommandParser.parse('cat file.txt | grep foo | sort');
       expect(result.length, 3);
       expect(result[0].type, CommandType.pipelinePart);
       expect(result[1].type, CommandType.pipelinePart);
@@ -142,10 +143,7 @@ void main() {
     });
 
     test('returns false for cd without argument', () {
-      expect(
-        BashCommandParser.isCdWithinWorkingDir('cd', '/project'),
-        isFalse,
-      );
+      expect(BashCommandParser.isCdWithinWorkingDir('cd', '/project'), isFalse);
     });
 
     test('returns false for non-cd command', () {

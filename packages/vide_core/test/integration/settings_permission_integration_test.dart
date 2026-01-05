@@ -170,37 +170,40 @@ void main() {
     });
 
     group('Settings persistence across checks', () {
-      test('settings file changes are reflected in subsequent checks', () async {
-        // Initial check - not allowed
-        var result = await permissionChecker.checkPermission(
-          toolName: 'Bash',
-          input: const BashToolInput(command: 'custom-tool --run'),
-          cwd: projectRoot,
-        );
-        expect(result, isA<PermissionAskUser>());
+      test(
+        'settings file changes are reflected in subsequent checks',
+        () async {
+          // Initial check - not allowed
+          var result = await permissionChecker.checkPermission(
+            toolName: 'Bash',
+            input: const BashToolInput(command: 'custom-tool --run'),
+            cwd: projectRoot,
+          );
+          expect(result, isA<PermissionAskUser>());
 
-        // Modify settings file directly
-        final claudeDir = Directory('$projectRoot/.claude');
-        await claudeDir.create(recursive: true);
-        final settingsFile = File('$projectRoot/.claude/settings.local.json');
+          // Modify settings file directly
+          final claudeDir = Directory('$projectRoot/.claude');
+          await claudeDir.create(recursive: true);
+          final settingsFile = File('$projectRoot/.claude/settings.local.json');
 
-        final settings = ClaudeSettings(
-          permissions: PermissionsConfig(
-            allow: ['Bash(custom-tool:*)'],
-            deny: [],
-            ask: [],
-          ),
-        );
-        await settingsFile.writeAsString(jsonEncode(settings.toJson()));
+          final settings = ClaudeSettings(
+            permissions: PermissionsConfig(
+              allow: ['Bash(custom-tool:*)'],
+              deny: [],
+              ask: [],
+            ),
+          );
+          await settingsFile.writeAsString(jsonEncode(settings.toJson()));
 
-        // Subsequent check should pick up new settings
-        result = await permissionChecker.checkPermission(
-          toolName: 'Bash',
-          input: const BashToolInput(command: 'custom-tool --run'),
-          cwd: projectRoot,
-        );
-        expect(result, isA<PermissionAllow>());
-      });
+          // Subsequent check should pick up new settings
+          result = await permissionChecker.checkPermission(
+            toolName: 'Bash',
+            input: const BashToolInput(command: 'custom-tool --run'),
+            cwd: projectRoot,
+          );
+          expect(result, isA<PermissionAllow>());
+        },
+      );
     });
 
     group('Safe command detection', () {
@@ -257,7 +260,10 @@ void main() {
       test('TodoWrite is auto-approved', () async {
         final result = await permissionChecker.checkPermission(
           toolName: 'TodoWrite',
-          input: const UnknownToolInput(toolName: 'TodoWrite', raw: {'todos': []}),
+          input: const UnknownToolInput(
+            toolName: 'TodoWrite',
+            raw: {'todos': []},
+          ),
           cwd: projectRoot,
         );
         expect(result, isA<PermissionAllow>());

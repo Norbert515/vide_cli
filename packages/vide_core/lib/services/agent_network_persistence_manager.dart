@@ -8,10 +8,10 @@ import 'package:path/path.dart' as path;
 
 final agentNetworkPersistenceManagerProvider =
     Provider<AgentNetworkPersistenceManager>((ref) {
-  return AgentNetworkPersistenceManager(
-    configManager: ref.watch(videConfigManagerProvider),
-  );
-});
+      return AgentNetworkPersistenceManager(
+        configManager: ref.watch(videConfigManagerProvider),
+      );
+    });
 
 /// Manages persistence of agent networks to JSON files.
 ///
@@ -22,7 +22,8 @@ class AgentNetworkPersistenceManager {
     required VideConfigManager configManager,
     String? projectPath,
   }) : _storageDir = configManager.getProjectStorageDir(
-            projectPath ?? Directory.current.path);
+         projectPath ?? Directory.current.path,
+       );
 
   final String _storageDir;
 

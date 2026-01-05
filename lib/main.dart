@@ -15,29 +15,29 @@ import 'package:vide_cli/services/sentry_service.dart';
 ///
 /// This provider creates callbacks that can be passed to ClaudeClient.create() for
 /// permission checking via the control protocol.
-final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.overrideWith((ref) {
-  final permissionService = ref.read(permissionServiceProvider);
-  return (String cwd) {
-    return (toolName, input, context) async {
-      return permissionService.checkToolPermission(
-        toolName,
-        input,
-        context,
-        cwd: cwd,
-      );
-    };
-  };
-});
+final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider
+    .overrideWith((ref) {
+      final permissionService = ref.read(permissionServiceProvider);
+      return (String cwd) {
+        return (toolName, input, context) async {
+          return permissionService.checkToolPermission(
+            toolName,
+            input,
+            context,
+            cwd: cwd,
+          );
+        };
+      };
+    });
 
 void main(List<String> args, {List<Override> overrides = const []}) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
   // Create provider container with overrides from entry point and permission callback
-  final container = ProviderContainer(overrides: [
-    _canUseToolCallbackFactoryOverride,
-    ...overrides,
-  ]);
+  final container = ProviderContainer(
+    overrides: [_canUseToolCallbackFactoryOverride, ...overrides],
+  );
 
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);

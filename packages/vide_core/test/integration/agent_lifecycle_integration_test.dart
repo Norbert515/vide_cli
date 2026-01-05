@@ -32,17 +32,32 @@ void main() {
         const agent2Id = 'agent-2';
 
         // Set different statuses for different agents
-        container.read(agentStatusProvider(agent1Id).notifier).setStatus(AgentStatus.working);
-        container.read(agentStatusProvider(agent2Id).notifier).setStatus(AgentStatus.waitingForAgent);
+        container
+            .read(agentStatusProvider(agent1Id).notifier)
+            .setStatus(AgentStatus.working);
+        container
+            .read(agentStatusProvider(agent2Id).notifier)
+            .setStatus(AgentStatus.waitingForAgent);
 
-        expect(container.read(agentStatusProvider(agent1Id)), AgentStatus.working);
-        expect(container.read(agentStatusProvider(agent2Id)), AgentStatus.waitingForAgent);
+        expect(
+          container.read(agentStatusProvider(agent1Id)),
+          AgentStatus.working,
+        );
+        expect(
+          container.read(agentStatusProvider(agent2Id)),
+          AgentStatus.waitingForAgent,
+        );
 
         // Updating one doesn't affect the other
-        container.read(agentStatusProvider(agent1Id).notifier).setStatus(AgentStatus.idle);
+        container
+            .read(agentStatusProvider(agent1Id).notifier)
+            .setStatus(AgentStatus.idle);
 
         expect(container.read(agentStatusProvider(agent1Id)), AgentStatus.idle);
-        expect(container.read(agentStatusProvider(agent2Id)), AgentStatus.waitingForAgent);
+        expect(
+          container.read(agentStatusProvider(agent2Id)),
+          AgentStatus.waitingForAgent,
+        );
       });
 
       test('status changes trigger provider rebuilds', () {
@@ -56,10 +71,16 @@ void main() {
         );
 
         // Initial status is 'working', so setting to 'working' is a no-op (no rebuild)
-        container.read(agentStatusProvider(agentId).notifier).setStatus(AgentStatus.working);
+        container
+            .read(agentStatusProvider(agentId).notifier)
+            .setStatus(AgentStatus.working);
         // These two actually change the value
-        container.read(agentStatusProvider(agentId).notifier).setStatus(AgentStatus.waitingForAgent);
-        container.read(agentStatusProvider(agentId).notifier).setStatus(AgentStatus.idle);
+        container
+            .read(agentStatusProvider(agentId).notifier)
+            .setStatus(AgentStatus.waitingForAgent);
+        container
+            .read(agentStatusProvider(agentId).notifier)
+            .setStatus(AgentStatus.idle);
 
         expect(rebuildCount, 2);
       });
@@ -229,7 +250,9 @@ void main() {
         manager.addAgent('main-agent', client);
 
         // Set agent as working
-        container.read(agentStatusProvider('main-agent').notifier).setStatus(AgentStatus.working);
+        container
+            .read(agentStatusProvider('main-agent').notifier)
+            .setStatus(AgentStatus.working);
 
         // Send user message
         client.sendMessage(Message.text('Implement feature X'));
@@ -241,10 +264,15 @@ void main() {
         client.simulateTurnComplete();
 
         // Agent status should be updated to idle after completion
-        container.read(agentStatusProvider('main-agent').notifier).setStatus(AgentStatus.idle);
+        container
+            .read(agentStatusProvider('main-agent').notifier)
+            .setStatus(AgentStatus.idle);
 
         // Verify final state
-        expect(container.read(agentStatusProvider('main-agent')), AgentStatus.idle);
+        expect(
+          container.read(agentStatusProvider('main-agent')),
+          AgentStatus.idle,
+        );
         expect(client.sentMessages.length, 1);
         expect(client.currentConversation.messages.length, 2);
       });

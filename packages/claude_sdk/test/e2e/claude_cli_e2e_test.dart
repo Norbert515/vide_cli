@@ -33,77 +33,88 @@ void main() {
       expect(client.currentConversation.messages, isEmpty);
     });
 
-    test('sends simple message and receives response', () async {
-      if (!claudeAvailable) {
-        markTestSkipped('Claude CLI not available');
-        return;
-      }
-
-      final client = await ClaudeClient.create(
-        config: ClaudeConfig(
-          model: 'sonnet', // Use faster model alias for tests
-        ),
-      );
-      addTearDown(() => client.close());
-
-      // Send a simple message - use append-system-prompt to limit response
-      client.sendMessage(Message(
-          text: 'Reply with exactly one word: TEST_OK. Nothing else.'));
-
-      // Wait for response (with timeout)
-      await client.onTurnComplete.first.timeout(
-        const Duration(seconds: 60),
-        onTimeout: () => fail('Timeout waiting for response'),
-      );
-
-      // Verify we got a response
-      expect(client.currentConversation.messages.length, greaterThan(1));
-
-      // Check the assistant message exists and has content
-      final assistantMessage = client.currentConversation.lastAssistantMessage;
-      expect(assistantMessage, isNotNull);
-      expect(assistantMessage!.content, isNotEmpty);
-    }, timeout: Timeout(Duration(seconds: 90)));
-
-    test('handles conversation state transitions', () async {
-      if (!claudeAvailable) {
-        markTestSkipped('Claude CLI not available');
-        return;
-      }
-
-      final client = await ClaudeClient.create(
-        config: ClaudeConfig(
-          model: 'sonnet',
-        ),
-      );
-      addTearDown(() => client.close());
-
-      // Initial state should be idle
-      expect(client.currentConversation.state, equals(ConversationState.idle));
-
-      // Track state changes
-      final states = <ConversationState>[];
-      final subscription = client.conversation.listen((conv) {
-        if (states.isEmpty || states.last != conv.state) {
-          states.add(conv.state);
+    test(
+      'sends simple message and receives response',
+      () async {
+        if (!claudeAvailable) {
+          markTestSkipped('Claude CLI not available');
+          return;
         }
-      });
-      addTearDown(() => subscription.cancel());
 
-      // Send a message
-      client.sendMessage(Message(text: 'Reply with exactly: hi'));
+        final client = await ClaudeClient.create(
+          config: ClaudeConfig(
+            model: 'sonnet', // Use faster model alias for tests
+          ),
+        );
+        addTearDown(() => client.close());
 
-      // Wait for completion
-      await client.onTurnComplete.first.timeout(
-        const Duration(seconds: 60),
-        onTimeout: () => fail('Timeout waiting for response'),
-      );
+        // Send a simple message - use append-system-prompt to limit response
+        client.sendMessage(
+          Message(text: 'Reply with exactly one word: TEST_OK. Nothing else.'),
+        );
 
-      // Verify we went through expected states
-      // Should include: sendingMessage -> receivingResponse -> idle
-      expect(states, contains(ConversationState.sendingMessage));
-      expect(states.last, equals(ConversationState.idle));
-    }, timeout: Timeout(Duration(seconds: 90)));
+        // Wait for response (with timeout)
+        await client.onTurnComplete.first.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Timeout waiting for response'),
+        );
+
+        // Verify we got a response
+        expect(client.currentConversation.messages.length, greaterThan(1));
+
+        // Check the assistant message exists and has content
+        final assistantMessage =
+            client.currentConversation.lastAssistantMessage;
+        expect(assistantMessage, isNotNull);
+        expect(assistantMessage!.content, isNotEmpty);
+      },
+      timeout: Timeout(Duration(seconds: 90)),
+    );
+
+    test(
+      'handles conversation state transitions',
+      () async {
+        if (!claudeAvailable) {
+          markTestSkipped('Claude CLI not available');
+          return;
+        }
+
+        final client = await ClaudeClient.create(
+          config: ClaudeConfig(model: 'sonnet'),
+        );
+        addTearDown(() => client.close());
+
+        // Initial state should be idle
+        expect(
+          client.currentConversation.state,
+          equals(ConversationState.idle),
+        );
+
+        // Track state changes
+        final states = <ConversationState>[];
+        final subscription = client.conversation.listen((conv) {
+          if (states.isEmpty || states.last != conv.state) {
+            states.add(conv.state);
+          }
+        });
+        addTearDown(() => subscription.cancel());
+
+        // Send a message
+        client.sendMessage(Message(text: 'Reply with exactly: hi'));
+
+        // Wait for completion
+        await client.onTurnComplete.first.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Timeout waiting for response'),
+        );
+
+        // Verify we went through expected states
+        // Should include: sendingMessage -> receivingResponse -> idle
+        expect(states, contains(ConversationState.sendingMessage));
+        expect(states.last, equals(ConversationState.idle));
+      },
+      timeout: Timeout(Duration(seconds: 90)),
+    );
 
     test('maintains message history', () async {
       if (!claudeAvailable) {
@@ -112,9 +123,7 @@ void main() {
       }
 
       final client = await ClaudeClient.create(
-        config: ClaudeConfig(
-          model: 'sonnet',
-        ),
+        config: ClaudeConfig(model: 'sonnet'),
       );
       addTearDown(() => client.close());
 

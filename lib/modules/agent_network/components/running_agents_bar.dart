@@ -6,7 +6,11 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
 class RunningAgentsBar extends StatelessComponent {
-  const RunningAgentsBar({super.key, required this.agents, this.selectedIndex = 0});
+  const RunningAgentsBar({
+    super.key,
+    required this.agents,
+    this.selectedIndex = 0,
+  });
 
   final List<AgentMetadata> agents;
   final int selectedIndex;
@@ -15,7 +19,11 @@ class RunningAgentsBar extends StatelessComponent {
   Component build(BuildContext context) {
     return Row(
       children: [
-        for (int i = 0; i < agents.length; i++) _RunningAgentBarItem(agent: agents[i], isSelected: i == selectedIndex),
+        for (int i = 0; i < agents.length; i++)
+          _RunningAgentBarItem(
+            agent: agents[i],
+            isSelected: i == selectedIndex,
+          ),
       ],
     );
   }
@@ -32,7 +40,18 @@ class _RunningAgentBarItem extends StatefulComponent {
 }
 
 class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
-  static const _spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  static const _spinnerFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
 
   Timer? _spinnerTimer;
   int _spinnerIndex = 0;
@@ -109,7 +128,10 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
 
   /// Infer the actual status based on both explicit status and Claude's processing state.
   /// This provides safeguards against agents forgetting to call setAgentStatus.
-  AgentStatus _inferActualStatus(AgentStatus explicitStatus, ClaudeStatus claudeStatus) {
+  AgentStatus _inferActualStatus(
+    AgentStatus explicitStatus,
+    ClaudeStatus claudeStatus,
+  ) {
     // If Claude is actively processing/thinking/responding, agent is definitely working
     if (claudeStatus == ClaudeStatus.processing ||
         claudeStatus == ClaudeStatus.thinking ||
@@ -119,7 +141,8 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
 
     // If Claude is ready/completed but agent claims to be working, override to idle
     // This handles cases where agent forgot to call setAgentStatus("idle")
-    if ((claudeStatus == ClaudeStatus.ready || claudeStatus == ClaudeStatus.completed) &&
+    if ((claudeStatus == ClaudeStatus.ready ||
+            claudeStatus == ClaudeStatus.completed) &&
         explicitStatus == AgentStatus.working) {
       return AgentStatus.idle;
     }
@@ -131,10 +154,14 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final explicitStatus = context.watch(agentStatusProvider(component.agent.id));
+    final explicitStatus = context.watch(
+      agentStatusProvider(component.agent.id),
+    );
 
     // Get Claude's processing status from the stream
-    final claudeStatusAsync = context.watch(claudeStatusProvider(component.agent.id));
+    final claudeStatusAsync = context.watch(
+      claudeStatusProvider(component.agent.id),
+    );
     final claudeStatus = claudeStatusAsync.valueOrNull ?? ClaudeStatus.ready;
 
     // Infer actual status - use Claude's status to correct agent status if needed
@@ -155,7 +182,10 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(color: indicatorColor),
-            child: Text(statusIndicator, style: TextStyle(color: indicatorTextColor)),
+            child: Text(
+              statusIndicator,
+              style: TextStyle(color: indicatorTextColor),
+            ),
           ),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
@@ -165,7 +195,9 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
               style: TextStyle(
                 color: theme.base.onSurface,
                 fontWeight: component.isSelected ? FontWeight.bold : null,
-                decoration: component.isSelected ? TextDecoration.underline : null,
+                decoration: component.isSelected
+                    ? TextDecoration.underline
+                    : null,
               ),
             ),
           ),

@@ -25,9 +25,12 @@ class _FormScreenState extends State<FormScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate() && _isAgreed) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Form submitted successfully!'), backgroundColor: Colors.green));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Form submitted successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
 
       // Clear form
       _nameController.clear();
@@ -38,16 +41,22 @@ class _FormScreenState extends State<FormScreen> {
         _isAgreed = false;
       });
     } else if (!_isAgreed) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please agree to the terms'), backgroundColor: Colors.red));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please agree to the terms'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Form'), backgroundColor: Theme.of(context).colorScheme.inversePrimary),
+      appBar: AppBar(
+        title: const Text('Form'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -55,7 +64,10 @@ class _FormScreenState extends State<FormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Contact Form', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Text(
+                'Contact Form',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 24),
               TextFormField(
                 controller: _nameController,
@@ -97,11 +109,12 @@ class _FormScreenState extends State<FormScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: [
-                  'Option 1',
-                  'Option 2',
-                  'Option 3',
-                ].map((option) => DropdownMenuItem(value: option, child: Text(option))).toList(),
+                items: ['Option 1', 'Option 2', 'Option 3']
+                    .map(
+                      (option) =>
+                          DropdownMenuItem(value: option, child: Text(option)),
+                    )
+                    .toList(),
                 onChanged: (value) {
                   setState(() {
                     _selectedOption = value;
@@ -138,7 +151,9 @@ class _FormScreenState extends State<FormScreen> {
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _submitForm,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
                 child: const Text('Submit', style: TextStyle(fontSize: 16)),
               ),
               const SizedBox(height: 16),
@@ -152,7 +167,9 @@ class _FormScreenState extends State<FormScreen> {
                     _isAgreed = false;
                   });
                 },
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.all(16),
+                ),
                 child: const Text('Clear', style: TextStyle(fontSize: 16)),
               ),
             ],

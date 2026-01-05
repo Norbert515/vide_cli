@@ -11,7 +11,12 @@ class InstanceDetailsScreen extends StatefulComponent {
   final FlutterInstance instance;
   final Map<String, FlutterInstance>? localInstances;
 
-  const InstanceDetailsScreen({required this.server, required this.instance, this.localInstances, super.key});
+  const InstanceDetailsScreen({
+    required this.server,
+    required this.instance,
+    this.localInstances,
+    super.key,
+  });
 
   @override
   State<InstanceDetailsScreen> createState() => _InstanceDetailsScreenState();
@@ -46,7 +51,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
           Navigator.of(context)
               .push(
                 PageRoute(
-                  builder: (context) => OutputScreen(server: screenComponent.server, instance: instance),
+                  builder: (context) => OutputScreen(
+                    server: screenComponent.server,
+                    instance: instance,
+                  ),
                   settings: const RouteSettings(name: '/output'),
                 ),
               )
@@ -89,7 +97,8 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
         }
 
         // Back
-        if (event.logicalKey == LogicalKey.keyB || event.logicalKey == LogicalKey.escape) {
+        if (event.logicalKey == LogicalKey.keyB ||
+            event.logicalKey == LogicalKey.escape) {
           Navigator.of(context).pop();
           return true;
         }
@@ -119,7 +128,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
       ),
       child: const Text(
         'Instance Details',
-        style: TextStyle(color: Colors.brightWhite, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: Colors.brightWhite,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -136,7 +148,11 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
           children: [
             _buildDetailRow('Status:', statusText, valueColor: statusColor),
             _buildDetailRow('ID:', instance.id, valueColor: Colors.cyan),
-            _buildDetailRow('Started:', instance.startedAt.toString(), valueColor: Colors.yellow),
+            _buildDetailRow(
+              'Started:',
+              instance.startedAt.toString(),
+              valueColor: Colors.yellow,
+            ),
             _buildDetailRow(
               'Uptime:',
               _formatDuration(DateTime.now().difference(instance.startedAt)),
@@ -145,34 +161,56 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
             const SizedBox(height: 1),
             const Divider(color: Colors.blue),
             const SizedBox(height: 1),
-            _buildDetailRow('Working Directory:', '', valueColor: Colors.magenta),
+            _buildDetailRow(
+              'Working Directory:',
+              '',
+              valueColor: Colors.magenta,
+            ),
             Padding(
               padding: const EdgeInsets.only(left: 2),
-              child: Text(instance.workingDirectory, style: const TextStyle(color: Colors.magenta)),
+              child: Text(
+                instance.workingDirectory,
+                style: const TextStyle(color: Colors.magenta),
+              ),
             ),
             const SizedBox(height: 1),
             _buildDetailRow('Command:', '', valueColor: Colors.green),
             Padding(
               padding: const EdgeInsets.only(left: 2),
-              child: Text(instance.command.join(' '), style: const TextStyle(color: Colors.green)),
+              child: Text(
+                instance.command.join(' '),
+                style: const TextStyle(color: Colors.green),
+              ),
             ),
             const SizedBox(height: 1),
             const Divider(color: Colors.blue),
             const SizedBox(height: 1),
-            _buildDetailRow('Device:', instance.deviceId ?? 'parsing...', valueColor: Colors.brightCyan),
+            _buildDetailRow(
+              'Device:',
+              instance.deviceId ?? 'parsing...',
+              valueColor: Colors.brightCyan,
+            ),
             _buildDetailRow(
               'VM Service:',
               instance.vmServiceUri ?? 'not available',
-              valueColor: instance.vmServiceUri != null ? Colors.brightGreen : Colors.gray,
+              valueColor: instance.vmServiceUri != null
+                  ? Colors.brightGreen
+                  : Colors.gray,
             ),
             const SizedBox(height: 1),
             const Divider(color: Colors.blue),
             const SizedBox(height: 1),
-            _buildDetailRow('Output Lines:', '${instance.bufferedOutput.length}', valueColor: Colors.yellow),
+            _buildDetailRow(
+              'Output Lines:',
+              '${instance.bufferedOutput.length}',
+              valueColor: Colors.yellow,
+            ),
             _buildDetailRow(
               'Error Lines:',
               '${instance.bufferedErrors.length}',
-              valueColor: instance.bufferedErrors.isEmpty ? Colors.gray : Colors.red,
+              valueColor: instance.bufferedErrors.isEmpty
+                  ? Colors.gray
+                  : Colors.red,
             ),
           ],
         ),
@@ -185,7 +223,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.gray, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.gray,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         const Text(' '),
         Text(value, style: TextStyle(color: valueColor ?? Colors.white)),
@@ -200,7 +241,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
         color: Color.fromRGB(40, 60, 80),
         border: BoxBorder(top: BorderSide(color: Colors.yellow)),
       ),
-      child: Text(_statusMessage!, style: const TextStyle(color: Colors.yellow)),
+      child: Text(
+        _statusMessage!,
+        style: const TextStyle(color: Colors.yellow),
+      ),
     );
   }
 
@@ -226,7 +270,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
               Text(' • '),
               Text('[A] Act', style: TextStyle(color: Colors.brightMagenta)),
               Text(' • '),
-              Text('[T] Manual Tap', style: TextStyle(color: Colors.brightYellow)),
+              Text(
+                '[T] Manual Tap',
+                style: TextStyle(color: Colors.brightYellow),
+              ),
               Text(' • '),
               Text('[K] Stop', style: TextStyle(color: Colors.red)),
             ],
@@ -296,16 +343,19 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
       final screenshot = await instance.screenshot();
 
       if (screenshot != null) {
-        final filename = 'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
+        final filename =
+            'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
         final file = File(filename);
         await file.writeAsBytes(screenshot);
 
         setState(() {
-          _statusMessage = '✓ Screenshot saved: $filename (${screenshot.length} bytes)';
+          _statusMessage =
+              '✓ Screenshot saved: $filename (${screenshot.length} bytes)';
         });
       } else {
         setState(() {
-          _statusMessage = '✗ Screenshot returned null - VM Service may not be available';
+          _statusMessage =
+              '✗ Screenshot returned null - VM Service may not be available';
         });
       }
 
@@ -324,7 +374,10 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
     }
   }
 
-  Future<void> _stopInstance(FlutterInstance instance, Map<String, FlutterInstance>? localInstances) async {
+  Future<void> _stopInstance(
+    FlutterInstance instance,
+    Map<String, FlutterInstance>? localInstances,
+  ) async {
     setState(() {
       _statusMessage = '⏳ Stopping instance...';
     });
@@ -344,7 +397,11 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
     }
   }
 
-  void _showActDialog(BuildContext context, FlutterInstance instance, FlutterRuntimeServer server) async {
+  void _showActDialog(
+    BuildContext context,
+    FlutterInstance instance,
+    FlutterRuntimeServer server,
+  ) async {
     final result = await Navigator.of(
       context,
     ).showDialog<Map<String, dynamic>>(builder: (context) => const ActDialog());
@@ -357,9 +414,15 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
     }
   }
 
-  Future<void> _performAct(FlutterInstance instance, String action, String description, FlutterRuntimeServer server) async {
+  Future<void> _performAct(
+    FlutterInstance instance,
+    String action,
+    String description,
+    FlutterRuntimeServer server,
+  ) async {
     setState(() {
-      _statusMessage = '⏳ Analyzing UI and performing $action on "$description"...';
+      _statusMessage =
+          '⏳ Analyzing UI and performing $action on "$description"...';
     });
 
     try {
@@ -388,10 +451,13 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
     }
   }
 
-  void _showManualTapDialog(BuildContext context, FlutterInstance instance) async {
-    final result = await Navigator.of(
-      context,
-    ).showDialog<Map<String, dynamic>>(builder: (context) => const ManualTapDialog());
+  void _showManualTapDialog(
+    BuildContext context,
+    FlutterInstance instance,
+  ) async {
+    final result = await Navigator.of(context).showDialog<Map<String, dynamic>>(
+      builder: (context) => const ManualTapDialog(),
+    );
 
     if (result != null && mounted) {
       final x = result['x'] as double;
@@ -401,7 +467,11 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
     }
   }
 
-  Future<void> _performManualTap(FlutterInstance instance, double x, double y) async {
+  Future<void> _performManualTap(
+    FlutterInstance instance,
+    double x,
+    double y,
+  ) async {
     setState(() {
       _statusMessage = '⏳ Tapping at ($x, $y)...';
     });
@@ -437,7 +507,8 @@ class _InstanceDetailsScreenState extends State<InstanceDetailsScreen> {
       final evaluator = instance.evaluator;
       if (evaluator == null) {
         setState(() {
-          _statusMessage = '✗ No evaluator available - VM Service may not be connected';
+          _statusMessage =
+              '✗ No evaluator available - VM Service may not be connected';
         });
         await Future.delayed(const Duration(seconds: 3));
         setState(() {

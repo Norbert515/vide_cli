@@ -128,7 +128,10 @@ class BashCommandParser {
         final trimmed = cmd.trim();
         if (trimmed.isEmpty) continue;
 
-        final type = _detectCommandType(trimmed, hasPipe: pipeCommands.length > 1);
+        final type = _detectCommandType(
+          trimmed,
+          hasPipe: pipeCommands.length > 1,
+        );
         result.add(ParsedCommand(trimmed, type));
       }
     }
@@ -174,11 +177,15 @@ class BashCommandParser {
         if (char == ';') {
           parts.add(buffer.toString());
           buffer.clear();
-        } else if (char == '&' && i + 1 < command.length && command[i + 1] == '&') {
+        } else if (char == '&' &&
+            i + 1 < command.length &&
+            command[i + 1] == '&') {
           parts.add(buffer.toString());
           buffer.clear();
           i++; // Skip next &
-        } else if (char == '|' && i + 1 < command.length && command[i + 1] == '|') {
+        } else if (char == '|' &&
+            i + 1 < command.length &&
+            command[i + 1] == '|') {
           parts.add(buffer.toString());
           buffer.clear();
           i++; // Skip next |
@@ -237,7 +244,10 @@ class BashCommandParser {
   }
 
   /// Detect the type of command
-  static CommandType _detectCommandType(String command, {required bool hasPipe}) {
+  static CommandType _detectCommandType(
+    String command, {
+    required bool hasPipe,
+  }) {
     final trimmed = command.trim();
     final parts = trimmed.split(RegExp(r'\s+'));
 

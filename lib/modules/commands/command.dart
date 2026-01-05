@@ -1,14 +1,10 @@
 /// Result of executing a command.
 class CommandResult {
   /// Create a successful result with optional message.
-  const CommandResult.success([this.message])
-      : success = true,
-        error = null;
+  const CommandResult.success([this.message]) : success = true, error = null;
 
   /// Create a failure result with error message.
-  const CommandResult.error(this.error)
-      : success = false,
-        message = null;
+  const CommandResult.error(this.error) : success = false, message = null;
 
   /// Whether the command executed successfully.
   final bool success;

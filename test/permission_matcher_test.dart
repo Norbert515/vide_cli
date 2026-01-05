@@ -5,36 +5,60 @@ void main() {
   group('PermissionMatcher - Bash patterns', () {
     test('matches exact bash command', () {
       expect(
-        PermissionMatcher.matches('Bash(pwd)', 'Bash', BashToolInput(command: 'pwd')),
+        PermissionMatcher.matches(
+          'Bash(pwd)',
+          'Bash',
+          BashToolInput(command: 'pwd'),
+        ),
         isTrue,
       );
     });
 
     test('matches bash with wildcard prefix (dart pub:*)', () {
       expect(
-        PermissionMatcher.matches('Bash(dart pub:*)', 'Bash', BashToolInput(command: 'dart pub get')),
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get'),
+        ),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.matches('Bash(dart pub:*)', 'Bash', BashToolInput(command: 'dart pub upgrade')),
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub upgrade'),
+        ),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.matches('Bash(dart pub:*)', 'Bash', BashToolInput(command: 'dart run main.dart')),
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart run main.dart'),
+        ),
         isFalse,
       );
     });
 
     test('matches bash with wildcard suffix (dart run:*)', () {
       expect(
-        PermissionMatcher.matches('Bash(dart run:*)', 'Bash', BashToolInput(command: 'dart run main.dart')),
+        PermissionMatcher.matches(
+          'Bash(dart run:*)',
+          'Bash',
+          BashToolInput(command: 'dart run main.dart'),
+        ),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.matches('Bash(dart run:*)', 'Bash', BashToolInput(command: 'dart run bin/server.dart --port 8080')),
+        PermissionMatcher.matches(
+          'Bash(dart run:*)',
+          'Bash',
+          BashToolInput(command: 'dart run bin/server.dart --port 8080'),
+        ),
         isTrue,
       );
     });
@@ -60,7 +84,8 @@ void main() {
           'Bash(timeout 10 dart run bin/debug_claude_stream\\.dart --json ".*")',
           'Bash',
           BashToolInput(
-            command: 'timeout 10 dart run bin/debug_claude_stream.dart --json "What is 10 + 15?"',
+            command:
+                'timeout 10 dart run bin/debug_claude_stream.dart --json "What is 10 + 15?"',
           ),
         ),
         isTrue,
@@ -69,14 +94,22 @@ void main() {
 
     test('does not match different bash command', () {
       expect(
-        PermissionMatcher.matches('Bash(ls:*)', 'Bash', BashToolInput(command: 'pwd')),
+        PermissionMatcher.matches(
+          'Bash(ls:*)',
+          'Bash',
+          BashToolInput(command: 'pwd'),
+        ),
         isFalse,
       );
     });
 
     test('matches bash wildcard (*) for any command', () {
       expect(
-        PermissionMatcher.matches('Bash(*)', 'Bash', BashToolInput(command: 'any command here')),
+        PermissionMatcher.matches(
+          'Bash(*)',
+          'Bash',
+          BashToolInput(command: 'any command here'),
+        ),
         isTrue,
       );
     });
@@ -88,7 +121,9 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/parott/lib/main.dart)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/parott/lib/main.dart'),
+          ReadToolInput(
+            filePath: '/Users/norbertkozsir/IdeaProjects/parott/lib/main.dart',
+          ),
         ),
         isTrue,
       );
@@ -99,7 +134,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/main.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/main.dart',
+          ),
         ),
         isTrue,
       );
@@ -108,7 +146,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart',
+          ),
         ),
         isTrue,
       );
@@ -119,7 +160,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(//Users/norbertkozsir/IdeaProjects/nocterm/lib/**)',
           'Read',
-          ReadToolInput(filePath: '//Users/norbertkozsir/IdeaProjects/nocterm/lib/main.dart'),
+          ReadToolInput(
+            filePath:
+                '//Users/norbertkozsir/IdeaProjects/nocterm/lib/main.dart',
+          ),
         ),
         isTrue,
       );
@@ -130,7 +174,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/test/main_test.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/test/main_test.dart',
+          ),
         ),
         isFalse,
       );
@@ -141,7 +188,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart',
+          ),
         ),
         isTrue,
       );
@@ -150,7 +200,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/framework/widget.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/framework/widget.dart',
+          ),
         ),
         isFalse,
       );
@@ -162,7 +215,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart',
+          ),
         ),
         isTrue,
       );
@@ -172,7 +228,10 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/IdeaProjects/dart_tui/lib/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart',
+          ),
         ),
         isTrue,
       );
@@ -183,7 +242,9 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/safe/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/safe/../sensitive/file.txt'),
+          ReadToolInput(
+            filePath: '/Users/norbertkozsir/safe/../sensitive/file.txt',
+          ),
         ),
         isFalse,
       );
@@ -203,7 +264,9 @@ void main() {
         PermissionMatcher.matches(
           'Read(/Users/norbertkozsir/safe/**)',
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/safe/%2e%2e/sensitive/file.txt'),
+          ReadToolInput(
+            filePath: '/Users/norbertkozsir/safe/%2e%2e/sensitive/file.txt',
+          ),
         ),
         isFalse,
       );
@@ -217,7 +280,8 @@ void main() {
           'Write(/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/conversation_loader.dart)',
           'Write',
           WriteToolInput(
-            filePath: '/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/conversation_loader.dart',
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/conversation_loader.dart',
             content: '',
           ),
         ),
@@ -231,7 +295,8 @@ void main() {
           'Write(/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/conversation_loader.dart)',
           'Write',
           WriteToolInput(
-            filePath: '/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/other_file.dart',
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/parott/claude_api/lib/src/client/other_file.dart',
             content: '',
           ),
         ),
@@ -321,7 +386,9 @@ void main() {
         PermissionMatcher.matches(
           'WebFetch(domain:github.com)',
           'WebFetch',
-          WebFetchToolInput(url: 'https://api.github.com/repos/flutter/flutter'),
+          WebFetchToolInput(
+            url: 'https://api.github.com/repos/flutter/flutter',
+          ),
         ),
         isTrue,
       );
@@ -330,7 +397,10 @@ void main() {
         PermissionMatcher.matches(
           'WebFetch(domain:github.com)',
           'WebFetch',
-          WebFetchToolInput(url: 'https://raw.githubusercontent.com/flutter/flutter/main/README.md'),
+          WebFetchToolInput(
+            url:
+                'https://raw.githubusercontent.com/flutter/flutter/main/README.md',
+          ),
         ),
         isFalse, // githubusercontent.com is not a subdomain of github.com
       );
@@ -418,7 +488,10 @@ void main() {
         PermissionMatcher.matches(
           'mcp__dart__resolve_workspace_symbol',
           'mcp__dart__resolve_workspace_symbol',
-          UnknownToolInput(toolName: 'mcp__dart__resolve_workspace_symbol', raw: {'query': 'Widget'}),
+          UnknownToolInput(
+            toolName: 'mcp__dart__resolve_workspace_symbol',
+            raw: {'query': 'Widget'},
+          ),
         ),
         isTrue,
       );
@@ -427,7 +500,10 @@ void main() {
         PermissionMatcher.matches(
           'mcp__dart__pub_dev_search',
           'mcp__dart__pub_dev_search',
-          UnknownToolInput(toolName: 'mcp__dart__pub_dev_search', raw: {'query': 'http'}),
+          UnknownToolInput(
+            toolName: 'mcp__dart__pub_dev_search',
+            raw: {'query': 'http'},
+          ),
         ),
         isTrue,
       );
@@ -437,31 +513,51 @@ void main() {
   group('PermissionMatcher - Tool name regex', () {
     test('matches exact tool name', () {
       expect(
-        PermissionMatcher.matches('Read', 'Read', ReadToolInput(filePath: '/any/path')),
+        PermissionMatcher.matches(
+          'Read',
+          'Read',
+          ReadToolInput(filePath: '/any/path'),
+        ),
         isTrue,
       );
     });
 
     test('does not match different tool name', () {
       expect(
-        PermissionMatcher.matches('Read', 'Write', WriteToolInput(filePath: '/any/path', content: '')),
+        PermissionMatcher.matches(
+          'Read',
+          'Write',
+          WriteToolInput(filePath: '/any/path', content: ''),
+        ),
         isFalse,
       );
     });
 
     test('matches tool name with regex pattern', () {
       expect(
-        PermissionMatcher.matches('Read|Write', 'Read', ReadToolInput(filePath: '/any/path')),
+        PermissionMatcher.matches(
+          'Read|Write',
+          'Read',
+          ReadToolInput(filePath: '/any/path'),
+        ),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.matches('Read|Write', 'Write', WriteToolInput(filePath: '/any/path', content: '')),
+        PermissionMatcher.matches(
+          'Read|Write',
+          'Write',
+          WriteToolInput(filePath: '/any/path', content: ''),
+        ),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.matches('Read|Write', 'Edit', EditToolInput(filePath: '/any/path', oldString: '', newString: '')),
+        PermissionMatcher.matches(
+          'Read|Write',
+          'Edit',
+          EditToolInput(filePath: '/any/path', oldString: '', newString: ''),
+        ),
         isFalse,
       );
     });
@@ -469,12 +565,23 @@ void main() {
 
   group('PermissionMatcher - Edge cases', () {
     test('handles missing tool input gracefully', () {
-      expect(PermissionMatcher.matches('Bash(ls)', 'Bash', BashToolInput(command: '')), isFalse);
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls)',
+          'Bash',
+          BashToolInput(command: ''),
+        ),
+        isFalse,
+      );
     });
 
     test('handles empty file_path', () {
       expect(
-        PermissionMatcher.matches('Read(/path/**)', 'Read', ReadToolInput(filePath: '')),
+        PermissionMatcher.matches(
+          'Read(/path/**)',
+          'Read',
+          ReadToolInput(filePath: ''),
+        ),
         isFalse,
       );
     });
@@ -482,19 +589,31 @@ void main() {
     test('handles empty pattern arguments - empty filePath does not match', () {
       // Empty pattern () means empty string - but empty file paths are rejected for security
       expect(
-        PermissionMatcher.matches('Read()', 'Read', ReadToolInput(filePath: '')),
+        PermissionMatcher.matches(
+          'Read()',
+          'Read',
+          ReadToolInput(filePath: ''),
+        ),
         isFalse, // Empty file paths are rejected
       );
 
       expect(
-        PermissionMatcher.matches('Read()', 'Read', ReadToolInput(filePath: '/any/path')),
+        PermissionMatcher.matches(
+          'Read()',
+          'Read',
+          ReadToolInput(filePath: '/any/path'),
+        ),
         isFalse, // /any/path doesn't match empty pattern
       );
     });
 
     test('matches tools without parentheses in pattern', () {
       expect(
-        PermissionMatcher.matches('WebSearch', 'WebSearch', WebSearchToolInput(query: 'test')),
+        PermissionMatcher.matches(
+          'WebSearch',
+          'WebSearch',
+          WebSearchToolInput(query: 'test'),
+        ),
         isTrue,
       );
     });
@@ -513,7 +632,10 @@ void main() {
         (pattern) => PermissionMatcher.matches(
           pattern,
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/main.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/main.dart',
+          ),
         ),
       );
       expect(matched1, isTrue);
@@ -523,7 +645,10 @@ void main() {
         (pattern) => PermissionMatcher.matches(
           pattern,
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/dart_tui/lib/src/components/button.dart',
+          ),
         ),
       );
       expect(matched2, isTrue);
@@ -533,7 +658,9 @@ void main() {
         (pattern) => PermissionMatcher.matches(
           pattern,
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/nocterm/lib/main.dart'),
+          ReadToolInput(
+            filePath: '/Users/norbertkozsir/IdeaProjects/nocterm/lib/main.dart',
+          ),
         ),
       );
       expect(matched3, isTrue);
@@ -543,7 +670,10 @@ void main() {
         (pattern) => PermissionMatcher.matches(
           pattern,
           'Read',
-          ReadToolInput(filePath: '/Users/norbertkozsir/IdeaProjects/other_project/lib/main.dart'),
+          ReadToolInput(
+            filePath:
+                '/Users/norbertkozsir/IdeaProjects/other_project/lib/main.dart',
+          ),
         ),
       );
       expect(matched4, isFalse);
@@ -560,28 +690,44 @@ void main() {
 
       expect(
         allowPatterns.any(
-          (p) => PermissionMatcher.matches(p, 'Bash', BashToolInput(command: 'dart pub get')),
+          (p) => PermissionMatcher.matches(
+            p,
+            'Bash',
+            BashToolInput(command: 'dart pub get'),
+          ),
         ),
         isTrue,
       );
 
       expect(
         allowPatterns.any(
-          (p) => PermissionMatcher.matches(p, 'Bash', BashToolInput(command: 'dart run main.dart')),
+          (p) => PermissionMatcher.matches(
+            p,
+            'Bash',
+            BashToolInput(command: 'dart run main.dart'),
+          ),
         ),
         isTrue,
       );
 
       expect(
         allowPatterns.any(
-          (p) => PermissionMatcher.matches(p, 'Bash', BashToolInput(command: 'dart test')),
+          (p) => PermissionMatcher.matches(
+            p,
+            'Bash',
+            BashToolInput(command: 'dart test'),
+          ),
         ),
         isTrue,
       );
 
       expect(
         allowPatterns.any(
-          (p) => PermissionMatcher.matches(p, 'Bash', BashToolInput(command: 'rm -rf /')),
+          (p) => PermissionMatcher.matches(
+            p,
+            'Bash',
+            BashToolInput(command: 'rm -rf /'),
+          ),
         ),
         isFalse,
       );
@@ -623,7 +769,10 @@ void main() {
           (p) => PermissionMatcher.matches(
             p,
             'WebFetch',
-            WebFetchToolInput(url: 'https://raw.githubusercontent.com/flutter/flutter/main/README.md'),
+            WebFetchToolInput(
+              url:
+                  'https://raw.githubusercontent.com/flutter/flutter/main/README.md',
+            ),
           ),
         ),
         isTrue,

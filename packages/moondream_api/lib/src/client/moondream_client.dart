@@ -31,7 +31,7 @@ class MoondreamClient {
   /// [config] - Configuration for the client
   /// [httpClient] - Optional HTTP client for testing/mocking
   MoondreamClient({required this.config, http.Client? httpClient})
-    : _httpClient = httpClient ?? http.Client() {
+      : _httpClient = httpClient ?? http.Client() {
     if (config.apiKey == null && config.baseUrl.contains('api.moondream.ai')) {
       throw ArgumentError(
         'API key is required when using cloud endpoint. '

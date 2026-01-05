@@ -39,8 +39,7 @@ void main() {
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
         expect(configJson.containsKey('mcpServers'), isTrue);
 
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
         // Should include our test server
         expect(mcpServers.containsKey('test-server'), isTrue);
@@ -51,7 +50,10 @@ void main() {
 
       test('generates correct config for multiple servers', () async {
         final server1 = TestMcpServer(name: 'server-one', tools: ['tool1']);
-        final server2 = TestMcpServer(name: 'server-two', tools: ['tool2', 'tool3']);
+        final server2 = TestMcpServer(
+          name: 'server-two',
+          tools: ['tool2', 'tool3'],
+        );
         await server1.start();
         await server2.start();
 
@@ -71,8 +73,7 @@ void main() {
         expect(args[0], '--mcp-config');
 
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
         // Should include both test servers
         expect(mcpServers.containsKey('server-one'), isTrue);
@@ -85,31 +86,32 @@ void main() {
         expect(mcpServers.length, 3);
       });
 
-      test('always includes dart MCP server when MCP servers provided',
-          () async {
-        final server = TestMcpServer(name: 'custom-server');
-        await server.start();
+      test(
+        'always includes dart MCP server when MCP servers provided',
+        () async {
+          final server = TestMcpServer(name: 'custom-server');
+          await server.start();
 
-        addTearDown(() async {
-          await server.stop();
-        });
+          addTearDown(() async {
+            await server.stop();
+          });
 
-        final manager = ProcessManager(
-          config: ClaudeConfig.defaults(),
-          mcpServers: [server],
-        );
+          final manager = ProcessManager(
+            config: ClaudeConfig.defaults(),
+            mcpServers: [server],
+          );
 
-        final args = await manager.getMcpArgs();
-        final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+          final args = await manager.getMcpArgs();
+          final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
+          final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
-        expect(mcpServers.containsKey('dart'), isTrue);
+          expect(mcpServers.containsKey('dart'), isTrue);
 
-        final dartConfig = mcpServers['dart'] as Map<String, dynamic>;
-        expect(dartConfig['command'], 'dart');
-        expect(dartConfig['args'], ['mcp-server']);
-      });
+          final dartConfig = mcpServers['dart'] as Map<String, dynamic>;
+          expect(dartConfig['command'], 'dart');
+          expect(dartConfig['args'], ['mcp-server']);
+        },
+      );
 
       test('server config contains correct HTTP transport format', () async {
         final server = TestMcpServer(name: 'http-server');
@@ -127,10 +129,8 @@ void main() {
 
         final args = await manager.getMcpArgs();
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
-        final serverConfig =
-            mcpServers['http-server'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
+        final serverConfig = mcpServers['http-server'] as Map<String, dynamic>;
 
         expect(serverConfig['type'], 'http');
         expect(serverConfig['url'], 'http://localhost:$port/mcp');
@@ -154,10 +154,7 @@ void main() {
         final args = await manager.getMcpArgs();
 
         // Verify it's valid JSON by decoding
-        expect(
-          () => jsonDecode(args[1]),
-          returnsNormally,
-        );
+        expect(() => jsonDecode(args[1]), returnsNormally);
 
         final config = jsonDecode(args[1]) as Map<String, dynamic>;
 
@@ -181,8 +178,7 @@ void main() {
 
         final args = await manager.getMcpArgs();
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
         // Check custom server config
         final customConfig =
@@ -214,8 +210,7 @@ void main() {
 
         final args = await manager.getMcpArgs();
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
         // Verify server names are used as keys
         expect(mcpServers.keys, containsAll(['alpha-server', 'beta-server']));
@@ -272,7 +267,10 @@ void main() {
 
       test('handles server with many tools', () async {
         final manyTools = List.generate(50, (i) => 'tool_$i');
-        final server = TestMcpServer(name: 'many-tools-server', tools: manyTools);
+        final server = TestMcpServer(
+          name: 'many-tools-server',
+          tools: manyTools,
+        );
         await server.start();
 
         addTearDown(() async {
@@ -309,13 +307,14 @@ void main() {
 
         final args = await manager.getMcpArgs();
         final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-        final mcpServers =
-            configJson['mcpServers'] as Map<String, dynamic>;
+        final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
 
         final url1 =
-            (mcpServers['unique-port-1'] as Map<String, dynamic>)['url'] as String;
+            (mcpServers['unique-port-1'] as Map<String, dynamic>)['url']
+                as String;
         final url2 =
-            (mcpServers['unique-port-2'] as Map<String, dynamic>)['url'] as String;
+            (mcpServers['unique-port-2'] as Map<String, dynamic>)['url']
+                as String;
 
         // Extract ports from URLs
         final port1 = int.parse(url1.split(':').last.split('/').first);

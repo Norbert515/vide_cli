@@ -265,10 +265,8 @@ class HookOutput {
   );
 
   /// Create an output that stops the session
-  factory HookOutput.stop(String reason) => HookOutput(
-    continueExecution: false,
-    stopReason: reason,
-  );
+  factory HookOutput.stop(String reason) =>
+      HookOutput(continueExecution: false, stopReason: reason);
 
   Map<String, dynamic> toJson() {
     final result = <String, dynamic>{};
@@ -342,22 +340,18 @@ class PermissionResultAllow extends PermissionResult {
   final Map<String, dynamic>? updatedInput;
   final List<PermissionUpdate>? updatedPermissions;
 
-  const PermissionResultAllow({
-    this.updatedInput,
-    this.updatedPermissions,
-  });
+  const PermissionResultAllow({this.updatedInput, this.updatedPermissions});
 
   @override
   Map<String, dynamic> toJson() {
-    final result = <String, dynamic>{
-      'behavior': 'allow',
-    };
+    final result = <String, dynamic>{'behavior': 'allow'};
     if (updatedInput != null) {
       result['updatedInput'] = updatedInput;
     }
     if (updatedPermissions != null) {
-      result['updatedPermissions'] =
-          updatedPermissions!.map((p) => p.toJson()).toList();
+      result['updatedPermissions'] = updatedPermissions!
+          .map((p) => p.toJson())
+          .toList();
     }
     return result;
   }
@@ -368,10 +362,7 @@ class PermissionResultDeny extends PermissionResult {
   final String message;
   final bool interrupt;
 
-  const PermissionResultDeny({
-    required this.message,
-    this.interrupt = false,
-  });
+  const PermissionResultDeny({required this.message, this.interrupt = false});
 
   @override
   Map<String, dynamic> toJson() => {
@@ -398,9 +389,7 @@ class PermissionUpdate {
   });
 
   Map<String, dynamic> toJson() {
-    final result = <String, dynamic>{
-      'type': type,
-    };
+    final result = <String, dynamic>{'type': type};
     if (destination != null) result['destination'] = destination;
     if (rules != null) result['rules'] = rules;
     if (mode != null) result['mode'] = mode;
@@ -414,10 +403,7 @@ class ToolPermissionContext {
   final List<String>? permissionSuggestions;
   final String? blockedPath;
 
-  const ToolPermissionContext({
-    this.permissionSuggestions,
-    this.blockedPath,
-  });
+  const ToolPermissionContext({this.permissionSuggestions, this.blockedPath});
 
   factory ToolPermissionContext.fromJson(Map<String, dynamic> json) {
     return ToolPermissionContext(
@@ -429,17 +415,16 @@ class ToolPermissionContext {
 }
 
 /// Callback type for hooks
-typedef HookCallback = Future<HookOutput> Function(
-  HookInput input,
-  String? toolUseId,
-);
+typedef HookCallback =
+    Future<HookOutput> Function(HookInput input, String? toolUseId);
 
 /// Callback type for permission checks
-typedef CanUseToolCallback = Future<PermissionResult> Function(
-  String toolName,
-  Map<String, dynamic> input,
-  ToolPermissionContext context,
-);
+typedef CanUseToolCallback =
+    Future<PermissionResult> Function(
+      String toolName,
+      Map<String, dynamic> input,
+      ToolPermissionContext context,
+    );
 
 /// Hook matcher configuration
 class HookMatcher {
@@ -452,9 +437,5 @@ class HookMatcher {
   /// Timeout in seconds (default 60)
   final int timeout;
 
-  const HookMatcher({
-    this.matcher,
-    required this.callback,
-    this.timeout = 60,
-  });
+  const HookMatcher({this.matcher, required this.callback, this.timeout = 60});
 }

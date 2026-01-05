@@ -131,7 +131,9 @@ class _DiffRendererState extends State<DiffRenderer> {
     }
 
     // Determine status color
-    final statusColor = component.invocation.isError ? Colors.red : Colors.green;
+    final statusColor = component.invocation.isError
+        ? Colors.red
+        : Colors.green;
     final statusIndicator = component.invocation.isError ? '●' : '●';
 
     return Container(
@@ -145,7 +147,10 @@ class _DiffRendererState extends State<DiffRenderer> {
           // Diff view (with pre-computed syntax highlighting)
           Container(
             padding: EdgeInsets.only(left: 2),
-            child: CodeDiff(fileName: _cachedFormattedPath, lines: _getHighlightedLines(context)),
+            child: CodeDiff(
+              fileName: _cachedFormattedPath,
+              lines: _getHighlightedLines(context),
+            ),
           ),
         ],
       ),
@@ -161,7 +166,10 @@ class _DiffRendererState extends State<DiffRenderer> {
         Text(statusIndicator, style: TextStyle(color: statusColor)),
         SizedBox(width: 1),
         // Tool name
-        Text(component.invocation.displayName, style: TextStyle(color: Colors.white)),
+        Text(
+          component.invocation.displayName,
+          style: TextStyle(color: Colors.white),
+        ),
         if (params.isNotEmpty) ...[
           Flexible(
             child: Text(
@@ -206,7 +214,11 @@ class _DiffRendererState extends State<DiffRenderer> {
     final lines = invocation.content.split('\n');
     return List.generate(
       lines.length,
-      (i) => DiffLine(lineNumber: i + 1, type: DiffLineType.added, content: lines[i]),
+      (i) => DiffLine(
+        lineNumber: i + 1,
+        type: DiffLineType.added,
+        content: lines[i],
+      ),
     );
   }
 
@@ -222,8 +234,14 @@ class _DiffRendererState extends State<DiffRenderer> {
     final resultLines = resultContent.split('\n');
 
     // Use Sets for O(1) lookup instead of O(n) list iteration
-    final oldSet = invocation.oldString.split('\n').map((l) => l.trim()).toSet();
-    final newSet = invocation.newString.split('\n').map((l) => l.trim()).toSet();
+    final oldSet = invocation.oldString
+        .split('\n')
+        .map((l) => l.trim())
+        .toSet();
+    final newSet = invocation.newString
+        .split('\n')
+        .map((l) => l.trim())
+        .toSet();
 
     for (final line in resultLines) {
       // Skip non-content lines (using pre-compiled regex)
@@ -256,7 +274,9 @@ class _DiffRendererState extends State<DiffRenderer> {
           lineType = DiffLineType.unchanged;
         }
 
-        lines.add(DiffLine(lineNumber: lineNumber, type: lineType, content: content));
+        lines.add(
+          DiffLine(lineNumber: lineNumber, type: lineType, content: content),
+        );
       }
     }
 

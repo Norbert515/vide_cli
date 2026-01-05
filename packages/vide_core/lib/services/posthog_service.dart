@@ -81,10 +81,7 @@ class PostHogService {
         'api_key': _apiKey,
         'event': event,
         'distinct_id': _distinctId,
-        'properties': {
-          '\$lib': 'vide-dart',
-          ...?properties,
-        },
+        'properties': {'\$lib': 'vide-dart', ...?properties},
       });
 
       await http.post(

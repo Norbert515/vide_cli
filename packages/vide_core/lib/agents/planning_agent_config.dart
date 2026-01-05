@@ -21,14 +21,20 @@ class PlanningAgentConfig {
   static const String version = '1.0.0';
 
   /// Creates a configuration for the planning agent
-  static AgentConfiguration create({ProjectType projectType = ProjectType.unknown}) {
+  static AgentConfiguration create({
+    ProjectType projectType = ProjectType.unknown,
+  }) {
     return AgentConfiguration(
       name: agentName,
       description: 'Creates detailed implementation plans for complex tasks',
       systemPrompt: _buildSystemPrompt(projectType),
       permissionMode: 'plan', // Planning agent should not execute code
       // Planning agent needs read access + memory, but no Git/Flutter Runtime
-      mcpServers: [McpServerType.memory, McpServerType.taskManagement, McpServerType.agent],
+      mcpServers: [
+        McpServerType.memory,
+        McpServerType.taskManagement,
+        McpServerType.agent,
+      ],
     );
   }
 

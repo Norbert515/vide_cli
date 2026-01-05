@@ -15,27 +15,33 @@ void main() {
       );
     });
 
-    test('matches pipe command when first part approved and second is safe filter', () {
-      expect(
-        PermissionMatcher.matches(
-          'Bash(dart pub:*)',
-          'Bash',
-          BashToolInput(command: 'dart pub deps | grep uuid'),
-        ),
-        isTrue, // dart pub deps matches, grep is safe filter
-      );
-    });
+    test(
+      'matches pipe command when first part approved and second is safe filter',
+      () {
+        expect(
+          PermissionMatcher.matches(
+            'Bash(dart pub:*)',
+            'Bash',
+            BashToolInput(command: 'dart pub deps | grep uuid'),
+          ),
+          isTrue, // dart pub deps matches, grep is safe filter
+        );
+      },
+    );
 
-    test('matches pipe command when second part approved and first is data source', () {
-      expect(
-        PermissionMatcher.matches(
-          'Bash(grep:*)',
-          'Bash',
-          BashToolInput(command: 'dart pub deps | grep uuid'),
-        ),
-        isTrue, // grep matches, dart pub deps is allowed as data source
-      );
-    });
+    test(
+      'matches pipe command when second part approved and first is data source',
+      () {
+        expect(
+          PermissionMatcher.matches(
+            'Bash(grep:*)',
+            'Bash',
+            BashToolInput(command: 'dart pub deps | grep uuid'),
+          ),
+          isTrue, // grep matches, dart pub deps is allowed as data source
+        );
+      },
+    );
 
     test('does not match when cd goes outside working directory', () {
       expect(
@@ -54,7 +60,9 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          BashToolInput(command: 'cd /project/sub && dart pub get && dart analyze'),
+          BashToolInput(
+            command: 'cd /project/sub && dart pub get && dart analyze',
+          ),
           context: {'cwd': '/project'},
         ),
         isTrue,
@@ -66,7 +74,9 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart pub:*)',
           'Bash',
-          BashToolInput(command: 'cd /project/sub && dart pub get && serverpod generate'),
+          BashToolInput(
+            command: 'cd /project/sub && dart pub get && serverpod generate',
+          ),
           context: {'cwd': '/project'},
         ),
         isFalse, // serverpod generate doesn't match dart pub:*
@@ -165,17 +175,20 @@ void main() {
       );
     });
 
-    test('matches cd-only command outside working directory if pattern allows', () {
-      expect(
-        PermissionMatcher.matches(
-          'Bash(cd:*)',
-          'Bash',
-          BashToolInput(command: 'cd /other'),
-          context: {'cwd': '/project'},
-        ),
-        isTrue, // cd /other matches cd:* pattern
-      );
-    });
+    test(
+      'matches cd-only command outside working directory if pattern allows',
+      () {
+        expect(
+          PermissionMatcher.matches(
+            'Bash(cd:*)',
+            'Bash',
+            BashToolInput(command: 'cd /other'),
+            context: {'cwd': '/project'},
+          ),
+          isTrue, // cd /other matches cd:* pattern
+        );
+      },
+    );
 
     test('handles quoted strings with operators', () {
       expect(
@@ -193,7 +206,9 @@ void main() {
         PermissionMatcher.matches(
           'Bash(dart:*)',
           'Bash',
-          BashToolInput(command: 'cd ./packages/server && dart analyze file.dart'),
+          BashToolInput(
+            command: 'cd ./packages/server && dart analyze file.dart',
+          ),
           context: {'cwd': '/project'},
         ),
         isTrue,

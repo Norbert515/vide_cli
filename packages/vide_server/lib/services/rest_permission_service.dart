@@ -35,7 +35,8 @@ CanUseToolCallback createRestPermissionCallback(String cwd) {
       PermissionAllow() => const PermissionResultAllow(),
       PermissionDeny(:final reason) => PermissionResultDeny(message: reason),
       PermissionAskUser() => const PermissionResultDeny(
-        message: 'Operation requires user approval (unexpected in REST API mode)',
+        message:
+            'Operation requires user approval (unexpected in REST API mode)',
       ),
     };
   };

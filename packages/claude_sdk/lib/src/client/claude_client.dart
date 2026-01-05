@@ -324,10 +324,7 @@ class ClaudeClientImpl implements ClaudeClient {
       }
 
       // Delegate response processing to ResponseProcessor
-      final result = _responseProcessor.processResponse(
-        response,
-        conversation,
-      );
+      final result = _responseProcessor.processResponse(response, conversation);
       conversation = result.updatedConversation;
       turnComplete = turnComplete || result.turnComplete;
     }

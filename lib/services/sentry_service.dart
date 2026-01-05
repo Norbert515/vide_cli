@@ -16,7 +16,10 @@ class SentryService {
     await Sentry.init((options) {
       options.dsn = _dsn;
       options.tracesSampleRate = 1.0;
-      options.environment = const String.fromEnvironment('SENTRY_ENV', defaultValue: 'development');
+      options.environment = const String.fromEnvironment(
+        'SENTRY_ENV',
+        defaultValue: 'development',
+      );
     });
 
     // Set up nocterm's global error handler (like Flutter's FlutterError.onError)
@@ -32,7 +35,10 @@ class SentryService {
   }
 
   /// Capture an exception manually
-  static Future<void> captureException(dynamic exception, {dynamic stackTrace}) async {
+  static Future<void> captureException(
+    dynamic exception, {
+    dynamic stackTrace,
+  }) async {
     await Sentry.captureException(exception, stackTrace: stackTrace);
     PostHogService.errorOccurred(exception.runtimeType.toString());
   }

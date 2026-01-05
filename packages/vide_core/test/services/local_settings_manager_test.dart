@@ -129,11 +129,11 @@ void main() {
               {
                 'matcher': 'Bash',
                 'hooks': [
-                  {'type': 'command', 'command': 'echo test', 'timeout': 5000}
-                ]
-              }
-            ]
-          }
+                  {'type': 'command', 'command': 'echo test', 'timeout': 5000},
+                ],
+              },
+            ],
+          },
         };
         await settingsFile.writeAsString(jsonEncode(initialSettings));
 

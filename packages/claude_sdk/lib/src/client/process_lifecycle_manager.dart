@@ -82,10 +82,7 @@ class ProcessLifecycleManager {
 
     // Initialize with hooks
     try {
-      await _controlProtocol!.initialize(
-        hooks: hooks,
-        canUseTool: canUseTool,
-      );
+      await _controlProtocol!.initialize(hooks: hooks, canUseTool: canUseTool);
     } catch (e, stackTrace) {
       // Clean up on initialization failure
       _activeProcess?.kill();

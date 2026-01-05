@@ -12,7 +12,10 @@ class ExitCommand extends Command {
   String get usage => '/exit';
 
   @override
-  Future<CommandResult> execute(CommandContext context, String? arguments) async {
+  Future<CommandResult> execute(
+    CommandContext context,
+    String? arguments,
+  ) async {
     if (context.exitApp == null) {
       return CommandResult.error('Cannot exit: exit callback not available');
     }

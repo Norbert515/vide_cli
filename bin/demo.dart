@@ -17,10 +17,7 @@ class DemoApp extends StatelessComponent {
   Component build(BuildContext context) {
     return NoctermApp(
       title: 'Vide - AI Agent Network',
-      child: Padding(
-        padding: EdgeInsets.all(1),
-        child: DemoPage(),
-      ),
+      child: Padding(padding: EdgeInsets.all(1), child: DemoPage()),
     );
   }
 }
@@ -50,11 +47,26 @@ class DemoPage extends StatelessComponent {
               // Todo list (at top when reversed)
               TodoListComponent(
                 todos: [
-                  {'content': 'Research existing auth patterns', 'status': 'completed'},
-                  {'content': 'Create JWT token service', 'status': 'completed'},
-                  {'content': 'Implement token validation', 'status': 'completed'},
-                  {'content': 'Add secure token storage', 'status': 'completed'},
-                  {'content': 'Implement refresh token flow', 'status': 'in_progress'},
+                  {
+                    'content': 'Research existing auth patterns',
+                    'status': 'completed',
+                  },
+                  {
+                    'content': 'Create JWT token service',
+                    'status': 'completed',
+                  },
+                  {
+                    'content': 'Implement token validation',
+                    'status': 'completed',
+                  },
+                  {
+                    'content': 'Add secure token storage',
+                    'status': 'completed',
+                  },
+                  {
+                    'content': 'Implement refresh token flow',
+                    'status': 'in_progress',
+                  },
                   {'content': 'Add token rotation logic', 'status': 'pending'},
                   {'content': 'Write integration tests', 'status': 'pending'},
                 ],
@@ -71,7 +83,9 @@ class DemoPage extends StatelessComponent {
               _DemoAIResponsePlan(),
               SizedBox(height: 1),
               _DemoToolInvocationsPhase1(),
-              _DemoUserMessage('Add user authentication with JWT tokens to my Flutter app'),
+              _DemoUserMessage(
+                'Add user authentication with JWT tokens to my Flutter app',
+              ),
             ],
           ),
         ),
@@ -108,7 +122,18 @@ class _DemoAgentsBar extends StatefulComponent {
 }
 
 class _DemoAgentsBarState extends State<_DemoAgentsBar> {
-  static const _spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  static const _spinnerFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
 
   int _spinnerIndex = 0;
   late final Timer _timer;
@@ -158,11 +183,7 @@ class _DemoAgentsBarState extends State<_DemoAgentsBar> {
       ),
     ];
 
-    return Row(
-      children: [
-        for (final agent in agents) _buildAgentItem(agent),
-      ],
-    );
+    return Row(children: [for (final agent in agents) _buildAgentItem(agent)]);
   }
 
   Component _buildAgentItem(AgentMetadata agent) {
@@ -181,7 +202,10 @@ class _DemoAgentsBarState extends State<_DemoAgentsBar> {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(color: indicatorColor),
-            child: Text(statusIndicator, style: TextStyle(color: indicatorTextColor)),
+            child: Text(
+              statusIndicator,
+              style: TextStyle(color: indicatorTextColor),
+            ),
           ),
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
@@ -282,7 +306,9 @@ class _DemoToolInvocationsPhase1 extends StatelessComponent {
               Text(toolName, style: TextStyle(color: Colors.white)),
               Text(
                 '($params)',
-                style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),
@@ -292,10 +318,17 @@ class _DemoToolInvocationsPhase1 extends StatelessComponent {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+                  Text(
+                    '⎿  ',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
+                  ),
                   Text(
                     resultPreview,
-                    style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
                   ),
                 ],
               ),
@@ -390,7 +423,9 @@ class _DemoToolInvocationsPhase2 extends StatelessComponent {
               Text(toolName, style: TextStyle(color: Colors.white)),
               Text(
                 '($params)',
-                style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),
@@ -400,10 +435,17 @@ class _DemoToolInvocationsPhase2 extends StatelessComponent {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+                  Text(
+                    '⎿  ',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
+                  ),
                   Text(
                     resultPreview,
-                    style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
                   ),
                 ],
               ),
@@ -493,7 +535,9 @@ class _DemoToolInvocationsPhase3 extends StatelessComponent {
               Text(toolName, style: TextStyle(color: Colors.white)),
               Text(
                 '($params)',
-                style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),
@@ -503,10 +547,17 @@ class _DemoToolInvocationsPhase3 extends StatelessComponent {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+                  Text(
+                    '⎿  ',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
+                  ),
                   Text(
                     resultPreview,
-                    style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(TextOpacity.secondary),
+                    ),
                   ),
                 ],
               ),
@@ -542,7 +593,9 @@ class _DemoInputField extends StatelessComponent {
           Expanded(
             child: Text(
               'Type a message...',
-              style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+              style: TextStyle(
+                color: Colors.white.withOpacity(TextOpacity.tertiary),
+              ),
             ),
           ),
         ],

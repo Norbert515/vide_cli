@@ -31,11 +31,7 @@ void main() {
       List<String> deny = const [],
     }) async {
       final settings = ClaudeSettings(
-        permissions: PermissionsConfig(
-          allow: allow,
-          deny: deny,
-          ask: [],
-        ),
+        permissions: PermissionsConfig(allow: allow, deny: deny, ask: []),
       );
       final file = File('$cwd/.claude/settings.local.json');
       await file.writeAsString(jsonEncode(settings.toJson()));
@@ -45,7 +41,10 @@ void main() {
       test('auto-approves mcp__vide- tools', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__vide-agent__spawnAgent',
-          input: const UnknownToolInput(toolName: 'mcp__vide-agent__spawnAgent', raw: {}),
+          input: const UnknownToolInput(
+            toolName: 'mcp__vide-agent__spawnAgent',
+            raw: {},
+          ),
           cwd: cwd,
         );
 
@@ -56,7 +55,10 @@ void main() {
       test('auto-approves mcp__flutter-runtime__ tools', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__flutter-runtime__flutterStart',
-          input: const UnknownToolInput(toolName: 'mcp__flutter-runtime__flutterStart', raw: {}),
+          input: const UnknownToolInput(
+            toolName: 'mcp__flutter-runtime__flutterStart',
+            raw: {},
+          ),
           cwd: cwd,
         );
 
@@ -98,7 +100,10 @@ void main() {
       test('denies mcp__dart__analyze_files', () async {
         final result = await checker.checkPermission(
           toolName: 'mcp__dart__analyze_files',
-          input: const UnknownToolInput(toolName: 'mcp__dart__analyze_files', raw: {}),
+          input: const UnknownToolInput(
+            toolName: 'mcp__dart__analyze_files',
+            raw: {},
+          ),
           cwd: cwd,
         );
 
@@ -122,10 +127,7 @@ void main() {
       });
 
       test('deny list takes precedence over allow list', () async {
-        await writeSettings(
-          allow: ['Bash(*)'],
-          deny: ['Bash(rm:*)'],
-        );
+        await writeSettings(allow: ['Bash(*)'], deny: ['Bash(rm:*)']);
 
         final result = await checker.checkPermission(
           toolName: 'Bash',
@@ -199,7 +201,11 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'Edit',
-          input: EditToolInput(filePath: '$cwd/lib/main.dart', oldString: '', newString: ''),
+          input: EditToolInput(
+            filePath: '$cwd/lib/main.dart',
+            oldString: '',
+            newString: '',
+          ),
           cwd: cwd,
         );
 
@@ -252,7 +258,9 @@ void main() {
 
         final result = await checker.checkPermission(
           toolName: 'WebFetch',
-          input: const WebFetchToolInput(url: 'https://pub.dev/packages/flutter'),
+          input: const WebFetchToolInput(
+            url: 'https://pub.dev/packages/flutter',
+          ),
           cwd: cwd,
         );
 

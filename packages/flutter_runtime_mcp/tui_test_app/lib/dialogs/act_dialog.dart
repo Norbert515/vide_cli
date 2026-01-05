@@ -62,7 +62,10 @@ class _ActDialogState extends State<ActDialog> {
               const Center(
                 child: Text(
                   'Perform Action on UI Element',
-                  style: TextStyle(color: Colors.brightGreen, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.brightGreen,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 1),
@@ -79,7 +82,9 @@ class _ActDialogState extends State<ActDialog> {
                 decoration: BoxDecoration(
                   border: BoxBorder.all(
                     color: _focusedField == 0 ? Colors.brightCyan : Colors.gray,
-                    style: _focusedField == 0 ? BoxBorderStyle.double : BoxBorderStyle.solid,
+                    style: _focusedField == 0
+                        ? BoxBorderStyle.double
+                        : BoxBorderStyle.solid,
                   ),
                   color: const Color.fromRGB(10, 10, 30),
                 ),
@@ -100,14 +105,26 @@ class _ActDialogState extends State<ActDialog> {
                   GestureDetector(
                     onTap: () => _handleSubmit(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: _focusedField == 1 ? Colors.green : const Color.fromRGB(0, 60, 0),
-                        border: BoxBorder.all(color: _focusedField == 1 ? Colors.brightGreen : Colors.green),
+                        color: _focusedField == 1
+                            ? Colors.green
+                            : const Color.fromRGB(0, 60, 0),
+                        border: BoxBorder.all(
+                          color: _focusedField == 1
+                              ? Colors.brightGreen
+                              : Colors.green,
+                        ),
                       ),
                       child: const Text(
                         '[ Tap ]',
-                        style: TextStyle(color: Colors.brightWhite, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.brightWhite,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -115,12 +132,18 @@ class _ActDialogState extends State<ActDialog> {
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color.fromRGB(60, 0, 0),
                         border: BoxBorder.all(color: Colors.red),
                       ),
-                      child: const Text('[ Cancel ]', style: TextStyle(color: Colors.brightWhite)),
+                      child: const Text(
+                        '[ Cancel ]',
+                        style: TextStyle(color: Colors.brightWhite),
+                      ),
                     ),
                   ),
                 ],
@@ -131,7 +154,10 @@ class _ActDialogState extends State<ActDialog> {
               const Center(
                 child: Text(
                   '[Enter] Tap • [Tab] Switch fields • [Esc] Cancel',
-                  style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.gray,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ],
@@ -149,9 +175,6 @@ class _ActDialogState extends State<ActDialog> {
       return;
     }
 
-    Navigator.of(context).pop({
-      'action': 'tap',
-      'description': description,
-    });
+    Navigator.of(context).pop({'action': 'tap', 'description': description});
   }
 }

@@ -74,53 +74,74 @@ void main() {
     });
 
     group('MCP Server integration', () {
-      test('MCP servers for different projects share memory service but have scoped data', () async {
-        const project1 = '/project/alpha';
-        const project2 = '/project/beta';
+      test(
+        'MCP servers for different projects share memory service but have scoped data',
+        () async {
+          const project1 = '/project/alpha';
+          const project2 = '/project/beta';
 
-        final server1 = MemoryMCPServer(
-          memoryService: memoryService,
-          projectPath: project1,
-        );
-        final server2 = MemoryMCPServer(
-          memoryService: memoryService,
-          projectPath: project2,
-        );
+          final server1 = MemoryMCPServer(
+            memoryService: memoryService,
+            projectPath: project1,
+          );
+          final server2 = MemoryMCPServer(
+            memoryService: memoryService,
+            projectPath: project2,
+          );
 
-        // Both servers share the same underlying service
-        expect(server1.memoryService, same(server2.memoryService));
+          // Both servers share the same underlying service
+          expect(server1.memoryService, same(server2.memoryService));
 
-        // But operate on different project paths
-        expect(server1.projectPath, project1);
-        expect(server2.projectPath, project2);
+          // But operate on different project paths
+          expect(server1.projectPath, project1);
+          expect(server2.projectPath, project2);
 
-        // Save via server references (simulating MCP tool calls)
-        await server1.memoryService.save(server1.projectPath, 'config', 'config1');
-        await server2.memoryService.save(server2.projectPath, 'config', 'config2');
+          // Save via server references (simulating MCP tool calls)
+          await server1.memoryService.save(
+            server1.projectPath,
+            'config',
+            'config1',
+          );
+          await server2.memoryService.save(
+            server2.projectPath,
+            'config',
+            'config2',
+          );
 
-        // Verify isolation
-        final entry1 = await memoryService.retrieve(project1, 'config');
-        final entry2 = await memoryService.retrieve(project2, 'config');
+          // Verify isolation
+          final entry1 = await memoryService.retrieve(project1, 'config');
+          final entry2 = await memoryService.retrieve(project2, 'config');
 
-        expect(entry1?.value, 'config1');
-        expect(entry2?.value, 'config2');
-      });
+          expect(entry1?.value, 'config1');
+          expect(entry2?.value, 'config2');
+        },
+      );
     });
 
     group('Persistence across service instances', () {
-      test('data persists when new MemoryService is created with same config', () async {
-        const projectPath = '/test/project';
+      test(
+        'data persists when new MemoryService is created with same config',
+        () async {
+          const projectPath = '/test/project';
 
-        // Save data with first service instance
-        await memoryService.save(projectPath, 'persistent_key', 'persistent_value');
+          // Save data with first service instance
+          await memoryService.save(
+            projectPath,
+            'persistent_key',
+            'persistent_value',
+          );
 
-        // Create new service instance with same config manager
-        final newMemoryService = MemoryService(configManager: configManager);
+          // Create new service instance with same config manager
+          final newMemoryService = MemoryService(configManager: configManager);
 
-        // Data should be retrievable
-        final entry = await newMemoryService.retrieve(projectPath, 'persistent_key');
-        expect(entry?.value, 'persistent_value');
-      });
+          // Data should be retrievable
+          final entry = await newMemoryService.retrieve(
+            projectPath,
+            'persistent_key',
+          );
+          expect(entry?.value, 'persistent_value');
+        },
+      );
 
       test('updates preserve existing entries', () async {
         const projectPath = '/test/project';

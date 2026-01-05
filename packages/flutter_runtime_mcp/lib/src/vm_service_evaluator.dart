@@ -353,7 +353,8 @@ class VmServiceEvaluator {
     // Test 3: Can we get Overlay?
     try {
       await evaluate(
-          'Overlay.of(WidgetsBinding.instance.rootElement!).toString()');
+        'Overlay.of(WidgetsBinding.instance.rootElement!).toString()',
+      );
       results['Overlay.of'] = 'SUCCESS';
     } catch (e) {
       results['Overlay.of'] = 'FAIL: $e';
@@ -479,7 +480,9 @@ OverlayEntry(
   /// Since widget classes may not be available, test service extensions
   /// and other approaches.
   Future<Map<String, String>> testAlternativeApproaches(
-      double x, double y) async {
+    double x,
+    double y,
+  ) async {
     final results = <String, String>{};
 
     // Test 1: Can we use debugPaint?

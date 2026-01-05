@@ -69,8 +69,9 @@ class ContextUsageBar extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    final percentage =
-        maxTokens > 0 ? (usedTokens / maxTokens).clamp(0.0, 1.0) : 0.0;
+    final percentage = maxTokens > 0
+        ? (usedTokens / maxTokens).clamp(0.0, 1.0)
+        : 0.0;
     final barColor = _getBarColor(percentage);
     final textColor = _getTextColor(percentage);
 
@@ -85,8 +86,10 @@ class ContextUsageBar extends StatelessComponent {
         final filledWidth = (percentage * width).round().clamp(0, width);
 
         // Calculate where to place the label (centered)
-        final labelStart =
-            ((width - label.length) / 2).round().clamp(0, width - label.length);
+        final labelStart = ((width - label.length) / 2).round().clamp(
+          0,
+          width - label.length,
+        );
         final labelEnd = (labelStart + label.length).clamp(0, width);
 
         // Build each character of the bar
@@ -149,8 +152,9 @@ class ContextUsageIndicator extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    final percentage =
-        maxTokens > 0 ? (usedTokens / maxTokens).clamp(0.0, 1.0) : 0.0;
+    final percentage = maxTokens > 0
+        ? (usedTokens / maxTokens).clamp(0.0, 1.0)
+        : 0.0;
     final percentInt = (percentage * 100).round();
 
     Color textColor;
@@ -162,12 +166,10 @@ class ContextUsageIndicator extends StatelessComponent {
       textColor = Colors.grey;
     }
 
-    final warningIcon =
-        showWarning && percentage >= kContextWarningThreshold ? '⚠ ' : '';
+    final warningIcon = showWarning && percentage >= kContextWarningThreshold
+        ? '⚠ '
+        : '';
 
-    return Text(
-      '$warningIcon$percentInt%',
-      style: TextStyle(color: textColor),
-    );
+    return Text('$warningIcon$percentInt%', style: TextStyle(color: textColor));
   }
 }

@@ -19,7 +19,9 @@ class ImplementationAgentConfig {
   static const String version = '1.0.0';
 
   /// Creates a configuration for the implementation agent
-  static AgentConfiguration create({ProjectType projectType = ProjectType.unknown}) {
+  static AgentConfiguration create({
+    ProjectType projectType = ProjectType.unknown,
+  }) {
     return AgentConfiguration(
       name: agentName,
       description: 'Implements features and fixes based on clear requirements',

@@ -51,8 +51,9 @@ class _WelcomeScopeState extends State<WelcomeScope> {
         return;
       }
 
-      final configManager =
-          VideConfigManager(configRoot: path.join(homeDir, '.vide'));
+      final configManager = VideConfigManager(
+        configRoot: path.join(homeDir, '.vide'),
+      );
       final isFirstRun = configManager.isFirstRun();
 
       setState(() {
@@ -78,8 +79,9 @@ class _WelcomeScopeState extends State<WelcomeScope> {
         return;
       }
 
-      final configManager =
-          VideConfigManager(configRoot: path.join(homeDir, '.vide'));
+      final configManager = VideConfigManager(
+        configRoot: path.join(homeDir, '.vide'),
+      );
       configManager.markFirstRunComplete();
       configManager.setTheme(themeId);
 
@@ -103,10 +105,7 @@ class _WelcomeScopeState extends State<WelcomeScope> {
   Component build(BuildContext context) {
     if (_isChecking) {
       return Center(
-        child: Text(
-          'Loading...',
-          style: TextStyle(color: Colors.grey),
-        ),
+        child: Text('Loading...', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -115,10 +114,7 @@ class _WelcomeScopeState extends State<WelcomeScope> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Error: $_error',
-              style: TextStyle(color: Colors.red),
-            ),
+            Text('Error: $_error', style: TextStyle(color: Colors.red)),
             SizedBox(height: 2),
             Text('Press Ctrl+C to exit', style: TextStyle(color: Colors.grey)),
           ],

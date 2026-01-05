@@ -27,62 +27,71 @@ void main() {
       );
     });
 
-    test('3. cd /project/sub && serverpod generate matches Bash(serverpod:*)', () {
-      expect(
-        PermissionMatcher.matches(
-          'Bash(serverpod:*)',
-          'Bash',
-          BashToolInput(command: 'cd /project/sub && serverpod generate'),
-          context: {'cwd': '/project'},
-        ),
-        isTrue,
-      );
-    });
+    test(
+      '3. cd /project/sub && serverpod generate matches Bash(serverpod:*)',
+      () {
+        expect(
+          PermissionMatcher.matches(
+            'Bash(serverpod:*)',
+            'Bash',
+            BashToolInput(command: 'cd /project/sub && serverpod generate'),
+            context: {'cwd': '/project'},
+          ),
+          isTrue,
+        );
+      },
+    );
 
-    test('4. cd /project/sub && dart analyze file.dart matches Bash(dart analyze:*)', () {
-      expect(
-        PermissionMatcher.matches(
-          'Bash(dart analyze:*)',
-          'Bash',
-          BashToolInput(command: 'cd /project/sub && dart analyze file.dart'),
-          context: {'cwd': '/project'},
-        ),
-        isTrue,
-      );
-    });
+    test(
+      '4. cd /project/sub && dart analyze file.dart matches Bash(dart analyze:*)',
+      () {
+        expect(
+          PermissionMatcher.matches(
+            'Bash(dart analyze:*)',
+            'Bash',
+            BashToolInput(command: 'cd /project/sub && dart analyze file.dart'),
+            context: {'cwd': '/project'},
+          ),
+          isTrue,
+        );
+      },
+    );
 
-    test('5. dart pub deps | grep uuid - grep is auto-approved as safe filter', () {
-      // grep is now auto-approved as a safe output filter
-      // With dart pub:* pattern, it should now pass (grep is auto-approved)
-      expect(
-        PermissionMatcher.matches(
-          'Bash(dart pub:*)',
-          'Bash',
-          BashToolInput(command: 'dart pub deps | grep uuid'),
-        ),
-        isTrue, // grep is auto-approved as safe filter
-      );
+    test(
+      '5. dart pub deps | grep uuid - grep is auto-approved as safe filter',
+      () {
+        // grep is now auto-approved as a safe output filter
+        // With dart pub:* pattern, it should now pass (grep is auto-approved)
+        expect(
+          PermissionMatcher.matches(
+            'Bash(dart pub:*)',
+            'Bash',
+            BashToolInput(command: 'dart pub deps | grep uuid'),
+          ),
+          isTrue, // grep is auto-approved as safe filter
+        );
 
-      // With only grep:* pattern, it should also pass (dart pub is what grep filters)
-      expect(
-        PermissionMatcher.matches(
-          'Bash(grep:*)',
-          'Bash',
-          BashToolInput(command: 'dart pub deps | grep uuid'),
-        ),
-        isTrue, // dart pub deps doesn't match, but grep matches
-      );
+        // With only grep:* pattern, it should also pass (dart pub is what grep filters)
+        expect(
+          PermissionMatcher.matches(
+            'Bash(grep:*)',
+            'Bash',
+            BashToolInput(command: 'dart pub deps | grep uuid'),
+          ),
+          isTrue, // dart pub deps doesn't match, but grep matches
+        );
 
-      // With a wildcard pattern, it should still pass
-      expect(
-        PermissionMatcher.matches(
-          'Bash(*)',
-          'Bash',
-          BashToolInput(command: 'dart pub deps | grep uuid'),
-        ),
-        isTrue,
-      );
-    });
+        // With a wildcard pattern, it should still pass
+        expect(
+          PermissionMatcher.matches(
+            'Bash(*)',
+            'Bash',
+            BashToolInput(command: 'dart pub deps | grep uuid'),
+          ),
+          isTrue,
+        );
+      },
+    );
 
     test('6. find with head/tail output filters is auto-approved', () {
       // head and tail are safe output filters and should be auto-approved

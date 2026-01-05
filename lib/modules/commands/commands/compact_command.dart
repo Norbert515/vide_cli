@@ -18,7 +18,10 @@ class CompactCommand extends Command {
   String get usage => '/compact [custom instructions]';
 
   @override
-  Future<CommandResult> execute(CommandContext context, String? arguments) async {
+  Future<CommandResult> execute(
+    CommandContext context,
+    String? arguments,
+  ) async {
     if (context.sendMessage == null) {
       return CommandResult.error(
         'Cannot compact: message sending not available',

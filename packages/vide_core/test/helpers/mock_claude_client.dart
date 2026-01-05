@@ -6,7 +6,8 @@ class MockClaudeClient implements ClaudeClient {
   MockClaudeClient({
     String? sessionId,
     this.workingDirectory = '/mock/working/dir',
-  }) : sessionId = sessionId ?? 'mock-session-${DateTime.now().microsecondsSinceEpoch}';
+  }) : sessionId =
+           sessionId ?? 'mock-session-${DateTime.now().microsecondsSinceEpoch}';
 
   @override
   final String sessionId;
@@ -141,7 +142,9 @@ class MockClaudeClient implements ClaudeClient {
     final updatedMessages = [..._currentConversation.messages];
     updatedMessages[lastIndex] = updatedMessage;
 
-    _currentConversation = _currentConversation.copyWith(messages: updatedMessages);
+    _currentConversation = _currentConversation.copyWith(
+      messages: updatedMessages,
+    );
     _conversationController.add(_currentConversation);
   }
 }
@@ -152,7 +155,10 @@ class MockClaudeClientFactory {
 
   /// Get or create a client for the given agent ID
   MockClaudeClient getClient(String agentId) {
-    return _clients.putIfAbsent(agentId, () => MockClaudeClient(sessionId: agentId));
+    return _clients.putIfAbsent(
+      agentId,
+      () => MockClaudeClient(sessionId: agentId),
+    );
   }
 
   /// Check if a client exists

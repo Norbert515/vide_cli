@@ -13,7 +13,10 @@ void main() {
       });
 
       test('decodes &quot; to double quote', () {
-        expect(HtmlEntityDecoder.decode('&quot;hello&quot;'), equals('"hello"'));
+        expect(
+          HtmlEntityDecoder.decode('&quot;hello&quot;'),
+          equals('"hello"'),
+        );
       });
 
       test('decodes &apos; to single quote', () {
@@ -33,7 +36,9 @@ void main() {
 
       test('decodes multiple entities in one string', () {
         expect(
-          HtmlEntityDecoder.decode('&lt;a href=&quot;test&quot;&gt;click&lt;/a&gt;'),
+          HtmlEntityDecoder.decode(
+            '&lt;a href=&quot;test&quot;&gt;click&lt;/a&gt;',
+          ),
           equals('<a href="test">click</a>'),
         );
       });
@@ -60,9 +65,7 @@ void main() {
 
       test('recursively decodes nested maps', () {
         final input = {
-          'outer': {
-            'inner': '&quot;nested&quot;',
-          },
+          'outer': {'inner': '&quot;nested&quot;'},
         };
         final result = HtmlEntityDecoder.decodeMap(input);
         expect(result['outer']['inner'], equals('"nested"'));

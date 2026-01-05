@@ -46,7 +46,10 @@ void main() {
       expect(SafeCommands.isCommandSafe('uniq data.txt'), isTrue);
       expect(SafeCommands.isCommandSafe('cut -d"," -f1 data.csv'), isTrue);
       expect(SafeCommands.isCommandSafe('jq ".name" data.json'), isTrue);
-      expect(SafeCommands.isCommandSafe('awk \'{print \$1}\' file.txt'), isTrue);
+      expect(
+        SafeCommands.isCommandSafe('awk \'{print \$1}\' file.txt'),
+        isTrue,
+      );
     });
   });
 
@@ -155,11 +158,17 @@ void main() {
     });
 
     test('blocks dangerous find flags', () {
-      expect(SafeCommands.isCommandSafe('find . -name "*.tmp" -delete'), isFalse);
+      expect(
+        SafeCommands.isCommandSafe('find . -name "*.tmp" -delete'),
+        isFalse,
+      );
     });
 
     test('blocks in-place sed editing', () {
-      expect(SafeCommands.isCommandSafe('sed -i "s/old/new/" file.txt'), isFalse);
+      expect(
+        SafeCommands.isCommandSafe('sed -i "s/old/new/" file.txt'),
+        isFalse,
+      );
     });
 
     test('allows safe sed without in-place editing', () {

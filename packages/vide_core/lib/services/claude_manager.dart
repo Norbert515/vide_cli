@@ -12,7 +12,9 @@ class AgentIdAndClaudeConfig {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is AgentIdAndClaudeConfig && other.agentId == agentId && other.config == config;
+    return other is AgentIdAndClaudeConfig &&
+        other.agentId == agentId &&
+        other.config == config;
   }
 
   @override
@@ -32,7 +34,10 @@ final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, agentId) {
 ///
 /// This provides real-time status updates (processing, thinking, responding, etc.)
 /// from the Claude API, useful for showing activity indicators in the UI.
-final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((ref, agentId) {
+final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((
+  ref,
+  agentId,
+) {
   final client = ref.watch(claudeProvider(agentId));
   if (client == null) {
     return Stream.value(ClaudeStatus.ready);
@@ -40,11 +45,16 @@ final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((ref, 
   return client.statusStream;
 });
 
-final claudeManagerProvider = StateNotifierProvider<ClaudeManagerStateNotifier, Map<String, ClaudeClient>>((ref) {
-  return ClaudeManagerStateNotifier();
-});
+final claudeManagerProvider =
+    StateNotifierProvider<
+      ClaudeManagerStateNotifier,
+      Map<String, ClaudeClient>
+    >((ref) {
+      return ClaudeManagerStateNotifier();
+    });
 
-class ClaudeManagerStateNotifier extends StateNotifier<Map<String, ClaudeClient>> {
+class ClaudeManagerStateNotifier
+    extends StateNotifier<Map<String, ClaudeClient>> {
   ClaudeManagerStateNotifier() : super(Map<String, ClaudeClient>());
 
   void addAgent(String agentId, ClaudeClient client) {

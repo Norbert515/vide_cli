@@ -35,14 +35,17 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
   /// Controller for custom text input
   final _textController = TextEditingController();
 
-  AskUserQuestion get _currentQuestion => component.request.questions[_currentQuestionIndex];
-  bool get _isLastQuestion => _currentQuestionIndex >= component.request.questions.length - 1;
+  AskUserQuestion get _currentQuestion =>
+      component.request.questions[_currentQuestionIndex];
+  bool get _isLastQuestion =>
+      _currentQuestionIndex >= component.request.questions.length - 1;
 
   /// Total options including "Type something"
   int get _totalOptions => _currentQuestion.options.length + 1;
 
   /// Whether the "Type something" option is selected
-  bool get _isTypeSomethingSelected => _selectedOptionIndex == _currentQuestion.options.length;
+  bool get _isTypeSomethingSelected =>
+      _selectedOptionIndex == _currentQuestion.options.length;
 
   @override
   void dispose() {
@@ -70,7 +73,8 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
       }
     } else {
       // Single select - record answer and move to next question
-      _answers[question.question] = question.options[_selectedOptionIndex].label;
+      _answers[question.question] =
+          question.options[_selectedOptionIndex].label;
       _moveToNextQuestion();
     }
   }
@@ -94,10 +98,13 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     if (!question.multiSelect) return;
 
     // Build comma-separated list of selected options
-    final selectedLabels =
-        _multiSelectedIndices.map((i) => question.options[i].label).join(', ');
+    final selectedLabels = _multiSelectedIndices
+        .map((i) => question.options[i].label)
+        .join(', ');
 
-    _answers[question.question] = selectedLabels.isEmpty ? '(none selected)' : selectedLabels;
+    _answers[question.question] = selectedLabels.isEmpty
+        ? '(none selected)'
+        : selectedLabels;
     _moveToNextQuestion();
   }
 
@@ -140,7 +147,8 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
           if (key == LogicalKey.arrowUp) {
             setState(() {
               _selectedOptionIndex = _selectedOptionIndex - 1;
-              if (_selectedOptionIndex < 0) _selectedOptionIndex = _totalOptions - 1;
+              if (_selectedOptionIndex < 0)
+                _selectedOptionIndex = _totalOptions - 1;
             });
             return true;
           } else if (key == LogicalKey.escape) {
@@ -156,7 +164,8 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         if (key == LogicalKey.arrowUp) {
           setState(() {
             _selectedOptionIndex = (_selectedOptionIndex - 1) % _totalOptions;
-            if (_selectedOptionIndex < 0) _selectedOptionIndex = _totalOptions - 1;
+            if (_selectedOptionIndex < 0)
+              _selectedOptionIndex = _totalOptions - 1;
           });
           return true;
         } else if (key == LogicalKey.arrowDown) {
@@ -181,7 +190,9 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
             _selectOption();
           }
           return true;
-        } else if (key == LogicalKey.space && question.multiSelect && !_isTypeSomethingSelected) {
+        } else if (key == LogicalKey.space &&
+            question.multiSelect &&
+            !_isTypeSomethingSelected) {
           _selectOption(); // Toggle selection
           return true;
         } else if (key == LogicalKey.escape) {
@@ -274,7 +285,11 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     );
   }
 
-  Component _buildOption(int index, AskUserQuestionOption option, bool isMultiSelect) {
+  Component _buildOption(
+    int index,
+    AskUserQuestionOption option,
+    bool isMultiSelect,
+  ) {
     final isSelected = index == _selectedOptionIndex;
     final isChecked = _multiSelectedIndices.contains(index);
 
@@ -292,14 +307,14 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
               // Selection indicator
               Text(
                 isSelected ? '› ' : '  ',
-                style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.cyan,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
               // Number
-              Text(
-                '${index + 1}. ',
-                style: TextStyle(color: Colors.grey),
-              ),
+              Text('${index + 1}. ', style: TextStyle(color: Colors.grey)),
 
               // Checkbox for multi-select
               if (isMultiSelect)
@@ -317,7 +332,9 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
                   option.label,
                   style: TextStyle(
                     color: Colors.white,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -355,10 +372,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         ),
 
         // Number
-        Text(
-          '${index + 1}. ',
-          style: TextStyle(color: Colors.grey),
-        ),
+        Text('${index + 1}. ', style: TextStyle(color: Colors.grey)),
 
         // Either text field when selected, or static text
         if (isSelected)
@@ -371,10 +385,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
             ),
           )
         else
-          Text(
-            'Type something.',
-            style: TextStyle(color: Colors.grey),
-          ),
+          Text('Type something.', style: TextStyle(color: Colors.grey)),
       ],
     );
   }

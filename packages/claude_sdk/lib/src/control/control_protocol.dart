@@ -163,13 +163,12 @@ class ControlProtocol {
   }
 
   /// Handle a can_use_tool request
-  Future<Map<String, dynamic>> _handleCanUseTool(CanUseToolRequest request) async {
+  Future<Map<String, dynamic>> _handleCanUseTool(
+    CanUseToolRequest request,
+  ) async {
     if (_canUseToolCallback == null) {
       // No callback registered, allow by default
-      return {
-        'behavior': 'allow',
-        'updatedInput': request.input,
-      };
+      return {'behavior': 'allow', 'updatedInput': request.input};
     }
 
     final result = await _canUseToolCallback!(
@@ -187,7 +186,9 @@ class ControlProtocol {
   }
 
   /// Handle a hook_callback request
-  Future<Map<String, dynamic>> _handleHookCallback(HookCallbackRequest request) async {
+  Future<Map<String, dynamic>> _handleHookCallback(
+    HookCallbackRequest request,
+  ) async {
     final callback = _hookCallbacks[request.callbackId];
 
     if (callback == null) {
@@ -200,7 +201,9 @@ class ControlProtocol {
   }
 
   /// Handle an mcp_message request
-  Future<Map<String, dynamic>> _handleMcpMessage(McpMessageRequest request) async {
+  Future<Map<String, dynamic>> _handleMcpMessage(
+    McpMessageRequest request,
+  ) async {
     final server = _sdkMcpServers[request.serverName];
 
     if (server == null) {
@@ -235,7 +238,11 @@ class ControlProtocol {
         return {
           'jsonrpc': '2.0',
           'id': request.message['id'],
-          'result': {'content': [{'type': 'text', 'text': 'Not implemented'}]},
+          'result': {
+            'content': [
+              {'type': 'text', 'text': 'Not implemented'},
+            ],
+          },
         };
       case 'notifications/initialized':
         return {};
@@ -305,10 +312,7 @@ class ControlProtocol {
   void sendUserMessage(String content) {
     _writeToStdin({
       'type': 'user',
-      'message': {
-        'role': 'user',
-        'content': content,
-      },
+      'message': {'role': 'user', 'content': content},
     });
   }
 
@@ -316,10 +320,7 @@ class ControlProtocol {
   void sendUserMessageWithContent(List<Map<String, dynamic>> content) {
     _writeToStdin({
       'type': 'user',
-      'message': {
-        'role': 'user',
-        'content': content,
-      },
+      'message': {'role': 'user', 'content': content},
     });
   }
 
@@ -335,7 +336,9 @@ class ControlProtocol {
 
   /// Rewind files to a previous state
   Future<void> rewindFiles(String userMessageId) async {
-    await _sendControlRequest('rewind_files', {'user_message_id': userMessageId});
+    await _sendControlRequest('rewind_files', {
+      'user_message_id': userMessageId,
+    });
   }
 
   /// Register an in-process MCP server

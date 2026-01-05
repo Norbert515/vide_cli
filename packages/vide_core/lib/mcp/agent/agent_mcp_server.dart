@@ -10,7 +10,10 @@ import '../../../services/agent_network_manager.dart';
 import '../../../state/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
-final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((ref, agentId) {
+final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((
+  ref,
+  agentId,
+) {
   return AgentMCPServer(
     callerAgentId: agentId,
     networkManager: ref.watch(agentNetworkManagerProvider.notifier),
@@ -36,12 +39,18 @@ class AgentMCPServer extends McpServerBase {
     required this.callerAgentId,
     required AgentNetworkManager networkManager,
     required Ref ref,
-  })  : _networkManager = networkManager,
-        _ref = ref,
-        super(name: serverName, version: '1.0.0');
+  }) : _networkManager = networkManager,
+       _ref = ref,
+       super(name: serverName, version: '1.0.0');
 
   @override
-  List<String> get toolNames => ['spawnAgent', 'sendMessageToAgent', 'setAgentStatus', 'terminateAgent', 'setSessionWorktree'];
+  List<String> get toolNames => [
+    'spawnAgent',
+    'sendMessageToAgent',
+    'setAgentStatus',
+    'terminateAgent',
+    'setSessionWorktree',
+  ];
 
   @override
   void registerTools(McpServer server) {
@@ -71,7 +80,12 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
         properties: {
           'agentType': {
             'type': 'string',
-            'enum': ['implementation', 'contextCollection', 'flutterTester', 'planning'],
+            'enum': [
+              'implementation',
+              'contextCollection',
+              'flutterTester',
+              'planning',
+            ],
             'description': 'The type of agent to spawn',
           },
           'name': {
@@ -81,7 +95,8 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           },
           'initialPrompt': {
             'type': 'string',
-            'description': 'The initial message/task to send to the new agent. Be specific and provide all necessary context.',
+            'description':
+                'The initial message/task to send to the new agent. Be specific and provide all necessary context.',
           },
         },
         required: ['agentType', 'name', 'initialPrompt'],
@@ -101,7 +116,9 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
         final SpawnableAgentType? agentType = _parseAgentType(agentTypeStr);
         if (agentType == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Unknown agent type: $agentTypeStr')],
+            content: [
+              TextContent(text: 'Error: Unknown agent type: $agentTypeStr'),
+            ],
           );
         }
 
@@ -116,7 +133,8 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           return CallToolResult.fromContent(
             content: [
               TextContent(
-                text: 'Successfully spawned $agentTypeStr agent "$name".\n'
+                text:
+                    'Successfully spawned $agentTypeStr agent "$name".\n'
                     'Agent ID: $newAgentId\n'
                     'Spawned by: $callerAgentId\n\n'
                     'The agent has been sent your initial message and is now working on it. '
@@ -185,7 +203,8 @@ Use this to coordinate with other agents in the network.''',
           return CallToolResult.fromContent(
             content: [
               TextContent(
-                text: 'Message sent to agent $targetAgentId.\n'
+                text:
+                    'Message sent to agent $targetAgentId.\n'
                     'The agent will process your message and can respond back to you.',
               ),
             ],
@@ -221,7 +240,8 @@ Use this to coordinate with other agents in the network.''',
   void _registerSetAgentStatusTool(McpServer server) {
     server.tool(
       'setAgentStatus',
-      description: '''Set the current status of this agent. Use this to communicate your state to the user.
+      description:
+          '''Set the current status of this agent. Use this to communicate your state to the user.
 
 Call this when:
 - You are waiting for another agent to respond: "waitingForAgent"
@@ -240,7 +260,9 @@ Call this when:
       ),
       callback: ({args, extra}) async {
         if (args == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: No arguments provided')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
         }
 
         final statusStr = args['status'] as String;
@@ -248,15 +270,24 @@ Call this when:
 
         if (status == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Invalid status "$statusStr". Must be one of: working, waitingForAgent, waitingForUser, idle')],
+            content: [
+              TextContent(
+                text:
+                    'Error: Invalid status "$statusStr". Must be one of: working, waitingForAgent, waitingForUser, idle',
+              ),
+            ],
           );
         }
 
         try {
-          _ref.read(agentStatusProvider(callerAgentId).notifier).setStatus(status);
+          _ref
+              .read(agentStatusProvider(callerAgentId).notifier)
+              .setStatus(status);
 
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Agent status updated to: "$statusStr"')],
+            content: [
+              TextContent(text: 'Agent status updated to: "$statusStr"'),
+            ],
           );
         } catch (e, stackTrace) {
           await Sentry.configureScope((scope) {
@@ -268,7 +299,9 @@ Call this when:
             });
           });
           await Sentry.captureException(e, stackTrace: stackTrace);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error updating agent status: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error updating agent status: $e')],
+          );
         }
       },
     );
@@ -347,7 +380,8 @@ Any agent can terminate any other agent, including itself.''',
   void _registerSetSessionWorktreeTool(McpServer server) {
     server.tool(
       'setSessionWorktree',
-      description: '''Set the worktree path for this session. All new agents will use this directory.
+      description:
+          '''Set the worktree path for this session. All new agents will use this directory.
 
 Use this after creating a git worktree to make all agents work in that directory:
 1. Create worktree: gitWorktreeAdd(path: "../project-feature", branch: "feature/name", createBranch: true)
@@ -363,7 +397,8 @@ Pass null or empty string to clear the worktree and return to the original direc
         properties: {
           'path': {
             'type': 'string',
-            'description': 'Absolute path to the worktree directory. Pass empty string to clear.',
+            'description':
+                'Absolute path to the worktree directory. Pass empty string to clear.',
           },
         },
         required: ['path'],
@@ -384,7 +419,8 @@ Pass null or empty string to clear the worktree and return to the original direc
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Session worktree cleared. Agents will now use the original working directory: ${_networkManager.workingDirectory}',
+                  text:
+                      'Session worktree cleared. Agents will now use the original working directory: ${_networkManager.workingDirectory}',
                 ),
               ],
             );
@@ -399,7 +435,11 @@ Pass null or empty string to clear the worktree and return to the original direc
           final directory = Directory(absolutePath);
           if (!await directory.exists()) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Directory does not exist: $absolutePath')],
+              content: [
+                TextContent(
+                  text: 'Error: Directory does not exist: $absolutePath',
+                ),
+              ],
             );
           }
 
@@ -408,7 +448,8 @@ Pass null or empty string to clear the worktree and return to the original direc
           return CallToolResult.fromContent(
             content: [
               TextContent(
-                text: 'Session worktree set to: $absolutePath\n\n'
+                text:
+                    'Session worktree set to: $absolutePath\n\n'
                     'All newly spawned agents will now work in this directory. '
                     'Existing agents will continue using their original directory.',
               ),

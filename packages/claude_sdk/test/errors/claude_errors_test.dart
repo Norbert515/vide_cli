@@ -40,19 +40,13 @@ void main() {
     });
 
     test('toString includes cause when present', () {
-      final exception = ClaudeApiException(
-        'Test error',
-        cause: 'Root cause',
-      );
+      final exception = ClaudeApiException('Test error', cause: 'Root cause');
 
       expect(exception.toString(), contains('Caused by: Root cause'));
     });
 
     test('is catchable as Exception', () {
-      expect(
-        () => throw ClaudeApiException('test'),
-        throwsA(isA<Exception>()),
-      );
+      expect(() => throw ClaudeApiException('test'), throwsA(isA<Exception>()));
     });
   });
 

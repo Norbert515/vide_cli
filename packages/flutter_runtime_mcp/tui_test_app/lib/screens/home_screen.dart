@@ -59,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         if (event.logicalKey == LogicalKey.arrowUp && instances.isNotEmpty) {
           setState(() {
-            _selectedIndex = (_selectedIndex - 1 + instances.length) % instances.length;
+            _selectedIndex =
+                (_selectedIndex - 1 + instances.length) % instances.length;
           });
           return true;
         }
@@ -77,16 +78,18 @@ class _HomeScreenState extends State<HomeScreen> {
         if (event.logicalKey == LogicalKey.enter && instances.isNotEmpty) {
           final instance = instances[_selectedIndex];
           final homeScreen = context.component as HomeScreen;
-          Navigator.of(context).push(
-            PageRoute(
-              builder: (context) => InstanceDetailsScreen(
-                server: homeScreen.server,
-                instance: instance,
-                localInstances: _localInstances,
-              ),
-              settings: const RouteSettings(name: '/details'),
-            ),
-          ).then((_) => setState(() {})); // Refresh on return
+          Navigator.of(context)
+              .push(
+                PageRoute(
+                  builder: (context) => InstanceDetailsScreen(
+                    server: homeScreen.server,
+                    instance: instance,
+                    localInstances: _localInstances,
+                  ),
+                  settings: const RouteSettings(name: '/details'),
+                ),
+              )
+              .then((_) => setState(() {})); // Refresh on return
           return true;
         }
 
@@ -106,9 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return false;
       },
       child: Container(
-        decoration: const BoxDecoration(
-          color: Color.fromRGB(15, 15, 35),
-        ),
+        decoration: const BoxDecoration(color: Color.fromRGB(15, 15, 35)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -116,9 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _buildHeader(),
 
             // Instance list
-            Expanded(
-              child: _buildInstanceList(instances),
-            ),
+            Expanded(child: _buildInstanceList(instances)),
 
             // Footer with controls
             _buildFooter(instances.length),
@@ -133,10 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: const Color.fromRGB(30, 60, 120),
-        border: BoxBorder.all(
-          color: Colors.cyan,
-          style: BoxBorderStyle.double,
-        ),
+        border: BoxBorder.all(color: Colors.cyan, style: BoxBorderStyle.double),
       ),
       child: const Column(
         children: [
@@ -168,10 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             Text(
               'No running instances',
-              style: TextStyle(
-                color: Colors.gray,
-                fontStyle: FontStyle.italic,
-              ),
+              style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
             ),
             SizedBox(height: 2),
             Text(
@@ -192,9 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
             decoration: const BoxDecoration(
               color: Color.fromRGB(25, 25, 45),
-              border: BoxBorder(
-                bottom: BorderSide(color: Colors.blue),
-              ),
+              border: BoxBorder(bottom: BorderSide(color: Colors.blue)),
             ),
             child: Text(
               'Running Instances (${instances.length})',
@@ -231,24 +222,16 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(1),
       decoration: const BoxDecoration(
         color: Color.fromRGB(20, 20, 40),
-        border: BoxBorder(
-          top: BorderSide(color: Colors.blue),
-        ),
+        border: BoxBorder(top: BorderSide(color: Colors.blue)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
             children: [
-              const Text(
-                '[S] Start',
-                style: TextStyle(color: Colors.green),
-              ),
+              const Text('[S] Start', style: TextStyle(color: Colors.green)),
               const Text(' • '),
-              const Text(
-                '[R] Refresh',
-                style: TextStyle(color: Colors.yellow),
-              ),
+              const Text('[R] Refresh', style: TextStyle(color: Colors.yellow)),
               if (instanceCount > 0) ...[
                 const Text(' • '),
                 const Text(
@@ -263,10 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ],
           ),
-          const Text(
-            '[Q] Quit',
-            style: TextStyle(color: Colors.red),
-          ),
+          const Text('[Q] Quit', style: TextStyle(color: Colors.red)),
         ],
       ),
     );

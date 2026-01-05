@@ -19,7 +19,9 @@ class InstanceListItem extends StatelessComponent {
     final statusColor = instance.isRunning ? Colors.green : Colors.red;
     final statusIcon = instance.isRunning ? '●' : '○';
     final device = instance.deviceId ?? 'unknown';
-    final duration = _formatDuration(DateTime.now().difference(instance.startedAt));
+    final duration = _formatDuration(
+      DateTime.now().difference(instance.startedAt),
+    );
 
     final bgColor = isSelected
         ? const Color.fromRGB(40, 60, 100)
@@ -31,10 +33,7 @@ class InstanceListItem extends StatelessComponent {
 
     return Container(
       padding: const EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        color: bgColor,
-        border: border,
-      ),
+      decoration: BoxDecoration(color: bgColor, border: border),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -53,10 +52,7 @@ class InstanceListItem extends StatelessComponent {
                 ),
               ),
               const Text(' '),
-              Text(
-                statusIcon,
-                style: TextStyle(color: statusColor),
-              ),
+              Text(statusIcon, style: TextStyle(color: statusColor)),
               const Text(' '),
               Text(
                 device,
@@ -66,19 +62,13 @@ class InstanceListItem extends StatelessComponent {
                 ),
               ),
               const Spacer(),
-              Text(
-                duration,
-                style: const TextStyle(color: Colors.yellow),
-              ),
+              Text(duration, style: const TextStyle(color: Colors.yellow)),
             ],
           ),
           const SizedBox(height: 0),
           Row(
             children: [
-              const Text(
-                '  ID: ',
-                style: TextStyle(color: Colors.gray),
-              ),
+              const Text('  ID: ', style: TextStyle(color: Colors.gray)),
               Text(
                 _truncate(instance.id, 50),
                 style: const TextStyle(color: Colors.cyan),
@@ -87,10 +77,7 @@ class InstanceListItem extends StatelessComponent {
           ),
           Row(
             children: [
-              const Text(
-                '  Dir: ',
-                style: TextStyle(color: Colors.gray),
-              ),
+              const Text('  Dir: ', style: TextStyle(color: Colors.gray)),
               Text(
                 _truncate(instance.workingDirectory, 48),
                 style: const TextStyle(color: Colors.magenta),

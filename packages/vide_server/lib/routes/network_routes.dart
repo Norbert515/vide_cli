@@ -100,7 +100,9 @@ Future<bool> _ensureNetworkActive(
   AgentNetworkManager manager,
   AgentNetwork network,
 ) async {
-  final currentNetwork = container.read(agentNetworkManagerProvider).currentNetwork;
+  final currentNetwork = container
+      .read(agentNetworkManagerProvider)
+      .currentNetwork;
   if (currentNetwork?.id != network.id) {
     await manager.resume(network);
     return true;
@@ -142,9 +144,13 @@ Future<Response> createNetwork(
     final canonicalPath = p.canonicalize(req.workingDirectory);
     final dir = Directory(canonicalPath);
     if (!await dir.exists()) {
-      _log.warning('Invalid request: workingDirectory does not exist: $canonicalPath');
+      _log.warning(
+        'Invalid request: workingDirectory does not exist: $canonicalPath',
+      );
       return Response.badRequest(
-        body: jsonEncode({'error': 'workingDirectory does not exist: $canonicalPath'}),
+        body: jsonEncode({
+          'error': 'workingDirectory does not exist: $canonicalPath',
+        }),
         headers: {'Content-Type': 'application/json'},
       );
     }
@@ -336,8 +342,9 @@ Future<void> _setupAgentWebSocket(
 
     // Find agent metadata
     _log.fine('Looking up agent metadata for agentId=$agentId');
-    final agentMetadata =
-        network.agents.where((a) => a.id == agentId).firstOrNull;
+    final agentMetadata = network.agents
+        .where((a) => a.id == agentId)
+        .firstOrNull;
 
     if (agentMetadata == null) {
       _log.warning('Agent not found in network: $agentId');
@@ -494,10 +501,7 @@ Future<void> _setupAgentWebSocket(
 }
 
 /// Send full conversation state (all messages) - used when catching up on existing conversation
-void _sendFullConversationState(
-  Conversation conversation,
-  _AgentContext ctx,
-) {
+void _sendFullConversationState(Conversation conversation, _AgentContext ctx) {
   if (conversation.messages.isEmpty) {
     return;
   }

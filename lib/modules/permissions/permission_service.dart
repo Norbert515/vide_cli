@@ -63,9 +63,17 @@ class PermissionResponse {
   final String? reason;
   final bool remember;
 
-  PermissionResponse({required this.decision, this.reason, required this.remember});
+  PermissionResponse({
+    required this.decision,
+    this.reason,
+    required this.remember,
+  });
 
-  Map<String, dynamic> toJson() => {'decision': decision, if (reason != null) 'reason': reason, 'remember': remember};
+  Map<String, dynamic> toJson() => {
+    'decision': decision,
+    if (reason != null) 'reason': reason,
+    'remember': remember,
+  };
 }
 
 final permissionServiceProvider = Provider<PermissionService>((ref) {
@@ -89,7 +97,10 @@ class PermissionService {
   }
 
   /// Delegate to checker
-  bool isAllowedBySessionCache(String toolName, Map<String, dynamic> toolInput) {
+  bool isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> toolInput,
+  ) {
     final input = ToolInput.fromJson(toolName, toolInput);
     return _checker.isAllowedBySessionCache(toolName, input);
   }

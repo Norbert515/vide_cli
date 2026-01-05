@@ -69,9 +69,7 @@ class ThemePreview extends StatelessComponent {
           _token('  ', theme.syntax.plain),
           _token('// Dark mode enabled', theme.syntax.comment),
         ]),
-        _codeLine(theme, [
-          _token(');', theme.syntax.plain),
-        ]),
+        _codeLine(theme, [_token(');', theme.syntax.plain)]),
         SizedBox(height: 1),
         // Diff
         Container(
@@ -80,7 +78,10 @@ class ThemePreview extends StatelessComponent {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('- ', style: TextStyle(color: theme.diff.removedPrefix)),
-              Text('brightness: light', style: TextStyle(color: theme.base.onSurface)),
+              Text(
+                'brightness: light',
+                style: TextStyle(color: theme.base.onSurface),
+              ),
             ],
           ),
         ),
@@ -90,7 +91,10 @@ class ThemePreview extends StatelessComponent {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('+ ', style: TextStyle(color: theme.diff.addedPrefix)),
-              Text('brightness: dark', style: TextStyle(color: theme.base.onSurface)),
+              Text(
+                'brightness: dark',
+                style: TextStyle(color: theme.base.onSurface),
+              ),
             ],
           ),
         ),

@@ -197,8 +197,7 @@ Agent: "Starting the app with: fvm flutter run -d chrome"
 [Proceeds directly to testing - much faster!]
 ```
 
-'''
-        +
+''' +
         _runtimeDevToolsSection.build() +
         '''
 

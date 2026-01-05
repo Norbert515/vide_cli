@@ -36,20 +36,23 @@ void main() {
         expect(message.responses.first, isA<ToolUseResponse>());
       });
 
-      test('converts ToolResultResponse to assistant message (for merging)', () {
-        final response = ToolResultResponse(
-          id: 'result-1',
-          timestamp: DateTime.now(),
-          toolUseId: 'toolu_123',
-          content: 'File contents here',
-          isError: false,
-        );
+      test(
+        'converts ToolResultResponse to assistant message (for merging)',
+        () {
+          final response = ToolResultResponse(
+            id: 'result-1',
+            timestamp: DateTime.now(),
+            toolUseId: 'toolu_123',
+            content: 'File contents here',
+            isError: false,
+          );
 
-        final message = ResponseToMessageConverter.convert(response);
+          final message = ResponseToMessageConverter.convert(response);
 
-        expect(message.role, equals(MessageRole.assistant));
-        expect(message.responses.first, isA<ToolResultResponse>());
-      });
+          expect(message.role, equals(MessageRole.assistant));
+          expect(message.responses.first, isA<ToolResultResponse>());
+        },
+      );
 
       test('converts CompactBoundaryResponse to compact boundary message', () {
         final response = CompactBoundaryResponse(
@@ -67,22 +70,25 @@ void main() {
         expect(message.content, contains('manual'));
       });
 
-      test('converts CompactSummaryResponse to user message with isCompactSummary', () {
-        final response = CompactSummaryResponse(
-          id: 'summary-1',
-          timestamp: DateTime.now(),
-          content: 'This session is being continued...',
-          isVisibleInTranscriptOnly: true,
-        );
+      test(
+        'converts CompactSummaryResponse to user message with isCompactSummary',
+        () {
+          final response = CompactSummaryResponse(
+            id: 'summary-1',
+            timestamp: DateTime.now(),
+            content: 'This session is being continued...',
+            isVisibleInTranscriptOnly: true,
+          );
 
-        final message = ResponseToMessageConverter.convert(response);
+          final message = ResponseToMessageConverter.convert(response);
 
-        expect(message.role, equals(MessageRole.user));
-        expect(message.messageType, equals(MessageType.compactSummary));
-        expect(message.content, equals('This session is being continued...'));
-        expect(message.isCompactSummary, isTrue);
-        expect(message.isVisibleInTranscriptOnly, isTrue);
-      });
+          expect(message.role, equals(MessageRole.user));
+          expect(message.messageType, equals(MessageType.compactSummary));
+          expect(message.content, equals('This session is being continued...'));
+          expect(message.isCompactSummary, isTrue);
+          expect(message.isVisibleInTranscriptOnly, isTrue);
+        },
+      );
 
       test('converts UserMessageResponse to user message', () {
         final response = UserMessageResponse(
@@ -141,23 +147,26 @@ void main() {
         expect(message.content, equals('session-123'));
       });
 
-      test('converts CompletionResponse to system message with completion type', () {
-        final response = CompletionResponse(
-          id: 'completion-1',
-          timestamp: DateTime.now(),
-          stopReason: 'end_turn',
-          inputTokens: 1000,
-          outputTokens: 500,
-        );
+      test(
+        'converts CompletionResponse to system message with completion type',
+        () {
+          final response = CompletionResponse(
+            id: 'completion-1',
+            timestamp: DateTime.now(),
+            stopReason: 'end_turn',
+            inputTokens: 1000,
+            outputTokens: 500,
+          );
 
-        final message = ResponseToMessageConverter.convert(response);
+          final message = ResponseToMessageConverter.convert(response);
 
-        expect(message.role, equals(MessageRole.system));
-        expect(message.messageType, equals(MessageType.completion));
-        expect(message.tokenUsage, isNotNull);
-        expect(message.tokenUsage!.inputTokens, equals(1000));
-        expect(message.tokenUsage!.outputTokens, equals(500));
-      });
+          expect(message.role, equals(MessageRole.system));
+          expect(message.messageType, equals(MessageType.completion));
+          expect(message.tokenUsage, isNotNull);
+          expect(message.tokenUsage!.inputTokens, equals(1000));
+          expect(message.tokenUsage!.outputTokens, equals(500));
+        },
+      );
 
       test('converts UnknownResponse to system message with unknown type', () {
         final response = UnknownResponse(
@@ -204,7 +213,10 @@ void main() {
           content: 'Hello',
         );
 
-        expect(ResponseToMessageConverter.isAssistantResponse(response), isTrue);
+        expect(
+          ResponseToMessageConverter.isAssistantResponse(response),
+          isTrue,
+        );
       });
 
       test('returns true for ToolUseResponse', () {
@@ -215,7 +227,10 @@ void main() {
           parameters: {},
         );
 
-        expect(ResponseToMessageConverter.isAssistantResponse(response), isTrue);
+        expect(
+          ResponseToMessageConverter.isAssistantResponse(response),
+          isTrue,
+        );
       });
 
       test('returns true for CompactBoundaryResponse', () {
@@ -226,7 +241,10 @@ void main() {
           preTokens: 1000,
         );
 
-        expect(ResponseToMessageConverter.isAssistantResponse(response), isTrue);
+        expect(
+          ResponseToMessageConverter.isAssistantResponse(response),
+          isTrue,
+        );
       });
 
       test('returns false for UserMessageResponse', () {
@@ -236,7 +254,10 @@ void main() {
           content: 'Hello',
         );
 
-        expect(ResponseToMessageConverter.isAssistantResponse(response), isFalse);
+        expect(
+          ResponseToMessageConverter.isAssistantResponse(response),
+          isFalse,
+        );
       });
     });
 
@@ -293,8 +314,8 @@ void main() {
           'type': 'assistant',
           'message': {
             'content': [
-              {'type': 'text', 'text': 'Hello, world!'}
-            ]
+              {'type': 'text', 'text': 'Hello, world!'},
+            ],
           },
           'uuid': 'assistant-123',
         };
@@ -309,10 +330,7 @@ void main() {
           'type': 'system',
           'subtype': 'compact_boundary',
           'uuid': 'compact-123',
-          'compactMetadata': {
-            'trigger': 'manual',
-            'preTokens': 50000,
-          },
+          'compactMetadata': {'trigger': 'manual', 'preTokens': 50000},
         };
 
         final response = JsonlMessageParser.parseLine(json);
@@ -353,7 +371,7 @@ void main() {
               {'type': 'text', 'text': 'First text'},
               {'type': 'tool_use', 'id': 'tool-1', 'name': 'Read', 'input': {}},
               {'type': 'text', 'text': 'Second text'},
-            ]
+            ],
           },
           'uuid': 'assistant-123',
         };
@@ -401,8 +419,8 @@ void main() {
               'input_tokens': 1000,
               'cache_read_input_tokens': 500,
               'cache_creation_input_tokens': 200,
-            }
-          }
+            },
+          },
         };
 
         final usage = JsonlMessageParser.extractUsage(json);
@@ -424,7 +442,7 @@ void main() {
       test('returns null when no usage', () {
         final json = {
           'type': 'assistant',
-          'message': {'content': 'Hello'}
+          'message': {'content': 'Hello'},
         };
 
         final usage = JsonlMessageParser.extractUsage(json);
@@ -440,8 +458,8 @@ void main() {
               'input_tokens': 0,
               'cache_read_input_tokens': 0,
               'cache_creation_input_tokens': 0,
-            }
-          }
+            },
+          },
         };
 
         final usage = JsonlMessageParser.extractUsage(json);
@@ -454,7 +472,7 @@ void main() {
       test('extracts id from message', () {
         final json = {
           'type': 'assistant',
-          'message': {'id': 'msg-123', 'content': 'Hello'}
+          'message': {'id': 'msg-123', 'content': 'Hello'},
         };
 
         final id = JsonlMessageParser.extractMessageId(json);
@@ -473,7 +491,7 @@ void main() {
       test('returns null when message has no id', () {
         final json = {
           'type': 'assistant',
-          'message': {'content': 'Hello'}
+          'message': {'content': 'Hello'},
         };
 
         final id = JsonlMessageParser.extractMessageId(json);
@@ -484,94 +502,112 @@ void main() {
   });
 
   group('End-to-end unified parsing', () {
-    test('compaction flow: compact_boundary → user summary → assistant response', () {
-      // Simulated JSONL lines for a compaction event
-      final compactBoundaryJson = {
-        'type': 'system',
-        'subtype': 'compact_boundary',
-        'uuid': 'compact-uuid',
-        'compactMetadata': {'trigger': 'manual', 'preTokens': 51185},
-      };
+    test(
+      'compaction flow: compact_boundary → user summary → assistant response',
+      () {
+        // Simulated JSONL lines for a compaction event
+        final compactBoundaryJson = {
+          'type': 'system',
+          'subtype': 'compact_boundary',
+          'uuid': 'compact-uuid',
+          'compactMetadata': {'trigger': 'manual', 'preTokens': 51185},
+        };
 
-      final userSummaryJson = {
-        'type': 'user',
-        'message': {
-          'role': 'user',
-          'content': 'This session is being continued from a previous conversation...',
-        },
-        'uuid': 'summary-uuid',
-        'isCompactSummary': true,
-        'isVisibleInTranscriptOnly': true,
-      };
+        final userSummaryJson = {
+          'type': 'user',
+          'message': {
+            'role': 'user',
+            'content':
+                'This session is being continued from a previous conversation...',
+          },
+          'uuid': 'summary-uuid',
+          'isCompactSummary': true,
+          'isVisibleInTranscriptOnly': true,
+        };
 
-      final assistantResponseJson = {
-        'type': 'assistant',
-        'message': {
-          'content': [
-            {'type': 'text', 'text': 'I understand. How can I help?'}
-          ]
-        },
-        'uuid': 'response-uuid',
-      };
+        final assistantResponseJson = {
+          'type': 'assistant',
+          'message': {
+            'content': [
+              {'type': 'text', 'text': 'I understand. How can I help?'},
+            ],
+          },
+          'uuid': 'response-uuid',
+        };
 
-      // Parse using unified parser
-      final compactResponse = JsonlMessageParser.parseLine(compactBoundaryJson);
-      final summaryResponse = JsonlMessageParser.parseLine(userSummaryJson);
-      final assistantResponse = JsonlMessageParser.parseLine(assistantResponseJson);
+        // Parse using unified parser
+        final compactResponse = JsonlMessageParser.parseLine(
+          compactBoundaryJson,
+        );
+        final summaryResponse = JsonlMessageParser.parseLine(userSummaryJson);
+        final assistantResponse = JsonlMessageParser.parseLine(
+          assistantResponseJson,
+        );
 
-      // Verify correct response types
-      expect(compactResponse, isA<CompactBoundaryResponse>());
-      expect(summaryResponse, isA<CompactSummaryResponse>());
-      expect(assistantResponse, isA<TextResponse>());
+        // Verify correct response types
+        expect(compactResponse, isA<CompactBoundaryResponse>());
+        expect(summaryResponse, isA<CompactSummaryResponse>());
+        expect(assistantResponse, isA<TextResponse>());
 
-      // Convert to messages (parseLine returns nullable, so use !)
-      final compactMessage = ResponseToMessageConverter.convert(compactResponse!);
-      final summaryMessage = ResponseToMessageConverter.convert(summaryResponse!);
-      final responseMessage = ResponseToMessageConverter.convert(assistantResponse!);
+        // Convert to messages (parseLine returns nullable, so use !)
+        final compactMessage = ResponseToMessageConverter.convert(
+          compactResponse!,
+        );
+        final summaryMessage = ResponseToMessageConverter.convert(
+          summaryResponse!,
+        );
+        final responseMessage = ResponseToMessageConverter.convert(
+          assistantResponse!,
+        );
 
-      // Verify compact boundary message
-      expect(compactMessage.messageType, equals(MessageType.compactBoundary));
-      expect(compactMessage.content, contains('manual'));
+        // Verify compact boundary message
+        expect(compactMessage.messageType, equals(MessageType.compactBoundary));
+        expect(compactMessage.content, contains('manual'));
 
-      // Verify summary message has correct flags
-      expect(summaryMessage.role, equals(MessageRole.user));
-      expect(summaryMessage.messageType, equals(MessageType.compactSummary));
-      expect(summaryMessage.isCompactSummary, isTrue);
-      expect(summaryMessage.isVisibleInTranscriptOnly, isTrue);
+        // Verify summary message has correct flags
+        expect(summaryMessage.role, equals(MessageRole.user));
+        expect(summaryMessage.messageType, equals(MessageType.compactSummary));
+        expect(summaryMessage.isCompactSummary, isTrue);
+        expect(summaryMessage.isVisibleInTranscriptOnly, isTrue);
 
-      // Verify assistant response
-      expect(responseMessage.role, equals(MessageRole.assistant));
-    });
+        // Verify assistant response
+        expect(responseMessage.role, equals(MessageRole.assistant));
+      },
+    );
 
     test('tool invocation flow: text → tool_use → tool_result → text', () {
       final responses = <ClaudeResponse>[];
 
       // Text before tool
-      responses.addAll(JsonlMessageParser.parseLineMultiple({
-        'type': 'assistant',
-        'message': {
-          'content': [
-            {'type': 'text', 'text': "I'll read the file."}
-          ]
-        },
-        'uuid': 'msg-1',
-      }));
+      responses.addAll(
+        JsonlMessageParser.parseLineMultiple({
+          'type': 'assistant',
+          'message': {
+            'content': [
+              {'type': 'text', 'text': "I'll read the file."},
+            ],
+          },
+          'uuid': 'msg-1',
+        }),
+      );
 
       // Tool use
-      responses.addAll(JsonlMessageParser.parseLineMultiple({
-        'type': 'assistant',
-        'message': {
-          'content': [
-            {
-              'type': 'tool_use',
-              'id': 'toolu_123',
-              'name': 'Read',
-              'input': {'file_path': '/test.txt'}
-            }
-          ]
-        },
-        'uuid': 'msg-2',
-      }));
+      responses.addAll(
+        JsonlMessageParser.parseLineMultiple({
+          'type': 'assistant',
+          'message': {
+            'content': [
+              {
+                'type': 'tool_use',
+                'id': 'toolu_123',
+                'name': 'Read',
+                'input': {'file_path': '/test.txt'},
+              },
+            ],
+          },
+          'uuid': 'msg-2',
+        }),
+      );
 
       // Tool result (comes as user message type)
       final toolResultJson = {
@@ -581,24 +617,26 @@ void main() {
             {
               'type': 'tool_result',
               'tool_use_id': 'toolu_123',
-              'content': 'File contents here'
-            }
-          ]
+              'content': 'File contents here',
+            },
+          ],
         },
         'uuid': 'msg-3',
       };
       responses.addAll(JsonlMessageParser.parseLineMultiple(toolResultJson));
 
       // Text after tool
-      responses.addAll(JsonlMessageParser.parseLineMultiple({
-        'type': 'assistant',
-        'message': {
-          'content': [
-            {'type': 'text', 'text': 'The file contains...'}
-          ]
-        },
-        'uuid': 'msg-4',
-      }));
+      responses.addAll(
+        JsonlMessageParser.parseLineMultiple({
+          'type': 'assistant',
+          'message': {
+            'content': [
+              {'type': 'text', 'text': 'The file contains...'},
+            ],
+          },
+          'uuid': 'msg-4',
+        }),
+      );
 
       // Verify we got all responses
       expect(responses.length, equals(4));

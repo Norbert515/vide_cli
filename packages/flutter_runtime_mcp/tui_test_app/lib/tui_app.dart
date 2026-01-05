@@ -6,11 +6,16 @@ import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 class FlutterRuntimeTUI {
   final FlutterRuntimeServer _server;
   final _outputController = StreamController<String>.broadcast();
-  final _localInstances = <String, FlutterInstance>{}; // Track instances started from TUI
+  final _localInstances =
+      <String, FlutterInstance>{}; // Track instances started from TUI
   bool _running = true;
   String _currentView = 'main'; // main, details, start, output
   String? _selectedInstanceId;
-  final List<String> _startFormFields = ['', '', '']; // command, workingDir, deviceId
+  final List<String> _startFormFields = [
+    '',
+    '',
+    '',
+  ]; // command, workingDir, deviceId
 
   FlutterRuntimeTUI(this._server);
 
@@ -76,7 +81,10 @@ class FlutterRuntimeTUI {
         // Try to parse as instance number
         final num = int.tryParse(key);
         if (num != null) {
-          final instances = [..._server.getAllInstances(), ..._localInstances.values];
+          final instances = [
+            ..._server.getAllInstances(),
+            ..._localInstances.values,
+          ];
           if (num > 0 && num <= instances.length) {
             _selectedInstanceId = instances[num - 1].id;
             _showInstanceDetails();
@@ -150,7 +158,9 @@ class FlutterRuntimeTUI {
     // Combine server instances and local instances
     final instances = [..._server.getAllInstances(), ..._localInstances.values];
 
-    print('┌─ Running Instances (${instances.length}) ─────────────────────────────────┐');
+    print(
+      '┌─ Running Instances (${instances.length}) ─────────────────────────────────┐',
+    );
     print('');
 
     if (instances.isEmpty) {
@@ -186,8 +196,9 @@ class FlutterRuntimeTUI {
   }
 
   void _showInstanceDetails() {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       _currentView = 'main';
@@ -203,7 +214,9 @@ class FlutterRuntimeTUI {
     print('  ID: ${instance.id}');
     print('  Status: ${instance.isRunning ? '🟢 Running' : '🔴 Stopped'}');
     print('  Started: ${instance.startedAt}');
-    print('  Uptime: ${_formatDuration(DateTime.now().difference(instance.startedAt))}');
+    print(
+      '  Uptime: ${_formatDuration(DateTime.now().difference(instance.startedAt))}',
+    );
     print('');
     print('  Working Directory:');
     print('    ${instance.workingDirectory}');
@@ -280,7 +293,9 @@ class FlutterRuntimeTUI {
 
   Future<void> _startFlutterInstance() async {
     final command = _startFormFields[0];
-    final workingDir = _startFormFields[1].isEmpty ? Directory.current.path : _startFormFields[1];
+    final workingDir = _startFormFields[1].isEmpty
+        ? Directory.current.path
+        : _startFormFields[1];
 
     _clearScreen();
     _showHeader();
@@ -294,7 +309,8 @@ class FlutterRuntimeTUI {
       final commandParts = _parseCommand(command);
 
       // Validate command
-      if (commandParts.isEmpty || (commandParts.first != 'flutter' && commandParts.first != 'fvm')) {
+      if (commandParts.isEmpty ||
+          (commandParts.first != 'flutter' && commandParts.first != 'fvm')) {
         print('');
         print('✗ Error: Command must start with "flutter" or "fvm"');
         print('');
@@ -334,7 +350,9 @@ class FlutterRuntimeTUI {
 
       // Wait for startup
       print('Waiting for Flutter to start...');
-      final result = await instance.waitForStartup(timeout: const Duration(seconds: 90));
+      final result = await instance.waitForStartup(
+        timeout: const Duration(seconds: 90),
+      );
 
       if (result.isSuccess) {
         _selectedInstanceId = instance.id;
@@ -374,8 +392,9 @@ class FlutterRuntimeTUI {
   }
 
   void _showOutputView() {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       return;
@@ -401,7 +420,9 @@ class FlutterRuntimeTUI {
     print('');
 
     if (instance.bufferedErrors.isNotEmpty) {
-      print('┌─ Errors (Last 10 lines) ───────────────────────────────────────┐');
+      print(
+        '┌─ Errors (Last 10 lines) ───────────────────────────────────────┐',
+      );
       print('');
 
       final errorLines = instance.bufferedErrors.length > 10
@@ -413,7 +434,9 @@ class FlutterRuntimeTUI {
       }
 
       print('');
-      print('└────────────────────────────────────────────────────────────────┘');
+      print(
+        '└────────────────────────────────────────────────────────────────┘',
+      );
     }
 
     print('');
@@ -425,8 +448,9 @@ class FlutterRuntimeTUI {
   }
 
   Future<void> _hotReload() async {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       return;
@@ -447,8 +471,9 @@ class FlutterRuntimeTUI {
   }
 
   Future<void> _hotRestart() async {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       return;
@@ -469,8 +494,9 @@ class FlutterRuntimeTUI {
   }
 
   Future<void> _takeScreenshot() async {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       return;
@@ -482,13 +508,18 @@ class FlutterRuntimeTUI {
       final screenshot = await instance.screenshot();
 
       if (screenshot != null) {
-        final filename = 'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
+        final filename =
+            'screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
         final file = File(filename);
         await file.writeAsBytes(screenshot);
 
-        _showSuccess('Screenshot saved to: $filename (${screenshot.length} bytes)');
+        _showSuccess(
+          'Screenshot saved to: $filename (${screenshot.length} bytes)',
+        );
       } else {
-        _showError('Screenshot returned null - VM Service may not be available');
+        _showError(
+          'Screenshot returned null - VM Service may not be available',
+        );
       }
 
       await Future.delayed(const Duration(seconds: 2));
@@ -501,8 +532,9 @@ class FlutterRuntimeTUI {
   }
 
   Future<void> _stopInstance() async {
-    final instance = _server.getInstance(_selectedInstanceId!) ??
-                      _localInstances[_selectedInstanceId];
+    final instance =
+        _server.getInstance(_selectedInstanceId!) ??
+        _localInstances[_selectedInstanceId];
     if (instance == null) {
       _showError('Instance not found');
       return;

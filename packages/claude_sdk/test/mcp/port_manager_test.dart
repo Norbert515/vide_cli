@@ -46,7 +46,9 @@ void main() {
         PortManager.releasePort(availablePort);
 
         // Request the same port as preferred
-        final port = await PortManager.findAvailablePort(preferredPort: availablePort);
+        final port = await PortManager.findAvailablePort(
+          preferredPort: availablePort,
+        );
 
         expect(port, equals(availablePort));
 
@@ -63,7 +65,9 @@ void main() {
         addTearDown(() => server.close());
 
         // Request the blocked port as preferred
-        final port = await PortManager.findAvailablePort(preferredPort: blockedPort);
+        final port = await PortManager.findAvailablePort(
+          preferredPort: blockedPort,
+        );
 
         // Should get a different port
         expect(port, isNot(equals(blockedPort)));
@@ -79,7 +83,9 @@ void main() {
         final reservedPort = await PortManager.findAvailablePort();
 
         // Request the reserved port as preferred
-        final port = await PortManager.findAvailablePort(preferredPort: reservedPort);
+        final port = await PortManager.findAvailablePort(
+          preferredPort: reservedPort,
+        );
 
         // Should get a different port since reservedPort is already reserved
         expect(port, isNot(equals(reservedPort)));
@@ -184,7 +190,9 @@ void main() {
 
         // Each port should be reserved (can't get it as preferred)
         for (final port in ports) {
-          final attempt = await PortManager.findAvailablePort(preferredPort: port);
+          final attempt = await PortManager.findAvailablePort(
+            preferredPort: port,
+          );
           expect(attempt, isNot(equals(port)));
           PortManager.releasePort(attempt);
         }

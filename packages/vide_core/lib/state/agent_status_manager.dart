@@ -6,9 +6,10 @@ import '../models/agent_status.dart';
 ///
 /// Each agent has its own status that can be set via the `setAgentStatus` MCP tool.
 /// Default status is `working` since agents start processing immediately.
-final agentStatusProvider = StateNotifierProvider.family<AgentStatusNotifier, AgentStatus, AgentId>(
-  (ref, agentId) => AgentStatusNotifier(),
-);
+final agentStatusProvider =
+    StateNotifierProvider.family<AgentStatusNotifier, AgentStatus, AgentId>(
+      (ref, agentId) => AgentStatusNotifier(),
+    );
 
 /// Notifier for a single agent's status.
 class AgentStatusNotifier extends StateNotifier<AgentStatus> {

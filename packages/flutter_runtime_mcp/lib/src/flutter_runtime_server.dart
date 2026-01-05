@@ -16,7 +16,8 @@ class FlutterRuntimeServer extends McpServerBase {
   static const String serverName = 'flutter-runtime';
 
   final _instances = <String, FlutterInstance>{};
-  final _instanceWorkingDirs = <String, String>{}; // Track working dirs for cleanup
+  final _instanceWorkingDirs =
+      <String, String>{}; // Track working dirs for cleanup
   final _uuid = const Uuid();
   MoondreamClient? _moondreamClient;
 
@@ -32,11 +33,19 @@ class FlutterRuntimeServer extends McpServerBase {
   /// Creates an ImageContent from screenshot bytes, resizing if needed to fit Claude API limits.
   ImageContent _createScreenshotContent(List<int> screenshotBytes) {
     final resizedBytes = resizeImageIfNeeded(screenshotBytes);
-    return ImageContent(data: base64.encode(resizedBytes), mimeType: 'image/png');
+    return ImageContent(
+      data: base64.encode(resizedBytes),
+      mimeType: 'image/png',
+    );
   }
 
   /// Report a flutter runtime operation error to Sentry with context
-  Future<void> _reportError(Object e, StackTrace stackTrace, String toolName, {String? instanceId}) async {
+  Future<void> _reportError(
+    Object e,
+    StackTrace stackTrace,
+    String toolName, {
+    String? instanceId,
+  }) async {
     await Sentry.configureScope((scope) {
       scope.setTag('mcp_server', serverName);
       scope.setTag('mcp_tool', toolName);
@@ -73,10 +82,15 @@ class FlutterRuntimeServer extends McpServerBase {
           'Start a Flutter application instance. IMPORTANT: You must pass your tool use ID as the instanceId parameter so the UI can stream output in real-time.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'command': {'type': 'string', 'description': 'The flutter run command (e.g., "flutter run -d chrome")'},
+          'command': {
+            'type': 'string',
+            'description':
+                'The flutter run command (e.g., "flutter run -d chrome")',
+          },
           'workingDirectory': {
             'type': 'string',
-            'description': 'Working directory for the Flutter project (defaults to current directory)',
+            'description':
+                'Working directory for the Flutter project (defaults to current directory)',
           },
           'instanceId': {
             'type': 'string',
@@ -88,7 +102,8 @@ class FlutterRuntimeServer extends McpServerBase {
       ),
       callback: ({args, extra}) async {
         final command = args!['command'] as String;
-        final workingDirectory = args['workingDirectory'] as String? ?? Directory.current.path;
+        final workingDirectory =
+            args['workingDirectory'] as String? ?? Directory.current.path;
         final instanceId = args['instanceId'] as String? ?? _uuid.v4();
 
         try {
@@ -96,18 +111,28 @@ class FlutterRuntimeServer extends McpServerBase {
           var commandParts = _parseCommand(command);
 
           // Validate that it's a flutter command
-          if (commandParts.isEmpty || (commandParts.first != 'flutter' && commandParts.first != 'fvm')) {
+          if (commandParts.isEmpty ||
+              (commandParts.first != 'flutter' &&
+                  commandParts.first != 'fvm')) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Command must start with "flutter" or "fvm"')],
+              content: [
+                TextContent(
+                  text: 'Error: Command must start with "flutter" or "fvm"',
+                ),
+              ],
             );
           }
 
           // Generate synthetic main file for runtime AI dev tools injection
-          print('🚀 [FlutterRuntimeServer] Generating synthetic main for runtime AI dev tools...');
+          print(
+            '🚀 [FlutterRuntimeServer] Generating synthetic main for runtime AI dev tools...',
+          );
           final syntheticMainPath = await SyntheticMainGenerator.generate(
             projectDir: workingDirectory,
           );
-          print('🚀 [FlutterRuntimeServer] Synthetic main generated at: $syntheticMainPath');
+          print(
+            '🚀 [FlutterRuntimeServer] Synthetic main generated at: $syntheticMainPath',
+          );
 
           // Inject -t flag to point to synthetic main (if not already present)
           final originalCommand = commandParts.join(' ');
@@ -179,7 +204,9 @@ class FlutterRuntimeServer extends McpServerBase {
             _instances.remove(instanceId);
             await instance.stop();
 
-            return CallToolResult.fromContent(content: [TextContent(text: outputBuffer.toString())]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: outputBuffer.toString())],
+            );
           }
 
           // Build full output with header and all buffered lines
@@ -213,10 +240,19 @@ class FlutterRuntimeServer extends McpServerBase {
             }
           }
 
-          return CallToolResult.fromContent(content: [TextContent(text: outputBuffer.toString())]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: outputBuffer.toString())],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterStart', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error starting Flutter instance: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterStart',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error starting Flutter instance: $e')],
+          );
         }
       },
     );
@@ -227,10 +263,14 @@ class FlutterRuntimeServer extends McpServerBase {
       description: 'Perform a hot reload on a running Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to reload'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance to reload',
+          },
           'hot': {
             'type': 'boolean',
-            'description': 'Whether to perform hot reload (true) or hot restart (false)',
+            'description':
+                'Whether to perform hot reload (true) or hot restart (false)',
             'default': true,
           },
         },
@@ -243,12 +283,18 @@ class FlutterRuntimeServer extends McpServerBase {
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
         try {
-          final result = hot ? await instance.hotReload() : await instance.hotRestart();
+          final result = hot
+              ? await instance.hotReload()
+              : await instance.hotRestart();
 
           return CallToolResult.fromContent(
             content: [
@@ -264,8 +310,15 @@ Type: ${hot ? 'Hot Reload' : 'Hot Restart'}
             ],
           );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterReload', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterReload',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -273,10 +326,14 @@ Type: ${hot ? 'Hot Reload' : 'Hot Restart'}
     // Flutter Restart (convenience method)
     server.tool(
       'flutterRestart',
-      description: 'Perform a hot restart (full restart) on a running Flutter instance',
+      description:
+          'Perform a hot restart (full restart) on a running Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to restart'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance to restart',
+          },
         },
         required: ['instanceId'],
       ),
@@ -286,7 +343,11 @@ Type: ${hot ? 'Hot Reload' : 'Hot Restart'}
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -306,8 +367,15 @@ Instance ID: $instanceId
             ],
           );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterRestart', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterRestart',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -318,7 +386,10 @@ Instance ID: $instanceId
       description: 'Stop a running Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to stop'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance to stop',
+          },
         },
         required: ['instanceId'],
       ),
@@ -328,7 +399,11 @@ Instance ID: $instanceId
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -355,8 +430,15 @@ Instance ID: $instanceId
             ],
           );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterStop', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error stopping instance: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterStop',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error stopping instance: $e')],
+          );
         }
       },
     );
@@ -368,14 +450,18 @@ Instance ID: $instanceId
       toolInputSchema: ToolInputSchema(properties: {}),
       callback: ({args, extra}) async {
         if (_instances.isEmpty) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'No running Flutter instances.')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'No running Flutter instances.')],
+          );
         }
 
         final buffer = StringBuffer('Running Flutter Instances:\n\n');
 
         for (final instance in _instances.values) {
           buffer.writeln('ID: ${instance.id}');
-          buffer.writeln('  Status: ${instance.isRunning ? "Running" : "Stopped"}');
+          buffer.writeln(
+            '  Status: ${instance.isRunning ? "Running" : "Stopped"}',
+          );
           buffer.writeln('  Started: ${instance.startedAt}');
           buffer.writeln('  Directory: ${instance.workingDirectory}');
           buffer.writeln('  Command: ${instance.command.join(" ")}');
@@ -388,7 +474,9 @@ Instance ID: $instanceId
           buffer.writeln();
         }
 
-        return CallToolResult.fromContent(content: [TextContent(text: buffer.toString())]);
+        return CallToolResult.fromContent(
+          content: [TextContent(text: buffer.toString())],
+        );
       },
     );
 
@@ -398,7 +486,10 @@ Instance ID: $instanceId
       description: 'Get detailed information about a specific Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
         },
         required: ['instanceId'],
       ),
@@ -408,7 +499,11 @@ Instance ID: $instanceId
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -429,29 +524,38 @@ Instance ID: $instanceId
           buffer.writeln('Device ID: ${info['deviceId']}');
         }
 
-        return CallToolResult.fromContent(content: [TextContent(text: buffer.toString())]);
+        return CallToolResult.fromContent(
+          content: [TextContent(text: buffer.toString())],
+        );
       },
     );
 
     // Flutter Get Logs
     server.tool(
       'flutterGetLogs',
-      description: 'Retrieve logs from a running Flutter instance. Returns buffered stdout and/or stderr output.',
+      description:
+          'Retrieve logs from a running Flutter instance. Returns buffered stdout and/or stderr output.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
           'stream': {
             'type': 'string',
-            'description': 'Which output stream to retrieve: "stdout", "stderr", or "both" (default: "both")',
+            'description':
+                'Which output stream to retrieve: "stdout", "stderr", or "both" (default: "both")',
             'enum': ['stdout', 'stderr', 'both'],
           },
           'filter': {
             'type': 'string',
-            'description': 'Optional regex pattern to filter log lines. Only lines matching this pattern will be returned.',
+            'description':
+                'Optional regex pattern to filter log lines. Only lines matching this pattern will be returned.',
           },
           'lastN': {
             'type': 'integer',
-            'description': 'Optional: Return only the last N lines. If not specified, returns all buffered lines.',
+            'description':
+                'Optional: Return only the last N lines. If not specified, returns all buffered lines.',
           },
         },
         required: ['instanceId'],
@@ -465,7 +569,11 @@ Instance ID: $instanceId
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -495,7 +603,11 @@ Instance ID: $instanceId
               lines = lines.where((line) => regex.hasMatch(line)).toList();
             } catch (e) {
               return CallToolResult.fromContent(
-                content: [TextContent(text: 'Error: Invalid regex pattern "$filterPattern": $e')],
+                content: [
+                  TextContent(
+                    text: 'Error: Invalid regex pattern "$filterPattern": $e',
+                  ),
+                ],
               );
             }
           }
@@ -521,10 +633,19 @@ Instance ID: $instanceId
             buffer.writeln(line);
           }
 
-          return CallToolResult.fromContent(content: [TextContent(text: buffer.toString())]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: buffer.toString())],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterGetLogs', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error retrieving logs: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetLogs',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error retrieving logs: $e')],
+          );
         }
       },
     );
@@ -535,7 +656,10 @@ Instance ID: $instanceId
       description: 'Take a screenshot of a running Flutter instance',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance to screenshot'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance to screenshot',
+          },
         },
         required: ['instanceId'],
       ),
@@ -545,7 +669,11 @@ Instance ID: $instanceId
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -568,8 +696,15 @@ Instance ID: $instanceId
             content: [_createScreenshotContent(screenshotBytes)],
           );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScreenshot', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error taking screenshot: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScreenshot',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error taking screenshot: $e')],
+          );
         }
       },
     );
@@ -581,10 +716,14 @@ Instance ID: $instanceId
           'Perform an action on a Flutter UI element by describing it in natural language. Uses vision AI (Moondream) to locate the element. Returns a screenshot after the action.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
           'action': {
             'type': 'string',
-            'description': 'Action to perform. Currently supported: "click" or "tap"',
+            'description':
+                'Action to perform. Currently supported: "click" or "tap"',
             'enum': ['click', 'tap'],
           },
           'description': {
@@ -601,21 +740,33 @@ Instance ID: $instanceId
         final description = args['description'] as String?;
 
         if (instanceId == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instanceId is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
         }
 
         if (action == null || (action != 'click' && action != 'tap')) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: action must be "click" or "tap"')]);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: action must be "click" or "tap"'),
+            ],
+          );
         }
 
         if (description == null || description.isEmpty) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: description is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: description is required')],
+          );
         }
 
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Flutter instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -635,14 +786,24 @@ Instance ID: $instanceId
           // Step 1: Take screenshot
           final screenshotBytes = await instance.screenshot();
           if (screenshotBytes == null) {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Failed to capture screenshot')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Failed to capture screenshot'),
+              ],
+            );
           }
 
           // Step 2: Encode screenshot for Moondream
-          final imageUrl = ImageEncoder.encodeBytes(Uint8List.fromList(screenshotBytes), mimeType: 'image/png');
+          final imageUrl = ImageEncoder.encodeBytes(
+            Uint8List.fromList(screenshotBytes),
+            mimeType: 'image/png',
+          );
 
           // Step 3: Use Moondream's point API to find the element coordinates
-          final pointResponse = await _moondreamClient!.point(imageUrl: imageUrl, object: description);
+          final pointResponse = await _moondreamClient!.point(
+            imageUrl: imageUrl,
+            object: description,
+          );
 
           // Get normalized coordinates (0-1 range)
           final moondreamX = pointResponse.x;
@@ -681,17 +842,33 @@ Instance ID: $instanceId
 
           // Decode PNG to get dimensions
           final bytes = Uint8List.fromList(screenshotBytes);
-          if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) {
+          if (bytes.length < 24 ||
+              bytes[0] != 0x89 ||
+              bytes[1] != 0x50 ||
+              bytes[2] != 0x4E ||
+              bytes[3] != 0x47) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Invalid PNG format from screenshot')],
+              content: [
+                TextContent(text: 'Error: Invalid PNG format from screenshot'),
+              ],
             );
           }
 
           // Read width and height from PNG header (big-endian)
-          final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-          final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+          final width =
+              (bytes[16] << 24) |
+              (bytes[17] << 16) |
+              (bytes[18] << 8) |
+              bytes[19];
+          final height =
+              (bytes[20] << 24) |
+              (bytes[21] << 16) |
+              (bytes[22] << 8) |
+              bytes[23];
 
-          print('🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height');
+          print(
+            '🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height',
+          );
           print('   Normalized coordinates: ($normalizedX, $normalizedY)');
 
           // Convert normalized coordinates to physical pixel coordinates
@@ -720,7 +897,10 @@ Instance ID: $instanceId
             final resultScreenshot = await instance.screenshot();
 
             final content = <Content>[
-              TextContent(text: 'Successfully performed $action on "$description" at coordinates ($x, $y)'),
+              TextContent(
+                text:
+                    'Successfully performed $action on "$description" at coordinates ($x, $y)',
+              ),
             ];
 
             // Add screenshot if available
@@ -730,25 +910,64 @@ Instance ID: $instanceId
 
             return CallToolResult.fromContent(content: content);
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Tap command returned false')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: Tap command returned false')],
+            );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterAct',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Moondream authentication failed. Check your API key: ${e.message}')],
+            content: [
+              TextContent(
+                text:
+                    'Error: Moondream authentication failed. Check your API key: ${e.message}',
+              ),
+            ],
           );
         } on MoondreamRateLimitException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterAct',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Moondream rate limit exceeded: ${e.message}')],
+            content: [
+              TextContent(
+                text: 'Error: Moondream rate limit exceeded: ${e.message}',
+              ),
+            ],
           );
         } on MoondreamException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: Moondream API error: ${e.message}')]);
-        } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterAct', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterAct',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Failed to perform action: $e\n$stackTrace')],
+            content: [
+              TextContent(text: 'Error: Moondream API error: ${e.message}'),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterAct',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Failed to perform action: $e\n$stackTrace',
+              ),
+            ],
           );
         }
       },
@@ -761,9 +980,20 @@ Instance ID: $instanceId
           'Tap at specific coordinates on a Flutter app. Use normalized coordinates (0-1) where (0,0) is top-left and (1,1) is bottom-right. Useful when you know the exact position or as a fallback when natural language detection fails. Returns a screenshot after the tap.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
-          'x': {'type': 'number', 'description': 'X coordinate (0-1 normalized). 0 is left edge, 1 is right edge.'},
-          'y': {'type': 'number', 'description': 'Y coordinate (0-1 normalized). 0 is top edge, 1 is bottom edge.'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'x': {
+            'type': 'number',
+            'description':
+                'X coordinate (0-1 normalized). 0 is left edge, 1 is right edge.',
+          },
+          'y': {
+            'type': 'number',
+            'description':
+                'Y coordinate (0-1 normalized). 0 is top edge, 1 is bottom edge.',
+          },
         },
         required: ['instanceId', 'x', 'y'],
       ),
@@ -773,53 +1003,94 @@ Instance ID: $instanceId
         final rawY = args['y'];
 
         if (instanceId == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instanceId is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
         }
 
         final coordinateX = rawX is num ? rawX.toDouble() : null;
         final coordinateY = rawY is num ? rawY.toDouble() : null;
 
         if (coordinateX == null || coordinateY == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: x and y must be valid numbers')]);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: x and y must be valid numbers'),
+            ],
+          );
         }
 
-        if (coordinateX < 0 || coordinateX > 1 || coordinateY < 0 || coordinateY > 1) {
+        if (coordinateX < 0 ||
+            coordinateX > 1 ||
+            coordinateY < 0 ||
+            coordinateY > 1) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: x and y must be normalized coordinates between 0 and 1')],
+            content: [
+              TextContent(
+                text:
+                    'Error: x and y must be normalized coordinates between 0 and 1',
+              ),
+            ],
           );
         }
 
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Flutter instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
         try {
-          print('🎯 [FlutterRuntimeServer] Using direct coordinates: ($coordinateX, $coordinateY)');
+          print(
+            '🎯 [FlutterRuntimeServer] Using direct coordinates: ($coordinateX, $coordinateY)',
+          );
 
           // Take screenshot for dimensions
           final screenshotBytes = await instance.screenshot();
           if (screenshotBytes == null) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Failed to capture screenshot for coordinate conversion')],
+              content: [
+                TextContent(
+                  text:
+                      'Error: Failed to capture screenshot for coordinate conversion',
+                ),
+              ],
             );
           }
 
           // Decode PNG to get dimensions
           final bytes = Uint8List.fromList(screenshotBytes);
-          if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) {
+          if (bytes.length < 24 ||
+              bytes[0] != 0x89 ||
+              bytes[1] != 0x50 ||
+              bytes[2] != 0x4E ||
+              bytes[3] != 0x47) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Invalid PNG format from screenshot')],
+              content: [
+                TextContent(text: 'Error: Invalid PNG format from screenshot'),
+              ],
             );
           }
 
           // Read width and height from PNG header (big-endian)
-          final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-          final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+          final width =
+              (bytes[16] << 24) |
+              (bytes[17] << 16) |
+              (bytes[18] << 8) |
+              bytes[19];
+          final height =
+              (bytes[20] << 24) |
+              (bytes[21] << 16) |
+              (bytes[22] << 8) |
+              bytes[23];
 
-          print('🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height');
+          print(
+            '🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height',
+          );
           print('   Normalized coordinates: ($coordinateX, $coordinateY)');
 
           // Convert normalized coordinates to physical pixel coordinates
@@ -861,12 +1132,23 @@ Instance ID: $instanceId
 
             return CallToolResult.fromContent(content: content);
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Tap command returned false')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: Tap command returned false')],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterTapAt', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterTapAt',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Failed to perform tap: $e\n$stackTrace')],
+            content: [
+              TextContent(
+                text: 'Error: Failed to perform tap: $e\n$stackTrace',
+              ),
+            ],
           );
         }
       },
@@ -879,7 +1161,10 @@ Instance ID: $instanceId
           'Type text into the currently focused input field. Supports special keys: {backspace}, {enter}, {tab}, {escape}, {left}, {right}, {up}, {down}. Characters are typed one by one so the user can see the typing animation.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
           'text': {
             'type': 'string',
             'description':
@@ -893,17 +1178,25 @@ Instance ID: $instanceId
         final text = args['text'] as String?;
 
         if (instanceId == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instanceId is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
         }
 
         if (text == null || text.isEmpty) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: text is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: text is required')],
+          );
         }
 
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Flutter instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -919,7 +1212,9 @@ Instance ID: $instanceId
             // Take screenshot to show the result
             final resultScreenshot = await instance.screenshot();
 
-            final content = <Content>[TextContent(text: 'Successfully typed text: "$text"')];
+            final content = <Content>[
+              TextContent(text: 'Successfully typed text: "$text"'),
+            ];
 
             // Add screenshot if available
             if (resultScreenshot != null) {
@@ -928,12 +1223,23 @@ Instance ID: $instanceId
 
             return CallToolResult.fromContent(content: content);
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Type command returned false')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Type command returned false'),
+              ],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterType', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterType',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Failed to type text: $e\n$stackTrace')],
+            content: [
+              TextContent(text: 'Error: Failed to type text: $e\n$stackTrace'),
+            ],
           );
         }
       },
@@ -946,8 +1252,14 @@ Instance ID: $instanceId
           'Scroll in the Flutter app using natural language description. Uses AI vision to determine the scroll area and direction. Examples: "scroll down to see more items", "scroll the horizontal list to the right", "scroll up to the top"',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
-          'instruction': {'type': 'string', 'description': 'Natural language description of the scroll action'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'instruction': {
+            'type': 'string',
+            'description': 'Natural language description of the scroll action',
+          },
         },
         required: ['instanceId', 'instruction'],
       ),
@@ -956,17 +1268,25 @@ Instance ID: $instanceId
         final instruction = args['instruction'] as String?;
 
         if (instanceId == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instanceId is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
         }
 
         if (instruction == null || instruction.isEmpty) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instruction is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instruction is required')],
+          );
         }
 
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Flutter instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -986,17 +1306,25 @@ Instance ID: $instanceId
           // Step 1: Take screenshot
           final screenshotBytes = await instance.screenshot();
           if (screenshotBytes == null) {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Failed to capture screenshot')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Failed to capture screenshot'),
+              ],
+            );
           }
 
           // Step 2: Encode screenshot for Moondream
-          final imageUrl = ImageEncoder.encodeBytes(Uint8List.fromList(screenshotBytes), mimeType: 'image/png');
+          final imageUrl = ImageEncoder.encodeBytes(
+            Uint8List.fromList(screenshotBytes),
+            mimeType: 'image/png',
+          );
 
           // Step 3: Use Moondream to analyze the scroll intent
           // Ask for: center of scrollable area and scroll direction
           final queryResponse = await _moondreamClient!.query(
             imageUrl: imageUrl,
-            question: '''Analyze this screenshot and the user's scroll instruction: "$instruction"
+            question:
+                '''Analyze this screenshot and the user's scroll instruction: "$instruction"
 
 Respond with ONLY a JSON object in this exact format (no markdown, no explanation):
 {"startX": 0.5, "startY": 0.5, "dx": 0.0, "dy": -0.3}
@@ -1011,7 +1339,9 @@ For example:
 - "scroll right" -> {"startX": 0.5, "startY": 0.5, "dx": 0.3, "dy": 0.0}''',
           );
 
-          print('📥 [FlutterRuntimeServer] Moondream response: ${queryResponse.answer}');
+          print(
+            '📥 [FlutterRuntimeServer] Moondream response: ${queryResponse.answer}',
+          );
 
           // Parse the JSON response
           Map<String, dynamic> scrollParams;
@@ -1019,7 +1349,9 @@ For example:
             // Clean the response - remove any markdown formatting
             var answer = queryResponse.answer.trim();
             if (answer.startsWith('```')) {
-              answer = answer.replaceAll(RegExp(r'^```\w*\n?'), '').replaceAll(RegExp(r'\n?```$'), '');
+              answer = answer
+                  .replaceAll(RegExp(r'^```\w*\n?'), '')
+                  .replaceAll(RegExp(r'\n?```$'), '');
             }
             scrollParams = json.decode(answer) as Map<String, dynamic>;
           } catch (e) {
@@ -1033,17 +1365,23 @@ For example:
             );
           }
 
-          final normalizedStartX = (scrollParams['startX'] as num?)?.toDouble() ?? 0.5;
-          final normalizedStartY = (scrollParams['startY'] as num?)?.toDouble() ?? 0.5;
+          final normalizedStartX =
+              (scrollParams['startX'] as num?)?.toDouble() ?? 0.5;
+          final normalizedStartY =
+              (scrollParams['startY'] as num?)?.toDouble() ?? 0.5;
           final normalizedDx = (scrollParams['dx'] as num?)?.toDouble() ?? 0.0;
           final normalizedDy = (scrollParams['dy'] as num?)?.toDouble() ?? 0.0;
 
           // Validate coordinates
-          if (normalizedStartX < 0 || normalizedStartX > 1 || normalizedStartY < 0 || normalizedStartY > 1) {
+          if (normalizedStartX < 0 ||
+              normalizedStartX > 1 ||
+              normalizedStartY < 0 ||
+              normalizedStartY > 1) {
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Error: Invalid start coordinates from Moondream. Use flutterScrollAt for precise control.',
+                  text:
+                      'Error: Invalid start coordinates from Moondream. Use flutterScrollAt for precise control.',
                 ),
               ],
             );
@@ -1051,17 +1389,33 @@ For example:
 
           // Decode PNG to get dimensions
           final bytes = Uint8List.fromList(screenshotBytes);
-          if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) {
+          if (bytes.length < 24 ||
+              bytes[0] != 0x89 ||
+              bytes[1] != 0x50 ||
+              bytes[2] != 0x4E ||
+              bytes[3] != 0x47) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Invalid PNG format from screenshot')],
+              content: [
+                TextContent(text: 'Error: Invalid PNG format from screenshot'),
+              ],
             );
           }
 
           // Read width and height from PNG header (big-endian)
-          final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-          final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+          final width =
+              (bytes[16] << 24) |
+              (bytes[17] << 16) |
+              (bytes[18] << 8) |
+              bytes[19];
+          final height =
+              (bytes[20] << 24) |
+              (bytes[21] << 16) |
+              (bytes[22] << 8) |
+              bytes[23];
 
-          print('🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height');
+          print(
+            '🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height',
+          );
 
           // Convert normalized coordinates to physical pixel coordinates
           final pixelStartX = (normalizedStartX * width).round().toDouble();
@@ -1079,10 +1433,18 @@ For example:
           final dx = (pixelDx / devicePixelRatio).round().toDouble();
           final dy = (pixelDy / devicePixelRatio).round().toDouble();
 
-          print('   Logical scroll: start=($startX, $startY), delta=($dx, $dy)');
+          print(
+            '   Logical scroll: start=($startX, $startY), delta=($dx, $dy)',
+          );
 
           // Perform scroll
-          final success = await instance.scroll(startX: startX, startY: startY, dx: dx, dy: dy, durationMs: 300);
+          final success = await instance.scroll(
+            startX: startX,
+            startY: startY,
+            dx: dx,
+            dy: dy,
+            durationMs: 300,
+          );
 
           if (success) {
             // Wait for UI to update and animations to complete
@@ -1093,7 +1455,8 @@ For example:
 
             final content = <Content>[
               TextContent(
-                text: 'Successfully performed scroll: "$instruction" at ($startX, $startY) with delta ($dx, $dy)',
+                text:
+                    'Successfully performed scroll: "$instruction" at ($startX, $startY) with delta ($dx, $dy)',
               ),
             ];
 
@@ -1104,25 +1467,66 @@ For example:
 
             return CallToolResult.fromContent(content: content);
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Scroll command returned false')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Scroll command returned false'),
+              ],
+            );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScroll',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Moondream authentication failed. Check your API key: ${e.message}')],
+            content: [
+              TextContent(
+                text:
+                    'Error: Moondream authentication failed. Check your API key: ${e.message}',
+              ),
+            ],
           );
         } on MoondreamRateLimitException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScroll',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Moondream rate limit exceeded: ${e.message}')],
+            content: [
+              TextContent(
+                text: 'Error: Moondream rate limit exceeded: ${e.message}',
+              ),
+            ],
           );
         } on MoondreamException catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: Moondream API error: ${e.message}')]);
-        } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScroll', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScroll',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Failed to perform scroll: $e\n$stackTrace')],
+            content: [
+              TextContent(text: 'Error: Moondream API error: ${e.message}'),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScroll',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Failed to perform scroll: $e\n$stackTrace',
+              ),
+            ],
           );
         }
       },
@@ -1135,14 +1539,34 @@ For example:
           'Scroll at specific coordinates with precise control. Uses normalized coordinates (0-1) for start position and relative amounts for scroll distance.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'instanceId': {'type': 'string', 'description': 'UUID of the Flutter instance'},
-          'startX': {'type': 'number', 'description': 'Starting X position (0-1 normalized, 0=left, 1=right)'},
-          'startY': {'type': 'number', 'description': 'Starting Y position (0-1 normalized, 0=top, 1=bottom)'},
-          'dx': {'type': 'number', 'description': 'Horizontal scroll amount (-1 to 1, negative=left, positive=right)'},
-          'dy': {'type': 'number', 'description': 'Vertical scroll amount (-1 to 1, negative=up, positive=down)'},
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'startX': {
+            'type': 'number',
+            'description':
+                'Starting X position (0-1 normalized, 0=left, 1=right)',
+          },
+          'startY': {
+            'type': 'number',
+            'description':
+                'Starting Y position (0-1 normalized, 0=top, 1=bottom)',
+          },
+          'dx': {
+            'type': 'number',
+            'description':
+                'Horizontal scroll amount (-1 to 1, negative=left, positive=right)',
+          },
+          'dy': {
+            'type': 'number',
+            'description':
+                'Vertical scroll amount (-1 to 1, negative=up, positive=down)',
+          },
           'durationMs': {
             'type': 'number',
-            'description': 'Duration of scroll animation in milliseconds (default: 300)',
+            'description':
+                'Duration of scroll animation in milliseconds (default: 300)',
           },
         },
         required: ['instanceId', 'startX', 'startY', 'dx', 'dy'],
@@ -1156,7 +1580,9 @@ For example:
         final rawDurationMs = args['durationMs'];
 
         if (instanceId == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: instanceId is required')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
         }
 
         final normalizedStartX = rawStartX is num ? rawStartX.toDouble() : null;
@@ -1165,26 +1591,52 @@ For example:
         final normalizedDy = rawDy is num ? rawDy.toDouble() : null;
         final durationMs = rawDurationMs is num ? rawDurationMs.toInt() : 300;
 
-        if (normalizedStartX == null || normalizedStartY == null || normalizedDx == null || normalizedDy == null) {
+        if (normalizedStartX == null ||
+            normalizedStartY == null ||
+            normalizedDx == null ||
+            normalizedDy == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: startX, startY, dx, and dy must be valid numbers')],
+            content: [
+              TextContent(
+                text: 'Error: startX, startY, dx, and dy must be valid numbers',
+              ),
+            ],
           );
         }
 
-        if (normalizedStartX < 0 || normalizedStartX > 1 || normalizedStartY < 0 || normalizedStartY > 1) {
+        if (normalizedStartX < 0 ||
+            normalizedStartX > 1 ||
+            normalizedStartY < 0 ||
+            normalizedStartY > 1) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: startX and startY must be normalized coordinates between 0 and 1')],
+            content: [
+              TextContent(
+                text:
+                    'Error: startX and startY must be normalized coordinates between 0 and 1',
+              ),
+            ],
           );
         }
 
-        if (normalizedDx < -1 || normalizedDx > 1 || normalizedDy < -1 || normalizedDy > 1) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: dx and dy must be between -1 and 1')]);
+        if (normalizedDx < -1 ||
+            normalizedDx > 1 ||
+            normalizedDy < -1 ||
+            normalizedDy > 1) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: dx and dy must be between -1 and 1'),
+            ],
+          );
         }
 
         final instance = _instances[instanceId];
         if (instance == null) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Flutter instance not found with ID: $instanceId')],
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
           );
         }
 
@@ -1197,23 +1649,44 @@ For example:
           final screenshotBytes = await instance.screenshot();
           if (screenshotBytes == null) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Failed to capture screenshot for coordinate conversion')],
+              content: [
+                TextContent(
+                  text:
+                      'Error: Failed to capture screenshot for coordinate conversion',
+                ),
+              ],
             );
           }
 
           // Decode PNG to get dimensions
           final bytes = Uint8List.fromList(screenshotBytes);
-          if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) {
+          if (bytes.length < 24 ||
+              bytes[0] != 0x89 ||
+              bytes[1] != 0x50 ||
+              bytes[2] != 0x4E ||
+              bytes[3] != 0x47) {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Invalid PNG format from screenshot')],
+              content: [
+                TextContent(text: 'Error: Invalid PNG format from screenshot'),
+              ],
             );
           }
 
           // Read width and height from PNG header (big-endian)
-          final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-          final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+          final width =
+              (bytes[16] << 24) |
+              (bytes[17] << 16) |
+              (bytes[18] << 8) |
+              bytes[19];
+          final height =
+              (bytes[20] << 24) |
+              (bytes[21] << 16) |
+              (bytes[22] << 8) |
+              bytes[23];
 
-          print('🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height');
+          print(
+            '🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height',
+          );
 
           // Convert normalized coordinates to physical pixel coordinates
           final pixelStartX = (normalizedStartX * width).round().toDouble();
@@ -1230,10 +1703,18 @@ For example:
           final dx = (pixelDx / devicePixelRatio).round().toDouble();
           final dy = (pixelDy / devicePixelRatio).round().toDouble();
 
-          print('   Logical scroll: start=($startX, $startY), delta=($dx, $dy)');
+          print(
+            '   Logical scroll: start=($startX, $startY), delta=($dx, $dy)',
+          );
 
           // Perform scroll
-          final success = await instance.scroll(startX: startX, startY: startY, dx: dx, dy: dy, durationMs: durationMs);
+          final success = await instance.scroll(
+            startX: startX,
+            startY: startY,
+            dx: dx,
+            dy: dy,
+            durationMs: durationMs,
+          );
 
           if (success) {
             // Wait for UI to update and animations to complete
@@ -1256,12 +1737,25 @@ For example:
 
             return CallToolResult.fromContent(content: content);
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Scroll command returned false')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Scroll command returned false'),
+              ],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'flutterScrollAt', instanceId: instanceId);
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterScrollAt',
+            instanceId: instanceId,
+          );
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Failed to perform scroll: $e\n$stackTrace')],
+            content: [
+              TextContent(
+                text: 'Error: Failed to perform scroll: $e\n$stackTrace',
+              ),
+            ],
           );
         }
       },
@@ -1354,7 +1848,9 @@ For example:
     }
 
     if (_moondreamClient == null) {
-      throw StateError('Moondream API not available. Set MOONDREAM_API_KEY environment variable.');
+      throw StateError(
+        'Moondream API not available. Set MOONDREAM_API_KEY environment variable.',
+      );
     }
 
     // Step 1: Take screenshot
@@ -1364,10 +1860,16 @@ For example:
     }
 
     // Step 2: Encode screenshot for Moondream
-    final imageUrl = ImageEncoder.encodeBytes(Uint8List.fromList(screenshotBytes), mimeType: 'image/png');
+    final imageUrl = ImageEncoder.encodeBytes(
+      Uint8List.fromList(screenshotBytes),
+      mimeType: 'image/png',
+    );
 
     // Step 3: Use Moondream's point API to find the element coordinates
-    final pointResponse = await _moondreamClient!.point(imageUrl: imageUrl, object: description);
+    final pointResponse = await _moondreamClient!.point(
+      imageUrl: imageUrl,
+      object: description,
+    );
 
     // Get normalized coordinates (0-1 range)
     final normalizedX = pointResponse.x;
@@ -1375,7 +1877,9 @@ For example:
 
     // Validate coordinates
     if (normalizedX == null || normalizedY == null) {
-      throw StateError('Moondream could not find "$description" (no points returned)');
+      throw StateError(
+        'Moondream could not find "$description" (no points returned)',
+      );
     }
 
     if (normalizedX.isNaN ||
@@ -1384,21 +1888,33 @@ For example:
         normalizedY < 0 ||
         normalizedX > 1 ||
         normalizedY > 1) {
-      throw StateError('Moondream returned invalid normalized coordinates: ($normalizedX, $normalizedY)');
+      throw StateError(
+        'Moondream returned invalid normalized coordinates: ($normalizedX, $normalizedY)',
+      );
     }
 
     // Decode PNG to get dimensions
     final bytes = Uint8List.fromList(screenshotBytes);
-    if (bytes.length < 24 || bytes[0] != 0x89 || bytes[1] != 0x50 || bytes[2] != 0x4E || bytes[3] != 0x47) {
+    if (bytes.length < 24 ||
+        bytes[0] != 0x89 ||
+        bytes[1] != 0x50 ||
+        bytes[2] != 0x4E ||
+        bytes[3] != 0x47) {
       throw StateError('Invalid PNG format from screenshot');
     }
 
     // Read width and height from PNG header (big-endian)
-    final width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
-    final height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    final width =
+        (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    final height =
+        (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
 
-    print('🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height');
-    print('   Normalized coordinates from Moondream: ($normalizedX, $normalizedY)');
+    print(
+      '🖼️  [FlutterRuntimeServer] Screenshot dimensions: ${width}x$height',
+    );
+    print(
+      '   Normalized coordinates from Moondream: ($normalizedX, $normalizedY)',
+    );
 
     // Convert normalized coordinates to physical pixel coordinates
     final pixelRatioX = (normalizedX * width).round().toDouble();

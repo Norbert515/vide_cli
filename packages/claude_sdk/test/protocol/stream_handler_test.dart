@@ -84,8 +84,7 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         expect(responses.any((r) => r is CompletionResponse), isTrue);
-        final completion =
-            responses.whereType<CompletionResponse>().first;
+        final completion = responses.whereType<CompletionResponse>().first;
         expect(completion.stopReason, equals('process_ended'));
       });
 
@@ -270,7 +269,7 @@ void main() {
                 'id': 'tool_456',
                 'name': 'Bash',
                 'input': {'command': 'ls -la'},
-              }
+              },
             ],
           },
         });
@@ -292,9 +291,7 @@ void main() {
         final responses = <ClaudeResponse>[];
         streamHandler.responses.listen(responses.add);
 
-        fakeProcess.emitStdout(
-          '{"type": "future_type", "some_data": "value"}',
-        );
+        fakeProcess.emitStdout('{"type": "future_type", "some_data": "value"}');
 
         await Future.delayed(const Duration(milliseconds: 50));
 

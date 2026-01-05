@@ -58,7 +58,8 @@ void registerScrollExtension() {
           );
         }
 
-        final durationMs = durationMsStr != null ? int.tryParse(durationMsStr) : 300;
+        final durationMs =
+            durationMsStr != null ? int.tryParse(durationMsStr) : 300;
         final duration = Duration(milliseconds: durationMs ?? 300);
 
         await _simulateScroll(

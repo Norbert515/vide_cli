@@ -69,7 +69,9 @@ class AgentNetwork {
       agents: agents ?? this.agents,
       createdAt: createdAt ?? this.createdAt,
       lastActiveAt: lastActiveAt ?? this.lastActiveAt,
-      worktreePath: clearWorktreePath ? null : (worktreePath ?? this.worktreePath),
+      worktreePath: clearWorktreePath
+          ? null
+          : (worktreePath ?? this.worktreePath),
     );
   }
 

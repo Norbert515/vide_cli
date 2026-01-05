@@ -26,7 +26,7 @@ class GitStatusWatcher {
   bool _isDisposed = false;
 
   GitStatusWatcher({required this.repoPath})
-      : _gitClient = GitClient(workingDirectory: repoPath);
+    : _gitClient = GitClient(workingDirectory: repoPath);
 
   /// Starts watching the repository for changes.
   /// Call this after construction to begin receiving status updates.
@@ -39,9 +39,11 @@ class GitStatusWatcher {
     // Watch working tree (exclude .git/)
     _workingTreeWatcher = DirectoryWatcher(repoPath);
     _workingTreeSubscription = _workingTreeWatcher!.events
-        .where((event) =>
-            !event.path.contains('${p.separator}.git${p.separator}') &&
-            !event.path.endsWith('${p.separator}.git'))
+        .where(
+          (event) =>
+              !event.path.contains('${p.separator}.git${p.separator}') &&
+              !event.path.endsWith('${p.separator}.git'),
+        )
         .listen(_onFileChange);
 
     // Watch .git/ directory (exclude lock files)

@@ -21,56 +21,64 @@ void main() {
       }
     });
 
-    test('maintains context across multiple messages', () async {
-      if (!claudeAvailable) {
-        markTestSkipped('Claude CLI not available');
-        return;
-      }
-
-      final client = await ClaudeClient.create(
-        config: ClaudeConfig(verbose: false),
-      );
-      addTearDown(() => client.close());
-
-      final messages = <String>[];
-
-      client.conversation.listen((conversation) {
-        if (conversation.lastMessage != null &&
-            conversation.lastMessage!.role == MessageRole.assistant &&
-            conversation.lastMessage!.isComplete) {
-          messages.add(conversation.lastMessage!.content);
+    test(
+      'maintains context across multiple messages',
+      () async {
+        if (!claudeAvailable) {
+          markTestSkipped('Claude CLI not available');
+          return;
         }
-      });
 
-      // Send first message
-      client.sendMessage(
-        Message.text('Remember the number 42. Reply with just: "I will remember 42"'),
-      );
+        final client = await ClaudeClient.create(
+          config: ClaudeConfig(verbose: false),
+        );
+        addTearDown(() => client.close());
 
-      // Wait for first response
-      await client.onTurnComplete.first.timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => fail('Timeout waiting for first response'),
-      );
+        final messages = <String>[];
 
-      expect(messages.length, equals(1));
+        client.conversation.listen((conversation) {
+          if (conversation.lastMessage != null &&
+              conversation.lastMessage!.role == MessageRole.assistant &&
+              conversation.lastMessage!.isComplete) {
+            messages.add(conversation.lastMessage!.content);
+          }
+        });
 
-      // Small delay to avoid session conflict
-      await Future.delayed(const Duration(seconds: 2));
+        // Send first message
+        client.sendMessage(
+          Message.text(
+            'Remember the number 42. Reply with just: "I will remember 42"',
+          ),
+        );
 
-      // Send second message to test context
-      client.sendMessage(
-        Message.text('What number are you remembering? Reply with just the number.'),
-      );
+        // Wait for first response
+        await client.onTurnComplete.first.timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => fail('Timeout waiting for first response'),
+        );
 
-      // Wait for second response
-      await client.onTurnComplete.first.timeout(
-        const Duration(seconds: 30),
-        onTimeout: () => fail('Timeout waiting for second response'),
-      );
+        expect(messages.length, equals(1));
 
-      expect(messages.length, equals(2));
-      expect(messages[1].toLowerCase(), contains('42'));
-    }, timeout: Timeout(Duration(minutes: 2)));
+        // Small delay to avoid session conflict
+        await Future.delayed(const Duration(seconds: 2));
+
+        // Send second message to test context
+        client.sendMessage(
+          Message.text(
+            'What number are you remembering? Reply with just the number.',
+          ),
+        );
+
+        // Wait for second response
+        await client.onTurnComplete.first.timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => fail('Timeout waiting for second response'),
+        );
+
+        expect(messages.length, equals(2));
+        expect(messages[1].toLowerCase(), contains('42'));
+      },
+      timeout: Timeout(Duration(minutes: 2)),
+    );
   });
 }

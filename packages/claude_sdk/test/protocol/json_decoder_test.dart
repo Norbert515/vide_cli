@@ -23,10 +23,7 @@ void main() {
 
         expect(responses.length, equals(1));
         expect(responses.first, isA<TextResponse>());
-        expect(
-          (responses.first as TextResponse).content.length,
-          equals(15000),
-        );
+        expect((responses.first as TextResponse).content.length, equals(15000));
       });
 
       test('handles line split across multiple chunks', () async {
@@ -62,18 +59,21 @@ void main() {
         expect((responses[1] as TextResponse).content, equals('Second'));
       });
 
-      test('handles chunk without trailing newline followed by newline', () async {
-        final stream = Stream.fromIterable([
-          '{"type": "text", "content": "NoNewline"}',
-          '\n{"type": "text", "content": "WithNewline"}\n',
-        ]);
+      test(
+        'handles chunk without trailing newline followed by newline',
+        () async {
+          final stream = Stream.fromIterable([
+            '{"type": "text", "content": "NoNewline"}',
+            '\n{"type": "text", "content": "WithNewline"}\n',
+          ]);
 
-        final responses = await decoder.decodeStream(stream).toList();
+          final responses = await decoder.decodeStream(stream).toList();
 
-        expect(responses.length, equals(2));
-        expect((responses[0] as TextResponse).content, equals('NoNewline'));
-        expect((responses[1] as TextResponse).content, equals('WithNewline'));
-      });
+          expect(responses.length, equals(2));
+          expect((responses[0] as TextResponse).content, equals('NoNewline'));
+          expect((responses[1] as TextResponse).content, equals('WithNewline'));
+        },
+      );
     });
 
     group('multiple JSON objects in one chunk', () {
@@ -122,19 +122,13 @@ void main() {
       });
 
       test('handles Chinese characters', () async {
-        final json = jsonEncode({
-          'type': 'text',
-          'content': '你好世界',
-        });
+        final json = jsonEncode({'type': 'text', 'content': '你好世界'});
 
         final stream = Stream.fromIterable(['$json\n']);
         final responses = await decoder.decodeStream(stream).toList();
 
         expect(responses.length, equals(1));
-        expect(
-          (responses.first as TextResponse).content,
-          equals('你好世界'),
-        );
+        expect((responses.first as TextResponse).content, equals('你好世界'));
       });
 
       test('handles special unicode symbols', () async {
@@ -167,10 +161,7 @@ void main() {
         final responses = await decoder.decodeStream(stream).toList();
 
         expect(responses.length, equals(1));
-        expect(
-          (responses.first as TextResponse).content,
-          equals(content),
-        );
+        expect((responses.first as TextResponse).content, equals(content));
       });
     });
 
@@ -190,7 +181,7 @@ void main() {
                   'file_path': '/test.dart',
                   'content': 'class Foo { final bar = {"key": [1, 2, 3]}; }',
                 },
-              }
+              },
             ],
           },
         });
@@ -262,7 +253,10 @@ void main() {
         final responses = await decoder.decodeStream(stream).toList();
 
         // Should still get valid response
-        expect(responses.any((r) => r is TextResponse && r.content == 'Valid'), isTrue);
+        expect(
+          responses.any((r) => r is TextResponse && r.content == 'Valid'),
+          isTrue,
+        );
       });
 
       test('handles truncated JSON string', () async {
@@ -327,11 +321,7 @@ void main() {
       });
 
       test('handles stream with only whitespace', () async {
-        final stream = Stream.fromIterable([
-          '   \n',
-          '\t\t\n',
-          '\n\n\n',
-        ]);
+        final stream = Stream.fromIterable(['   \n', '\t\t\n', '\n\n\n']);
 
         final responses = await decoder.decodeStream(stream).toList();
         expect(responses, isEmpty);
@@ -374,28 +364,30 @@ void main() {
     });
 
     group('error response for partial JSON with type hints', () {
-      test('emits ErrorResponse for line containing type but malformed', () async {
-        final stream = Stream.fromIterable([
-          '{"type": broken}\n',
-        ]);
+      test(
+        'emits ErrorResponse for line containing type but malformed',
+        () async {
+          final stream = Stream.fromIterable(['{"type": broken}\n']);
 
-        final responses = await decoder.decodeStream(stream).toList();
+          final responses = await decoder.decodeStream(stream).toList();
 
-        // Should get an error response since it contains "type"
-        expect(responses.length, equals(1));
-        expect(responses.first, isA<ErrorResponse>());
-      });
+          // Should get an error response since it contains "type"
+          expect(responses.length, equals(1));
+          expect(responses.first, isA<ErrorResponse>());
+        },
+      );
 
-      test('emits ErrorResponse for line containing content but malformed', () async {
-        final stream = Stream.fromIterable([
-          '{"content": not quoted}\n',
-        ]);
+      test(
+        'emits ErrorResponse for line containing content but malformed',
+        () async {
+          final stream = Stream.fromIterable(['{"content": not quoted}\n']);
 
-        final responses = await decoder.decodeStream(stream).toList();
+          final responses = await decoder.decodeStream(stream).toList();
 
-        expect(responses.length, equals(1));
-        expect(responses.first, isA<ErrorResponse>());
-      });
+          expect(responses.length, equals(1));
+          expect(responses.first, isA<ErrorResponse>());
+        },
+      );
 
       test('ignores debug output without type/content keywords', () async {
         final stream = Stream.fromIterable([
@@ -433,7 +425,10 @@ void main() {
 
         expect(responses.length, equals(1));
         expect(responses.first, isA<TextResponse>());
-        expect((responses.first as TextResponse).content, equals('Here is the code:'));
+        expect(
+          (responses.first as TextResponse).content,
+          equals('Here is the code:'),
+        );
       });
 
       test('handles system init message', () async {

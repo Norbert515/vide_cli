@@ -3,10 +3,7 @@ import 'package:vide_cli/modules/setup/dart_mcp_manager.dart';
 
 /// Dialog to help users set up Dart MCP server
 class DartMcpSetupDialog extends StatelessComponent {
-  const DartMcpSetupDialog({
-    super.key,
-    required this.status,
-  });
+  const DartMcpSetupDialog({super.key, required this.status});
 
   final DartMcpStatus status;
 
@@ -51,10 +48,7 @@ class DartMcpSetupDialog extends StatelessComponent {
             _buildSetupInstructions(),
             SizedBox(height: 1),
           ],
-          Text(
-            'Press any key to close',
-            style: TextStyle(color: Colors.grey),
-          ),
+          Text('Press any key to close', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -66,18 +60,9 @@ class DartMcpSetupDialog extends StatelessComponent {
       children: [
         Text('Status:', style: TextStyle(fontWeight: FontWeight.bold)),
         SizedBox(height: 1),
-        _statusLine(
-          'Dart SDK',
-          status.isDartSdkAvailable,
-        ),
-        _statusLine(
-          'Dart Project',
-          status.isDartProjectDetected,
-        ),
-        _statusLine(
-          'MCP Configured',
-          status.isMcpConfigured,
-        ),
+        _statusLine('Dart SDK', status.isDartSdkAvailable),
+        _statusLine('Dart Project', status.isDartProjectDetected),
+        _statusLine('MCP Configured', status.isMcpConfigured),
       ],
     );
   }
@@ -85,10 +70,13 @@ class DartMcpSetupDialog extends StatelessComponent {
   Component _statusLine(String label, bool isOk) {
     return Row(
       children: [
-        Text(isOk ? '✓' : '✗', style: TextStyle(
-          color: isOk ? Colors.green : Colors.red,
-          fontWeight: FontWeight.bold,
-        )),
+        Text(
+          isOk ? '✓' : '✗',
+          style: TextStyle(
+            color: isOk ? Colors.green : Colors.red,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         SizedBox(width: 1),
         Text(label),
       ],
@@ -101,10 +89,7 @@ class DartMcpSetupDialog extends StatelessComponent {
       children: [
         Text(
           'Setup Instructions:',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.yellow,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.yellow),
         ),
         SizedBox(height: 1),
         Text('To enable Dart MCP, run one of these commands:'),

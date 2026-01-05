@@ -81,8 +81,11 @@ class PermissionMatcher {
     Map<String, dynamic>? context,
   ) {
     return switch (input) {
-      BashToolInput(:final command) =>
-        _matchesBashCommand(argPattern, command, context),
+      BashToolInput(:final command) => _matchesBashCommand(
+        argPattern,
+        command,
+        context,
+      ),
       ReadToolInput(:final filePath) =>
         filePath.isNotEmpty && _globMatch(argPattern, filePath),
       WriteToolInput(:final filePath) =>
@@ -91,10 +94,8 @@ class PermissionMatcher {
         filePath.isNotEmpty && _globMatch(argPattern, filePath),
       MultiEditToolInput(:final filePath) =>
         filePath.isNotEmpty && _globMatch(argPattern, filePath),
-      WebFetchToolInput(:final url) =>
-        _matchesWebFetch(argPattern, url),
-      WebSearchToolInput(:final query) =>
-        _matchesWebSearch(argPattern, query),
+      WebFetchToolInput(:final url) => _matchesWebFetch(argPattern, url),
+      WebSearchToolInput(:final query) => _matchesWebSearch(argPattern, query),
       GrepToolInput() => false, // Grep doesn't need permission patterns
       GlobToolInput() => false, // Glob doesn't need permission patterns
       UnknownToolInput() => false,
@@ -187,14 +188,16 @@ class PermissionMatcher {
     for (final parsed in parsedCommands) {
       // Auto-approve cd commands within working directory
       if (parsed.type == CommandType.cd) {
-        if (cwd != null && BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
+        if (cwd != null &&
+            BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
           continue; // Safe - within working directory
         }
         return false; // cd outside working directory - not safe
       }
 
       // Auto-approve safe pipeline filters
-      if (parsed.type == CommandType.pipelinePart && _isSafeOutputFilter(parsed.command)) {
+      if (parsed.type == CommandType.pipelinePart &&
+          _isSafeOutputFilter(parsed.command)) {
         continue; // Safe filter
       }
 
@@ -225,8 +228,13 @@ class PermissionMatcher {
     if (parsedCommands.isEmpty) return false;
 
     // For pipelines with wildcard patterns, use smart matching
-    final hasPipeline = parsedCommands.any((cmd) => cmd.type == CommandType.pipelinePart);
-    final isWildcardPattern = argPattern.contains('*') || argPattern == '' || argPattern.contains('.*');
+    final hasPipeline = parsedCommands.any(
+      (cmd) => cmd.type == CommandType.pipelinePart,
+    );
+    final isWildcardPattern =
+        argPattern.contains('*') ||
+        argPattern == '' ||
+        argPattern.contains('.*');
 
     if (hasPipeline) {
       if (isWildcardPattern) {
@@ -242,7 +250,8 @@ class PermissionMatcher {
     for (final parsed in parsedCommands) {
       // Auto-approve cd commands within working directory
       if (parsed.type == CommandType.cd) {
-        if (cwd != null && BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
+        if (cwd != null &&
+            BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
           continue; // Skip to next command - auto-approved
         }
         // cd outside working directory - must check against pattern
@@ -272,7 +281,8 @@ class PermissionMatcher {
 
       // Auto-approve cd commands within working directory
       if (parsed.type == CommandType.cd) {
-        if (cwd != null && BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
+        if (cwd != null &&
+            BashCommandParser.isCdWithinWorkingDir(parsed.command, cwd)) {
           continue; // Skip - auto-approved
         }
         // cd outside working directory - must check against pattern
@@ -336,10 +346,7 @@ class PermissionMatcher {
   }
 
   /// Generate a permission pattern from a tool use
-  static String generatePattern(
-    String toolName,
-    ToolInput input,
-  ) {
+  static String generatePattern(String toolName, ToolInput input) {
     return switch (input) {
       BashToolInput(:final command) =>
         command.isEmpty ? toolName : 'Bash($command)',

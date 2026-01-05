@@ -4,7 +4,7 @@ import 'package:vide_core/vide_core.dart';
 /// A test-friendly VideConfigManager that uses a temporary directory.
 class MockVideConfigManager extends VideConfigManager {
   MockVideConfigManager({required Directory tempDir})
-      : super(configRoot: tempDir.path);
+    : super(configRoot: tempDir.path);
 
   /// Create a MockVideConfigManager with a new temporary directory
   static Future<MockVideConfigManager> create() async {

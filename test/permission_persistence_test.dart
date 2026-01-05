@@ -24,37 +24,52 @@ void main() {
       }
     });
 
-    test('addToAllowList creates .claude/settings.local.json if not exists', () async {
-      // Arrange
-      final pattern = 'Read(/some/path/**)';
+    test(
+      'addToAllowList creates .claude/settings.local.json if not exists',
+      () async {
+        // Arrange
+        final pattern = 'Read(/some/path/**)';
 
-      // Act
-      await settingsManager.addToAllowList(pattern);
+        // Act
+        await settingsManager.addToAllowList(pattern);
 
-      // Assert
-      final settingsFile = File('${tempDir.path}/.claude/settings.local.json');
-      expect(await settingsFile.exists(), isTrue, reason: 'Settings file should be created');
+        // Assert
+        final settingsFile = File(
+          '${tempDir.path}/.claude/settings.local.json',
+        );
+        expect(
+          await settingsFile.exists(),
+          isTrue,
+          reason: 'Settings file should be created',
+        );
 
-      final content = await settingsFile.readAsString();
-      final json = jsonDecode(content) as Map<String, dynamic>;
-      final permissions = json['permissions'] as Map<String, dynamic>;
-      final allow = permissions['allow'] as List;
+        final content = await settingsFile.readAsString();
+        final json = jsonDecode(content) as Map<String, dynamic>;
+        final permissions = json['permissions'] as Map<String, dynamic>;
+        final allow = permissions['allow'] as List;
 
-      expect(allow, contains(pattern), reason: 'Allow list should contain the added pattern');
-    });
+        expect(
+          allow,
+          contains(pattern),
+          reason: 'Allow list should contain the added pattern',
+        );
+      },
+    );
 
     test('addToAllowList adds pattern to existing allow list', () async {
       // Arrange - create initial settings
       final claudeDir = Directory('${tempDir.path}/.claude');
       await claudeDir.create(recursive: true);
       final settingsFile = File('${claudeDir.path}/settings.local.json');
-      await settingsFile.writeAsString(jsonEncode({
-        'permissions': {
-          'allow': ['ExistingPattern'],
-          'deny': [],
-          'ask': [],
-        }
-      }));
+      await settingsFile.writeAsString(
+        jsonEncode({
+          'permissions': {
+            'allow': ['ExistingPattern'],
+            'deny': [],
+            'ask': [],
+          },
+        }),
+      );
 
       final newPattern = 'WebFetch(domain:example.com)';
 
@@ -67,8 +82,16 @@ void main() {
       final permissions = json['permissions'] as Map<String, dynamic>;
       final allow = permissions['allow'] as List;
 
-      expect(allow, contains('ExistingPattern'), reason: 'Existing pattern should be preserved');
-      expect(allow, contains(newPattern), reason: 'New pattern should be added');
+      expect(
+        allow,
+        contains('ExistingPattern'),
+        reason: 'Existing pattern should be preserved',
+      );
+      expect(
+        allow,
+        contains(newPattern),
+        reason: 'New pattern should be added',
+      );
       expect(allow.length, equals(2));
     });
 
@@ -78,13 +101,15 @@ void main() {
       await claudeDir.create(recursive: true);
       final settingsFile = File('${claudeDir.path}/settings.local.json');
       final existingPattern = 'Bash(dart test:*)';
-      await settingsFile.writeAsString(jsonEncode({
-        'permissions': {
-          'allow': [existingPattern],
-          'deny': [],
-          'ask': [],
-        }
-      }));
+      await settingsFile.writeAsString(
+        jsonEncode({
+          'permissions': {
+            'allow': [existingPattern],
+            'deny': [],
+            'ask': [],
+          },
+        }),
+      );
 
       // Act - add the same pattern again
       await settingsManager.addToAllowList(existingPattern);
@@ -95,8 +120,11 @@ void main() {
       final permissions = json['permissions'] as Map<String, dynamic>;
       final allow = permissions['allow'] as List;
 
-      expect(allow.where((p) => p == existingPattern).length, equals(1),
-          reason: 'Pattern should not be duplicated');
+      expect(
+        allow.where((p) => p == existingPattern).length,
+        equals(1),
+        reason: 'Pattern should not be duplicated',
+      );
     });
 
     test('addToAllowList preserves hooks', () async {
@@ -104,23 +132,21 @@ void main() {
       final claudeDir = Directory('${tempDir.path}/.claude');
       await claudeDir.create(recursive: true);
       final settingsFile = File('${claudeDir.path}/settings.local.json');
-      await settingsFile.writeAsString(jsonEncode({
-        'permissions': {
-          'allow': [],
-          'deny': [],
-          'ask': [],
-        },
-        'hooks': {
-          'PreToolUse': [
-            {
-              'matcher': 'Write|Edit',
-              'hooks': [
-                {'type': 'command', 'command': 'echo test', 'timeout': 1000}
-              ]
-            }
-          ]
-        },
-      }));
+      await settingsFile.writeAsString(
+        jsonEncode({
+          'permissions': {'allow': [], 'deny': [], 'ask': []},
+          'hooks': {
+            'PreToolUse': [
+              {
+                'matcher': 'Write|Edit',
+                'hooks': [
+                  {'type': 'command', 'command': 'echo test', 'timeout': 1000},
+                ],
+              },
+            ],
+          },
+        }),
+      );
 
       final newPattern = 'Read(/new/path/**)';
 
@@ -132,7 +158,11 @@ void main() {
       final json = jsonDecode(content) as Map<String, dynamic>;
 
       // Check hooks are preserved
-      expect(json.containsKey('hooks'), isTrue, reason: 'Hooks should be preserved');
+      expect(
+        json.containsKey('hooks'),
+        isTrue,
+        reason: 'Hooks should be preserved',
+      );
       final hooks = json['hooks'] as Map<String, dynamic>;
       expect(hooks.containsKey('PreToolUse'), isTrue);
 
@@ -142,24 +172,31 @@ void main() {
       expect(allow, contains(newPattern));
     });
 
-    test('Permission dialog "Allow and remember" should persist non-write operations', () async {
-      // This test documents the expected behavior:
-      // When a user clicks "Allow and remember" for non-write operations (like Read, WebFetch, Bash),
-      // the pattern should be added to the persistent allow list via addToAllowList.
-      //
-      // Write operations (Write, Edit, MultiEdit) are handled differently - they go to session cache only.
-      //
-      // See: lib/modules/agent_network/network_execution_page.dart lines 209-229
+    test(
+      'Permission dialog "Allow and remember" should persist non-write operations',
+      () async {
+        // This test documents the expected behavior:
+        // When a user clicks "Allow and remember" for non-write operations (like Read, WebFetch, Bash),
+        // the pattern should be added to the persistent allow list via addToAllowList.
+        //
+        // Write operations (Write, Edit, MultiEdit) are handled differently - they go to session cache only.
+        //
+        // See: lib/modules/agent_network/network_execution_page.dart lines 209-229
 
-      final nonWritePattern = 'WebFetch(domain:api.example.com)';
+        final nonWritePattern = 'WebFetch(domain:api.example.com)';
 
-      // Act - simulate what happens when "Allow and remember" is clicked for a non-write operation
-      await settingsManager.addToAllowList(nonWritePattern);
+        // Act - simulate what happens when "Allow and remember" is clicked for a non-write operation
+        await settingsManager.addToAllowList(nonWritePattern);
 
-      // Assert - pattern should be persisted
-      final settings = await settingsManager.readSettings();
-      expect(settings.permissions.allow, contains(nonWritePattern),
-          reason: 'Non-write operations with "Allow and remember" should be persisted');
-    });
+        // Assert - pattern should be persisted
+        final settings = await settingsManager.readSettings();
+        expect(
+          settings.permissions.allow,
+          contains(nonWritePattern),
+          reason:
+              'Non-write operations with "Allow and remember" should be persisted',
+        );
+      },
+    );
   });
 }

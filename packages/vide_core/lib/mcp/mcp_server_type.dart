@@ -33,7 +33,8 @@ sealed class McpServerType {
   ///
   /// Use this for external MCP servers not managed by Vide CLI.
   /// The name should match the server's identifier in the MCP config.
-  static McpServerType custom(String serverName) => _CustomMcpServer._(serverName);
+  static McpServerType custom(String serverName) =>
+      _CustomMcpServer._(serverName);
 
   /// Get the server name/identifier
   String get serverName;
@@ -49,7 +50,9 @@ class _BuiltInMcpServer extends McpServerType {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is _BuiltInMcpServer && runtimeType == other.runtimeType && serverName == other.serverName;
+      other is _BuiltInMcpServer &&
+          runtimeType == other.runtimeType &&
+          serverName == other.serverName;
 
   @override
   int get hashCode => serverName.hashCode;
@@ -68,7 +71,9 @@ class _CustomMcpServer extends McpServerType {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is _CustomMcpServer && runtimeType == other.runtimeType && serverName == other.serverName;
+      other is _CustomMcpServer &&
+          runtimeType == other.runtimeType &&
+          serverName == other.serverName;
 
   @override
   int get hashCode => serverName.hashCode;

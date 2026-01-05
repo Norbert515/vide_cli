@@ -40,7 +40,8 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
 
   /// Abbreviates the path by replacing home directory with ~
   String _abbreviatePath(String fullPath) {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home != null && fullPath.startsWith(home)) {
       return '~${fullPath.substring(home.length)}';
     }
@@ -50,10 +51,14 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   void _handleSubmit(Message message) async {
     // Start a new agent network with the full message (preserves attachments)
     // This returns immediately - client creation happens in background
-    final network = await context.read(agentNetworkManagerProvider.notifier).startNew(message);
+    final network = await context
+        .read(agentNetworkManagerProvider.notifier)
+        .startNew(message);
 
     // Update the networks list
-    context.read(agentNetworksStateNotifierProvider.notifier).upsertNetwork(network);
+    context
+        .read(agentNetworksStateNotifierProvider.notifier)
+        .upsertNetwork(network);
 
     // Navigate to the execution page immediately
     await NetworkExecutionPage.push(context, network.id);
@@ -68,7 +73,8 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
     final abbreviatedPath = _abbreviatePath(currentDir);
 
     // Check if we should show project type (not unknown)
-    final showProjectType = projectType != null && projectType != ProjectType.unknown;
+    final showProjectType =
+        projectType != null && projectType != ProjectType.unknown;
 
     return Focusable(
       focused: true,
@@ -101,7 +107,9 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                   Text(
                     'Running in ',
                     style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
                     ),
                   ),
                   Text(
@@ -114,7 +122,9 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                   Text(
                     ' on ',
                     style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
                     ),
                   ),
                   GitBranchIndicator(repoPath: currentDir),
@@ -129,7 +139,9 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                     Text(
                       'Detected project type: ',
                       style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.tertiary,
+                        ),
                       ),
                     ),
                     _ProjectTypeBadge(projectType: projectType!),
@@ -148,7 +160,9 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
               const SizedBox(height: 2),
               Text(
                 'Tab: past networks & settings | Enter: start',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),
@@ -206,4 +220,3 @@ class _ProjectTypeBadge extends StatelessComponent {
     );
   }
 }
-

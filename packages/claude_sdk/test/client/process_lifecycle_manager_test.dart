@@ -36,10 +36,7 @@ void main() {
         // Start a mock process using a simple command
         await manager.startMockProcess();
 
-        expect(
-          () => manager.startMockProcess(),
-          throwsA(isA<StateError>()),
-        );
+        expect(() => manager.startMockProcess(), throwsA(isA<StateError>()));
       });
 
       test('sets activeProcess after starting', () async {

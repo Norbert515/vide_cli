@@ -34,7 +34,9 @@ void main() {
       });
 
       test('encodes slashes as hyphens', () {
-        final storageDir = configManager.getProjectStorageDir('/Users/bob/project');
+        final storageDir = configManager.getProjectStorageDir(
+          '/Users/bob/project',
+        );
 
         expect(storageDir, contains('-Users-bob-project'));
       });

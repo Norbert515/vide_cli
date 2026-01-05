@@ -11,11 +11,7 @@ final commandRegistryProvider = Provider<CommandRegistry>((ref) {
   final registry = CommandRegistry();
 
   // Register built-in commands
-  registry.registerAll([
-    ClearCommand(),
-    CompactCommand(),
-    ExitCommand(),
-  ]);
+  registry.registerAll([ClearCommand(), CompactCommand(), ExitCommand()]);
 
   return registry;
 });

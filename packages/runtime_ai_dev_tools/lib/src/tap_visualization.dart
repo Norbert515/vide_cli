@@ -92,7 +92,8 @@ class TapVisualizationService {
   }
 
   /// Shows an animated scroll path from start to end
-  void showScrollPath(BuildContext context, Offset start, Offset end, Duration duration) {
+  void showScrollPath(
+      BuildContext context, Offset start, Offset end, Duration duration) {
     // Remove any existing scroll path overlay
     _scrollPathOverlay?.remove();
     _scrollPathOverlay = null;
@@ -116,10 +117,12 @@ class TapVisualizationService {
         if (_scrollPathOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollPathOverlay!);
-          print('✅ [TapVisualization] Scroll path overlay inserted successfully');
+          print(
+              '✅ [TapVisualization] Scroll path overlay inserted successfully');
         }
       } catch (e) {
-        print('⚠️  [TapVisualization] Failed to insert scroll path overlay: $e');
+        print(
+            '⚠️  [TapVisualization] Failed to insert scroll path overlay: $e');
       }
     });
   }
@@ -142,7 +145,8 @@ class TapVisualizationService {
           print('✅ [TapVisualization] Scroll end indicator set');
         }
       } catch (e) {
-        print('⚠️  [TapVisualization] Failed to insert scroll end indicator: $e');
+        print(
+            '⚠️  [TapVisualization] Failed to insert scroll end indicator: $e');
       }
     });
   }
@@ -235,10 +239,12 @@ class _TapVisualizationState extends State<_TapVisualization>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.blue.withValues(alpha: _opacityAnimation.value),
+                      color: Colors.blue
+                          .withValues(alpha: _opacityAnimation.value),
                       width: 2,
                     ),
-                    color: Colors.blue.withValues(alpha: _opacityAnimation.value * 0.3),
+                    color: Colors.blue
+                        .withValues(alpha: _opacityAnimation.value * 0.3),
                   ),
                 ),
               ),
@@ -335,7 +341,8 @@ class _ScrollPathVisualization extends StatefulWidget {
   });
 
   @override
-  State<_ScrollPathVisualization> createState() => _ScrollPathVisualizationState();
+  State<_ScrollPathVisualization> createState() =>
+      _ScrollPathVisualizationState();
 }
 
 class _ScrollPathVisualizationState extends State<_ScrollPathVisualization>
@@ -357,7 +364,8 @@ class _ScrollPathVisualizationState extends State<_ScrollPathVisualization>
     );
 
     // Line drawing happens during the scroll duration
-    final drawEndTime = widget.duration.inMilliseconds / totalDuration.inMilliseconds;
+    final drawEndTime =
+        widget.duration.inMilliseconds / totalDuration.inMilliseconds;
     _progressAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,

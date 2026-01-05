@@ -14,26 +14,38 @@ void main() {
 
     group('processResponse', () {
       group('TextResponse', () {
-        test('adds new assistant message when no existing assistant message', () {
-          final conversation = Conversation.empty();
-          final response = TextResponse(
-            id: 'text-1',
-            timestamp: DateTime.now(),
-            content: 'Hello, world!',
-          );
+        test(
+          'adds new assistant message when no existing assistant message',
+          () {
+            final conversation = Conversation.empty();
+            final response = TextResponse(
+              id: 'text-1',
+              timestamp: DateTime.now(),
+              content: 'Hello, world!',
+            );
 
-          final result = processor.processResponse(response, conversation);
+            final result = processor.processResponse(response, conversation);
 
-          expect(result.updatedConversation.messages.length, equals(1));
-          expect(
-            result.updatedConversation.messages.last.role,
-            equals(MessageRole.assistant),
-          );
-          expect(result.updatedConversation.messages.last.content, equals('Hello, world!'));
-          expect(result.updatedConversation.messages.last.isStreaming, isTrue);
-          expect(result.updatedConversation.state, equals(ConversationState.receivingResponse));
-          expect(result.turnComplete, isFalse);
-        });
+            expect(result.updatedConversation.messages.length, equals(1));
+            expect(
+              result.updatedConversation.messages.last.role,
+              equals(MessageRole.assistant),
+            );
+            expect(
+              result.updatedConversation.messages.last.content,
+              equals('Hello, world!'),
+            );
+            expect(
+              result.updatedConversation.messages.last.isStreaming,
+              isTrue,
+            );
+            expect(
+              result.updatedConversation.state,
+              equals(ConversationState.receivingResponse),
+            );
+            expect(result.turnComplete, isFalse);
+          },
+        );
 
         test('updates existing streaming assistant message', () {
           // Start with an assistant message already streaming
@@ -63,8 +75,14 @@ void main() {
 
           expect(result.updatedConversation.messages.length, equals(1));
           expect(result.updatedConversation.messages.last.id, equals('msg-1'));
-          expect(result.updatedConversation.messages.last.responses.length, equals(2));
-          expect(result.updatedConversation.messages.last.content, equals('Hello, world!'));
+          expect(
+            result.updatedConversation.messages.last.responses.length,
+            equals(2),
+          );
+          expect(
+            result.updatedConversation.messages.last.content,
+            equals('Hello, world!'),
+          );
           expect(result.turnComplete, isFalse);
         });
 
@@ -96,7 +114,10 @@ void main() {
           final result = processor.processResponse(response, conversation);
 
           expect(result.updatedConversation.messages.length, equals(2));
-          expect(result.updatedConversation.messages.last.content, equals('New message'));
+          expect(
+            result.updatedConversation.messages.last.content,
+            equals('New message'),
+          );
           expect(result.updatedConversation.messages.last.isStreaming, isTrue);
         });
 
@@ -134,20 +155,41 @@ void main() {
           // Verify tokens are accumulated (totals)
           expect(result.updatedConversation.totalInputTokens, equals(150));
           expect(result.updatedConversation.totalOutputTokens, equals(80));
-          expect(result.updatedConversation.totalCacheReadInputTokens, equals(15));
-          expect(result.updatedConversation.totalCacheCreationInputTokens, equals(30));
+          expect(
+            result.updatedConversation.totalCacheReadInputTokens,
+            equals(15),
+          );
+          expect(
+            result.updatedConversation.totalCacheCreationInputTokens,
+            equals(30),
+          );
 
           // Verify current context values are set (replaced, not accumulated)
-          expect(result.updatedConversation.currentContextInputTokens, equals(50));
-          expect(result.updatedConversation.currentContextCacheReadTokens, equals(5));
-          expect(result.updatedConversation.currentContextCacheCreationTokens, equals(10));
-          expect(result.updatedConversation.currentContextWindowTokens, equals(65)); // 50 + 5 + 10
+          expect(
+            result.updatedConversation.currentContextInputTokens,
+            equals(50),
+          );
+          expect(
+            result.updatedConversation.currentContextCacheReadTokens,
+            equals(5),
+          );
+          expect(
+            result.updatedConversation.currentContextCacheCreationTokens,
+            equals(10),
+          );
+          expect(
+            result.updatedConversation.currentContextWindowTokens,
+            equals(65),
+          ); // 50 + 5 + 10
 
           // Verify turn is complete
           expect(result.turnComplete, isTrue);
           expect(result.updatedConversation.messages.last.isStreaming, isFalse);
           expect(result.updatedConversation.messages.last.isComplete, isTrue);
-          expect(result.updatedConversation.state, equals(ConversationState.idle));
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.idle),
+          );
         });
 
         test('does not mark turn complete for tool_use stop_reason', () {
@@ -167,10 +209,7 @@ void main() {
               'type': 'assistant',
               'message': {
                 'stop_reason': 'tool_use',
-                'usage': {
-                  'input_tokens': 50,
-                  'output_tokens': 30,
-                },
+                'usage': {'input_tokens': 50, 'output_tokens': 30},
               },
             },
           );
@@ -202,13 +241,20 @@ void main() {
           final result = processor.processResponse(response, conversation);
 
           expect(result.updatedConversation.messages.length, equals(1));
-          expect(result.updatedConversation.messages.last.role, equals(MessageRole.assistant));
+          expect(
+            result.updatedConversation.messages.last.role,
+            equals(MessageRole.assistant),
+          );
           expect(result.updatedConversation.messages.last.isStreaming, isTrue);
-          expect(result.updatedConversation.state, equals(ConversationState.processing));
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.processing),
+          );
           expect(result.turnComplete, isFalse);
 
           // Verify tool invocation is accessible
-          final invocations = result.updatedConversation.messages.last.toolInvocations;
+          final invocations =
+              result.updatedConversation.messages.last.toolInvocations;
           expect(invocations.length, equals(1));
           expect(invocations.first.toolCall.toolName, equals('Read'));
         });
@@ -241,8 +287,14 @@ void main() {
           final result = processor.processResponse(response, conversation);
 
           expect(result.updatedConversation.messages.length, equals(1));
-          expect(result.updatedConversation.messages.last.responses.length, equals(2));
-          expect(result.updatedConversation.state, equals(ConversationState.processing));
+          expect(
+            result.updatedConversation.messages.last.responses.length,
+            equals(2),
+          );
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.processing),
+          );
         });
       });
 
@@ -276,15 +328,25 @@ void main() {
           final result = processor.processResponse(response, conversation);
 
           expect(result.updatedConversation.messages.length, equals(1));
-          expect(result.updatedConversation.messages.last.responses.length, equals(2));
-          expect(result.updatedConversation.state, equals(ConversationState.processing));
+          expect(
+            result.updatedConversation.messages.last.responses.length,
+            equals(2),
+          );
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.processing),
+          );
           expect(result.turnComplete, isFalse);
 
           // Verify tool invocation is complete
-          final invocations = result.updatedConversation.messages.last.toolInvocations;
+          final invocations =
+              result.updatedConversation.messages.last.toolInvocations;
           expect(invocations.length, equals(1));
           expect(invocations.first.toolResult, isNotNull);
-          expect(invocations.first.toolResult!.content, equals('File contents here'));
+          expect(
+            invocations.first.toolResult!.content,
+            equals('File contents here'),
+          );
         });
 
         test('handles tool error result', () {
@@ -315,7 +377,8 @@ void main() {
 
           final result = processor.processResponse(response, conversation);
 
-          final invocations = result.updatedConversation.messages.last.toolInvocations;
+          final invocations =
+              result.updatedConversation.messages.last.toolInvocations;
           expect(invocations.first.toolResult!.isError, isTrue);
         });
       });
@@ -351,7 +414,10 @@ void main() {
           expect(result.turnComplete, isTrue);
           expect(result.updatedConversation.messages.last.isStreaming, isFalse);
           expect(result.updatedConversation.messages.last.isComplete, isTrue);
-          expect(result.updatedConversation.state, equals(ConversationState.idle));
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.idle),
+          );
         });
 
         test('updates token counts', () {
@@ -450,9 +516,18 @@ void main() {
           expect(result.turnComplete, isTrue);
           expect(result.updatedConversation.messages.last.isStreaming, isFalse);
           expect(result.updatedConversation.messages.last.isComplete, isTrue);
-          expect(result.updatedConversation.messages.last.error, equals('Rate limit exceeded'));
-          expect(result.updatedConversation.state, equals(ConversationState.error));
-          expect(result.updatedConversation.currentError, equals('Rate limit exceeded'));
+          expect(
+            result.updatedConversation.messages.last.error,
+            equals('Rate limit exceeded'),
+          );
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.error),
+          );
+          expect(
+            result.updatedConversation.currentError,
+            equals('Rate limit exceeded'),
+          );
         });
 
         test('creates new message when no existing assistant message', () {
@@ -466,7 +541,10 @@ void main() {
           final result = processor.processResponse(response, conversation);
 
           expect(result.updatedConversation.messages.length, equals(1));
-          expect(result.updatedConversation.messages.last.error, equals('Connection failed'));
+          expect(
+            result.updatedConversation.messages.last.error,
+            equals('Connection failed'),
+          );
           expect(result.turnComplete, isTrue);
         });
       });
@@ -500,7 +578,10 @@ void main() {
 
           // Status responses should not modify the conversation
           expect(result.updatedConversation.messages.length, equals(1));
-          expect(result.updatedConversation.messages.last.responses.length, equals(1));
+          expect(
+            result.updatedConversation.messages.last.responses.length,
+            equals(1),
+          );
           expect(result.turnComplete, isFalse);
         });
       });
@@ -539,25 +620,34 @@ void main() {
       });
 
       group('edge cases', () {
-        test('handles user message as last message (creates new assistant message)', () {
-          final userMessage = ConversationMessage.user(content: 'Hello');
-          final conversation = Conversation(
-            messages: [userMessage],
-            state: ConversationState.sendingMessage,
-          );
+        test(
+          'handles user message as last message (creates new assistant message)',
+          () {
+            final userMessage = ConversationMessage.user(content: 'Hello');
+            final conversation = Conversation(
+              messages: [userMessage],
+              state: ConversationState.sendingMessage,
+            );
 
-          final response = TextResponse(
-            id: 'text-1',
-            timestamp: DateTime.now(),
-            content: 'Hi there!',
-          );
+            final response = TextResponse(
+              id: 'text-1',
+              timestamp: DateTime.now(),
+              content: 'Hi there!',
+            );
 
-          final result = processor.processResponse(response, conversation);
+            final result = processor.processResponse(response, conversation);
 
-          expect(result.updatedConversation.messages.length, equals(2));
-          expect(result.updatedConversation.messages.first.role, equals(MessageRole.user));
-          expect(result.updatedConversation.messages.last.role, equals(MessageRole.assistant));
-        });
+            expect(result.updatedConversation.messages.length, equals(2));
+            expect(
+              result.updatedConversation.messages.first.role,
+              equals(MessageRole.user),
+            );
+            expect(
+              result.updatedConversation.messages.last.role,
+              equals(MessageRole.assistant),
+            );
+          },
+        );
 
         test('handles multiple sequential text responses', () {
           var conversation = Conversation.empty();
@@ -590,7 +680,10 @@ void main() {
           conversation = result.updatedConversation;
 
           expect(conversation.messages.length, equals(1));
-          expect(conversation.messages.last.content, equals('Hello, how are you?'));
+          expect(
+            conversation.messages.last.content,
+            equals('Hello, how are you?'),
+          );
           expect(conversation.messages.last.responses.length, equals(3));
         });
 
@@ -640,7 +733,10 @@ void main() {
           expect(conversation.messages.length, equals(1));
           expect(conversation.messages.last.responses.length, equals(4));
           expect(conversation.messages.last.toolInvocations.length, equals(1));
-          expect(conversation.messages.last.toolInvocations.first.toolResult, isNotNull);
+          expect(
+            conversation.messages.last.toolInvocations.first.toolResult,
+            isNotNull,
+          );
         });
       });
     });
@@ -718,21 +814,28 @@ void main() {
 
       expect(conversation.messages.length, equals(1));
       expect(conversation.messages[0].role, equals(MessageRole.system));
-      expect(conversation.messages[0].messageType, equals(MessageType.compactBoundary));
+      expect(
+        conversation.messages[0].messageType,
+        equals(MessageType.compactBoundary),
+      );
       expect(conversation.messages[0].content, contains('Compacted'));
 
       // 2. Receive continuation summary (user message)
       final userSummary = UserMessageResponse(
         id: 'user-1',
         timestamp: DateTime.now(),
-        content: 'This session is being continued from a previous conversation...',
+        content:
+            'This session is being continued from a previous conversation...',
       );
       result = processor.processResponse(userSummary, conversation);
       conversation = result.updatedConversation;
 
       expect(conversation.messages.length, equals(2));
       expect(conversation.messages[1].role, equals(MessageRole.user));
-      expect(conversation.messages[1].content, contains('continued from a previous'));
+      expect(
+        conversation.messages[1].content,
+        contains('continued from a previous'),
+      );
     });
 
     test('e2e: parse streaming JSON and process through ResponseProcessor', () {
@@ -742,17 +845,15 @@ void main() {
         'subtype': 'compact_boundary',
         'session_id': 'test-session',
         'uuid': 'compact-uuid-123',
-        'compact_metadata': {
-          'trigger': 'manual',
-          'pre_tokens': 51185,
-        },
+        'compact_metadata': {'trigger': 'manual', 'pre_tokens': 51185},
       };
 
       final userSummaryJson = {
         'type': 'user',
         'message': {
           'role': 'user',
-          'content': 'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\nAnalysis: ...',
+          'content':
+              'This session is being continued from a previous conversation that ran out of context. The conversation is summarized below:\nAnalysis: ...',
         },
         'session_id': 'test-session',
         'parent_tool_use_id': null,
@@ -773,7 +874,10 @@ void main() {
       expect(compactBoundary.preTokens, equals(51185));
 
       final userMessage = userResponse as UserMessageResponse;
-      expect(userMessage.content, contains('continued from a previous conversation'));
+      expect(
+        userMessage.content,
+        contains('continued from a previous conversation'),
+      );
 
       // Process through ResponseProcessor
       var conversation = Conversation.empty();
@@ -786,43 +890,61 @@ void main() {
 
       // Verify final state
       expect(conversation.messages.length, equals(2));
-      expect(conversation.messages[0].role, equals(MessageRole.system)); // compact boundary
-      expect(conversation.messages[0].messageType, equals(MessageType.compactBoundary));
+      expect(
+        conversation.messages[0].role,
+        equals(MessageRole.system),
+      ); // compact boundary
+      expect(
+        conversation.messages[0].messageType,
+        equals(MessageType.compactBoundary),
+      );
       expect(conversation.messages[0].content, contains('Compacted'));
-      expect(conversation.messages[1].role, equals(MessageRole.user)); // continuation summary
-      expect(conversation.messages[1].content, contains('continued from a previous'));
+      expect(
+        conversation.messages[1].role,
+        equals(MessageRole.user),
+      ); // continuation summary
+      expect(
+        conversation.messages[1].content,
+        contains('continued from a previous'),
+      );
     });
 
-    test('e2e: user message without isCompactSummary flag is still processed', () {
-      // This is the key test - streaming doesn't include isCompactSummary flag
-      final userJson = {
-        'type': 'user',
-        'message': {
-          'role': 'user',
-          'content': 'Some user message content',
-        },
-        'session_id': 'test-session',
-        'uuid': 'user-123',
-        // Note: NO isCompactSummary field!
-      };
+    test(
+      'e2e: user message without isCompactSummary flag is still processed',
+      () {
+        // This is the key test - streaming doesn't include isCompactSummary flag
+        final userJson = {
+          'type': 'user',
+          'message': {'role': 'user', 'content': 'Some user message content'},
+          'session_id': 'test-session',
+          'uuid': 'user-123',
+          // Note: NO isCompactSummary field!
+        };
 
-      final response = ClaudeResponse.fromJson(userJson);
+        final response = ClaudeResponse.fromJson(userJson);
 
-      // Should be parsed as UserMessageResponse (not UnknownResponse!)
-      expect(response, isA<UserMessageResponse>());
-      expect(response, isNot(isA<UnknownResponse>()));
+        // Should be parsed as UserMessageResponse (not UnknownResponse!)
+        expect(response, isA<UserMessageResponse>());
+        expect(response, isNot(isA<UnknownResponse>()));
 
-      final userMessage = response as UserMessageResponse;
-      expect(userMessage.content, equals('Some user message content'));
+        final userMessage = response as UserMessageResponse;
+        expect(userMessage.content, equals('Some user message content'));
 
-      // Process it
-      final conversation = Conversation.empty();
-      final result = processor.processResponse(response, conversation);
+        // Process it
+        final conversation = Conversation.empty();
+        final result = processor.processResponse(response, conversation);
 
-      // Should be added to conversation
-      expect(result.updatedConversation.messages.length, equals(1));
-      expect(result.updatedConversation.messages[0].role, equals(MessageRole.user));
-      expect(result.updatedConversation.messages[0].content, equals('Some user message content'));
-    });
+        // Should be added to conversation
+        expect(result.updatedConversation.messages.length, equals(1));
+        expect(
+          result.updatedConversation.messages[0].role,
+          equals(MessageRole.user),
+        );
+        expect(
+          result.updatedConversation.messages[0].content,
+          equals('Some user message content'),
+        );
+      },
+    );
   });
 }

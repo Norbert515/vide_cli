@@ -15,7 +15,12 @@ class NetworksListPage extends StatefulComponent {
   const NetworksListPage({super.key});
 
   static Future push(BuildContext context) async {
-    return Navigator.of(context).push(PageRoute(builder: (context) => NetworksListPage(), settings: RouteSettings()));
+    return Navigator.of(context).push(
+      PageRoute(
+        builder: (context) => NetworksListPage(),
+        settings: RouteSettings(),
+      ),
+    );
   }
 
   @override
@@ -48,7 +53,9 @@ class _NetworksListPageState extends State<NetworksListPage> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final allNetworks = context.watch(agentNetworksStateNotifierProvider).networks;
+    final allNetworks = context
+        .watch(agentNetworksStateNotifierProvider)
+        .networks;
 
     // Get current directory name
     final currentDir = Directory.current.path;
@@ -62,7 +69,10 @@ class _NetworksListPageState extends State<NetworksListPage> {
           // Centered title with underline
           Text(
             dirName,
-            style: TextStyle(decoration: TextDecoration.underline, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              decoration: TextDecoration.underline,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           SizedBox(height: 1),
           // Memory, Theme, and Streaming row
@@ -82,7 +92,9 @@ class _NetworksListPageState extends State<NetworksListPage> {
                 final configManager = context.read(videConfigManagerProvider);
                 final currentSettings = configManager.readGlobalSettings();
                 configManager.writeGlobalSettings(
-                  currentSettings.copyWith(enableStreaming: !currentSettings.enableStreaming),
+                  currentSettings.copyWith(
+                    enableStreaming: !currentSettings.enableStreaming,
+                  ),
                 );
                 setState(() {}); // Trigger rebuild to update badge
                 return true;
@@ -104,7 +116,9 @@ class _NetworksListPageState extends State<NetworksListPage> {
           // Help text
           Text(
             'Esc: home | Backspace×2: delete | V: memories | T: theme | S: streaming',
-            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
           ),
           SizedBox(height: 2),
           Expanded(child: _NetworksListContent(networks: allNetworks)),
@@ -133,8 +147,12 @@ class _NetworksListContentState extends State<_NetworksListContent> {
   void didUpdateComponent(_NetworksListContent oldComponent) {
     super.didUpdateComponent(oldComponent);
     // Clamp selection if list length changed
-    if (component.networks.isNotEmpty && selectedIndex >= component.networks.length) {
-      selectedIndex = (component.networks.length - 1).clamp(0, component.networks.length - 1);
+    if (component.networks.isNotEmpty &&
+        selectedIndex >= component.networks.length) {
+      selectedIndex = (component.networks.length - 1).clamp(
+        0,
+        component.networks.length - 1,
+      );
     }
   }
 
@@ -146,7 +164,9 @@ class _NetworksListContentState extends State<_NetworksListContent> {
       return Center(
         child: Text(
           'No networks yet. Press Esc to create one.',
-          style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+          style: TextStyle(
+            color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+          ),
         ),
       );
     }
@@ -154,18 +174,26 @@ class _NetworksListContentState extends State<_NetworksListContent> {
     return Focusable(
       focused: true,
       onKeyEvent: (event) {
-        if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+        if (event.logicalKey == LogicalKey.arrowDown ||
+            event.logicalKey == LogicalKey.keyJ) {
           setState(() {
             selectedIndex++;
-            selectedIndex = selectedIndex.clamp(0, component.networks.length - 1);
+            selectedIndex = selectedIndex.clamp(
+              0,
+              component.networks.length - 1,
+            );
             pendingDeleteIndex = null;
             scrollController.ensureIndexVisible(index: selectedIndex);
           });
           return true;
-        } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+        } else if (event.logicalKey == LogicalKey.arrowUp ||
+            event.logicalKey == LogicalKey.keyK) {
           setState(() {
             selectedIndex--;
-            selectedIndex = selectedIndex.clamp(0, component.networks.length - 1);
+            selectedIndex = selectedIndex.clamp(
+              0,
+              component.networks.length - 1,
+            );
             pendingDeleteIndex = null;
             scrollController.ensureIndexVisible(index: selectedIndex);
           });
@@ -173,11 +201,16 @@ class _NetworksListContentState extends State<_NetworksListContent> {
         } else if (event.logicalKey == LogicalKey.backspace) {
           if (pendingDeleteIndex == selectedIndex) {
             // Second press - actually delete the network
-            context.read(agentNetworksStateNotifierProvider.notifier).deleteNetwork(selectedIndex);
+            context
+                .read(agentNetworksStateNotifierProvider.notifier)
+                .deleteNetwork(selectedIndex);
             setState(() {
               pendingDeleteIndex = null;
               if (selectedIndex >= component.networks.length - 1) {
-                selectedIndex = (component.networks.length - 2).clamp(0, component.networks.length - 1);
+                selectedIndex = (component.networks.length - 2).clamp(
+                  0,
+                  component.networks.length - 1,
+                );
               }
             });
           } else {
@@ -190,9 +223,12 @@ class _NetworksListContentState extends State<_NetworksListContent> {
         } else if (event.logicalKey == LogicalKey.enter) {
           final network = component.networks[selectedIndex];
           // Await resume to complete before navigating to prevent flash of empty state
-          context.read(agentNetworkManagerProvider.notifier).resume(network).then((_) {
-            NetworkExecutionPage.push(context, network.id);
-          });
+          context
+              .read(agentNetworkManagerProvider.notifier)
+              .resume(network)
+              .then((_) {
+                NetworkExecutionPage.push(context, network.id);
+              });
           return true;
         }
         return false;
@@ -235,10 +271,15 @@ class _MemoryBadge extends StatelessComponent {
         ),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: count > 0 ? theme.base.success : theme.base.surface),
+          decoration: BoxDecoration(
+            color: count > 0 ? theme.base.success : theme.base.surface,
+          ),
           child: Text(
             count.toString(),
-            style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -297,7 +338,10 @@ class _ThemeBadge extends StatelessComponent {
           decoration: BoxDecoration(color: theme.base.primary),
           child: Text(
             displayName,
-            style: TextStyle(color: theme.base.onPrimary, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.onPrimary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -321,14 +365,22 @@ class _StreamingBadge extends StatelessComponent {
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(color: theme.base.outline),
-          child: Text('Streaming', style: TextStyle(color: theme.base.onSurface)),
+          child: Text(
+            'Streaming',
+            style: TextStyle(color: theme.base.onSurface),
+          ),
         ),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: isEnabled ? theme.base.success : theme.base.error),
+          decoration: BoxDecoration(
+            color: isEnabled ? theme.base.success : theme.base.error,
+          ),
           child: Text(
             isEnabled ? 'On' : 'Off',
-            style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],

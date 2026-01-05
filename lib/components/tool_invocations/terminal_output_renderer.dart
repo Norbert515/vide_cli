@@ -73,7 +73,10 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
     // Parse output - process carriage returns first to handle terminal overwrites
     final resultContent = component.invocation.resultContent ?? '';
     final processedContent = _processCarriageReturns(resultContent);
-    final lines = processedContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
+    final lines = processedContent
+        .split('\n')
+        .where((l) => l.trim().isNotEmpty)
+        .toList();
 
     // If no lines, fallback to default
     if (lines.isEmpty) {
@@ -110,17 +113,27 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
         Text('●', style: TextStyle(color: statusColor)),
         SizedBox(width: 1),
         // Tool name
-        Text(component.invocation.displayName, style: TextStyle(color: Colors.white)),
+        Text(
+          component.invocation.displayName,
+          style: TextStyle(color: Colors.white),
+        ),
         if (component.invocation.parameters.isNotEmpty) ...[
           Flexible(
             child: Text(
               '(${_getParameterPreview()}',
-              style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+              style: TextStyle(
+                color: Colors.white.withOpacity(TextOpacity.tertiary),
+              ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
           ),
-          Text(')', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary))),
+          Text(
+            ')',
+            style: TextStyle(
+              color: Colors.white.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
         ],
       ],
     );
@@ -128,7 +141,9 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
   Component _buildOutput(List<String> lines) {
     // Show last 3 lines when collapsed (so user sees most recent output)
-    final displayLines = isExpanded ? lines : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
+    final displayLines = isExpanded
+        ? lines
+        : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
     final hasMore = lines.length > 3;
 
     return Container(
@@ -157,11 +172,17 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
           // Show line count if collapsed with more lines
           if (!isExpanded && hasMore)
-            Text('(${lines.length} total)', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+            Text(
+              '(${lines.length} total)',
+              style: TextStyle(color: Colors.white.withOpacity(0.4)),
+            ),
 
           // Show line count if expanded and exceeds 8 lines
           if (isExpanded && lines.length > 8)
-            Text('(${lines.length} total)', style: TextStyle(color: Colors.white.withOpacity(0.4))),
+            Text(
+              '(${lines.length} total)',
+              style: TextStyle(color: Colors.white.withOpacity(0.4)),
+            ),
         ],
       ),
     );

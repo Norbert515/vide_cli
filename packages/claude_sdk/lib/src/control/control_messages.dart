@@ -139,7 +139,10 @@ class ControlResponse {
     this.error,
   });
 
-  factory ControlResponse.success(String requestId, Map<String, dynamic> response) {
+  factory ControlResponse.success(
+    String requestId,
+    Map<String, dynamic> response,
+  ) {
     return ControlResponse(
       requestId: requestId,
       success: true,
@@ -148,11 +151,7 @@ class ControlResponse {
   }
 
   factory ControlResponse.error(String requestId, String error) {
-    return ControlResponse(
-      requestId: requestId,
-      success: false,
-      error: error,
-    );
+    return ControlResponse(requestId: requestId, success: false, error: error);
   }
 
   Map<String, dynamic> toJson() => {
@@ -181,10 +180,6 @@ class OutgoingControlRequest {
   Map<String, dynamic> toJson() => {
     'type': 'control_request',
     'request_id': requestId,
-    'request': {
-      'subtype': subtype,
-      ...data,
-    },
+    'request': {'subtype': subtype, ...data},
   };
 }
-

@@ -240,27 +240,21 @@ void main() {
 
     test('creates typed invocations for known tools', () {
       final responses = <ClaudeResponse>[
-        createToolUseResponse(
-          'Write',
-          {'file_path': '/test.dart', 'content': 'code'},
-          toolUseId: 't1',
-        ),
+        createToolUseResponse('Write', {
+          'file_path': '/test.dart',
+          'content': 'code',
+        }, toolUseId: 't1'),
         createToolResultResponse('t1', 'Written'),
-        createToolUseResponse(
-          'Edit',
-          {
-            'file_path': '/test.dart',
-            'old_string': 'old',
-            'new_string': 'new',
-          },
-          toolUseId: 't2',
-        ),
+        createToolUseResponse('Edit', {
+          'file_path': '/test.dart',
+          'old_string': 'old',
+          'new_string': 'new',
+        }, toolUseId: 't2'),
         createToolResultResponse('t2', 'Edited'),
-        createToolUseResponse(
-          'mcp__vide-agent__spawnAgent',
-          {'agentType': 'implementation', 'initialPrompt': 'Do stuff'},
-          toolUseId: 't3',
-        ),
+        createToolUseResponse('mcp__vide-agent__spawnAgent', {
+          'agentType': 'implementation',
+          'initialPrompt': 'Do stuff',
+        }, toolUseId: 't3'),
         createToolResultResponse('t3', 'Spawned'),
       ];
 
@@ -473,8 +467,7 @@ void main() {
       final sending = conversation.withState(ConversationState.sendingMessage);
       expect(sending.state, equals(ConversationState.sendingMessage));
 
-      final receiving =
-          sending.withState(ConversationState.receivingResponse);
+      final receiving = sending.withState(ConversationState.receivingResponse);
       expect(receiving.state, equals(ConversationState.receivingResponse));
 
       final idle = receiving.withState(ConversationState.idle);
@@ -494,8 +487,9 @@ void main() {
     test('preserves error when null is passed due to copyWith behavior', () {
       // Note: Due to how copyWith works (currentError ?? this.currentError),
       // passing null doesn't actually clear the error. Use clearError() instead.
-      final conversation =
-          Conversation.empty().withError('Error').withState(ConversationState.idle);
+      final conversation = Conversation.empty()
+          .withError('Error')
+          .withState(ConversationState.idle);
       final withNullError = conversation.withError(null);
 
       // State is preserved when error is null
@@ -506,17 +500,20 @@ void main() {
   });
 
   group('Conversation.clearError', () {
-    test('resets state to idle but cannot clear error due to copyWith limitation', () {
-      // Note: clearError() calls copyWith(currentError: null), but due to
-      // null coalescing behavior in copyWith, the error is preserved.
-      // This is a known limitation of the current implementation.
-      final conversation = Conversation.empty().withError('Error');
-      final cleared = conversation.clearError();
+    test(
+      'resets state to idle but cannot clear error due to copyWith limitation',
+      () {
+        // Note: clearError() calls copyWith(currentError: null), but due to
+        // null coalescing behavior in copyWith, the error is preserved.
+        // This is a known limitation of the current implementation.
+        final conversation = Conversation.empty().withError('Error');
+        final cleared = conversation.clearError();
 
-      expect(cleared.state, equals(ConversationState.idle));
-      // Error is NOT cleared because copyWith uses null coalescing
-      expect(cleared.currentError, equals('Error'));
-    });
+        expect(cleared.state, equals(ConversationState.idle));
+        // Error is NOT cleared because copyWith uses null coalescing
+        expect(cleared.currentError, equals('Error'));
+      },
+    );
   });
 
   group('Conversation.copyWith', () {
@@ -608,8 +605,9 @@ void main() {
         isComplete: true,
       );
 
-      final conversation =
-          Conversation.empty().addMessage(user).addMessage(assistant);
+      final conversation = Conversation.empty()
+          .addMessage(user)
+          .addMessage(assistant);
 
       expect(conversation.lastUserMessage?.content, equals('Question'));
       expect(conversation.lastUserMessage?.role, equals(MessageRole.user));
@@ -623,8 +621,9 @@ void main() {
         isComplete: true,
       );
 
-      final conversation =
-          Conversation.empty().addMessage(user).addMessage(assistant);
+      final conversation = Conversation.empty()
+          .addMessage(user)
+          .addMessage(assistant);
 
       expect(conversation.lastAssistantMessage?.content, equals('Answer'));
       expect(

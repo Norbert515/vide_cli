@@ -48,9 +48,15 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   int selectedAgentIndex = 0;
 
-  Component _buildAgentChat(BuildContext context, AgentNetworkState networkState) {
+  Component _buildAgentChat(
+    BuildContext context,
+    AgentNetworkState networkState,
+  ) {
     // Clamp selectedAgentIndex to valid bounds after agents may have been removed
-    final safeIndex = selectedAgentIndex.clamp(0, networkState.agentIds.length - 1);
+    final safeIndex = selectedAgentIndex.clamp(
+      0,
+      networkState.agentIds.length - 1,
+    );
     if (safeIndex != selectedAgentIndex) {
       // Schedule index update for next frame to avoid setState during build
       Future.microtask(() {
@@ -77,7 +83,11 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                   SizedBox(width: 2),
                   Text(
                     '(Press ESC to stop)',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -100,7 +110,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   void _handleCtrlC() {
     final now = DateTime.now();
 
-    if (_lastCtrlCPress != null && now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
+    if (_lastCtrlCPress != null &&
+        now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
       // Second press within time window - quit app
       shutdownApp();
     } else {
@@ -126,7 +137,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   Component build(BuildContext context) {
     final networkState = context.watch(agentNetworkManagerProvider);
     final currentNetwork = networkState.currentNetwork;
-    final workingDirectory = context.read(agentNetworkManagerProvider.notifier).effectiveWorkingDirectory;
+    final workingDirectory = context
+        .read(agentNetworkManagerProvider.notifier)
+        .effectiveWorkingDirectory;
 
     // Display the network goal
     final goalText = currentNetwork?.goal ?? 'Loading...';
@@ -136,9 +149,11 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         focused: true,
         onKeyEvent: (event) {
           // Tab: Cycle through agents
-          if (event.logicalKey == LogicalKey.tab && networkState.agentIds.isNotEmpty) {
+          if (event.logicalKey == LogicalKey.tab &&
+              networkState.agentIds.isNotEmpty) {
             setState(() {
-              selectedAgentIndex = (selectedAgentIndex + 1) % networkState.agentIds.length;
+              selectedAgentIndex =
+                  (selectedAgentIndex + 1) % networkState.agentIds.length;
             });
             return true;
           }
@@ -170,7 +185,10 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                   ],
                 ),
                 Divider(),
-                RunningAgentsBar(agents: networkState.agents, selectedIndex: selectedAgentIndex),
+                RunningAgentsBar(
+                  agents: networkState.agents,
+                  selectedIndex: selectedAgentIndex,
+                ),
                 if (networkState.agentIds.isEmpty)
                   Center(child: Text('No agents'))
                 else
@@ -190,7 +208,13 @@ class _AgentChat extends StatefulComponent {
   final String networkId;
   final bool showQuitWarning;
 
-  const _AgentChat({required this.agentId, required this.client, required this.networkId, this.showQuitWarning = false, super.key});
+  const _AgentChat({
+    required this.agentId,
+    required this.client,
+    required this.networkId,
+    this.showQuitWarning = false,
+    super.key,
+  });
 
   @override
   State<_AgentChat> createState() => _AgentChatState();
@@ -210,7 +234,9 @@ class _AgentChatState extends State<_AgentChat> {
     super.initState();
 
     // Listen to conversation updates
-    _conversationSubscription = component.client.conversation.listen((conversation) {
+    _conversationSubscription = component.client.conversation.listen((
+      conversation,
+    ) {
       setState(() {
         _conversation = conversation;
       });
@@ -228,14 +254,17 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _syncTokenStats(Conversation conversation) {
-    context.read(agentNetworkManagerProvider.notifier).updateAgentTokenStats(
-      component.client.sessionId,
-      totalInputTokens: conversation.totalInputTokens,
-      totalOutputTokens: conversation.totalOutputTokens,
-      totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
-      totalCostUsd: conversation.totalCostUsd,
-    );
+    context
+        .read(agentNetworkManagerProvider.notifier)
+        .updateAgentTokenStats(
+          component.client.sessionId,
+          totalInputTokens: conversation.totalInputTokens,
+          totalOutputTokens: conversation.totalOutputTokens,
+          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+          totalCacheCreationInputTokens:
+              conversation.totalCacheCreationInputTokens,
+          totalCostUsd: conversation.totalCostUsd,
+        );
   }
 
   @override
@@ -294,10 +323,7 @@ class _AgentChatState extends State<_AgentChat> {
 
     // Convert to CommandSuggestion
     return matching.map((cmd) {
-      return CommandSuggestion(
-        name: cmd.name,
-        description: cmd.description,
-      );
+      return CommandSuggestion(name: cmd.name, description: cmd.description);
     }).toList();
   }
 
@@ -315,7 +341,13 @@ class _AgentChatState extends State<_AgentChat> {
     return null;
   }
 
-  void _handlePermissionResponse(PermissionRequest request, bool granted, bool remember, {String? patternOverride, String? denyReason}) async {
+  void _handlePermissionResponse(
+    PermissionRequest request,
+    bool granted,
+    bool remember, {
+    String? patternOverride,
+    String? denyReason,
+  }) async {
     final permissionService = context.read(permissionServiceProvider);
 
     // If remember and granted, decide where to store based on tool type
@@ -327,11 +359,13 @@ class _AgentChatState extends State<_AgentChat> {
       final input = ToolInput.fromJson(toolName, toolInput);
 
       // Check if this is a write operation
-      final isWriteOperation = toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
+      final isWriteOperation =
+          toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
 
       if (isWriteOperation) {
         // Add to session cache (in-memory only) using inferred pattern
-        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, input);
+        final pattern =
+            patternOverride ?? PatternInference.inferPattern(toolName, input);
         permissionService.addSessionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
@@ -340,7 +374,8 @@ class _AgentChatState extends State<_AgentChat> {
           parrottRoot: Platform.script.resolve('.').toFilePath(),
         );
 
-        final pattern = patternOverride ?? PatternInference.inferPattern(toolName, input);
+        final pattern =
+            patternOverride ?? PatternInference.inferPattern(toolName, input);
         await settingsManager.addToAllowList(pattern);
       }
     }
@@ -368,7 +403,10 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(permissionStateProvider.notifier).dequeueRequest();
   }
 
-  void _handleAskUserQuestionResponse(AskUserQuestionRequest request, Map<String, String> answers) {
+  void _handleAskUserQuestionResponse(
+    AskUserQuestionRequest request,
+    Map<String, String> answers,
+  ) {
     final askUserQuestionService = context.read(askUserQuestionServiceProvider);
 
     // Send the response back to the MCP tool
@@ -436,9 +474,7 @@ class _AgentChatState extends State<_AgentChat> {
             SizedBox(width: 1),
             Text(
               '(/compact)',
-              style: TextStyle(
-                color: theme.base.error.withOpacity(0.7),
-              ),
+              style: TextStyle(color: theme.base.error.withOpacity(0.7)),
             ),
           ],
         ],
@@ -455,14 +491,18 @@ class _AgentChatState extends State<_AgentChat> {
     final currentPermissionRequest = permissionQueueState.current;
 
     // Get the current AskUserQuestion queue state from the provider
-    final askUserQuestionQueueState = context.watch(askUserQuestionStateProvider);
+    final askUserQuestionQueueState = context.watch(
+      askUserQuestionStateProvider,
+    );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
       child: Container(
-        decoration: BoxDecoration(title: BorderTitle(text: component.key.toString())),
+        decoration: BoxDecoration(
+          title: BorderTitle(text: component.key.toString()),
+        ),
         child: Column(
           children: [
             // Messages area
@@ -474,10 +514,12 @@ class _AgentChatState extends State<_AgentChat> {
                 lazy: true,
                 children: [
                   // Todo list at the end (first in reversed list)
-                  if (_getLatestTodos() case final todos? when todos.isNotEmpty) TodoListComponent(todos: todos),
+                  if (_getLatestTodos() case final todos? when todos.isNotEmpty)
+                    TodoListComponent(todos: todos),
                   for (final message in _conversation.messages.reversed)
                     // Skip slash commands - they're handled internally
-                    if (!(message.role == MessageRole.user && message.content.startsWith('/')))
+                    if (!(message.role == MessageRole.user &&
+                        message.content.startsWith('/')))
                       _buildMessage(context, message),
                 ],
               ),
@@ -507,18 +549,25 @@ class _AgentChatState extends State<_AgentChat> {
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
-                        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                        style: TextStyle(
+                          color: theme.base.onSurface.withOpacity(
+                            TextOpacity.tertiary,
+                          ),
+                        ),
                       ),
                     ],
                   )
                 else
                   Text(' '), // Reserve 1 line when loading indicator is hidden
-
                 // Show quit warning if active
                 if (component.showQuitWarning)
                   Text(
                     '(Press Ctrl+C again to quit)',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
 
                 // Show AskUserQuestion dialog, permission dialog, or text field (priority order)
@@ -530,16 +579,27 @@ class _AgentChatState extends State<_AgentChat> {
                       // Show queue length if there are more questions waiting
                       if (askUserQuestionQueueState.queueLength > 1)
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 1,
+                            vertical: 0,
+                          ),
                           child: Text(
                             'Question 1 of ${askUserQuestionQueueState.queueLength} (${askUserQuestionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: theme.base.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       AskUserQuestionDialog(
                         request: currentAskUserQuestionRequest,
-                        onSubmit: (answers) => _handleAskUserQuestionResponse(currentAskUserQuestionRequest, answers),
-                        key: Key('ask_user_question_${currentAskUserQuestionRequest.requestId}'),
+                        onSubmit: (answers) => _handleAskUserQuestionResponse(
+                          currentAskUserQuestionRequest,
+                          answers,
+                        ),
+                        key: Key(
+                          'ask_user_question_${currentAskUserQuestionRequest.requestId}',
+                        ),
                       ),
                     ],
                   )
@@ -551,23 +611,43 @@ class _AgentChatState extends State<_AgentChat> {
                       // Show queue length if there are more requests waiting
                       if (permissionQueueState.queueLength > 1)
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 1,
+                            vertical: 0,
+                          ),
                           child: Text(
                             'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(color: theme.base.warning, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: theme.base.warning,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                       PermissionDialog.fromRequest(
                         request: currentPermissionRequest,
-                        onResponse: (granted, remember, {String? patternOverride, String? denyReason}) =>
-                            _handlePermissionResponse(currentPermissionRequest, granted, remember, patternOverride: patternOverride, denyReason: denyReason),
-                        key: Key('permission_${currentPermissionRequest.requestId}'),
+                        onResponse:
+                            (
+                              granted,
+                              remember, {
+                              String? patternOverride,
+                              String? denyReason,
+                            }) => _handlePermissionResponse(
+                              currentPermissionRequest,
+                              granted,
+                              remember,
+                              patternOverride: patternOverride,
+                              denyReason: denyReason,
+                            ),
+                        key: Key(
+                          'permission_${currentPermissionRequest.requestId}',
+                        ),
                       ),
                     ],
                   )
                 else
                   AttachmentTextField(
-                    enabled: true, // Always enabled - messages queue during processing
+                    enabled:
+                        true, // Always enabled - messages queue during processing
                     placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
                     onCommand: _handleCommand,
@@ -592,7 +672,9 @@ class _AgentChatState extends State<_AgentChat> {
                       style: TextStyle(
                         color: _commandResultIsError
                             ? theme.base.error
-                            : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                            : theme.base.onSurface.withOpacity(
+                                TextOpacity.secondary,
+                              ),
                       ),
                     ),
                   ),
@@ -614,7 +696,8 @@ class _AgentChatState extends State<_AgentChat> {
     if (message.messageType == MessageType.compactBoundary) {
       // Extract compact metadata for display
       final compactResponse =
-          message.responses.firstWhere((r) => r is CompactBoundaryResponse) as CompactBoundaryResponse;
+          message.responses.firstWhere((r) => r is CompactBoundaryResponse)
+              as CompactBoundaryResponse;
       final trigger = compactResponse.trigger;
       final preTokens = compactResponse.preTokens;
 
@@ -627,7 +710,11 @@ class _AgentChatState extends State<_AgentChat> {
                 Expanded(
                   child: Text(
                     '────────────── Conversation Compacted ($trigger) ──────────────',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -635,7 +722,9 @@ class _AgentChatState extends State<_AgentChat> {
             if (preTokens > 0)
               Text(
                 'Previous context: ${(preTokens / 1000).toStringAsFixed(0)}k tokens',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
               ),
           ],
         ),
@@ -655,11 +744,16 @@ class _AgentChatState extends State<_AgentChat> {
           children: [
             Text(
               '📋 Continuation Summary',
-              style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: theme.base.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
               summaryPreview,
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
           ],
         ),
@@ -672,12 +766,19 @@ class _AgentChatState extends State<_AgentChat> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('> ${message.content}', style: TextStyle(color: theme.base.onSurface)),
+            Text(
+              '> ${message.content}',
+              style: TextStyle(color: theme.base.onSurface),
+            ),
             if (message.attachments != null && message.attachments!.isNotEmpty)
               for (var attachment in message.attachments!)
                 Text(
                   '  📎 ${attachment.path ?? "image"}',
-                  style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                  style: TextStyle(
+                    color: theme.base.onSurface.withOpacity(
+                      TextOpacity.secondary,
+                    ),
+                  ),
                 ),
           ],
         ),
@@ -705,7 +806,8 @@ class _AgentChatState extends State<_AgentChat> {
         final text = textBuffer.toString();
         if (text.isNotEmpty) {
           // Check for context-full errors and add helpful hint
-          final isContextFullError = text.toLowerCase().contains('prompt is too long') ||
+          final isContextFullError =
+              text.toLowerCase().contains('prompt is too long') ||
               text.toLowerCase().contains('context window') ||
               text.toLowerCase().contains('token limit');
 
@@ -751,10 +853,15 @@ class _AgentChatState extends State<_AgentChat> {
           flushTextSegment();
 
           // Check if we have a result for this tool call
-          final result = response.toolUseId != null ? toolResultsById[response.toolUseId] : null;
+          final result = response.toolUseId != null
+              ? toolResultsById[response.toolUseId]
+              : null;
 
           // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(response, result);
+          final invocation = ConversationMessage.createTypedInvocation(
+            response,
+            result,
+          );
 
           widgets.add(
             ToolInvocationRouter(
@@ -776,7 +883,10 @@ class _AgentChatState extends State<_AgentChat> {
             widgets.add(
               Container(
                 padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text('[orphaned result: ${response.content}]', style: TextStyle(color: theme.base.error)),
+                child: Text(
+                  '[orphaned result: ${response.content}]',
+                  style: TextStyle(color: theme.base.error),
+                ),
               ),
             );
           }
@@ -798,14 +908,19 @@ class _AgentChatState extends State<_AgentChat> {
             ...widgets,
 
             // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming) EnhancedLoadingIndicator(),
+            if (message.responses.isEmpty && message.isStreaming)
+              EnhancedLoadingIndicator(),
 
             if (message.error != null)
               Container(
                 padding: EdgeInsets.only(left: 2, top: 1),
                 child: Text(
                   '[error: ${message.error}]',
-                  style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                  style: TextStyle(
+                    color: theme.base.onSurface.withOpacity(
+                      TextOpacity.secondary,
+                    ),
+                  ),
                 ),
               ),
           ],

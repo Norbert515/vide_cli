@@ -36,7 +36,12 @@ void main() {
       test('exposes tool names', () {
         expect(
           server.toolNames,
-          containsAll(['memorySave', 'memoryRetrieve', 'memoryDelete', 'memoryList']),
+          containsAll([
+            'memorySave',
+            'memoryRetrieve',
+            'memoryDelete',
+            'memoryList',
+          ]),
         );
       });
 
@@ -77,7 +82,10 @@ void main() {
 
         // Verify isolation
         final entry1 = await memoryService.retrieve(server.projectPath, 'key');
-        final entry2 = await memoryService.retrieve(otherServer.projectPath, 'key');
+        final entry2 = await memoryService.retrieve(
+          otherServer.projectPath,
+          'key',
+        );
 
         expect(entry1?.value, 'value1');
         expect(entry2?.value, 'value2');

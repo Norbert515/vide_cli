@@ -135,7 +135,10 @@ class PermissionChecker {
     // Load settings (if enabled)
     ClaudeSettings? settings;
     if (config.loadSettings) {
-      final settingsManager = LocalSettingsManager(projectRoot: cwd, parrottRoot: cwd);
+      final settingsManager = LocalSettingsManager(
+        projectRoot: cwd,
+        parrottRoot: cwd,
+      );
       settings = await settingsManager.readSettings();
     }
 
@@ -151,16 +154,16 @@ class PermissionChecker {
     // Check gitignore for Read operations (if enabled)
     if (config.respectGitignore) {
       if (input case ReadToolInput(:final filePath)) {
-        if (filePath.isNotEmpty && _gitignoreMatcher != null && _gitignoreMatcher!.shouldIgnore(filePath)) {
+        if (filePath.isNotEmpty &&
+            _gitignoreMatcher != null &&
+            _gitignoreMatcher!.shouldIgnore(filePath)) {
           return const PermissionDeny('Blocked by .gitignore');
         }
       }
     }
 
     // Hardcoded deny list for problematic MCP tools
-    const hardcodedDenyList = [
-      'mcp__dart__analyze_files',
-    ];
+    const hardcodedDenyList = ['mcp__dart__analyze_files'];
 
     if (hardcodedDenyList.contains(toolName)) {
       return PermissionDeny(
@@ -226,11 +229,15 @@ class PermissionChecker {
     // Need to ask user - handle based on config
     final inferredPattern = PatternInference.inferPattern(toolName, input);
     return switch (config.askUserBehavior) {
-      AskUserBehavior.ask => PermissionAskUser(inferredPattern: inferredPattern),
+      AskUserBehavior.ask => PermissionAskUser(
+        inferredPattern: inferredPattern,
+      ),
       AskUserBehavior.deny => const PermissionDeny(
         'Operation requires user approval (not available in current mode)',
       ),
-      AskUserBehavior.allow => const PermissionAllow('Auto-approved (testing mode)'),
+      AskUserBehavior.allow => const PermissionAllow(
+        'Auto-approved (testing mode)',
+      ),
     };
   }
 

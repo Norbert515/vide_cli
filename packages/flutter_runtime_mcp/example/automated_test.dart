@@ -56,12 +56,15 @@ Future<void> _runTests(McpHttpClient client) async {
   print('\n[Test 2] Start Flutter instance');
   final startResult = await client.callTool('flutterStart', {
     'command': 'flutter run -d chrome',
-    'workingDirectory': '/Users/norbertkozsir/IdeaProjects/flutter_dev_web/test_flutter_app',
+    'workingDirectory':
+        '/Users/norbertkozsir/IdeaProjects/flutter_dev_web/test_flutter_app',
   });
   print('Result: $startResult');
 
   // Extract instance ID from response
-  final instanceIdMatch = RegExp(r'Instance ID: ([a-f0-9-]+)').firstMatch(startResult);
+  final instanceIdMatch = RegExp(
+    r'Instance ID: ([a-f0-9-]+)',
+  ).firstMatch(startResult);
   if (instanceIdMatch == null) {
     print('❌ Test 2 failed - could not extract instance ID');
     return;
@@ -85,7 +88,9 @@ Future<void> _runTests(McpHttpClient client) async {
 
   // Test 4: Get instance info
   print('\n[Test 4] Get instance info');
-  final infoResult = await client.callTool('flutterGetInfo', {'instanceId': instanceId});
+  final infoResult = await client.callTool('flutterGetInfo', {
+    'instanceId': instanceId,
+  });
   print('Result: $infoResult');
   if (infoResult.contains(instanceId) && infoResult.contains('Running')) {
     print('✓ Test 4 passed');
@@ -95,9 +100,13 @@ Future<void> _runTests(McpHttpClient client) async {
 
   // Test 5: Hot reload
   print('\n[Test 5] Hot reload');
-  final reloadResult = await client.callTool('flutterReload', {'instanceId': instanceId, 'hot': true});
+  final reloadResult = await client.callTool('flutterReload', {
+    'instanceId': instanceId,
+    'hot': true,
+  });
   print('Result: $reloadResult');
-  if (reloadResult.contains('Hot Reload') || reloadResult.contains('triggered')) {
+  if (reloadResult.contains('Hot Reload') ||
+      reloadResult.contains('triggered')) {
     print('✓ Test 5 passed');
   } else {
     print('❌ Test 5 failed');
@@ -108,9 +117,12 @@ Future<void> _runTests(McpHttpClient client) async {
 
   // Test 6: Hot restart
   print('\n[Test 6] Hot restart');
-  final restartResult = await client.callTool('flutterRestart', {'instanceId': instanceId});
+  final restartResult = await client.callTool('flutterRestart', {
+    'instanceId': instanceId,
+  });
   print('Result: $restartResult');
-  if (restartResult.contains('restart') || restartResult.contains('triggered')) {
+  if (restartResult.contains('restart') ||
+      restartResult.contains('triggered')) {
     print('✓ Test 6 passed');
   } else {
     print('❌ Test 6 failed');
@@ -121,7 +133,9 @@ Future<void> _runTests(McpHttpClient client) async {
 
   // Test 7: Stop instance
   print('\n[Test 7] Stop instance');
-  final stopResult = await client.callTool('flutterStop', {'instanceId': instanceId});
+  final stopResult = await client.callTool('flutterStop', {
+    'instanceId': instanceId,
+  });
   print('Result: $stopResult');
   if (stopResult.contains('stopped')) {
     print('✓ Test 7 passed');
@@ -144,7 +158,9 @@ Future<void> _runTests(McpHttpClient client) async {
 
   // Test 9: Error case - get info for non-existent instance
   print('\n[Test 9] Error handling - non-existent instance');
-  final errorResult = await client.callTool('flutterGetInfo', {'instanceId': 'non-existent-id'});
+  final errorResult = await client.callTool('flutterGetInfo', {
+    'instanceId': 'non-existent-id',
+  });
   print('Result: $errorResult');
   if (errorResult.contains('Error') || errorResult.contains('not found')) {
     print('✓ Test 9 passed');
@@ -175,13 +191,19 @@ class McpHttpClient {
       'params': {
         'protocolVersion': '2024-11-05',
         'capabilities': {},
-        'clientInfo': {'name': 'flutter-runtime-automated-test', 'version': '1.0.0'},
+        'clientInfo': {
+          'name': 'flutter-runtime-automated-test',
+          'version': '1.0.0',
+        },
       },
     };
 
     await _sendRequest(initRequest);
 
-    final initializedNotification = {'jsonrpc': '2.0', 'method': 'notifications/initialized'};
+    final initializedNotification = {
+      'jsonrpc': '2.0',
+      'method': 'notifications/initialized',
+    };
 
     await _sendRequest(initializedNotification);
   }
@@ -242,7 +264,9 @@ class McpHttpClient {
     }
   }
 
-  Future<Map<String, dynamic>> _sendRequest(Map<String, dynamic> request) async {
+  Future<Map<String, dynamic>> _sendRequest(
+    Map<String, dynamic> request,
+  ) async {
     if (!request.containsKey('id')) {
       await _postMessage(request);
       return {};
@@ -266,7 +290,10 @@ class McpHttpClient {
     await response.drain();
   }
 
-  Future<String> callTool(String toolName, Map<String, dynamic> arguments) async {
+  Future<String> callTool(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) async {
     final toolRequest = {
       'jsonrpc': '2.0',
       'id': _nextRequestId(),
@@ -280,7 +307,10 @@ class McpHttpClient {
       final result = response['result'];
       if (result['content'] is List) {
         final contents = result['content'] as List;
-        final textContents = contents.where((c) => c['type'] == 'text').map((c) => c['text'] as String).join('\n');
+        final textContents = contents
+            .where((c) => c['type'] == 'text')
+            .map((c) => c['text'] as String)
+            .join('\n');
         return textContents;
       }
     }

@@ -45,7 +45,8 @@ sealed class ClaudeResponse {
     List<dynamic> content,
   ) {
     final responses = <ClaudeResponse>[];
-    final baseId = json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final baseId =
+        json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString();
 
     for (int i = 0; i < content.length; i++) {
       final block = content[i] as Map<String, dynamic>;
@@ -55,30 +56,36 @@ sealed class ClaudeResponse {
       if (blockType == 'text') {
         final text = block['text'] as String? ?? '';
         if (text.isNotEmpty) {
-          responses.add(TextResponse(
-            id: blockId,
-            timestamp: DateTime.now(),
-            content: HtmlEntityDecoder.decode(text),
-            // These are cumulative per-block, not streaming deltas
-            isCumulative: true,
-            rawData: json,
-          ));
+          responses.add(
+            TextResponse(
+              id: blockId,
+              timestamp: DateTime.now(),
+              content: HtmlEntityDecoder.decode(text),
+              // These are cumulative per-block, not streaming deltas
+              isCumulative: true,
+              rawData: json,
+            ),
+          );
         }
       } else if (blockType == 'tool_use') {
         final toolName = block['name'] as String? ?? '';
         final rawInput = block['input'];
         final parameters = rawInput is Map<String, dynamic>
             ? rawInput
-            : (rawInput is Map ? Map<String, dynamic>.from(rawInput) : <String, dynamic>{});
+            : (rawInput is Map
+                  ? Map<String, dynamic>.from(rawInput)
+                  : <String, dynamic>{});
 
-        responses.add(ToolUseResponse(
-          id: blockId,
-          timestamp: DateTime.now(),
-          toolName: HtmlEntityDecoder.decode(toolName),
-          parameters: HtmlEntityDecoder.decodeMap(parameters),
-          toolUseId: block['id'] as String?,
-          rawData: json,
-        ));
+        responses.add(
+          ToolUseResponse(
+            id: blockId,
+            timestamp: DateTime.now(),
+            toolName: HtmlEntityDecoder.decode(toolName),
+            parameters: HtmlEntityDecoder.decodeMap(parameters),
+            toolUseId: block['id'] as String?,
+            rawData: json,
+          ),
+        );
       }
     }
 
@@ -92,7 +99,8 @@ sealed class ClaudeResponse {
     // Check for user message types
     if (type == 'user' && json['message'] != null) {
       // Check for compact summary (both camelCase and snake_case)
-      final isCompactSummary = json['isCompactSummary'] as bool? ??
+      final isCompactSummary =
+          json['isCompactSummary'] as bool? ??
           json['is_compact_summary'] as bool? ??
           false;
       if (isCompactSummary) {
@@ -167,7 +175,9 @@ sealed class ClaudeResponse {
             final text = delta?['text'] as String?;
             if (text != null && text.isNotEmpty) {
               return TextResponse(
-                id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+                id:
+                    json['uuid'] ??
+                    DateTime.now().millisecondsSinceEpoch.toString(),
                 timestamp: DateTime.now(),
                 content: text,
                 isPartial: true,
@@ -579,9 +589,8 @@ class UserMessageResponse extends ClaudeResponse {
       }
     }
 
-    final isReplay = json['isReplay'] as bool? ??
-        json['is_replay'] as bool? ??
-        false;
+    final isReplay =
+        json['isReplay'] as bool? ?? json['is_replay'] as bool? ?? false;
 
     return UserMessageResponse(
       id: json['uuid'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -630,12 +639,14 @@ class CompactBoundaryResponse extends ClaudeResponse {
         {};
 
     // Try to get trigger from compactMetadata first, then fall back to top-level
-    final trigger = compactMetadata['trigger'] as String? ??
+    final trigger =
+        compactMetadata['trigger'] as String? ??
         json['trigger'] as String? ??
         'auto';
 
     // Try to get preTokens (camelCase) or pre_tokens (snake_case)
-    final preTokens = compactMetadata['preTokens'] as int? ??
+    final preTokens =
+        compactMetadata['preTokens'] as int? ??
         compactMetadata['pre_tokens'] as int? ??
         json['preTokens'] as int? ??
         json['pre_tokens'] as int? ??

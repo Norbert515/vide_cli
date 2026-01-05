@@ -33,11 +33,23 @@ class ResponseProcessor {
       TextResponse r => _processTextResponse(r, currentConversation),
       ToolUseResponse r => _processToolResponse(r, currentConversation),
       ToolResultResponse r => _processToolResponse(r, currentConversation),
-      CompletionResponse r => _processCompletionResponse(r, currentConversation),
+      CompletionResponse r => _processCompletionResponse(
+        r,
+        currentConversation,
+      ),
       ErrorResponse r => _processErrorResponse(r, currentConversation),
-      CompactBoundaryResponse r => _processCompactBoundaryResponse(r, currentConversation),
-      CompactSummaryResponse r => _processCompactSummaryResponse(r, currentConversation),
-      UserMessageResponse r => _processUserMessageResponse(r, currentConversation),
+      CompactBoundaryResponse r => _processCompactBoundaryResponse(
+        r,
+        currentConversation,
+      ),
+      CompactSummaryResponse r => _processCompactSummaryResponse(
+        r,
+        currentConversation,
+      ),
+      UserMessageResponse r => _processUserMessageResponse(
+        r,
+        currentConversation,
+      ),
       // Non-message responses - pass through unchanged
       StatusResponse() => _passThrough(currentConversation),
       MetaResponse() => _passThrough(currentConversation),
@@ -87,7 +99,9 @@ class ResponseProcessor {
 
     // Set state to idle only if turn is complete
     if (isTurnComplete) {
-      updatedConversation = updatedConversation.withState(ConversationState.idle);
+      updatedConversation = updatedConversation.withState(
+        ConversationState.idle,
+      );
     }
 
     return ProcessResult(
@@ -121,7 +135,9 @@ class ResponseProcessor {
 
     // Ensure state is processing for tool operations
     if (updatedConversation.state != ConversationState.processing) {
-      updatedConversation = updatedConversation.withState(ConversationState.processing);
+      updatedConversation = updatedConversation.withState(
+        ConversationState.processing,
+      );
     }
 
     // Update usage if available
@@ -160,13 +176,20 @@ class ResponseProcessor {
     updatedConversation = updatedConversation
         .withState(ConversationState.idle)
         .copyWith(
-          totalInputTokens: currentConversation.totalInputTokens + (response.inputTokens ?? 0),
-          totalOutputTokens: currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
-          totalCacheReadInputTokens: currentConversation.totalCacheReadInputTokens +
+          totalInputTokens:
+              currentConversation.totalInputTokens +
+              (response.inputTokens ?? 0),
+          totalOutputTokens:
+              currentConversation.totalOutputTokens +
+              (response.outputTokens ?? 0),
+          totalCacheReadInputTokens:
+              currentConversation.totalCacheReadInputTokens +
               (response.cacheReadInputTokens ?? 0),
-          totalCacheCreationInputTokens: currentConversation.totalCacheCreationInputTokens +
+          totalCacheCreationInputTokens:
+              currentConversation.totalCacheCreationInputTokens +
               (response.cacheCreationInputTokens ?? 0),
-          totalCostUsd: currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
+          totalCostUsd:
+              currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
         );
 
     return ProcessResult(
@@ -239,9 +262,7 @@ class ResponseProcessor {
     UserMessageResponse response,
     Conversation currentConversation,
   ) {
-    final message = ConversationMessage.user(
-      content: response.content,
-    );
+    final message = ConversationMessage.user(content: response.content);
 
     return ProcessResult(
       updatedConversation: currentConversation.addMessage(message),
@@ -252,9 +273,12 @@ class ResponseProcessor {
   // Helper methods
 
   /// Get context about the current assistant message (for appending responses).
-  _AssistantMessageContext _getAssistantMessageContext(Conversation conversation) {
+  _AssistantMessageContext _getAssistantMessageContext(
+    Conversation conversation,
+  ) {
     final existingMessage = conversation.messages.lastOrNull;
-    final isExistingMessage = existingMessage?.role == MessageRole.assistant &&
+    final isExistingMessage =
+        existingMessage?.role == MessageRole.assistant &&
         existingMessage?.isStreaming == true;
 
     return _AssistantMessageContext(
@@ -297,7 +321,8 @@ class ResponseProcessor {
       totalCacheReadInputTokens:
           conversation.totalCacheReadInputTokens + usage.cacheReadInputTokens,
       totalCacheCreationInputTokens:
-          conversation.totalCacheCreationInputTokens + usage.cacheCreationInputTokens,
+          conversation.totalCacheCreationInputTokens +
+          usage.cacheCreationInputTokens,
       // Replace current context values
       currentContextInputTokens: usage.inputTokens,
       currentContextCacheReadTokens: usage.cacheReadInputTokens,
@@ -315,8 +340,10 @@ class ResponseProcessor {
       return _UsageData(
         inputTokens: messageUsage['input_tokens'] as int? ?? 0,
         outputTokens: messageUsage['output_tokens'] as int? ?? 0,
-        cacheReadInputTokens: messageUsage['cache_read_input_tokens'] as int? ?? 0,
-        cacheCreationInputTokens: messageUsage['cache_creation_input_tokens'] as int? ?? 0,
+        cacheReadInputTokens:
+            messageUsage['cache_read_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens:
+            messageUsage['cache_creation_input_tokens'] as int? ?? 0,
       );
     }
 
@@ -327,7 +354,8 @@ class ResponseProcessor {
         inputTokens: usage['input_tokens'] as int? ?? 0,
         outputTokens: usage['output_tokens'] as int? ?? 0,
         cacheReadInputTokens: usage['cache_read_input_tokens'] as int? ?? 0,
-        cacheCreationInputTokens: usage['cache_creation_input_tokens'] as int? ?? 0,
+        cacheCreationInputTokens:
+            usage['cache_creation_input_tokens'] as int? ?? 0,
       );
     }
 

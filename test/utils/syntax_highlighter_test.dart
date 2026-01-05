@@ -18,11 +18,17 @@ void main() {
         );
 
         final spans = _flattenTextSpans(result);
-        final keywordSpans = spans.where((s) =>
-          s.text != null && ['void', 'if', 'true', 'return'].contains(s.text!.trim())
+        final keywordSpans = spans.where(
+          (s) =>
+              s.text != null &&
+              ['void', 'if', 'true', 'return'].contains(s.text!.trim()),
         );
 
-        expect(keywordSpans.isNotEmpty, true, reason: 'Should find keyword spans');
+        expect(
+          keywordSpans.isNotEmpty,
+          true,
+          reason: 'Should find keyword spans',
+        );
         for (final span in keywordSpans) {
           expect(
             span.style?.color,
@@ -41,11 +47,15 @@ void main() {
 
         final spans = _flattenTextSpans(result);
         // Find spans containing the string content
-        final stringSpans = spans.where((s) =>
-          s.text != null && s.text!.contains('hello')
+        final stringSpans = spans.where(
+          (s) => s.text != null && s.text!.contains('hello'),
         );
 
-        expect(stringSpans.isNotEmpty, true, reason: 'Should find string spans');
+        expect(
+          stringSpans.isNotEmpty,
+          true,
+          reason: 'Should find string spans',
+        );
         for (final span in stringSpans) {
           expect(
             span.style?.color,
@@ -65,11 +75,17 @@ void main() {
         final spans = _flattenTextSpans(result);
         // Comments may be split into multiple spans (e.g., '//' and 'comment text')
         // Look for any span that is part of the comment
-        final commentSpans = spans.where((s) =>
-          s.text != null && (s.text!.contains('//') || s.text!.contains('comment'))
+        final commentSpans = spans.where(
+          (s) =>
+              s.text != null &&
+              (s.text!.contains('//') || s.text!.contains('comment')),
         );
 
-        expect(commentSpans.isNotEmpty, true, reason: 'Should find comment spans');
+        expect(
+          commentSpans.isNotEmpty,
+          true,
+          reason: 'Should find comment spans',
+        );
         for (final span in commentSpans) {
           expect(
             span.style?.color,
@@ -87,11 +103,17 @@ void main() {
         );
 
         final spans = _flattenTextSpans(result);
-        final numberSpans = spans.where((s) =>
-          s.text != null && (s.text!.trim() == '42' || s.text!.trim() == '3.14')
+        final numberSpans = spans.where(
+          (s) =>
+              s.text != null &&
+              (s.text!.trim() == '42' || s.text!.trim() == '3.14'),
         );
 
-        expect(numberSpans.isNotEmpty, true, reason: 'Should find number spans');
+        expect(
+          numberSpans.isNotEmpty,
+          true,
+          reason: 'Should find number spans',
+        );
         for (final span in numberSpans) {
           expect(
             span.style?.color,
@@ -109,11 +131,15 @@ void main() {
         );
 
         final spans = _flattenTextSpans(result);
-        final classKeywordSpans = spans.where((s) =>
-          s.text != null && s.text!.trim() == 'class'
+        final classKeywordSpans = spans.where(
+          (s) => s.text != null && s.text!.trim() == 'class',
         );
 
-        expect(classKeywordSpans.isNotEmpty, true, reason: 'Should find class keyword');
+        expect(
+          classKeywordSpans.isNotEmpty,
+          true,
+          reason: 'Should find class keyword',
+        );
         for (final span in classKeywordSpans) {
           expect(
             span.style?.color,
@@ -164,7 +190,8 @@ void main() {
         expect(
           uniqueColors.length,
           greaterThanOrEqualTo(3),
-          reason: 'Code with keywords, strings, comments should produce multiple colors. '
+          reason:
+              'Code with keywords, strings, comments should produce multiple colors. '
               'Found colors: $uniqueColors',
         );
       });
@@ -293,7 +320,9 @@ void main() {
 
         final spans = _flattenTextSpans(result);
         for (final span in spans) {
-          if (span.style != null && span.text != null && span.text!.isNotEmpty) {
+          if (span.style != null &&
+              span.text != null &&
+              span.text!.isNotEmpty) {
             expect(
               span.style?.backgroundColor,
               equals(bgColor),

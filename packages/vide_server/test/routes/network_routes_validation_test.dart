@@ -49,10 +49,9 @@ void main() {
     });
 
     test('rejects empty workingDirectory', () async {
-      final request = _createRequest(jsonEncode({
-        'initialMessage': 'Hello',
-        'workingDirectory': '',
-      }));
+      final request = _createRequest(
+        jsonEncode({'initialMessage': 'Hello', 'workingDirectory': ''}),
+      );
 
       final response = await createNetwork(request, container, cacheManager);
 
@@ -62,10 +61,9 @@ void main() {
     });
 
     test('rejects whitespace-only workingDirectory', () async {
-      final request = _createRequest(jsonEncode({
-        'initialMessage': 'Hello',
-        'workingDirectory': '   ',
-      }));
+      final request = _createRequest(
+        jsonEncode({'initialMessage': 'Hello', 'workingDirectory': '   '}),
+      );
 
       final response = await createNetwork(request, container, cacheManager);
 
@@ -75,10 +73,12 @@ void main() {
     });
 
     test('rejects non-existent workingDirectory', () async {
-      final request = _createRequest(jsonEncode({
-        'initialMessage': 'Hello',
-        'workingDirectory': '/this/path/definitely/does/not/exist',
-      }));
+      final request = _createRequest(
+        jsonEncode({
+          'initialMessage': 'Hello',
+          'workingDirectory': '/this/path/definitely/does/not/exist',
+        }),
+      );
 
       final response = await createNetwork(request, container, cacheManager);
 
@@ -88,10 +88,12 @@ void main() {
     });
 
     test('rejects empty initialMessage', () async {
-      final request = _createRequest(jsonEncode({
-        'initialMessage': '',
-        'workingDirectory': Directory.current.path,
-      }));
+      final request = _createRequest(
+        jsonEncode({
+          'initialMessage': '',
+          'workingDirectory': Directory.current.path,
+        }),
+      );
 
       final response = await createNetwork(request, container, cacheManager);
 
@@ -101,10 +103,12 @@ void main() {
     });
 
     test('rejects whitespace-only initialMessage', () async {
-      final request = _createRequest(jsonEncode({
-        'initialMessage': '   ',
-        'workingDirectory': Directory.current.path,
-      }));
+      final request = _createRequest(
+        jsonEncode({
+          'initialMessage': '   ',
+          'workingDirectory': Directory.current.path,
+        }),
+      );
 
       final response = await createNetwork(request, container, cacheManager);
 
@@ -116,12 +120,15 @@ void main() {
     test('canonicalizes workingDirectory path', () async {
       // Create a path with .. that should be canonicalized
       final currentDir = Directory.current.path;
-      final pathWithDots = '$currentDir/../${Directory.current.path.split('/').last}';
+      final pathWithDots =
+          '$currentDir/../${Directory.current.path.split('/').last}';
 
-      final request = _createRequest(jsonEncode({
-        'initialMessage': 'Hello',
-        'workingDirectory': pathWithDots,
-      }));
+      final request = _createRequest(
+        jsonEncode({
+          'initialMessage': 'Hello',
+          'workingDirectory': pathWithDots,
+        }),
+      );
 
       // This will fail at the manager.startNew call (which we haven't mocked),
       // but we can verify the path was canonicalized by checking it doesn't

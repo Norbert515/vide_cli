@@ -5,12 +5,10 @@ import 'package:riverpod/riverpod.dart';
 import '../../../models/agent_id.dart';
 import '../../../services/agent_network_manager.dart';
 
-final taskManagementServerProvider = Provider.family<TaskManagementServer, AgentId>((ref, agentId) {
-  return TaskManagementServer(
-    callerAgentId: agentId,
-    ref: ref,
-  );
-});
+final taskManagementServerProvider =
+    Provider.family<TaskManagementServer, AgentId>((ref, agentId) {
+      return TaskManagementServer(callerAgentId: agentId, ref: ref);
+    });
 
 /// MCP server for task management operations
 class TaskManagementServer extends McpServerBase {
@@ -19,11 +17,9 @@ class TaskManagementServer extends McpServerBase {
   final AgentId callerAgentId;
   final Ref _ref;
 
-  TaskManagementServer({
-    required this.callerAgentId,
-    required Ref ref,
-  })  : _ref = ref,
-        super(name: serverName, version: '1.0.0');
+  TaskManagementServer({required this.callerAgentId, required Ref ref})
+    : _ref = ref,
+      super(name: serverName, version: '1.0.0');
 
   @override
   List<String> get toolNames => ['setTaskName', 'setAgentTaskName'];
@@ -51,15 +47,21 @@ class TaskManagementServer extends McpServerBase {
       ),
       callback: ({args, extra}) async {
         if (args == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: No arguments provided')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
         }
 
         final taskName = args['taskName'] as String;
 
         try {
-          await _ref.read(agentNetworkManagerProvider.notifier).updateGoal(taskName);
+          await _ref
+              .read(agentNetworkManagerProvider.notifier)
+              .updateGoal(taskName);
 
-          return CallToolResult.fromContent(content: [TextContent(text: 'Task name updated to: "$taskName"')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Task name updated to: "$taskName"')],
+          );
         } catch (e, stackTrace) {
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
@@ -69,7 +71,9 @@ class TaskManagementServer extends McpServerBase {
             });
           });
           await Sentry.captureException(e, stackTrace: stackTrace);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error updating task name: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error updating task name: $e')],
+          );
         }
       },
     );
@@ -92,15 +96,23 @@ class TaskManagementServer extends McpServerBase {
       ),
       callback: ({args, extra}) async {
         if (args == null) {
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: No arguments provided')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
         }
 
         final taskName = args['taskName'] as String;
 
         try {
-          await _ref.read(agentNetworkManagerProvider.notifier).updateAgentTaskName(callerAgentId, taskName);
+          await _ref
+              .read(agentNetworkManagerProvider.notifier)
+              .updateAgentTaskName(callerAgentId, taskName);
 
-          return CallToolResult.fromContent(content: [TextContent(text: 'Agent task name updated to: "$taskName"')]);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Agent task name updated to: "$taskName"'),
+            ],
+          );
         } catch (e, stackTrace) {
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
@@ -110,7 +122,9 @@ class TaskManagementServer extends McpServerBase {
             });
           });
           await Sentry.captureException(e, stackTrace: stackTrace);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error updating agent task name: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error updating agent task name: $e')],
+          );
         }
       },
     );

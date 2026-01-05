@@ -64,7 +64,10 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
               const Center(
                 child: Text(
                   'Manual Tap Test',
-                  style: TextStyle(color: Colors.brightGreen, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.brightGreen,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               const SizedBox(height: 1),
@@ -79,13 +82,18 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
               // X coordinate field
               const Text(
                 'X Coordinate:',
-                style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.yellow,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
                 decoration: BoxDecoration(
                   border: BoxBorder.all(
                     color: _focusedField == 0 ? Colors.brightCyan : Colors.gray,
-                    style: _focusedField == 0 ? BoxBorderStyle.double : BoxBorderStyle.solid,
+                    style: _focusedField == 0
+                        ? BoxBorderStyle.double
+                        : BoxBorderStyle.solid,
                   ),
                   color: const Color.fromRGB(10, 10, 30),
                 ),
@@ -102,13 +110,18 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
               // Y coordinate field
               const Text(
                 'Y Coordinate:',
-                style: TextStyle(color: Colors.yellow, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.yellow,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Container(
                 decoration: BoxDecoration(
                   border: BoxBorder.all(
                     color: _focusedField == 1 ? Colors.brightCyan : Colors.gray,
-                    style: _focusedField == 1 ? BoxBorderStyle.double : BoxBorderStyle.solid,
+                    style: _focusedField == 1
+                        ? BoxBorderStyle.double
+                        : BoxBorderStyle.solid,
                   ),
                   color: const Color.fromRGB(10, 10, 30),
                 ),
@@ -129,14 +142,26 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
                   GestureDetector(
                     onTap: () => _handleSubmit(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
-                        color: _focusedField == 2 ? Colors.green : const Color.fromRGB(0, 60, 0),
-                        border: BoxBorder.all(color: _focusedField == 2 ? Colors.brightGreen : Colors.green),
+                        color: _focusedField == 2
+                            ? Colors.green
+                            : const Color.fromRGB(0, 60, 0),
+                        border: BoxBorder.all(
+                          color: _focusedField == 2
+                              ? Colors.brightGreen
+                              : Colors.green,
+                        ),
                       ),
                       child: const Text(
                         '[ Tap ]',
-                        style: TextStyle(color: Colors.brightWhite, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          color: Colors.brightWhite,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -144,12 +169,18 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
                   GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color.fromRGB(60, 0, 0),
                         border: BoxBorder.all(color: Colors.red),
                       ),
-                      child: const Text('[ Cancel ]', style: TextStyle(color: Colors.brightWhite)),
+                      child: const Text(
+                        '[ Cancel ]',
+                        style: TextStyle(color: Colors.brightWhite),
+                      ),
                     ),
                   ),
                 ],
@@ -160,7 +191,10 @@ class _ManualTapDialogState extends State<ManualTapDialog> {
               const Center(
                 child: Text(
                   '[Enter] Tap • [Tab] Switch fields • [Esc] Cancel',
-                  style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
+                  style: TextStyle(
+                    color: Colors.gray,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ],

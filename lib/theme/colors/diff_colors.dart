@@ -67,11 +67,11 @@ class VideDiffColors {
 
   @override
   int get hashCode => Object.hash(
-        addedBackground,
-        removedBackground,
-        addedPrefix,
-        removedPrefix,
-        contextPrefix,
-        header,
-      );
+    addedBackground,
+    removedBackground,
+    addedPrefix,
+    removedPrefix,
+    contextPrefix,
+    header,
+  );
 }

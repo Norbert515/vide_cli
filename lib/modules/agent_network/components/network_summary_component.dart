@@ -16,7 +16,8 @@ class NetworkSummaryComponent extends StatefulComponent {
   });
 
   @override
-  State<NetworkSummaryComponent> createState() => _NetworkSummaryComponentState();
+  State<NetworkSummaryComponent> createState() =>
+      _NetworkSummaryComponentState();
 }
 
 class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
@@ -39,12 +40,16 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
     final leftBorderColor = component.showDeleteConfirmation
         ? theme.base.error
         : component.selected
-            ? theme.base.primary
-            : theme.base.outline;
+        ? theme.base.primary
+        : theme.base.outline;
 
     return Row(
       children: [
-        Container(width: 1, height: 2, decoration: BoxDecoration(color: leftBorderColor)),
+        Container(
+          width: 1,
+          height: 2,
+          decoration: BoxDecoration(color: leftBorderColor),
+        ),
         Expanded(
           child: Container(
             height: 2,
@@ -67,15 +72,27 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
                         children: [
                           Text(
                             '$agentCount agent${agentCount != 1 ? 's' : ''}',
-                            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                            style: TextStyle(
+                              color: theme.base.onSurface.withOpacity(
+                                TextOpacity.tertiary,
+                              ),
+                            ),
                           ),
                           Text(
                             ' • ',
-                            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                            style: TextStyle(
+                              color: theme.base.onSurface.withOpacity(
+                                TextOpacity.tertiary,
+                              ),
+                            ),
                           ),
                           Text(
                             timeAgo,
-                            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                            style: TextStyle(
+                              color: theme.base.onSurface.withOpacity(
+                                TextOpacity.tertiary,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -103,7 +120,20 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
       final days = difference.inDays;
       return '$days day${days != 1 ? 's' : ''} ago';
     } else {
-      final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final months = [
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
+      ];
       return '${months[dateTime.month - 1]} ${dateTime.day}';
     }
   }

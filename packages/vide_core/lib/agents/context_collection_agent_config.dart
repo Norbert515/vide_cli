@@ -19,14 +19,21 @@ class ContextCollectionAgentConfig {
   static const String version = '1.0.0';
 
   /// Creates a configuration for the context collection agent
-  static AgentConfiguration create({ProjectType projectType = ProjectType.unknown}) {
+  static AgentConfiguration create({
+    ProjectType projectType = ProjectType.unknown,
+  }) {
     return AgentConfiguration(
       name: agentName,
-      description: 'Performs deep research and information gathering about frameworks, packages, and technologies',
+      description:
+          'Performs deep research and information gathering about frameworks, packages, and technologies',
       systemPrompt: _buildSystemPrompt(projectType),
       // Context collection agent only needs read-only tools + web search
       // No Git, no SubAgent, no Flutter Runtime
-      mcpServers: [McpServerType.memory, McpServerType.taskManagement, McpServerType.agent],
+      mcpServers: [
+        McpServerType.memory,
+        McpServerType.taskManagement,
+        McpServerType.agent,
+      ],
     );
   }
 

@@ -17,7 +17,14 @@ class WelcomePage extends StatefulComponent {
   State<WelcomePage> createState() => _WelcomePageState();
 }
 
-enum _VerificationStep { selectTheme, findingClaude, testingClaude, complete, completing, error }
+enum _VerificationStep {
+  selectTheme,
+  findingClaude,
+  testingClaude,
+  complete,
+  completing,
+  error,
+}
 
 class _WelcomePageState extends State<WelcomePage> {
   _VerificationStep _step = _VerificationStep.selectTheme;
@@ -68,7 +75,8 @@ class _WelcomePageState extends State<WelcomePage> {
     if (!isAvailable) {
       setState(() {
         _step = _VerificationStep.error;
-        _errorMessage = 'Claude Code not found.\n\nInstall it at:\nhttps://docs.anthropic.com/en/docs/claude-code';
+        _errorMessage =
+            'Claude Code not found.\n\nInstall it at:\nhttps://docs.anthropic.com/en/docs/claude-code';
       });
       return;
     }
@@ -88,10 +96,10 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Future<void> _runClaudeTest() async {
     try {
-      final result = await Process.run(
-        'claude',
-        ['--print', 'Respond with exactly: "Connected and ready to help!"'],
-      );
+      final result = await Process.run('claude', [
+        '--print',
+        'Respond with exactly: "Connected and ready to help!"',
+      ]);
 
       if (result.exitCode != 0) {
         setState(() {
@@ -138,7 +146,8 @@ class _WelcomePageState extends State<WelcomePage> {
   void _startShimmerAnimation() {
     _shimmerTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
       setState(() {
-        _shimmerPosition = (_shimmerPosition + 1) % 22; // Length of "Confirming connection"
+        _shimmerPosition =
+            (_shimmerPosition + 1) % 22; // Length of "Confirming connection"
       });
     });
   }
@@ -228,7 +237,10 @@ class _WelcomePageState extends State<WelcomePage> {
     return _buildVerificationView(context, theme);
   }
 
-  Component _buildThemeSelectionView(BuildContext context, VideThemeData theme) {
+  Component _buildThemeSelectionView(
+    BuildContext context,
+    VideThemeData theme,
+  ) {
     return Center(
       child: Container(
         decoration: BoxDecoration(
@@ -281,7 +293,9 @@ class _WelcomePageState extends State<WelcomePage> {
           _retry();
           return true;
         }
-        if (_responseComplete && _step == _VerificationStep.complete && key == LogicalKey.enter) {
+        if (_responseComplete &&
+            _step == _VerificationStep.complete &&
+            key == LogicalKey.enter) {
           setState(() {
             _step = _VerificationStep.completing;
           });
@@ -308,7 +322,9 @@ class _WelcomePageState extends State<WelcomePage> {
               Text(
                 'Your AI-powered terminal IDE',
                 style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
                 ),
               ),
               SizedBox(height: 2),
@@ -353,7 +369,9 @@ class _WelcomePageState extends State<WelcomePage> {
 
   Component _buildChecklist(VideThemeData theme) {
     final isConfirmingConnection = _step == _VerificationStep.testingClaude;
-    final connectionLabel = isConfirmingConnection ? 'Confirming connection' : 'Connection confirmed';
+    final connectionLabel = isConfirmingConnection
+        ? 'Confirming connection'
+        : 'Connection confirmed';
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -415,10 +433,7 @@ class _WelcomePageState extends State<WelcomePage> {
       children: [
         Text(icon, style: TextStyle(color: iconColor)),
         SizedBox(width: 2),
-        Text(
-          label,
-          style: TextStyle(color: textColor),
-        ),
+        Text(label, style: TextStyle(color: textColor)),
         if (isActive) ...[
           Text('...', style: TextStyle(color: theme.base.warning)),
         ],
@@ -475,14 +490,22 @@ class _WelcomePageState extends State<WelcomePage> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Claude', style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold)),
+              Text(
+                'Claude',
+                style: TextStyle(
+                  color: theme.base.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               Text(' says:', style: TextStyle(color: theme.base.outline)),
             ],
           ),
           SizedBox(height: 1),
           Text(
             _displayedResponse,
-            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+            ),
           ),
         ],
       ),
@@ -493,9 +516,7 @@ class _WelcomePageState extends State<WelcomePage> {
     return Container(
       width: (_textWidth + 4).toDouble(),
       padding: EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        border: BoxBorder.all(color: theme.base.error),
-      ),
+      decoration: BoxDecoration(border: BoxBorder.all(color: theme.base.error)),
       child: Text(
         _errorMessage ?? 'Unknown error',
         style: TextStyle(color: theme.base.error),

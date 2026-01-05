@@ -17,7 +17,8 @@ void main(List<String> args) async {
   }
 
   // Determine config root for TUI: ~/.vide
-  final homeDir = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  final homeDir =
+      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
   if (homeDir == null) {
     print('Error: Could not determine home directory');
     exit(1);

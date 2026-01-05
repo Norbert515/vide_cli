@@ -81,13 +81,13 @@ class VideStatusColors {
 
   @override
   int get hashCode => Object.hash(
-        working,
-        waitingForAgent,
-        waitingForUser,
-        idle,
-        pending,
-        inProgress,
-        completed,
-        error,
-      );
+    working,
+    waitingForAgent,
+    waitingForUser,
+    idle,
+    pending,
+    inProgress,
+    completed,
+    error,
+  );
 }

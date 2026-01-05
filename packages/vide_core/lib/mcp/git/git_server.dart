@@ -24,7 +24,12 @@ class GitServer extends McpServerBase {
   GitServer() : super(name: serverName, version: '1.0.0');
 
   /// Report a git operation error to Sentry with context
-  Future<void> _reportError(Object e, StackTrace stackTrace, String toolName, {Map<String, dynamic>? context}) async {
+  Future<void> _reportError(
+    Object e,
+    StackTrace stackTrace,
+    String toolName, {
+    Map<String, dynamic>? context,
+  }) async {
     await Sentry.configureScope((scope) {
       scope.setTag('mcp_server', serverName);
       scope.setTag('mcp_tool', toolName);
@@ -64,8 +69,15 @@ class GitServer extends McpServerBase {
       description: 'Get current git repository status',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'path': {'type': 'string', 'description': 'Repository path (defaults to current directory)'},
-          'detailed': {'type': 'boolean', 'description': 'Include detailed file status', 'default': false},
+          'path': {
+            'type': 'string',
+            'description': 'Repository path (defaults to current directory)',
+          },
+          'detailed': {
+            'type': 'boolean',
+            'description': 'Include detailed file status',
+            'default': false,
+          },
         },
       ),
       callback: ({args, extra}) async {
@@ -100,11 +112,17 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           _statusStream.add(status);
 
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Branch: ${status.branch}, Changes: ${status.hasChanges}')],
+            content: [
+              TextContent(
+                text: 'Branch: ${status.branch}, Changes: ${status.hasChanges}',
+              ),
+            ],
           );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'gitStatus');
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -117,8 +135,16 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         properties: {
           'message': {'type': 'string', 'description': 'Commit message'},
           'path': {'type': 'string', 'description': 'Repository path'},
-          'all': {'type': 'boolean', 'description': 'Stage all changes before commit', 'default': false},
-          'amend': {'type': 'boolean', 'description': 'Amend the previous commit', 'default': false},
+          'all': {
+            'type': 'boolean',
+            'description': 'Stage all changes before commit',
+            'default': false,
+          },
+          'amend': {
+            'type': 'boolean',
+            'description': 'Amend the previous commit',
+            'default': false,
+          },
         },
         required: ['message'],
       ),
@@ -131,10 +157,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.commit(message, all: all, amend: amend);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Commit created')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Commit created')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitCommit', context: {'amend': amend, 'all': all});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitCommit',
+            context: {'amend': amend, 'all': all},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -161,10 +196,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.add(files);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Files staged: ${files.join(", ")}')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Files staged: ${files.join(", ")}')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitAdd', context: {'file_count': files.length});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitAdd',
+            context: {'file_count': files.length},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -175,7 +219,11 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Show changes in files',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'staged': {'type': 'boolean', 'description': 'Show staged changes', 'default': false},
+          'staged': {
+            'type': 'boolean',
+            'description': 'Show staged changes',
+            'default': false,
+          },
           'files': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -192,10 +240,21 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           final result = await git.diff(staged: staged, files: files);
-          return CallToolResult.fromContent(content: [TextContent(text: result.isEmpty ? 'No changes' : result)]);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: result.isEmpty ? 'No changes' : result),
+            ],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitDiff', context: {'staged': staged});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitDiff',
+            context: {'staged': staged},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -206,8 +265,16 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Show commit history',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'count': {'type': 'integer', 'description': 'Number of commits to show', 'default': 10},
-          'oneline': {'type': 'boolean', 'description': 'Show in oneline format', 'default': true},
+          'count': {
+            'type': 'integer',
+            'description': 'Number of commits to show',
+            'default': 10,
+          },
+          'oneline': {
+            'type': 'boolean',
+            'description': 'Show in oneline format',
+            'default': true,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -219,16 +286,34 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           if (oneline) {
-            final result = await git.runCommand(['log', '-n', count.toString(), '--oneline']);
-            return CallToolResult.fromContent(content: [TextContent(text: result)]);
+            final result = await git.runCommand([
+              'log',
+              '-n',
+              count.toString(),
+              '--oneline',
+            ]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: result)],
+            );
           } else {
             final commits = await git.log(count: count);
-            final result = commits.map((c) => '${c.hash}|${c.author}|${c.message}|${c.date}').join('\n');
-            return CallToolResult.fromContent(content: [TextContent(text: result)]);
+            final result = commits
+                .map((c) => '${c.hash}|${c.author}|${c.message}|${c.date}')
+                .join('\n');
+            return CallToolResult.fromContent(
+              content: [TextContent(text: result)],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitLog', context: {'count': count, 'oneline': oneline});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitLog',
+            context: {'count': count, 'oneline': oneline},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -239,9 +324,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'List or create branches',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'create': {'type': 'string', 'description': 'Name of branch to create'},
-          'delete': {'type': 'string', 'description': 'Name of branch to delete'},
-          'all': {'type': 'boolean', 'description': 'Show all branches including remotes', 'default': false},
+          'create': {
+            'type': 'string',
+            'description': 'Name of branch to create',
+          },
+          'delete': {
+            'type': 'string',
+            'description': 'Name of branch to delete',
+          },
+          'all': {
+            'type': 'boolean',
+            'description': 'Show all branches including remotes',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -255,18 +350,37 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           if (create != null) {
             await git.createBranch(create);
-            return CallToolResult.fromContent(content: [TextContent(text: 'Branch created: $create')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Branch created: $create')],
+            );
           } else if (delete != null) {
             await git.deleteBranch(delete);
-            return CallToolResult.fromContent(content: [TextContent(text: 'Branch deleted: $delete')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Branch deleted: $delete')],
+            );
           } else {
             final branches = await git.branches(all: all);
-            final result = branches.map((b) => '${b.isCurrent ? "* " : "  "}${b.name}').join('\n');
-            return CallToolResult.fromContent(content: [TextContent(text: result)]);
+            final result = branches
+                .map((b) => '${b.isCurrent ? "* " : "  "}${b.name}')
+                .join('\n');
+            return CallToolResult.fromContent(
+              content: [TextContent(text: result)],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitBranch', context: {'operation': create != null ? 'create' : (delete != null ? 'delete' : 'list')});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitBranch',
+            context: {
+              'operation': create != null
+                  ? 'create'
+                  : (delete != null ? 'delete' : 'list'),
+            },
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -277,8 +391,15 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Switch branches or restore files',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'branch': {'type': 'string', 'description': 'Branch name to checkout'},
-          'create': {'type': 'boolean', 'description': 'Create new branch', 'default': false},
+          'branch': {
+            'type': 'string',
+            'description': 'Branch name to checkout',
+          },
+          'create': {
+            'type': 'boolean',
+            'description': 'Create new branch',
+            'default': false,
+          },
           'files': {
             'type': 'array',
             'items': {'type': 'string'},
@@ -297,16 +418,33 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           final git = GitClient(workingDirectory: path);
           if (branch != null) {
             await git.checkout(branch, create: create);
-            return CallToolResult.fromContent(content: [TextContent(text: 'Checked out: $branch')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Checked out: $branch')],
+            );
           } else if (files != null) {
             await git.checkoutFiles(files);
-            return CallToolResult.fromContent(content: [TextContent(text: 'Checked out files: ${files.join(", ")}')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Checked out files: ${files.join(", ")}'),
+              ],
+            );
           } else {
-            return CallToolResult.fromContent(content: [TextContent(text: 'Error: Must specify branch or files')]);
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(text: 'Error: Must specify branch or files'),
+              ],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitCheckout', context: {'create': create});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitCheckout',
+            context: {'create': create},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -323,8 +461,14 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
             'description': 'Stash action',
             'default': 'save',
           },
-          'message': {'type': 'string', 'description': 'Stash message (for save)'},
-          'index': {'type': 'integer', 'description': 'Stash index (for apply/drop)'},
+          'message': {
+            'type': 'string',
+            'description': 'Stash message (for save)',
+          },
+          'index': {
+            'type': 'integer',
+            'description': 'Stash index (for apply/drop)',
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -365,10 +509,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
               result = 'Unknown action: $action';
           }
 
-          return CallToolResult.fromContent(content: [TextContent(text: result)]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: result)],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitStash', context: {'action': action});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitStash',
+            context: {'action': action},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -380,7 +533,11 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       toolInputSchema: ToolInputSchema(
         properties: {
           'path': {'type': 'string', 'description': 'Repository path'},
-          'verbose': {'type': 'boolean', 'description': 'Show detailed information', 'default': false},
+          'verbose': {
+            'type': 'boolean',
+            'description': 'Show detailed information',
+            'default': false,
+          },
         },
       ),
       callback: ({args, extra}) async {
@@ -401,14 +558,22 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
                 output += '\n  Locked: ${wt.lockReason ?? "yes"}';
               }
             }
-            return CallToolResult.fromContent(content: [TextContent(text: output)]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: output)],
+            );
           }
 
-          final result = worktrees.map((wt) => '${wt.path} ${wt.commit} [${wt.branch}]').join('\n');
-          return CallToolResult.fromContent(content: [TextContent(text: result)]);
+          final result = worktrees
+              .map((wt) => '${wt.path} ${wt.commit} [${wt.branch}]')
+              .join('\n');
+          return CallToolResult.fromContent(
+            content: [TextContent(text: result)],
+          );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'gitWorktreeList');
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -419,9 +584,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Add a new worktree',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'path': {'type': 'string', 'description': 'Path for the new worktree'},
-          'branch': {'type': 'string', 'description': 'Branch name for the worktree'},
-          'createBranch': {'type': 'boolean', 'description': 'Create a new branch', 'default': false},
+          'path': {
+            'type': 'string',
+            'description': 'Path for the new worktree',
+          },
+          'branch': {
+            'type': 'string',
+            'description': 'Branch name for the worktree',
+          },
+          'createBranch': {
+            'type': 'boolean',
+            'description': 'Create a new branch',
+            'default': false,
+          },
           'basePath': {'type': 'string', 'description': 'Base repository path'},
         },
         required: ['path'],
@@ -434,11 +609,24 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
 
         try {
           final git = GitClient(workingDirectory: basePath);
-          await git.worktreeAdd(worktreePath, branch: branch, createBranch: createBranch);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Worktree added at: $worktreePath')]);
+          await git.worktreeAdd(
+            worktreePath,
+            branch: branch,
+            createBranch: createBranch,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Worktree added at: $worktreePath')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitWorktreeAdd', context: {'create_branch': createBranch});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitWorktreeAdd',
+            context: {'create_branch': createBranch},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -449,8 +637,15 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Remove a worktree',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'worktree': {'type': 'string', 'description': 'Worktree path or name to remove'},
-          'force': {'type': 'boolean', 'description': 'Force removal even with uncommitted changes', 'default': false},
+          'worktree': {
+            'type': 'string',
+            'description': 'Worktree path or name to remove',
+          },
+          'force': {
+            'type': 'boolean',
+            'description': 'Force removal even with uncommitted changes',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
         required: ['worktree'],
@@ -463,10 +658,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.worktreeRemove(worktree, force: force);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Worktree removed: $worktree')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Worktree removed: $worktree')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitWorktreeRemove', context: {'force': force});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitWorktreeRemove',
+            context: {'force': force},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -477,7 +681,10 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Lock a worktree',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'worktree': {'type': 'string', 'description': 'Worktree path or name to lock'},
+          'worktree': {
+            'type': 'string',
+            'description': 'Worktree path or name to lock',
+          },
           'reason': {'type': 'string', 'description': 'Reason for locking'},
           'path': {'type': 'string', 'description': 'Repository path'},
         },
@@ -491,10 +698,14 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.worktreeLock(worktree, reason: reason);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Worktree locked: $worktree')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Worktree locked: $worktree')],
+          );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'gitWorktreeLock');
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -505,7 +716,10 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Unlock a worktree',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'worktree': {'type': 'string', 'description': 'Worktree path or name to unlock'},
+          'worktree': {
+            'type': 'string',
+            'description': 'Worktree path or name to unlock',
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
         required: ['worktree'],
@@ -517,10 +731,14 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.worktreeUnlock(worktree);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Worktree unlocked: $worktree')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Worktree unlocked: $worktree')],
+          );
         } catch (e, stackTrace) {
           await _reportError(e, stackTrace, 'gitWorktreeUnlock');
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -531,9 +749,21 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Download objects and refs from remote',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'remote': {'type': 'string', 'description': 'Remote name', 'default': 'origin'},
-          'all': {'type': 'boolean', 'description': 'Fetch all remotes', 'default': false},
-          'prune': {'type': 'boolean', 'description': 'Prune remote branches', 'default': false},
+          'remote': {
+            'type': 'string',
+            'description': 'Remote name',
+            'default': 'origin',
+          },
+          'all': {
+            'type': 'boolean',
+            'description': 'Fetch all remotes',
+            'default': false,
+          },
+          'prune': {
+            'type': 'boolean',
+            'description': 'Prune remote branches',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -546,10 +776,19 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         try {
           final git = GitClient(workingDirectory: path);
           await git.fetch(remote: remote, all: all, prune: prune);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Fetch completed')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Fetch completed')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitFetch', context: {'remote': remote, 'all': all, 'prune': prune});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitFetch',
+            context: {'remote': remote, 'all': all, 'prune': prune},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -560,9 +799,17 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       description: 'Fetch and merge changes from remote',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'remote': {'type': 'string', 'description': 'Remote name', 'default': 'origin'},
+          'remote': {
+            'type': 'string',
+            'description': 'Remote name',
+            'default': 'origin',
+          },
           'branch': {'type': 'string', 'description': 'Branch name'},
-          'rebase': {'type': 'boolean', 'description': 'Use rebase instead of merge', 'default': false},
+          'rebase': {
+            'type': 'boolean',
+            'description': 'Use rebase instead of merge',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -574,11 +821,24 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
 
         try {
           final git = GitClient(workingDirectory: path);
-          final result = await git.pull(remote: remote, branch: branch, rebase: rebase);
-          return CallToolResult.fromContent(content: [TextContent(text: 'Pull completed: $result')]);
+          final result = await git.pull(
+            remote: remote,
+            branch: branch,
+            rebase: rebase,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Pull completed: $result')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitPull', context: {'remote': remote, 'rebase': rebase});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitPull',
+            context: {'remote': remote, 'rebase': rebase},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -591,8 +851,16 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
         properties: {
           'branch': {'type': 'string', 'description': 'Branch to merge'},
           'message': {'type': 'string', 'description': 'Merge commit message'},
-          'noCommit': {'type': 'boolean', 'description': 'Perform merge but do not commit', 'default': false},
-          'abort': {'type': 'boolean', 'description': 'Abort current merge', 'default': false},
+          'noCommit': {
+            'type': 'boolean',
+            'description': 'Perform merge but do not commit',
+            'default': false,
+          },
+          'abort': {
+            'type': 'boolean',
+            'description': 'Abort current merge',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -608,17 +876,32 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
 
           if (abort) {
             await git.mergeAbort();
-            return CallToolResult.fromContent(content: [TextContent(text: 'Merge aborted')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Merge aborted')],
+            );
           } else {
             if (branch == null) {
-              return CallToolResult.fromContent(content: [TextContent(text: 'Error: Branch required for merge')]);
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(text: 'Error: Branch required for merge'),
+                ],
+              );
             }
             await git.merge(branch, message: message, noCommit: noCommit);
-            return CallToolResult.fromContent(content: [TextContent(text: 'Merge completed')]);
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Merge completed')],
+            );
           }
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitMerge', context: {'abort': abort, 'no_commit': noCommit});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitMerge',
+            context: {'abort': abort, 'no_commit': noCommit},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );
@@ -630,9 +913,21 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
       toolInputSchema: ToolInputSchema(
         properties: {
           'onto': {'type': 'string', 'description': 'Branch to rebase onto'},
-          'continue': {'type': 'boolean', 'description': 'Continue rebase after resolving conflicts', 'default': false},
-          'abort': {'type': 'boolean', 'description': 'Abort current rebase', 'default': false},
-          'skip': {'type': 'boolean', 'description': 'Skip current patch', 'default': false},
+          'continue': {
+            'type': 'boolean',
+            'description': 'Continue rebase after resolving conflicts',
+            'default': false,
+          },
+          'abort': {
+            'type': 'boolean',
+            'description': 'Abort current rebase',
+            'default': false,
+          },
+          'skip': {
+            'type': 'boolean',
+            'description': 'Skip current patch',
+            'default': false,
+          },
           'path': {'type': 'string', 'description': 'Repository path'},
         },
       ),
@@ -659,17 +954,28 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
           } else {
             if (onto == null) {
               return CallToolResult.fromContent(
-                content: [TextContent(text: 'Error: Target branch required for rebase')],
+                content: [
+                  TextContent(text: 'Error: Target branch required for rebase'),
+                ],
               );
             }
             await git.rebase(onto);
             action = 'completed';
           }
 
-          return CallToolResult.fromContent(content: [TextContent(text: 'Rebase $action')]);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Rebase $action')],
+          );
         } catch (e, stackTrace) {
-          await _reportError(e, stackTrace, 'gitRebase', context: {'abort': abort, 'continue': continueRebase, 'skip': skip});
-          return CallToolResult.fromContent(content: [TextContent(text: 'Error: $e')]);
+          await _reportError(
+            e,
+            stackTrace,
+            'gitRebase',
+            context: {'abort': abort, 'continue': continueRebase, 'skip': skip},
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: $e')],
+          );
         }
       },
     );

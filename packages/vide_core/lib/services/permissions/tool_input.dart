@@ -27,11 +27,7 @@ sealed class ToolInput {
 
 /// Input for the Bash tool.
 class BashToolInput extends ToolInput {
-  const BashToolInput({
-    required this.command,
-    this.description,
-    this.timeout,
-  });
+  const BashToolInput({required this.command, this.description, this.timeout});
 
   factory BashToolInput.fromJson(Map<String, dynamic> raw) {
     return BashToolInput(
@@ -53,11 +49,7 @@ class BashToolInput extends ToolInput {
 
 /// Input for the Read tool.
 class ReadToolInput extends ToolInput {
-  const ReadToolInput({
-    required this.filePath,
-    this.offset,
-    this.limit,
-  });
+  const ReadToolInput({required this.filePath, this.offset, this.limit});
 
   factory ReadToolInput.fromJson(Map<String, dynamic> raw) {
     return ReadToolInput(
@@ -79,10 +71,7 @@ class ReadToolInput extends ToolInput {
 
 /// Input for the Write tool.
 class WriteToolInput extends ToolInput {
-  const WriteToolInput({
-    required this.filePath,
-    required this.content,
-  });
+  const WriteToolInput({required this.filePath, required this.content});
 
   factory WriteToolInput.fromJson(Map<String, dynamic> raw) {
     return WriteToolInput(
@@ -131,10 +120,7 @@ class EditToolInput extends ToolInput {
 
 /// A single edit operation within a MultiEdit.
 class EditOperation {
-  const EditOperation({
-    required this.oldString,
-    required this.newString,
-  });
+  const EditOperation({required this.oldString, required this.newString});
 
   factory EditOperation.fromJson(Map<String, dynamic> raw) {
     return EditOperation(
@@ -152,10 +138,7 @@ class EditOperation {
 
 /// Input for the MultiEdit tool.
 class MultiEditToolInput extends ToolInput {
-  const MultiEditToolInput({
-    required this.filePath,
-    required this.edits,
-  });
+  const MultiEditToolInput({required this.filePath, required this.edits});
 
   factory MultiEditToolInput.fromJson(Map<String, dynamic> raw) {
     final rawEdits = raw['edits'] as List<dynamic>? ?? [];
@@ -179,10 +162,7 @@ class MultiEditToolInput extends ToolInput {
 
 /// Input for the WebFetch tool.
 class WebFetchToolInput extends ToolInput {
-  const WebFetchToolInput({
-    required this.url,
-    this.prompt,
-  });
+  const WebFetchToolInput({required this.url, this.prompt});
 
   factory WebFetchToolInput.fromJson(Map<String, dynamic> raw) {
     return WebFetchToolInput(
@@ -200,14 +180,10 @@ class WebFetchToolInput extends ToolInput {
 
 /// Input for the WebSearch tool.
 class WebSearchToolInput extends ToolInput {
-  const WebSearchToolInput({
-    required this.query,
-  });
+  const WebSearchToolInput({required this.query});
 
   factory WebSearchToolInput.fromJson(Map<String, dynamic> raw) {
-    return WebSearchToolInput(
-      query: raw['query'] as String? ?? '',
-    );
+    return WebSearchToolInput(query: raw['query'] as String? ?? '');
   }
 
   /// The search query to use.
@@ -216,11 +192,7 @@ class WebSearchToolInput extends ToolInput {
 
 /// Input for the Grep tool.
 class GrepToolInput extends ToolInput {
-  const GrepToolInput({
-    required this.pattern,
-    this.path,
-    this.glob,
-  });
+  const GrepToolInput({required this.pattern, this.path, this.glob});
 
   factory GrepToolInput.fromJson(Map<String, dynamic> raw) {
     return GrepToolInput(
@@ -242,10 +214,7 @@ class GrepToolInput extends ToolInput {
 
 /// Input for the Glob tool.
 class GlobToolInput extends ToolInput {
-  const GlobToolInput({
-    required this.pattern,
-    this.path,
-  });
+  const GlobToolInput({required this.pattern, this.path});
 
   factory GlobToolInput.fromJson(Map<String, dynamic> raw) {
     return GlobToolInput(
@@ -265,10 +234,7 @@ class GlobToolInput extends ToolInput {
 ///
 /// Provides access to the raw data while still indicating what tool it's for.
 class UnknownToolInput extends ToolInput {
-  const UnknownToolInput({
-    required this.toolName,
-    required this.raw,
-  });
+  const UnknownToolInput({required this.toolName, required this.raw});
 
   /// The name of the tool.
   final String toolName;

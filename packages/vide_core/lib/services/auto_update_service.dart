@@ -91,22 +91,23 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
   AutoUpdateService({
     required VideConfigManager configManager,
     http.Client? httpClient,
-  })  : _configManager = configManager,
-        _httpClient = httpClient ?? http.Client(),
-        super(const UpdateState());
+  }) : _configManager = configManager,
+       _httpClient = httpClient ?? http.Client(),
+       super(const UpdateState());
 
   /// Directory where updates are staged
   String get _updatesDir => path.join(_configManager.configRoot, 'updates');
 
   /// Path to the pending update binary
-  String get _pendingUpdatePath => path.join(_updatesDir, 'pending', _getBinaryName());
+  String get _pendingUpdatePath =>
+      path.join(_updatesDir, 'pending', _getBinaryName());
 
   /// Path to metadata file for pending update
-  String get _pendingMetadataPath => path.join(_updatesDir, 'pending', 'metadata.json');
+  String get _pendingMetadataPath =>
+      path.join(_updatesDir, 'pending', 'metadata.json');
 
   /// Check for updates in the background
   Future<void> checkForUpdates({bool silent = true}) async {
-
     // Check if auto-updates are disabled via environment variable
     if (Platform.environment['DISABLE_AUTOUPDATER'] == '1') {
       return;
@@ -118,7 +119,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
       return;
     }
 
-    if (state.status == UpdateStatus.checking || state.status == UpdateStatus.downloading) {
+    if (state.status == UpdateStatus.checking ||
+        state.status == UpdateStatus.downloading) {
       return; // Already in progress
     }
 
@@ -136,7 +138,9 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
       }
 
       final latestVersion = releaseInfo['tag_name'] as String;
-      final cleanVersion = latestVersion.startsWith('v') ? latestVersion.substring(1) : latestVersion;
+      final cleanVersion = latestVersion.startsWith('v')
+          ? latestVersion.substring(1)
+          : latestVersion;
 
       // Find the appropriate asset for this platform
       final asset = _findPlatformAsset(releaseInfo['assets'] as List<dynamic>);
@@ -175,10 +179,7 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
         return;
       }
 
-      state = state.copyWith(
-        status: UpdateStatus.idle,
-        updateInfo: updateInfo,
-      );
+      state = state.copyWith(status: UpdateStatus.idle, updateInfo: updateInfo);
 
       // Start background download
       _downloadUpdate(updateInfo);
@@ -192,7 +193,10 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
 
   /// Download the update in the background
   Future<void> _downloadUpdate(UpdateInfo updateInfo) async {
-    state = state.copyWith(status: UpdateStatus.downloading, downloadProgress: 0.0);
+    state = state.copyWith(
+      status: UpdateStatus.downloading,
+      downloadProgress: 0.0,
+    );
 
     try {
       final pendingDir = Directory(path.dirname(_pendingUpdatePath));
@@ -208,7 +212,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
       if (expectedChecksum == null) {
         state = state.copyWith(
           status: UpdateStatus.error,
-          errorMessage: 'Checksum verification failed: could not fetch SHA256SUMS.txt',
+          errorMessage:
+              'Checksum verification failed: could not fetch SHA256SUMS.txt',
         );
         return;
       }
@@ -245,7 +250,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
       if (actualChecksum != expectedChecksum) {
         state = state.copyWith(
           status: UpdateStatus.error,
-          errorMessage: 'Checksum verification failed: downloaded file does not match expected hash',
+          errorMessage:
+              'Checksum verification failed: downloaded file does not match expected hash',
         );
         return;
       }
@@ -295,7 +301,10 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
   }
 
   /// Fetch the expected SHA256 checksum for an asset from the release's SHA256SUMS.txt
-  Future<String?> _fetchExpectedChecksum(String version, String assetName) async {
+  Future<String?> _fetchExpectedChecksum(
+    String version,
+    String assetName,
+  ) async {
     final checksumUrl =
         'https://github.com/$githubOwner/$githubRepo/releases/download/v$version/SHA256SUMS.txt';
 
@@ -339,10 +348,7 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
 
   /// Extract a tarball using tar command
   Future<void> _extractTarball(String tarPath, String destDir) async {
-    final result = await Process.run(
-      'tar',
-      ['-xzf', tarPath, '-C', destDir],
-    );
+    final result = await Process.run('tar', ['-xzf', tarPath, '-C', destDir]);
     if (result.exitCode != 0) {
       throw Exception('Failed to extract tarball: ${result.stderr}');
     }
@@ -352,7 +358,9 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
   Future<Map<String, dynamic>?> _fetchLatestRelease() async {
     try {
       final response = await _httpClient.get(
-        Uri.parse('https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest'),
+        Uri.parse(
+          'https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest',
+        ),
         headers: {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'Vide-CLI/$videVersion',
@@ -387,7 +395,9 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
     if (Platform.isMacOS) {
       // Detect ARM vs x64
       final arch = _getMacOSArchitecture();
-      return arch == 'arm64' ? 'vide-macos-arm64.tar.gz' : 'vide-macos-x64.tar.gz';
+      return arch == 'arm64'
+          ? 'vide-macos-arm64.tar.gz'
+          : 'vide-macos-x64.tar.gz';
     } else if (Platform.isLinux) {
       return 'vide-linux-x64';
     } else if (Platform.isWindows) {
@@ -421,7 +431,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
     if (!metadataFile.existsSync()) return false;
 
     try {
-      final metadata = jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
+      final metadata =
+          jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
       final pendingVersion = metadata['version'] as String?;
       final binaryExists = File(_pendingUpdatePath).existsSync();
       return pendingVersion == version && binaryExists;
@@ -440,7 +451,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
     );
     final metadataPath = path.join(updatesDir, 'pending', 'metadata.json');
 
-    return File(pendingBinaryPath).existsSync() && File(metadataPath).existsSync();
+    return File(pendingBinaryPath).existsSync() &&
+        File(metadataPath).existsSync();
   }
 
   /// Get the version of the pending update
@@ -452,7 +464,8 @@ class AutoUpdateService extends StateNotifier<UpdateState> {
     if (!metadataFile.existsSync()) return null;
 
     try {
-      final metadata = jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
+      final metadata =
+          jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
       return metadata['version'] as String?;
     } catch (e) {
       return null;
@@ -482,7 +495,8 @@ int _compareVersions(String v1, String v2) {
 }
 
 /// Riverpod provider for AutoUpdateService
-final autoUpdateServiceProvider = StateNotifierProvider<AutoUpdateService, UpdateState>((ref) {
-  final configManager = ref.watch(videConfigManagerProvider);
-  return AutoUpdateService(configManager: configManager);
-});
+final autoUpdateServiceProvider =
+    StateNotifierProvider<AutoUpdateService, UpdateState>((ref) {
+      final configManager = ref.watch(videConfigManagerProvider);
+      return AutoUpdateService(configManager: configManager);
+    });

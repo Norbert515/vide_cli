@@ -1,9 +1,14 @@
 import 'package:vide_core/vide_core.dart';
 import 'package:riverpod/riverpod.dart';
 
-final agentNetworksStateNotifierProvider = StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((ref) {
-  return AgentNetworksStateNotifier(ref.read(agentNetworkPersistenceManagerProvider));
-});
+final agentNetworksStateNotifierProvider =
+    StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((
+      ref,
+    ) {
+      return AgentNetworksStateNotifier(
+        ref.read(agentNetworkPersistenceManagerProvider),
+      );
+    });
 
 class AgentNetworksState {
   AgentNetworksState({required this.networks});
@@ -16,7 +21,8 @@ class AgentNetworksState {
 }
 
 class AgentNetworksStateNotifier extends StateNotifier<AgentNetworksState> {
-  AgentNetworksStateNotifier(this._persistenceManager) : super(AgentNetworksState(networks: []));
+  AgentNetworksStateNotifier(this._persistenceManager)
+    : super(AgentNetworksState(networks: []));
 
   final AgentNetworkPersistenceManager _persistenceManager;
   bool _initialized = false;
@@ -74,7 +80,9 @@ class AgentNetworksStateNotifier extends StateNotifier<AgentNetworksState> {
   Future<void> deleteNetworkById(String networkId) async {
     await _persistenceManager.deleteNetwork(networkId);
 
-    final updatedNetworks = state.networks.where((n) => n.id != networkId).toList();
+    final updatedNetworks = state.networks
+        .where((n) => n.id != networkId)
+        .toList();
     state = state.copyWith(networks: updatedNetworks);
   }
 }

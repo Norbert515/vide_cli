@@ -164,7 +164,8 @@ class _FakeIOSink implements IOSink {
     final splitLines = content.split('\n');
     if (splitLines.length > 1) {
       lines.addAll(
-          splitLines.take(splitLines.length - 1).where((l) => l.isNotEmpty));
+        splitLines.take(splitLines.length - 1).where((l) => l.isNotEmpty),
+      );
       _buffer.clear();
       _buffer.write(splitLines.last);
     }
@@ -192,14 +193,16 @@ class FakeProcessRunner {
     bool includeParentEnvironment = true,
     bool runInShell = false,
   }) async {
-    capturedCalls.add(ProcessStartCall(
-      executable: executable,
-      arguments: arguments,
-      workingDirectory: workingDirectory,
-      environment: environment,
-      includeParentEnvironment: includeParentEnvironment,
-      runInShell: runInShell,
-    ));
+    capturedCalls.add(
+      ProcessStartCall(
+        executable: executable,
+        arguments: arguments,
+        workingDirectory: workingDirectory,
+        environment: environment,
+        includeParentEnvironment: includeParentEnvironment,
+        runInShell: runInShell,
+      ),
+    );
 
     if (_processes.isEmpty) {
       throw StateError('No FakeProcess queued. Call queueProcess() first.');

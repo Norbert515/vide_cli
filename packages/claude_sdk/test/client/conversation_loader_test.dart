@@ -28,7 +28,9 @@ void main() {
       final encodedPath = projectPath.replaceAll('/', '-').replaceAll('_', '-');
 
       // Create .claude/projects directory structure
-      final projectsDir = Directory('${tempDir!.path}/.claude/projects/$encodedPath');
+      final projectsDir = Directory(
+        '${tempDir!.path}/.claude/projects/$encodedPath',
+      );
       await projectsDir.create(recursive: true);
 
       // Create conversation file
@@ -51,7 +53,9 @@ void main() {
       );
 
       if (!await conversationFile.exists()) {
-        throw Exception('Conversation file not found: ${conversationFile.path}');
+        throw Exception(
+          'Conversation file not found: ${conversationFile.path}',
+        );
       }
 
       final lines = await conversationFile.readAsLines();
@@ -71,11 +75,9 @@ void main() {
 
     group('hasConversation', () {
       test('returns true when conversation file exists', () async {
-        await setupConversationFile(
-          'test-session-123',
-          '/Users/test/project',
-          ['{"type": "user", "message": {"content": "hello"}}'],
-        );
+        await setupConversationFile('test-session-123', '/Users/test/project', [
+          '{"type": "user", "message": {"content": "hello"}}',
+        ]);
 
         final exists = await testHasConversation(
           'test-session-123',
@@ -97,11 +99,9 @@ void main() {
       });
 
       test('handles path encoding correctly with underscores', () async {
-        await setupConversationFile(
-          'session-abc',
-          '/Users/test/my_project',
-          ['{"type": "user", "message": {"content": "hello"}}'],
-        );
+        await setupConversationFile('session-abc', '/Users/test/my_project', [
+          '{"type": "user", "message": {"content": "hello"}}',
+        ]);
 
         final exists = await testHasConversation(
           'session-abc',
@@ -120,14 +120,10 @@ void main() {
 
     group('loadHistoryForDisplay', () {
       test('loads simple user-assistant conversation', () async {
-        await setupConversationFile(
-          'simple-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-          ],
-        );
+        await setupConversationFile('simple-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'simple-session',
@@ -146,15 +142,11 @@ void main() {
       });
 
       test('merges multi-part assistant messages by ID', () async {
-        await setupConversationFile(
-          'multi-part-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Do something"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "msg_123", "role": "assistant", "content": [{"type": "text", "text": "First part"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "assistant", "uuid": "a2", "message": {"id": "msg_123", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "file.txt"}}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('multi-part-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Do something"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "msg_123", "role": "assistant", "content": [{"type": "text", "text": "First part"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "assistant", "uuid": "a2", "message": {"id": "msg_123", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "file.txt"}}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'multi-part-session',
@@ -171,15 +163,11 @@ void main() {
       });
 
       test('handles tool results in user messages', () async {
-        await setupConversationFile(
-          'tool-result-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Read file"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "file.txt"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "file contents here"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('tool-result-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Read file"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "file.txt"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "file contents here"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'tool-result-session',
@@ -191,7 +179,10 @@ void main() {
         expect(conversation.messages[1].role, equals(MessageRole.assistant));
         expect(conversation.messages[1].responses.length, equals(2));
         expect(conversation.messages[1].responses[0], isA<ToolUseResponse>());
-        expect(conversation.messages[1].responses[1], isA<ToolResultResponse>());
+        expect(
+          conversation.messages[1].responses[1],
+          isA<ToolResultResponse>(),
+        );
 
         final toolResult =
             conversation.messages[1].responses[1] as ToolResultResponse;
@@ -200,15 +191,11 @@ void main() {
       });
 
       test('handles MCP tool results with array content format', () async {
-        await setupConversationFile(
-          'mcp-tool-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Use MCP"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "mcp_1", "name": "mcp__server__tool", "input": {}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "mcp_1", "content": [{"type": "text", "text": "MCP result text"}]}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('mcp-tool-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Use MCP"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "mcp_1", "name": "mcp__server__tool", "input": {}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "mcp_1", "content": [{"type": "text", "text": "MCP result text"}]}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'mcp-tool-session',
@@ -222,14 +209,10 @@ void main() {
       });
 
       test('decodes HTML entities in content', () async {
-        await setupConversationFile(
-          'html-entity-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Show &lt;html&gt; &amp; &quot;quotes&quot;"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Here&apos;s code: &lt;div&gt;&amp;nbsp;&lt;/div&gt;"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-          ],
-        );
+        await setupConversationFile('html-entity-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Show &lt;html&gt; &amp; &quot;quotes&quot;"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Here&apos;s code: &lt;div&gt;&amp;nbsp;&lt;/div&gt;"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'html-entity-session',
@@ -247,17 +230,13 @@ void main() {
       });
 
       test('skips malformed JSONL lines gracefully', () async {
-        await setupConversationFile(
-          'malformed-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "First"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            'this is not valid json',
-            '{"malformed": "missing type"}',
-            '',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Second"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('malformed-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "First"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          'this is not valid json',
+          '{"malformed": "missing type"}',
+          '',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Second"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'malformed-session',
@@ -274,13 +253,9 @@ void main() {
       });
 
       test('handles image attachments in content', () async {
-        await setupConversationFile(
-          'image-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Look at this image"}, {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-          ],
-        );
+        await setupConversationFile('image-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Look at this image"}, {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'image-session',
@@ -318,19 +293,18 @@ void main() {
         );
 
         expect(conversation.messages.length, equals(1));
-        expect(conversation.messages[0].content, equals('Simple string content'));
+        expect(
+          conversation.messages[0].content,
+          equals('Simple string content'),
+        );
       });
 
       test('handles tool error results', () async {
-        await setupConversationFile(
-          'tool-error-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Read file"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "nonexistent.txt"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "File not found", "is_error": true}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('tool-error-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Read file"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Read", "input": {"path": "nonexistent.txt"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "tool_1", "content": "File not found", "is_error": true}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'tool-error-session',
@@ -370,14 +344,10 @@ void main() {
       });
 
       test('handles tool use with HTML entities in parameters', () async {
-        await setupConversationFile(
-          'tool-params-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Write code"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Write", "input": {"content": "&lt;div&gt;Hello&lt;/div&gt;"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-          ],
-        );
+        await setupConversationFile('tool-params-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Write code"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "tool_use", "id": "tool_1", "name": "Write", "input": {"content": "&lt;div&gt;Hello&lt;/div&gt;"}}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'tool-params-session',
@@ -420,7 +390,10 @@ void main() {
       test('handles various path formats', () {
         final testPaths = [
           ('/a/b/c', '-a-b-c'),
-          ('/Users/test/IdeaProjects/my_app', '-Users-test-IdeaProjects-my-app'),
+          (
+            '/Users/test/IdeaProjects/my_app',
+            '-Users-test-IdeaProjects-my-app',
+          ),
           ('/var/www/html', '-var-www-html'),
         ];
 
@@ -469,13 +442,9 @@ void main() {
 
     group('conversation state', () {
       test('loaded conversation has idle state', () async {
-        await setupConversationFile(
-          'state-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-          ],
-        );
+        await setupConversationFile('state-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'state-session',
@@ -488,16 +457,12 @@ void main() {
 
     group('compact boundary support', () {
       test('parses compact_boundary system messages', () async {
-        await setupConversationFile(
-          'compact-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "system", "subtype": "compact_boundary", "content": "Conversation compacted", "uuid": "cb1", "timestamp": "2024-01-01T00:01:00Z", "compactMetadata": {"trigger": "manual", "preTokens": 150000}}',
-            '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "text", "text": "Continue please"}]}, "timestamp": "2024-01-01T00:01:01Z"}',
-          ],
-        );
+        await setupConversationFile('compact-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "assistant", "uuid": "a1", "message": {"id": "a1", "role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "system", "subtype": "compact_boundary", "content": "Conversation compacted", "uuid": "cb1", "timestamp": "2024-01-01T00:01:00Z", "compactMetadata": {"trigger": "manual", "preTokens": 150000}}',
+          '{"type": "user", "uuid": "u2", "message": {"role": "user", "content": [{"type": "text", "text": "Continue please"}]}, "timestamp": "2024-01-01T00:01:01Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'compact-session',
@@ -510,22 +475,18 @@ void main() {
         expect(conversation.messages[1].role, equals(MessageRole.assistant));
         // Compact boundary is rendered as a system message
         expect(conversation.messages[2].role, equals(MessageRole.system));
-        expect(conversation.messages[2].messageType, equals(MessageType.compactBoundary));
         expect(
-          conversation.messages[2].content,
-          contains('Compacted'),
+          conversation.messages[2].messageType,
+          equals(MessageType.compactBoundary),
         );
+        expect(conversation.messages[2].content, contains('Compacted'));
         expect(conversation.messages[3].role, equals(MessageRole.user));
       });
 
       test('parses compact summary user messages with flags', () async {
-        await setupConversationFile(
-          'summary-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": "Summary of conversation..."}, "isCompactSummary": true, "isVisibleInTranscriptOnly": true, "timestamp": "2024-01-01T00:00:00Z"}',
-          ],
-        );
+        await setupConversationFile('summary-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": "Summary of conversation..."}, "isCompactSummary": true, "isVisibleInTranscriptOnly": true, "timestamp": "2024-01-01T00:00:00Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'summary-session',
@@ -538,15 +499,11 @@ void main() {
       });
 
       test('skips meta messages (isMeta: true)', () async {
-        await setupConversationFile(
-          'meta-session',
-          '/Users/test/project',
-          [
-            '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
-            '{"type": "user", "uuid": "u2", "isMeta": true, "message": {"role": "user", "content": "This is a meta message"}, "timestamp": "2024-01-01T00:00:01Z"}',
-            '{"type": "user", "uuid": "u3", "message": {"role": "user", "content": [{"type": "text", "text": "Continue"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
-          ],
-        );
+        await setupConversationFile('meta-session', '/Users/test/project', [
+          '{"type": "user", "uuid": "u1", "message": {"role": "user", "content": [{"type": "text", "text": "Hello"}]}, "timestamp": "2024-01-01T00:00:00Z"}',
+          '{"type": "user", "uuid": "u2", "isMeta": true, "message": {"role": "user", "content": "This is a meta message"}, "timestamp": "2024-01-01T00:00:01Z"}',
+          '{"type": "user", "uuid": "u3", "message": {"role": "user", "content": [{"type": "text", "text": "Continue"}]}, "timestamp": "2024-01-01T00:00:02Z"}',
+        ]);
 
         final conversation = await loadTestConversation(
           'meta-session',
@@ -605,7 +562,10 @@ void main() {
         // 2. Assistant: tool_use + tool_result (merged from user type line)
         // 3. Assistant: text response (new message since lastAssistantMessageId was reset)
         expect(conversation.messages.length, equals(3));
-        expect(conversation.messages[0].content, equals('Read the file config.txt'));
+        expect(
+          conversation.messages[0].content,
+          equals('Read the file config.txt'),
+        );
 
         // First assistant message has tool use and tool result
         final firstAssistantMsg = conversation.messages[1];
@@ -630,7 +590,10 @@ void main() {
 
         expect(conversation.messages.length, equals(4));
         expect(conversation.messages[0].content, equals('What is 2+2?'));
-        expect(conversation.messages[2].content, equals('And what is that times 3?'));
+        expect(
+          conversation.messages[2].content,
+          equals('And what is that times 3?'),
+        );
       });
     });
   });
@@ -669,10 +632,7 @@ Conversation _parseConversationLines(List<String> lines) {
             if (messages.isNotEmpty &&
                 messages.last.role == MessageRole.assistant) {
               final lastMsg = messages.last;
-              final updatedResponses = [
-                ...lastMsg.responses,
-                ...msg.responses,
-              ];
+              final updatedResponses = [...lastMsg.responses, ...msg.responses];
               messages[messages.length - 1] = lastMsg.copyWith(
                 responses: updatedResponses,
               );
@@ -722,7 +682,8 @@ ConversationMessage? _parseCompactBoundary(Map<String, dynamic> json) {
         ? DateTime.tryParse(timestampStr) ?? DateTime.now()
         : DateTime.now();
 
-    final uuid = json['uuid'] as String? ??
+    final uuid =
+        json['uuid'] as String? ??
         DateTime.now().millisecondsSinceEpoch.toString();
 
     return ConversationMessage.compactBoundary(
@@ -752,8 +713,9 @@ ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
 
     final content = messageData['content'];
     final timestampStr = json['timestamp'] as String?;
-    final timestamp =
-        timestampStr != null ? DateTime.tryParse(timestampStr) : null;
+    final timestamp = timestampStr != null
+        ? DateTime.tryParse(timestampStr)
+        : null;
 
     String textContent = '';
     List<Attachment>? attachments;
@@ -784,7 +746,8 @@ ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
 
             toolResults.add(
               ToolResultResponse(
-                id: json['uuid'] as String? ??
+                id:
+                    json['uuid'] as String? ??
                     DateTime.now().millisecondsSinceEpoch.toString(),
                 timestamp: timestamp ?? DateTime.now(),
                 toolUseId: toolUseId,
@@ -798,7 +761,8 @@ ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
 
       if (toolResults.isNotEmpty) {
         return ConversationMessage.assistant(
-          id: timestamp?.millisecondsSinceEpoch.toString() ??
+          id:
+              timestamp?.millisecondsSinceEpoch.toString() ??
               DateTime.now().millisecondsSinceEpoch.toString(),
           responses: toolResults,
           isComplete: true,
@@ -829,7 +793,8 @@ ConversationMessage? _parseUserMessage(Map<String, dynamic> json) {
     }
 
     return ConversationMessage(
-      id: timestamp?.millisecondsSinceEpoch.toString() ??
+      id:
+          timestamp?.millisecondsSinceEpoch.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       role: MessageRole.user,
       content: textContent,
@@ -851,8 +816,9 @@ ConversationMessage? _parseAssistantMessage(Map<String, dynamic> json) {
 
     final content = messageData['content'];
     final timestampStr = json['timestamp'] as String?;
-    final timestamp =
-        timestampStr != null ? DateTime.tryParse(timestampStr) : null;
+    final timestamp = timestampStr != null
+        ? DateTime.tryParse(timestampStr)
+        : null;
     final responses = <ClaudeResponse>[];
 
     if (content is List) {
@@ -865,7 +831,8 @@ ConversationMessage? _parseAssistantMessage(Map<String, dynamic> json) {
             if (text.isNotEmpty) {
               responses.add(
                 TextResponse(
-                  id: block['id'] as String? ??
+                  id:
+                      block['id'] as String? ??
                       DateTime.now().millisecondsSinceEpoch.toString(),
                   timestamp: DateTime.now(),
                   content: _decodeHtmlEntities(text),
@@ -877,7 +844,8 @@ ConversationMessage? _parseAssistantMessage(Map<String, dynamic> json) {
             final parameters = block['input'] as Map<String, dynamic>? ?? {};
             responses.add(
               ToolUseResponse(
-                id: block['id'] as String? ??
+                id:
+                    block['id'] as String? ??
                     DateTime.now().millisecondsSinceEpoch.toString(),
                 timestamp: DateTime.now(),
                 toolName: _decodeHtmlEntities(toolName),
@@ -895,7 +863,8 @@ ConversationMessage? _parseAssistantMessage(Map<String, dynamic> json) {
     }
 
     return ConversationMessage.assistant(
-      id: timestamp?.millisecondsSinceEpoch.toString() ??
+      id:
+          timestamp?.millisecondsSinceEpoch.toString() ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       responses: responses,
       isComplete: true,

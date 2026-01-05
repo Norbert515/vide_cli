@@ -93,12 +93,9 @@ void main() {
     test('notifies listeners on add', () {
       var notificationCount = 0;
 
-      container.listen(
-        claudeManagerProvider,
-        (previous, next) {
-          notificationCount++;
-        },
-      );
+      container.listen(claudeManagerProvider, (previous, next) {
+        notificationCount++;
+      });
 
       final notifier = container.read(claudeManagerProvider.notifier);
       notifier.addAgent('agent-1', MockClaudeClient('test'));
@@ -111,12 +108,9 @@ void main() {
       notifier.addAgent('agent-1', MockClaudeClient('test'));
 
       var notificationCount = 0;
-      container.listen(
-        claudeManagerProvider,
-        (previous, next) {
-          notificationCount++;
-        },
-      );
+      container.listen(claudeManagerProvider, (previous, next) {
+        notificationCount++;
+      });
 
       notifier.removeAgent('agent-1');
 

@@ -31,8 +31,14 @@ void main() {
 
       test('loads networks from JSON file', () async {
         // Create initial networks
-        final network1 = TestFixtures.agentNetwork(id: 'network-1', goal: 'Goal 1');
-        final network2 = TestFixtures.agentNetwork(id: 'network-2', goal: 'Goal 2');
+        final network1 = TestFixtures.agentNetwork(
+          id: 'network-1',
+          goal: 'Goal 1',
+        );
+        final network2 = TestFixtures.agentNetwork(
+          id: 'network-2',
+          goal: 'Goal 2',
+        );
 
         await persistenceManager.saveNetworks([network1, network2]);
 
@@ -114,7 +120,10 @@ void main() {
       });
 
       test('updates existing network', () async {
-        final network = TestFixtures.agentNetwork(id: 'my-network', goal: 'Original Goal');
+        final network = TestFixtures.agentNetwork(
+          id: 'my-network',
+          goal: 'Original Goal',
+        );
         await persistenceManager.saveNetwork(network);
 
         final updated = network.copyWith(goal: 'Updated Goal');
@@ -126,8 +135,14 @@ void main() {
       });
 
       test('preserves other networks when updating', () async {
-        final network1 = TestFixtures.agentNetwork(id: 'network-1', goal: 'Goal 1');
-        final network2 = TestFixtures.agentNetwork(id: 'network-2', goal: 'Goal 2');
+        final network1 = TestFixtures.agentNetwork(
+          id: 'network-1',
+          goal: 'Goal 1',
+        );
+        final network2 = TestFixtures.agentNetwork(
+          id: 'network-2',
+          goal: 'Goal 2',
+        );
 
         await persistenceManager.saveNetwork(network1);
         await persistenceManager.saveNetwork(network2);

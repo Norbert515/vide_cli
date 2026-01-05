@@ -51,23 +51,18 @@ class VideTheme extends StatelessComponent {
   final Component child;
 
   /// Creates a Vide theme provider with an explicit theme.
-  const VideTheme({
-    super.key,
-    required VideThemeData data,
-    required this.child,
-  })  : _data = data,
-        _autoDetect = false;
+  const VideTheme({super.key, required VideThemeData data, required this.child})
+    : _data = data,
+      _autoDetect = false;
 
   /// Creates a Vide theme provider that auto-detects light or dark theme
   /// based on the parent [TuiTheme]'s brightness.
   ///
   /// This requires a [TuiTheme] ancestor (typically provided by [NoctermApp]).
   /// If no [TuiTheme] ancestor exists, defaults to dark theme.
-  const VideTheme.auto({
-    super.key,
-    required this.child,
-  })  : _data = null,
-        _autoDetect = true;
+  const VideTheme.auto({super.key, required this.child})
+    : _data = null,
+      _autoDetect = true;
 
   /// Returns the [VideThemeData] from the closest [VideTheme] ancestor.
   ///
@@ -88,8 +83,8 @@ class VideTheme extends StatelessComponent {
   /// }
   /// ```
   static VideThemeData of(BuildContext context) {
-    final theme =
-        context.dependOnInheritedComponentOfExactType<_VideThemeInherited>();
+    final theme = context
+        .dependOnInheritedComponentOfExactType<_VideThemeInherited>();
     return theme?.data ?? VideThemeData.dark();
   }
 
@@ -102,8 +97,8 @@ class VideTheme extends StatelessComponent {
   ///
   /// Returns `null` if no [VideTheme] ancestor exists.
   static VideThemeData? maybeOf(BuildContext context) {
-    final element =
-        context.getElementForInheritedComponentOfExactType<_VideThemeInherited>();
+    final element = context
+        .getElementForInheritedComponentOfExactType<_VideThemeInherited>();
     return (element?.component as _VideThemeInherited?)?.data;
   }
 
@@ -127,18 +122,12 @@ class VideTheme extends StatelessComponent {
     // Only wrap with TuiTheme if we're not auto-detecting
     // (if auto-detecting, TuiTheme is already provided by NoctermApp)
     if (_autoDetect) {
-      return _VideThemeInherited(
-        data: effectiveData,
-        child: child,
-      );
+      return _VideThemeInherited(data: effectiveData, child: child);
     } else {
       // Wrap with TuiTheme so nocterm components can access the base theme
       return TuiTheme(
         data: effectiveData.base,
-        child: _VideThemeInherited(
-          data: effectiveData,
-          child: child,
-        ),
+        child: _VideThemeInherited(data: effectiveData, child: child),
       );
     }
   }
@@ -148,10 +137,7 @@ class VideTheme extends StatelessComponent {
 class _VideThemeInherited extends InheritedComponent {
   final VideThemeData data;
 
-  const _VideThemeInherited({
-    required this.data,
-    required super.child,
-  });
+  const _VideThemeInherited({required this.data, required super.child});
 
   @override
   bool updateShouldNotify(_VideThemeInherited oldComponent) {

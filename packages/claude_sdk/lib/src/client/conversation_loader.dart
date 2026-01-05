@@ -125,7 +125,9 @@ class ConversationLoader {
               );
             } else {
               // New assistant message
-              messages.add(message.copyWith(isComplete: true, isStreaming: false));
+              messages.add(
+                message.copyWith(isComplete: true, isStreaming: false),
+              );
               lastAssistantMessageId = currentMessageId;
             }
             continue;

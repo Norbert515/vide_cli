@@ -38,11 +38,19 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       print('📍 [$name Button]');
-      print('   Position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})');
-      print('   Size: ${size.width.toStringAsFixed(1)} x ${size.height.toStringAsFixed(1)}');
-      print('   Center: (${center.dx.toStringAsFixed(1)}, ${center.dy.toStringAsFixed(1)})');
-      print('   Bounds: x[${position.dx.toStringAsFixed(1)} - ${(position.dx + size.width).toStringAsFixed(1)}], '
-          'y[${position.dy.toStringAsFixed(1)} - ${(position.dy + size.height).toStringAsFixed(1)}]');
+      print(
+        '   Position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})',
+      );
+      print(
+        '   Size: ${size.width.toStringAsFixed(1)} x ${size.height.toStringAsFixed(1)}',
+      );
+      print(
+        '   Center: (${center.dx.toStringAsFixed(1)}, ${center.dy.toStringAsFixed(1)})',
+      );
+      print(
+        '   Bounds: x[${position.dx.toStringAsFixed(1)} - ${(position.dx + size.width).toStringAsFixed(1)}], '
+        'y[${position.dy.toStringAsFixed(1)} - ${(position.dy + size.height).toStringAsFixed(1)}]',
+      );
     } else {
       print('⚠️  [$name Button] RenderBox not found');
     }
@@ -61,18 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.phone_android,
-                size: 80,
-                color: Colors.blue,
-              ),
+              const Icon(Icons.phone_android, size: 80, color: Colors.blue),
               const SizedBox(height: 24),
               const Text(
                 'Welcome to Runtime AI Dev Tools',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),

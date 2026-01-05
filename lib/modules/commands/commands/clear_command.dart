@@ -15,11 +15,12 @@ class ClearCommand extends Command {
   String get usage => '/clear';
 
   @override
-  Future<CommandResult> execute(CommandContext context, String? arguments) async {
+  Future<CommandResult> execute(
+    CommandContext context,
+    String? arguments,
+  ) async {
     if (context.sendMessage == null) {
-      return CommandResult.error(
-        'Cannot clear: message sending not available',
-      );
+      return CommandResult.error('Cannot clear: message sending not available');
     }
 
     // Send /clear to Claude Code CLI which handles the actual clearing

@@ -6,7 +6,9 @@ void main() {
   group('ToolInvocation', () {
     group('constructor and basic properties', () {
       test('creates invocation with toolCall only', () {
-        final toolCall = createToolUseResponse('Read', {'file_path': '/test.dart'});
+        final toolCall = createToolUseResponse('Read', {
+          'file_path': '/test.dart',
+        });
         final invocation = ToolInvocation(toolCall: toolCall);
 
         expect(invocation.toolCall, equals(toolCall));
@@ -19,12 +21,13 @@ void main() {
       });
 
       test('creates invocation with toolCall and toolResult', () {
-        final toolCall = createToolUseResponse(
-          'Read',
-          {'file_path': '/test.dart'},
-          toolUseId: 'tool-123',
+        final toolCall = createToolUseResponse('Read', {
+          'file_path': '/test.dart',
+        }, toolUseId: 'tool-123');
+        final toolResult = createToolResultResponse(
+          'tool-123',
+          'file contents',
         );
-        final toolResult = createToolResultResponse('tool-123', 'file contents');
         final invocation = ToolInvocation(
           toolCall: toolCall,
           toolResult: toolResult,
@@ -38,11 +41,9 @@ void main() {
       });
 
       test('isError reflects toolResult error state', () {
-        final toolCall = createToolUseResponse(
-          'Read',
-          {'file_path': '/missing.dart'},
-          toolUseId: 'tool-456',
-        );
+        final toolCall = createToolUseResponse('Read', {
+          'file_path': '/missing.dart',
+        }, toolUseId: 'tool-456');
         final errorResult = createToolResultResponse(
           'tool-456',
           'File not found',
@@ -72,9 +73,14 @@ void main() {
       });
 
       test('resultContent returns content from toolResult', () {
-        final toolCall = createToolUseResponse('Bash', {'command': 'echo hi'}, toolUseId: 'id1');
+        final toolCall = createToolUseResponse('Bash', {
+          'command': 'echo hi',
+        }, toolUseId: 'id1');
         final toolResult = createToolResultResponse('id1', 'hi\n');
-        final invocation = ToolInvocation(toolCall: toolCall, toolResult: toolResult);
+        final invocation = ToolInvocation(
+          toolCall: toolCall,
+          toolResult: toolResult,
+        );
 
         expect(invocation.resultContent, equals('hi\n'));
       });
@@ -103,17 +109,20 @@ void main() {
       });
 
       test('formats server name with dashes to title case', () {
-        final toolCall = createToolUseResponse('mcp__flutter-runtime__flutterStart', {});
+        final toolCall = createToolUseResponse(
+          'mcp__flutter-runtime__flutterStart',
+          {},
+        );
         final invocation = ToolInvocation(toolCall: toolCall);
 
         expect(invocation.displayName, equals('Flutter Runtime: flutterStart'));
       });
 
       test('handles spawnAgent like any other tool', () {
-        final toolCall = createToolUseResponse(
-          'mcp__vide-agent__spawnAgent',
-          {'agentType': 'implementation', 'name': 'Bug Fix'},
-        );
+        final toolCall = createToolUseResponse('mcp__vide-agent__spawnAgent', {
+          'agentType': 'implementation',
+          'name': 'Bug Fix',
+        });
         final invocation = ToolInvocation(toolCall: toolCall);
 
         expect(invocation.displayName, equals('Vide Agent: spawnAgent'));
@@ -129,7 +138,9 @@ void main() {
 
     group('copyWith', () {
       test('creates copy with updated toolResult', () {
-        final toolCall = createToolUseResponse('Read', {'file_path': '/test.dart'}, toolUseId: 'id1');
+        final toolCall = createToolUseResponse('Read', {
+          'file_path': '/test.dart',
+        }, toolUseId: 'id1');
         final invocation = ToolInvocation(toolCall: toolCall);
         final toolResult = createToolResultResponse('id1', 'contents');
 
@@ -142,7 +153,10 @@ void main() {
 
       test('creates copy with updated isExpanded', () {
         final toolCall = createToolUseResponse('Read', {});
-        final invocation = ToolInvocation(toolCall: toolCall, isExpanded: false);
+        final invocation = ToolInvocation(
+          toolCall: toolCall,
+          isExpanded: false,
+        );
 
         final updated = invocation.copyWith(isExpanded: true);
 
@@ -177,7 +191,10 @@ void main() {
         'initialPrompt': 'Find auth patterns',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       // spawnAgent is no longer special-cased - returns base ToolInvocation
       expect(invocation.runtimeType, equals(ToolInvocation));
@@ -189,7 +206,10 @@ void main() {
         'content': 'void main() {}',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<WriteToolInvocation>());
       final write = invocation as WriteToolInvocation;
@@ -203,7 +223,10 @@ void main() {
         'content': 'hello',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<WriteToolInvocation>());
     });
@@ -215,7 +238,10 @@ void main() {
         'new_string': 'newCode',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<EditToolInvocation>());
       final edit = invocation as EditToolInvocation;
@@ -231,7 +257,10 @@ void main() {
         'new_string': 'b',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<EditToolInvocation>());
     });
@@ -244,7 +273,10 @@ void main() {
         'replace_all': true,
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<EditToolInvocation>());
       final edit = invocation as EditToolInvocation;
@@ -256,7 +288,10 @@ void main() {
         'file_path': '/Users/test/code.dart',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<FileOperationToolInvocation>());
       final fileOp = invocation as FileOperationToolInvocation;
@@ -264,11 +299,12 @@ void main() {
     });
 
     test('returns FileOperationToolInvocation for Glob', () {
-      final toolCall = createToolUseResponse('Glob', {
-        'pattern': '**/*.dart',
-      });
+      final toolCall = createToolUseResponse('Glob', {'pattern': '**/*.dart'});
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<FileOperationToolInvocation>());
     });
@@ -278,7 +314,10 @@ void main() {
         'pattern': 'class.*Widget',
       });
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation, isA<FileOperationToolInvocation>());
     });
@@ -286,7 +325,10 @@ void main() {
     test('returns base ToolInvocation for unknown tools', () {
       final toolCall = createToolUseResponse('UnknownTool', {'foo': 'bar'});
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation.runtimeType, equals(ToolInvocation));
     });
@@ -294,13 +336,18 @@ void main() {
     test('returns base ToolInvocation for Bash', () {
       final toolCall = createToolUseResponse('Bash', {'command': 'ls -la'});
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, null);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        null,
+      );
 
       expect(invocation.runtimeType, equals(ToolInvocation));
     });
 
     test('preserves sessionId and isExpanded', () {
-      final toolCall = createToolUseResponse('Read', {'file_path': '/test.dart'});
+      final toolCall = createToolUseResponse('Read', {
+        'file_path': '/test.dart',
+      });
 
       final invocation = ConversationMessage.createTypedInvocation(
         toolCall,
@@ -314,10 +361,15 @@ void main() {
     });
 
     test('includes toolResult when provided', () {
-      final toolCall = createToolUseResponse('Read', {'file_path': '/test.dart'}, toolUseId: 'id1');
+      final toolCall = createToolUseResponse('Read', {
+        'file_path': '/test.dart',
+      }, toolUseId: 'id1');
       final toolResult = createToolResultResponse('id1', 'file content here');
 
-      final invocation = ConversationMessage.createTypedInvocation(toolCall, toolResult);
+      final invocation = ConversationMessage.createTypedInvocation(
+        toolCall,
+        toolResult,
+      );
 
       expect(invocation.hasResult, isTrue);
       expect(invocation.resultContent, equals('file content here'));
@@ -331,7 +383,9 @@ void main() {
       });
       final baseInvocation = ToolInvocation(toolCall: toolCall);
 
-      final fileOp = FileOperationToolInvocation.fromToolInvocation(baseInvocation);
+      final fileOp = FileOperationToolInvocation.fromToolInvocation(
+        baseInvocation,
+      );
 
       expect(fileOp.filePath, equals('/Users/test/project/lib/main.dart'));
     });
@@ -340,7 +394,9 @@ void main() {
       final toolCall = createToolUseResponse('Glob', {'pattern': '*.dart'});
       final baseInvocation = ToolInvocation(toolCall: toolCall);
 
-      final fileOp = FileOperationToolInvocation.fromToolInvocation(baseInvocation);
+      final fileOp = FileOperationToolInvocation.fromToolInvocation(
+        baseInvocation,
+      );
 
       expect(fileOp.filePath, equals(''));
     });
@@ -352,7 +408,9 @@ void main() {
       });
       final baseInvocation = ToolInvocation(toolCall: toolCall);
 
-      final fileOp = FileOperationToolInvocation.fromToolInvocation(baseInvocation);
+      final fileOp = FileOperationToolInvocation.fromToolInvocation(
+        baseInvocation,
+      );
 
       // pattern is accessible via parameters
       expect(fileOp.parameters['pattern'], equals('**/*.dart'));
@@ -365,7 +423,9 @@ void main() {
       });
       final baseInvocation = ToolInvocation(toolCall: toolCall);
 
-      final fileOp = FileOperationToolInvocation.fromToolInvocation(baseInvocation);
+      final fileOp = FileOperationToolInvocation.fromToolInvocation(
+        baseInvocation,
+      );
 
       expect(fileOp.parameters['pattern'], equals('TODO:'));
     });
@@ -393,7 +453,9 @@ void main() {
         );
 
         // Working directory is far away, so relative path would be longer
-        final relative = fileOp.getRelativePath('/Users/very/long/path/to/somewhere/else');
+        final relative = fileOp.getRelativePath(
+          '/Users/very/long/path/to/somewhere/else',
+        );
 
         expect(relative, equals('/a/b.dart'));
       });

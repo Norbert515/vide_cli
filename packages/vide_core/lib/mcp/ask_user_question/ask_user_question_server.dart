@@ -8,12 +8,13 @@ import '../../../models/agent_id.dart';
 import 'ask_user_question_service.dart';
 import 'ask_user_question_types.dart';
 
-final askUserQuestionServerProvider = Provider.family<AskUserQuestionServer, AgentId>((ref, agentId) {
-  return AskUserQuestionServer(
-    callerAgentId: agentId,
-    service: ref.watch(askUserQuestionServiceProvider),
-  );
-});
+final askUserQuestionServerProvider =
+    Provider.family<AskUserQuestionServer, AgentId>((ref, agentId) {
+      return AskUserQuestionServer(
+        callerAgentId: agentId,
+        service: ref.watch(askUserQuestionServiceProvider),
+      );
+    });
 
 /// MCP server providing AskUserQuestion tool
 ///
@@ -28,8 +29,8 @@ class AskUserQuestionServer extends McpServerBase {
   AskUserQuestionServer({
     required this.callerAgentId,
     required AskUserQuestionService service,
-  })  : _service = service,
-        super(name: serverName, version: '1.0.0');
+  }) : _service = service,
+       super(name: serverName, version: '1.0.0');
 
   @override
   List<String> get toolNames => ['askUserQuestion'];
@@ -38,7 +39,8 @@ class AskUserQuestionServer extends McpServerBase {
   void registerTools(McpServer server) {
     server.tool(
       'askUserQuestion',
-      description: '''Ask the user one or more structured multiple-choice questions.
+      description:
+          '''Ask the user one or more structured multiple-choice questions.
 
 Use this tool when you need clear, unambiguous decisions from the user:
 - Choosing between 2-4 implementation approaches
@@ -68,17 +70,20 @@ For open-ended questions, just ask in regular text instead.''',
                 },
                 'multiSelect': {
                   'type': 'boolean',
-                  'description': 'If true, user can select multiple options. Default: false',
+                  'description':
+                      'If true, user can select multiple options. Default: false',
                 },
                 'options': {
                   'type': 'array',
-                  'description': 'List of options (2-4 options). Put recommended option first.',
+                  'description':
+                      'List of options (2-4 options). Put recommended option first.',
                   'items': {
                     'type': 'object',
                     'properties': {
                       'label': {
                         'type': 'string',
-                        'description': 'Short option label (1-5 words). Add "(Recommended)" for preferred option.',
+                        'description':
+                            'Short option label (1-5 words). Add "(Recommended)" for preferred option.',
                       },
                       'description': {
                         'type': 'string',
@@ -111,7 +116,9 @@ For open-ended questions, just ask in regular text instead.''',
 
         if (questionsJson.length > 4) {
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error: Maximum 4 questions allowed per call')],
+            content: [
+              TextContent(text: 'Error: Maximum 4 questions allowed per call'),
+            ],
           );
         }
 
@@ -126,12 +133,20 @@ For open-ended questions, just ask in regular text instead.''',
           for (final q in questions) {
             if (q.options.length < 2) {
               return CallToolResult.fromContent(
-                content: [TextContent(text: 'Error: Each question must have at least 2 options')],
+                content: [
+                  TextContent(
+                    text: 'Error: Each question must have at least 2 options',
+                  ),
+                ],
               );
             }
             if (q.options.length > 4) {
               return CallToolResult.fromContent(
-                content: [TextContent(text: 'Error: Each question can have at most 4 options')],
+                content: [
+                  TextContent(
+                    text: 'Error: Each question can have at most 4 options',
+                  ),
+                ],
               );
             }
           }

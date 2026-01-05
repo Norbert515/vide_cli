@@ -15,14 +15,21 @@ class FlutterTesterAgentConfig {
   static const String version = '1.0.0';
 
   /// Creates a configuration for the Flutter tester agent
-  static AgentConfiguration create({ProjectType projectType = ProjectType.unknown}) {
+  static AgentConfiguration create({
+    ProjectType projectType = ProjectType.unknown,
+  }) {
     return AgentConfiguration(
       name: agentName,
       description: 'Tests Flutter applications using automated testing tools',
       systemPrompt: _buildSystemPrompt(projectType),
       permissionMode: 'acceptEdits',
       // Flutter tester needs Flutter Runtime, Memory, TaskManagement, and Agent (for inter-agent communication)
-      mcpServers: [McpServerType.flutterRuntime, McpServerType.memory, McpServerType.taskManagement, McpServerType.agent],
+      mcpServers: [
+        McpServerType.flutterRuntime,
+        McpServerType.memory,
+        McpServerType.taskManagement,
+        McpServerType.agent,
+      ],
     );
   }
 

@@ -21,7 +21,8 @@ class PortManager {
   static Future<int> findAvailablePort({int? preferredPort}) async {
     // Try preferred port first
     if (preferredPort != null) {
-      if (!_reservedPorts.contains(preferredPort) && await isPortAvailable(preferredPort)) {
+      if (!_reservedPorts.contains(preferredPort) &&
+          await isPortAvailable(preferredPort)) {
         _reservedPorts.add(preferredPort);
         return preferredPort;
       }

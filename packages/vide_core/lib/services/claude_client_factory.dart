@@ -34,8 +34,8 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   ClaudeClientFactoryImpl({
     required String Function() getWorkingDirectory,
     required Ref ref,
-  })  : _getWorkingDirectory = getWorkingDirectory,
-        _ref = ref;
+  }) : _getWorkingDirectory = getWorkingDirectory,
+       _ref = ref;
 
   /// Gets the enableStreaming setting from global settings.
   bool get _enableStreaming {
@@ -55,10 +55,18 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       enableStreaming: _enableStreaming,
     );
 
-    final mcpServers = config.mcpServers
-            ?.map((server) => _ref.watch(genericMcpServerProvider(
-                  AgentIdAndMcpServerType(agentId: agentId, mcpServerType: server),
-                )))
+    final mcpServers =
+        config.mcpServers
+            ?.map(
+              (server) => _ref.watch(
+                genericMcpServerProvider(
+                  AgentIdAndMcpServerType(
+                    agentId: agentId,
+                    mcpServerType: server,
+                  ),
+                ),
+              ),
+            )
             .toList() ??
         [];
 
@@ -84,10 +92,18 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       enableStreaming: _enableStreaming,
     );
 
-    final mcpServers = config.mcpServers
-            ?.map((server) => _ref.watch(genericMcpServerProvider(
-                  AgentIdAndMcpServerType(agentId: agentId, mcpServerType: server),
-                )))
+    final mcpServers =
+        config.mcpServers
+            ?.map(
+              (server) => _ref.watch(
+                genericMcpServerProvider(
+                  AgentIdAndMcpServerType(
+                    agentId: agentId,
+                    mcpServerType: server,
+                  ),
+                ),
+              ),
+            )
             .toList() ??
         [];
 

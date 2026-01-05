@@ -11,7 +11,10 @@ class PatternInference {
       BashToolInput(:final command) => _inferBashPattern(command),
       WriteToolInput(:final filePath) => _inferFilePattern('Write', filePath),
       EditToolInput(:final filePath) => _inferFilePattern('Edit', filePath),
-      MultiEditToolInput(:final filePath) => _inferFilePattern('MultiEdit', filePath),
+      MultiEditToolInput(:final filePath) => _inferFilePattern(
+        'MultiEdit',
+        filePath,
+      ),
       WebFetchToolInput(:final url) => _inferWebFetchPattern(url),
       ReadToolInput(:final filePath) => _inferReadPattern(filePath),
       WebSearchToolInput() => _inferWebSearchPattern(),
@@ -33,12 +36,14 @@ class PatternInference {
     final parsedCommands = BashCommandParser.parse(command);
 
     // Find the "main" command (skip cd commands)
-    final mainCommand = parsedCommands.firstWhere(
-      (cmd) => cmd.type != CommandType.cd,
-      orElse: () => parsedCommands.isNotEmpty
-          ? parsedCommands.first
-          : ParsedCommand('', CommandType.simple),
-    ).command;
+    final mainCommand = parsedCommands
+        .firstWhere(
+          (cmd) => cmd.type != CommandType.cd,
+          orElse: () => parsedCommands.isNotEmpty
+              ? parsedCommands.first
+              : ParsedCommand('', CommandType.simple),
+        )
+        .command;
 
     if (mainCommand.isEmpty) return 'Bash(*)';
 
@@ -74,10 +79,7 @@ class PatternInference {
 
   /// Infer pattern for file operations (Write/Edit/MultiEdit)
   /// Example: "/path/to/file.dart" → "Write(/path/to/**)"
-  static String _inferFilePattern(
-    String toolName,
-    String filePath,
-  ) {
+  static String _inferFilePattern(String toolName, String filePath) {
     if (filePath.isEmpty) return '$toolName(*)';
 
     // Extract directory path

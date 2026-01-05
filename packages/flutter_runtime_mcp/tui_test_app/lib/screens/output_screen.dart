@@ -7,11 +7,7 @@ class OutputScreen extends StatefulComponent {
   final FlutterRuntimeServer server;
   final FlutterInstance instance;
 
-  const OutputScreen({
-    required this.server,
-    required this.instance,
-    super.key,
-  });
+  const OutputScreen({required this.server, required this.instance, super.key});
 
   @override
   State<OutputScreen> createState() => _OutputScreenState();
@@ -47,27 +43,21 @@ class _OutputScreenState extends State<OutputScreen> {
     return Focusable(
       focused: true,
       onKeyEvent: (event) {
-        if (event.logicalKey == LogicalKey.keyB || event.logicalKey == LogicalKey.escape) {
+        if (event.logicalKey == LogicalKey.keyB ||
+            event.logicalKey == LogicalKey.escape) {
           Navigator.of(context).pop();
           return true;
         }
         return false;
       },
       child: Container(
-        decoration: const BoxDecoration(
-          color: Color.fromRGB(15, 15, 35),
-        ),
+        decoration: const BoxDecoration(color: Color.fromRGB(15, 15, 35)),
         child: Column(
           children: [
             _buildHeader(instance),
-            Expanded(
-              child: _buildOutput(instance),
-            ),
+            Expanded(child: _buildOutput(instance)),
             if (instance.bufferedErrors.isNotEmpty)
-              Expanded(
-                flex: 1,
-                child: _buildErrors(instance),
-              ),
+              Expanded(flex: 1, child: _buildErrors(instance)),
             _buildFooter(),
           ],
         ),
@@ -113,9 +103,7 @@ class _OutputScreenState extends State<OutputScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 1),
-            decoration: const BoxDecoration(
-              color: Color.fromRGB(20, 40, 20),
-            ),
+            decoration: const BoxDecoration(color: Color.fromRGB(20, 40, 20)),
             child: Row(
               children: [
                 const Text(
@@ -138,7 +126,10 @@ class _OutputScreenState extends State<OutputScreen> {
                 ? const Center(
                     child: Text(
                       'No output yet...',
-                      style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
+                      style: TextStyle(
+                        color: Colors.gray,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   )
                 : Scrollbar(
@@ -175,9 +166,7 @@ class _OutputScreenState extends State<OutputScreen> {
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 1),
-            decoration: const BoxDecoration(
-              color: Color.fromRGB(40, 20, 20),
-            ),
+            decoration: const BoxDecoration(color: Color.fromRGB(40, 20, 20)),
             child: Row(
               children: [
                 const Text(
@@ -202,10 +191,12 @@ class _OutputScreenState extends State<OutputScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: errorLines
-                      .map((line) => Text(
-                            line,
-                            style: const TextStyle(color: Colors.red),
-                          ))
+                      .map(
+                        (line) => Text(
+                          line,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      )
                       .toList(),
                 ),
               ),
@@ -221,9 +212,7 @@ class _OutputScreenState extends State<OutputScreen> {
       padding: EdgeInsets.all(1),
       decoration: BoxDecoration(
         color: Color.fromRGB(20, 20, 40),
-        border: BoxBorder(
-          top: BorderSide(color: Colors.blue),
-        ),
+        border: BoxBorder(top: BorderSide(color: Colors.blue)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -232,10 +221,7 @@ class _OutputScreenState extends State<OutputScreen> {
             'Output updates automatically every second',
             style: TextStyle(color: Colors.gray, fontStyle: FontStyle.italic),
           ),
-          Text(
-            '[B/Esc] Back',
-            style: TextStyle(color: Colors.yellow),
-          ),
+          Text('[B/Esc] Back', style: TextStyle(color: Colors.yellow)),
         ],
       ),
     );

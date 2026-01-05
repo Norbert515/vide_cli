@@ -20,7 +20,18 @@ class VersionIndicator extends StatefulComponent {
 }
 
 class _VersionIndicatorState extends State<VersionIndicator> {
-  static const _spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+  static const _spinnerFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
   Timer? _spinnerTimer;
   int _spinnerIndex = 0;
 
@@ -90,9 +101,7 @@ class _VersionIndicatorState extends State<VersionIndicator> {
             const SizedBox(width: 1),
             Text(
               'updating $percentage%',
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
             ),
           ],
         );
@@ -104,9 +113,7 @@ class _VersionIndicatorState extends State<VersionIndicator> {
           children: [
             Text(
               'v$newVersion ready',
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
             ),
           ],
         );
@@ -119,7 +126,8 @@ class VersionIndicatorCompact extends StatefulComponent {
   const VersionIndicatorCompact({super.key});
 
   @override
-  State<VersionIndicatorCompact> createState() => _VersionIndicatorCompactState();
+  State<VersionIndicatorCompact> createState() =>
+      _VersionIndicatorCompactState();
 }
 
 class _VersionIndicatorCompactState extends State<VersionIndicatorCompact> {

@@ -34,14 +34,18 @@ class PermissionStateNotifier extends StateNotifier<PermissionQueueState> {
   }
 
   void _updateState() {
-    state = PermissionQueueState(current: _queue.isEmpty ? null : _queue.first, queueLength: _queue.length);
+    state = PermissionQueueState(
+      current: _queue.isEmpty ? null : _queue.first,
+      queueLength: _queue.length,
+    );
   }
 }
 
 /// Provider for the current permission request state
-final permissionStateProvider = StateNotifierProvider<PermissionStateNotifier, PermissionQueueState>(
-  (ref) => PermissionStateNotifier(),
-);
+final permissionStateProvider =
+    StateNotifierProvider<PermissionStateNotifier, PermissionQueueState>(
+      (ref) => PermissionStateNotifier(),
+    );
 
 /// State for AskUserQuestion requests - includes queue and current request
 class AskUserQuestionQueueState {
@@ -52,7 +56,8 @@ class AskUserQuestionQueueState {
 }
 
 /// State notifier for AskUserQuestion requests with queue support
-class AskUserQuestionStateNotifier extends StateNotifier<AskUserQuestionQueueState> {
+class AskUserQuestionStateNotifier
+    extends StateNotifier<AskUserQuestionQueueState> {
   final Queue<AskUserQuestionRequest> _queue = Queue<AskUserQuestionRequest>();
 
   AskUserQuestionStateNotifier() : super(AskUserQuestionQueueState());
@@ -80,9 +85,11 @@ class AskUserQuestionStateNotifier extends StateNotifier<AskUserQuestionQueueSta
 }
 
 /// Provider for the current AskUserQuestion request state
-final askUserQuestionStateProvider = StateNotifierProvider<AskUserQuestionStateNotifier, AskUserQuestionQueueState>(
-  (ref) => AskUserQuestionStateNotifier(),
-);
+final askUserQuestionStateProvider =
+    StateNotifierProvider<
+      AskUserQuestionStateNotifier,
+      AskUserQuestionQueueState
+    >((ref) => AskUserQuestionStateNotifier());
 
 /// A widget that manages permission requests by listening to the PermissionService.
 class PermissionScope extends StatefulComponent {
@@ -116,7 +123,9 @@ class _PermissionScopeState extends State<PermissionScope> {
         context.read(permissionStateProvider.notifier).enqueueRequest(request);
       });
       _askUserQuestionSub = askUserQuestionService.requests.listen((request) {
-        context.read(askUserQuestionStateProvider.notifier).enqueueRequest(request);
+        context
+            .read(askUserQuestionStateProvider.notifier)
+            .enqueueRequest(request);
       });
     }
   }

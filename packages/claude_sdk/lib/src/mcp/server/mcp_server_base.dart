@@ -35,7 +35,9 @@ abstract class McpServerBase {
       // Create MCP server
       _mcpServer = McpServer(
         Implementation(name: name, version: version),
-        options: ServerOptions(capabilities: ServerCapabilities(tools: ServerCapabilitiesTools())),
+        options: ServerOptions(
+          capabilities: ServerCapabilities(tools: ServerCapabilitiesTools()),
+        ),
       );
 
       // Register tools
@@ -141,7 +143,10 @@ abstract class McpServerBase {
     }
     // Return config in Claude Code's expected format
     // Using Streamable HTTP transport (replaces deprecated SSE)
-    final config = {'type': 'http', 'url': 'http://localhost:$_assignedPort/mcp'};
+    final config = {
+      'type': 'http',
+      'url': 'http://localhost:$_assignedPort/mcp',
+    };
     return config;
   }
 

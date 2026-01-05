@@ -55,7 +55,10 @@ void main() {
         final client = ClaudeClientImpl();
 
         expect(client.currentConversation.messages, isEmpty);
-        expect(client.currentConversation.state, equals(ConversationState.idle));
+        expect(
+          client.currentConversation.state,
+          equals(ConversationState.idle),
+        );
       });
 
       test('starts with no active abort state', () {
@@ -93,7 +96,10 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         // Should not have added any messages
-        expect(client.currentConversation.messages.length, equals(initialCount));
+        expect(
+          client.currentConversation.messages.length,
+          equals(initialCount),
+        );
       });
 
       test('ignores whitespace-only messages', () async {
@@ -104,7 +110,10 @@ void main() {
         client.sendMessage(Message(text: '   \t\n  '));
         await Future.delayed(const Duration(milliseconds: 50));
 
-        expect(client.currentConversation.messages.length, equals(initialCount));
+        expect(
+          client.currentConversation.messages.length,
+          equals(initialCount),
+        );
       });
 
       test(
@@ -122,13 +131,15 @@ void main() {
       test(
         'streams responses from process stdout',
         () {},
-        skip: 'Requires process injection - see FakeProcess for future implementation',
+        skip:
+            'Requires process injection - see FakeProcess for future implementation',
       );
 
       test(
         'handles process stderr as error responses',
         () {},
-        skip: 'Requires process injection - see FakeProcess for future implementation',
+        skip:
+            'Requires process injection - see FakeProcess for future implementation',
       );
     });
 
@@ -149,7 +160,10 @@ void main() {
         final client = ClaudeClientImpl();
 
         expect(client.currentConversation, isA<Conversation>());
-        expect(client.currentConversation.state, equals(ConversationState.idle));
+        expect(
+          client.currentConversation.state,
+          equals(ConversationState.idle),
+        );
       });
 
       test('conversation stream is broadcast', () async {
@@ -354,7 +368,10 @@ void main() {
         await client.clearConversation();
 
         expect(client.currentConversation.messages, isEmpty);
-        expect(client.currentConversation.state, equals(ConversationState.idle));
+        expect(
+          client.currentConversation.state,
+          equals(ConversationState.idle),
+        );
       });
     });
 

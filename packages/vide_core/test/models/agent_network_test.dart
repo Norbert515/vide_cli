@@ -11,12 +11,7 @@ void main() {
       required String name,
       required String type,
     }) {
-      return AgentMetadata(
-        id: id,
-        name: name,
-        type: type,
-        createdAt: testDate,
-      );
+      return AgentMetadata(id: id, name: name, type: type, createdAt: testDate);
     }
 
     group('toJson', () {
@@ -228,7 +223,11 @@ void main() {
           agents: [
             createAgent(id: 'agent-1', name: 'Agent 1', type: 'main'),
             createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementation'),
-            createAgent(id: 'agent-3', name: 'Agent 3', type: 'contextCollection'),
+            createAgent(
+              id: 'agent-3',
+              name: 'Agent 3',
+              type: 'contextCollection',
+            ),
           ],
           createdAt: testDate,
         );

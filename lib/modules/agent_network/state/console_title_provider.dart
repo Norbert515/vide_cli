@@ -66,8 +66,8 @@ class ConsoleTitleNotifier extends StateNotifier<ConsoleTitleState> {
 /// Provider for the animation state notifier
 final consoleTitleNotifierProvider =
     StateNotifierProvider<ConsoleTitleNotifier, ConsoleTitleState>((ref) {
-  return ConsoleTitleNotifier();
-});
+      return ConsoleTitleNotifier();
+    });
 
 /// Aggregated status from all agents
 enum _AggregatedStatus {
@@ -78,7 +78,10 @@ enum _AggregatedStatus {
 
 /// Infer actual status based on explicit status and conversation state.
 /// This provides safeguards against agents forgetting to call setAgentStatus.
-AgentStatus _inferActualStatus(AgentStatus explicitStatus, Conversation? conversation) {
+AgentStatus _inferActualStatus(
+  AgentStatus explicitStatus,
+  Conversation? conversation,
+) {
   if (conversation == null) {
     return explicitStatus;
   }
@@ -90,7 +93,8 @@ AgentStatus _inferActualStatus(AgentStatus explicitStatus, Conversation? convers
 
   // If conversation is idle but agent claims to be working, override to idle
   // This handles cases where agent forgot to call setAgentStatus("idle")
-  if (conversation.state == ConversationState.idle && explicitStatus == AgentStatus.working) {
+  if (conversation.state == ConversationState.idle &&
+      explicitStatus == AgentStatus.working) {
     return AgentStatus.idle;
   }
 

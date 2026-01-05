@@ -21,9 +21,16 @@ void main() {
 
     group('save and retrieve', () {
       test('saves and retrieves a value', () async {
-        await memoryService.save(testProjectPath, 'build_command', 'flutter run');
+        await memoryService.save(
+          testProjectPath,
+          'build_command',
+          'flutter run',
+        );
 
-        final entry = await memoryService.retrieve(testProjectPath, 'build_command');
+        final entry = await memoryService.retrieve(
+          testProjectPath,
+          'build_command',
+        );
 
         expect(entry, isNotNull);
         expect(entry!.key, 'build_command');
@@ -33,20 +40,29 @@ void main() {
       });
 
       test('returns null for non-existent key', () async {
-        final entry = await memoryService.retrieve(testProjectPath, 'non_existent');
+        final entry = await memoryService.retrieve(
+          testProjectPath,
+          'non_existent',
+        );
 
         expect(entry, isNull);
       });
 
       test('updates existing value', () async {
         await memoryService.save(testProjectPath, 'platform', 'web');
-        final original = await memoryService.retrieve(testProjectPath, 'platform');
+        final original = await memoryService.retrieve(
+          testProjectPath,
+          'platform',
+        );
 
         // Small delay to ensure different timestamps
         await Future.delayed(Duration(milliseconds: 10));
 
         await memoryService.save(testProjectPath, 'platform', 'ios');
-        final updated = await memoryService.retrieve(testProjectPath, 'platform');
+        final updated = await memoryService.retrieve(
+          testProjectPath,
+          'platform',
+        );
 
         expect(updated, isNotNull);
         expect(updated!.value, 'ios');
@@ -68,16 +84,25 @@ void main() {
       test('deletes existing entry', () async {
         await memoryService.save(testProjectPath, 'to_delete', 'value');
 
-        final deleted = await memoryService.delete(testProjectPath, 'to_delete');
+        final deleted = await memoryService.delete(
+          testProjectPath,
+          'to_delete',
+        );
 
         expect(deleted, isTrue);
 
-        final entry = await memoryService.retrieve(testProjectPath, 'to_delete');
+        final entry = await memoryService.retrieve(
+          testProjectPath,
+          'to_delete',
+        );
         expect(entry, isNull);
       });
 
       test('returns false for non-existent key', () async {
-        final deleted = await memoryService.delete(testProjectPath, 'non_existent');
+        final deleted = await memoryService.delete(
+          testProjectPath,
+          'non_existent',
+        );
 
         expect(deleted, isFalse);
       });
@@ -92,7 +117,10 @@ void main() {
         final entries = await memoryService.list(testProjectPath);
 
         expect(entries.length, 3);
-        expect(entries.map((e) => e.key), containsAll(['key1', 'key2', 'key3']));
+        expect(
+          entries.map((e) => e.key),
+          containsAll(['key1', 'key2', 'key3']),
+        );
       });
 
       test('lists all keys for project', () async {

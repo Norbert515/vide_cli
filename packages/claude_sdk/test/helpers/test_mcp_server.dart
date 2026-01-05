@@ -7,11 +7,9 @@ class TestMcpServer extends McpServerBase {
   bool onStartCalled = false;
   bool onStopCalled = false;
 
-  TestMcpServer({
-    String name = 'test-server',
-    List<String>? tools,
-  })  : _registeredTools = tools ?? ['testTool'],
-        super(name: name, version: '1.0.0');
+  TestMcpServer({String name = 'test-server', List<String>? tools})
+    : _registeredTools = tools ?? ['testTool'],
+      super(name: name, version: '1.0.0');
 
   @override
   List<String> get toolNames => _registeredTools;
@@ -22,10 +20,7 @@ class TestMcpServer extends McpServerBase {
       server.tool(
         toolName,
         description: 'Test tool: $toolName',
-        toolInputSchema: ToolInputSchema(
-          properties: {},
-          required: [],
-        ),
+        toolInputSchema: ToolInputSchema(properties: {}, required: []),
         callback: ({args, extra}) async =>
             CallToolResult.fromContent(content: [TextContent(text: 'OK')]),
       );
@@ -50,7 +45,7 @@ class SpyMcpServer extends McpServerBase {
   final List<String> events = [];
 
   SpyMcpServer({String name = 'spy-server'})
-      : super(name: name, version: '1.0.0');
+    : super(name: name, version: '1.0.0');
 
   @override
   List<String> get toolNames => ['spyTool'];
@@ -60,10 +55,7 @@ class SpyMcpServer extends McpServerBase {
     server.tool(
       'spyTool',
       description: 'Spy tool',
-      toolInputSchema: ToolInputSchema(
-        properties: {},
-        required: [],
-      ),
+      toolInputSchema: ToolInputSchema(properties: {}, required: []),
       callback: ({args, extra}) async =>
           CallToolResult.fromContent(content: [TextContent(text: 'spied')]),
     );

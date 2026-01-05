@@ -10,9 +10,10 @@ import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
 
-final flutterRuntimeServerProvider = Provider.family<FlutterRuntimeServer, AgentId>((ref, agentId) {
-  return FlutterRuntimeServer();
-});
+final flutterRuntimeServerProvider =
+    Provider.family<FlutterRuntimeServer, AgentId>((ref, agentId) {
+      return FlutterRuntimeServer();
+    });
 
 class AgentIdAndMcpServerType {
   final AgentId agentId;
@@ -28,24 +29,41 @@ class AgentIdAndMcpServerType {
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is AgentIdAndMcpServerType && other.agentId == agentId && other.mcpServerType == mcpServerType;
+    return other is AgentIdAndMcpServerType &&
+        other.agentId == agentId &&
+        other.mcpServerType == mcpServerType;
   }
 
   @override
   int get hashCode => agentId.hashCode ^ mcpServerType.hashCode;
 }
 
-final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpServerType>((
-  ref,
-  agentIdAndMcpServerType,
-) {
-  return switch (agentIdAndMcpServerType.mcpServerType) {
-    McpServerType.git => ref.watch(gitServerProvider(agentIdAndMcpServerType.agentId)),
-    McpServerType.agent => ref.watch(agentServerProvider(agentIdAndMcpServerType.agentId)),
-    McpServerType.memory => ref.watch(memoryServerProvider(agentIdAndMcpServerType.agentId)),
-    McpServerType.taskManagement => ref.watch(taskManagementServerProvider(agentIdAndMcpServerType.agentId)),
-    McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(agentIdAndMcpServerType.agentId)),
-    McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(agentIdAndMcpServerType.agentId)),
-    _ => throw Exception('MCP server type not supported: ${agentIdAndMcpServerType.mcpServerType}'),
-  };
-});
+final genericMcpServerProvider =
+    Provider.family<McpServerBase, AgentIdAndMcpServerType>((
+      ref,
+      agentIdAndMcpServerType,
+    ) {
+      return switch (agentIdAndMcpServerType.mcpServerType) {
+        McpServerType.git => ref.watch(
+          gitServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        McpServerType.agent => ref.watch(
+          agentServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        McpServerType.memory => ref.watch(
+          memoryServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        McpServerType.taskManagement => ref.watch(
+          taskManagementServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        McpServerType.askUserQuestion => ref.watch(
+          askUserQuestionServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        McpServerType.flutterRuntime => ref.watch(
+          flutterRuntimeServerProvider(agentIdAndMcpServerType.agentId),
+        ),
+        _ => throw Exception(
+          'MCP server type not supported: ${agentIdAndMcpServerType.mcpServerType}',
+        ),
+      };
+    });

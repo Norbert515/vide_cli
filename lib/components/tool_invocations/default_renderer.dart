@@ -65,24 +65,37 @@ class _DefaultRendererState extends State<DefaultRenderer> {
               Text(statusIndicator, style: TextStyle(color: statusColor)),
               SizedBox(width: 1),
               // Tool name
-              Text(component.invocation.displayName, style: TextStyle(color: textColor)),
+              Text(
+                component.invocation.displayName,
+                style: TextStyle(color: textColor),
+              ),
               if (component.invocation.parameters.isNotEmpty) ...[
                 Flexible(
                   child: Text(
                     '(${_getParameterPreview()}',
-                    style: TextStyle(color: textColor.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: textColor.withOpacity(TextOpacity.tertiary),
+                    ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
                 ),
-                Text(')', style: TextStyle(color: textColor.withOpacity(TextOpacity.tertiary))),
+                Text(
+                  ')',
+                  style: TextStyle(
+                    color: textColor.withOpacity(TextOpacity.tertiary),
+                  ),
+                ),
               ],
             ],
           ),
 
           // Result content
           if (hasResult && _shouldShowResultPreview())
-            Container(padding: EdgeInsets.only(left: 2), child: _buildResultView(theme)),
+            Container(
+              padding: EdgeInsets.only(left: 2),
+              child: _buildResultView(theme),
+            ),
         ],
       ),
     );
@@ -90,7 +103,8 @@ class _DefaultRendererState extends State<DefaultRenderer> {
 
   bool _shouldShowResultPreview() {
     // Don't show result preview for Read and Grep tools
-    return component.invocation.toolName != 'Read' && component.invocation.toolName != 'Grep';
+    return component.invocation.toolName != 'Read' &&
+        component.invocation.toolName != 'Grep';
   }
 
   Component _buildResultView(VideThemeData theme) {
@@ -100,11 +114,16 @@ class _DefaultRendererState extends State<DefaultRenderer> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('⎿  ', style: TextStyle(color: textColor.withOpacity(TextOpacity.secondary))),
+        Text(
+          '⎿  ',
+          style: TextStyle(color: textColor.withOpacity(TextOpacity.secondary)),
+        ),
         Expanded(
           child: Text(
             preview,
-            style: TextStyle(color: textColor.withOpacity(TextOpacity.secondary)),
+            style: TextStyle(
+              color: textColor.withOpacity(TextOpacity.secondary),
+            ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
@@ -140,7 +159,8 @@ class _DefaultRendererState extends State<DefaultRenderer> {
     if (content.isEmpty) return 'Empty result';
 
     // For Read and Grep tools, don't show any preview
-    if (component.invocation.toolName == 'Read' || component.invocation.toolName == 'Grep') {
+    if (component.invocation.toolName == 'Read' ||
+        component.invocation.toolName == 'Grep') {
       return '';
     }
 
@@ -148,7 +168,10 @@ class _DefaultRendererState extends State<DefaultRenderer> {
     final firstLine = lines.first.trim();
 
     if (firstLine.isEmpty && lines.length > 1) {
-      return lines.firstWhere((line) => line.trim().isNotEmpty, orElse: () => 'Empty result');
+      return lines.firstWhere(
+        (line) => line.trim().isNotEmpty,
+        orElse: () => 'Empty result',
+      );
     }
 
     String preview = firstLine;

@@ -359,10 +359,11 @@ void main() {
 
       test('handles large diffs efficiently', () {
         // Create old and new strings with 1000 lines each
-        final oldLines =
-            List.generate(1000, (i) => 'line $i').join('\n');
-        final newLines =
-            List.generate(1000, (i) => 'line ${i + 500}').join('\n');
+        final oldLines = List.generate(1000, (i) => 'line $i').join('\n');
+        final newLines = List.generate(
+          1000,
+          (i) => 'line ${i + 500}',
+        ).join('\n');
 
         final stopwatch = Stopwatch()..start();
 

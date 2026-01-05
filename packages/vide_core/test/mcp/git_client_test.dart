@@ -10,14 +10,18 @@ Future<bool> canCommit(String workingDir) async {
   try {
     // Try to create a simple commit
     await File('$workingDir/.test').writeAsString('test');
-    final addResult = await Process.run('git', ['add', '.test'], workingDirectory: workingDir);
+    final addResult = await Process.run('git', [
+      'add',
+      '.test',
+    ], workingDirectory: workingDir);
     if (addResult.exitCode != 0) return false;
 
-    final result = await Process.run(
-      'git',
-      ['commit', '-m', 'test', '--no-gpg-sign'],
-      workingDirectory: workingDir,
-    );
+    final result = await Process.run('git', [
+      'commit',
+      '-m',
+      'test',
+      '--no-gpg-sign',
+    ], workingDirectory: workingDir);
     return result.exitCode == 0;
   } catch (e) {
     return false;
@@ -36,22 +40,22 @@ void main() {
 
       // Initialize git repo
       await Process.run('git', ['init'], workingDirectory: tempDir.path);
-      await Process.run(
-        'git',
-        ['config', 'user.email', 'test@test.com'],
-        workingDirectory: tempDir.path,
-      );
-      await Process.run(
-        'git',
-        ['config', 'user.name', 'Test User'],
-        workingDirectory: tempDir.path,
-      );
+      await Process.run('git', [
+        'config',
+        'user.email',
+        'test@test.com',
+      ], workingDirectory: tempDir.path);
+      await Process.run('git', [
+        'config',
+        'user.name',
+        'Test User',
+      ], workingDirectory: tempDir.path);
       // Disable GPG signing for tests
-      await Process.run(
-        'git',
-        ['config', 'commit.gpgsign', 'false'],
-        workingDirectory: tempDir.path,
-      );
+      await Process.run('git', [
+        'config',
+        'commit.gpgsign',
+        'false',
+      ], workingDirectory: tempDir.path);
 
       commitWorks = await canCommit(tempDir.path);
     });

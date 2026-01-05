@@ -54,7 +54,8 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
     // Get instance ID from parameters (Claude should pass toolUseId as instanceId)
     // Fall back to toolUseId directly if not in parameters
     final instanceId =
-        component.invocation.parameters['instanceId'] as String? ?? component.invocation.toolCall.toolUseId;
+        component.invocation.parameters['instanceId'] as String? ??
+        component.invocation.toolCall.toolUseId;
 
     if (instanceId == null) {
       setState(() {
@@ -66,7 +67,9 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
 
     final manager = context.read(claudeManagerProvider);
     final client = manager[component.agentId];
-    final flutterServer = client?.getMcpServer<FlutterRuntimeServer>('flutter-runtime');
+    final flutterServer = client?.getMcpServer<FlutterRuntimeServer>(
+      'flutter-runtime',
+    );
 
     if (flutterServer == null) {
       setState(() {
@@ -193,17 +196,27 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
             children: [
               Text(statusIndicator, style: TextStyle(color: statusColor)),
               SizedBox(width: 1),
-              Text(component.invocation.displayName, style: TextStyle(color: Colors.white)),
+              Text(
+                component.invocation.displayName,
+                style: TextStyle(color: Colors.white),
+              ),
             ],
           ),
           // Waiting message
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+              Text(
+                '⎿  ',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.secondary),
+                ),
+              ),
               Text(
                 'Waiting for Flutter output...',
-                style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.secondary),
+                ),
               ),
             ],
           ),
@@ -212,7 +225,9 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
     }
 
     // Show last few lines of output
-    final displayLines = _outputLines.length > 5 ? _outputLines.sublist(_outputLines.length - 5) : _outputLines;
+    final displayLines = _outputLines.length > 5
+        ? _outputLines.sublist(_outputLines.length - 5)
+        : _outputLines;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,7 +237,10 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
           children: [
             Text(statusIndicator, style: TextStyle(color: statusColor)),
             SizedBox(width: 1),
-            Text(component.invocation.displayName, style: TextStyle(color: Colors.white)),
+            Text(
+              component.invocation.displayName,
+              style: TextStyle(color: Colors.white),
+            ),
           ],
         ),
         // Output lines
@@ -230,11 +248,18 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+              Text(
+                '⎿  ',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.secondary),
+                ),
+              ),
               Expanded(
                 child: Text(
                   line,
-                  style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary)),
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(TextOpacity.secondary),
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -245,10 +270,17 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('⎿  ', style: TextStyle(color: Colors.white.withOpacity(TextOpacity.secondary))),
+              Text(
+                '⎿  ',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.secondary),
+                ),
+              ),
               Text(
                 '(${_outputLines.length} lines total)',
-                style: TextStyle(color: Colors.white.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: Colors.white.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),

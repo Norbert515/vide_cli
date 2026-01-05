@@ -25,7 +25,8 @@ void main() {
   group('processCarriageReturns', () {
     test('handles dart test progress output with carriage returns', () {
       // Simulates dart test output where \r overwrites the line
-      final input = '00:00 +0: loading test.dart\r'
+      final input =
+          '00:00 +0: loading test.dart\r'
           '00:00 +1: test one passed\r'
           '00:00 +2: test two passed\r'
           '00:00 +3: All tests passed!';
@@ -37,7 +38,8 @@ void main() {
     });
 
     test('handles multiple lines with carriage returns', () {
-      final input = 'line1 start\rline1 end\n'
+      final input =
+          'line1 start\rline1 end\n'
           'line2 start\rline2 end\n'
           'line3 no cr';
 
@@ -65,7 +67,8 @@ void main() {
     });
 
     test('handles mixed content', () {
-      final input = 'Building project...\r'
+      final input =
+          'Building project...\r'
           'Building project... 50%\r'
           'Building project... 100%\n'
           'Build complete!\n'
@@ -76,7 +79,9 @@ void main() {
 
       expect(
         result,
-        equals('Building project... 100%\nBuild complete!\nAll 42 tests passed!'),
+        equals(
+          'Building project... 100%\nBuild complete!\nAll 42 tests passed!',
+        ),
       );
     });
 

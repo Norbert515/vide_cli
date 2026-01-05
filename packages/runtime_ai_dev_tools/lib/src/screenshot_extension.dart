@@ -6,7 +6,8 @@ import 'package:flutter/widgets.dart';
 
 /// Registers the screenshot service extension
 void registerScreenshotExtension() {
-  print('🔧 [RuntimeAiDevTools] Registering ext.runtime_ai_dev_tools.screenshot');
+  print(
+      '🔧 [RuntimeAiDevTools] Registering ext.runtime_ai_dev_tools.screenshot');
 
   developer.registerExtension(
     'ext.runtime_ai_dev_tools.screenshot',
@@ -19,7 +20,8 @@ void registerScreenshotExtension() {
         final base64Image = await _imageToBase64(image);
 
         // Get the device pixel ratio from the Flutter window
-        final devicePixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+        final devicePixelRatio = WidgetsBinding
+            .instance.platformDispatcher.views.first.devicePixelRatio;
 
         return developer.ServiceExtensionResponse.result(
           json.encode({

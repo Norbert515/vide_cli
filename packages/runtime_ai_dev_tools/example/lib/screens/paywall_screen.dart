@@ -40,11 +40,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
       );
 
       print('📍 [$name Button]');
-      print('   Position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})');
-      print('   Size: ${size.width.toStringAsFixed(1)} x ${size.height.toStringAsFixed(1)}');
-      print('   Center: (${center.dx.toStringAsFixed(1)}, ${center.dy.toStringAsFixed(1)})');
-      print('   Bounds: x[${position.dx.toStringAsFixed(1)} - ${(position.dx + size.width).toStringAsFixed(1)}], '
-          'y[${position.dy.toStringAsFixed(1)} - ${(position.dy + size.height).toStringAsFixed(1)}]');
+      print(
+        '   Position: (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})',
+      );
+      print(
+        '   Size: ${size.width.toStringAsFixed(1)} x ${size.height.toStringAsFixed(1)}',
+      );
+      print(
+        '   Center: (${center.dx.toStringAsFixed(1)}, ${center.dy.toStringAsFixed(1)})',
+      );
+      print(
+        '   Bounds: x[${position.dx.toStringAsFixed(1)} - ${(position.dx + size.width).toStringAsFixed(1)}], '
+        'y[${position.dy.toStringAsFixed(1)} - ${(position.dy + size.height).toStringAsFixed(1)}]',
+      );
     } else {
       print('⚠️  [$name Button] RenderBox not found');
     }
@@ -83,10 +91,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
               const SizedBox(height: 16),
               const Text(
                 'Unlock Premium Features',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
@@ -129,10 +134,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
               // Subscription Plans
               const Text(
                 'Choose Your Plan',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
@@ -216,10 +218,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 ),
                 child: const Text(
                   'Subscribe Now',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),
               const SizedBox(height: 16),
@@ -269,11 +268,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
             color: Colors.blue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Icon(
-            icon,
-            color: Colors.blue,
-            size: 28,
-          ),
+          child: Icon(icon, color: Colors.blue, size: 28),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -292,7 +287,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 description,
                 style: TextStyle(
                   fontSize: 14,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.7),
                 ),
               ),
             ],

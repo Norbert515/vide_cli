@@ -103,7 +103,11 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     });
   }
 
-  Component _buildSuggestionItem(VideThemeData theme, CommandSuggestion suggestion, bool isSelected) {
+  Component _buildSuggestionItem(
+    VideThemeData theme,
+    CommandSuggestion suggestion,
+    bool isSelected,
+  ) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: isSelected
@@ -151,8 +155,10 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         component.onCommand != null) {
       // If suggestions are visible, execute the selected command directly
       final suggestions = _getSuggestions();
-      if (suggestions.isNotEmpty && _selectedSuggestionIndex < suggestions.length) {
-        final selectedCommand = '/${suggestions[_selectedSuggestionIndex].name}';
+      if (suggestions.isNotEmpty &&
+          _selectedSuggestionIndex < suggestions.length) {
+        final selectedCommand =
+            '/${suggestions[_selectedSuggestionIndex].name}';
         component.onCommand!(selectedCommand);
         _controller.clear();
         setState(() {
@@ -189,9 +195,14 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     }
 
     finalText = finalText.trim();
-    final messageText = finalText.isEmpty && imageAttachments.isNotEmpty ? 'Attached image(s)' : finalText;
+    final messageText = finalText.isEmpty && imageAttachments.isNotEmpty
+        ? 'Attached image(s)'
+        : finalText;
 
-    final message = Message(text: messageText, attachments: imageAttachments.isEmpty ? null : imageAttachments);
+    final message = Message(
+      text: messageText,
+      attachments: imageAttachments.isEmpty ? null : imageAttachments,
+    );
 
     component.onSubmit?.call(message);
 
@@ -211,7 +222,8 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         // Check for Escape
         if (event.logicalKey == LogicalKey.escape) {
           // If we have text or attachments, clear them and consume the event
-          if (_controller.text.isNotEmpty || _controller.attachments.isNotEmpty) {
+          if (_controller.text.isNotEmpty ||
+              _controller.attachments.isNotEmpty) {
             _controller.clearAttachments();
             _controller.clear();
             setState(() {});
@@ -228,7 +240,8 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
             // Shift+Tab: Move selection up
             setState(() {
               _selectedSuggestionIndex =
-                  (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                  (_selectedSuggestionIndex - 1 + suggestions.length) %
+                  suggestions.length;
             });
           } else {
             // Tab: Apply suggestion
@@ -252,7 +265,11 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var i = 0; i < suggestions.length; i++)
-                    _buildSuggestionItem(theme, suggestions[i], i == _selectedSuggestionIndex),
+                    _buildSuggestionItem(
+                      theme,
+                      suggestions[i],
+                      i == _selectedSuggestionIndex,
+                    ),
                 ],
               ),
             ),
@@ -268,9 +285,14 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                       _controller.attachments[i].type == 'image'
                           ? '📎 ${path.basename(_controller.attachments[i].path ?? "image")}'
                           : '📎 Pasted content (${_controller.attachments[i].content?.length ?? 0} chars)',
-                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.secondary,
+                        ),
+                      ),
                     ),
-                    if (i < _controller.attachments.length - 1) SizedBox(width: 2),
+                    if (i < _controller.attachments.length - 1)
+                      SizedBox(width: 2),
                   ],
                 ],
               ),
@@ -279,12 +301,17 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           // Text field
           Container(
             padding: EdgeInsets.symmetric(horizontal: 1),
-            decoration: BoxDecoration(border: BoxBorder.all(color: theme.base.outline)),
+            decoration: BoxDecoration(
+              border: BoxBorder.all(color: theme.base.outline),
+            ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Agent tag (if provided)
-                if (component.agentTag != null) ...[component.agentTag!, SizedBox(width: 1)],
+                if (component.agentTag != null) ...[
+                  component.agentTag!,
+                  SizedBox(width: 1),
+                ],
                 Text('>', style: TextStyle(color: theme.base.onSurface)),
                 SizedBox(width: 1),
                 Expanded(
@@ -296,7 +323,11 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                     maxLines: null,
                     style: TextStyle(color: theme.base.onSurface),
                     placeholder: component.placeholder ?? 'Type a message...',
-                    placeholderStyle: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                    placeholderStyle: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                     onPaste: _controller.handlePaste,
                     onKeyEvent: (event) {
                       // Arrow keys: Navigate suggestion selection only (don't modify text field)
@@ -304,14 +335,18 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                         if (event.logicalKey == LogicalKey.arrowUp) {
                           setState(() {
                             _selectedSuggestionIndex =
-                                (_selectedSuggestionIndex - 1 + suggestions.length) % suggestions.length;
+                                (_selectedSuggestionIndex -
+                                    1 +
+                                    suggestions.length) %
+                                suggestions.length;
                           });
                           return true;
                         }
                         if (event.logicalKey == LogicalKey.arrowDown) {
                           setState(() {
                             _selectedSuggestionIndex =
-                                (_selectedSuggestionIndex + 1) % suggestions.length;
+                                (_selectedSuggestionIndex + 1) %
+                                suggestions.length;
                           });
                           return true;
                         }
@@ -456,7 +491,9 @@ class _AttachmentTextEditingController extends TextEditingController {
     final unescapedPath = _unescapePath(imagePath.trim());
 
     // Check for duplicates
-    final isDuplicate = attachments.any((attachment) => attachment.path == unescapedPath);
+    final isDuplicate = attachments.any(
+      (attachment) => attachment.path == unescapedPath,
+    );
     if (isDuplicate) {
       return; // Don't add duplicate, don't modify text
     }
@@ -470,7 +507,10 @@ class _AttachmentTextEditingController extends TextEditingController {
     // Insert placeholder at cursor position
     final currentText = text;
     final cursorPos = selection.baseOffset;
-    final newText = currentText.substring(0, cursorPos) + placeholder + currentText.substring(cursorPos);
+    final newText =
+        currentText.substring(0, cursorPos) +
+        placeholder +
+        currentText.substring(cursorPos);
 
     _isInternalUpdate = true;
     super.text = newText;
@@ -491,7 +531,10 @@ class _AttachmentTextEditingController extends TextEditingController {
     // Insert placeholder at cursor position
     final currentText = text;
     final cursorPos = selection.baseOffset;
-    final newText = currentText.substring(0, cursorPos) + placeholder + currentText.substring(cursorPos);
+    final newText =
+        currentText.substring(0, cursorPos) +
+        placeholder +
+        currentText.substring(cursorPos);
 
     _isInternalUpdate = true;
     super.text = newText;
@@ -506,7 +549,9 @@ class _AttachmentTextEditingController extends TextEditingController {
 
     for (var i = 0; i < attachments.length; i++) {
       final isImage = attachments[i].type == 'image';
-      final placeholder = isImage ? '[Image #${i + 1}]' : '[Pasted Content #${i + 1}]';
+      final placeholder = isImage
+          ? '[Image #${i + 1}]'
+          : '[Pasted Content #${i + 1}]';
       if (currentText.contains(placeholder)) {
         existingPlaceholders.add(i);
       }
@@ -541,9 +586,13 @@ class _AttachmentTextEditingController extends TextEditingController {
       var updatedText = currentText;
       for (var i = 0; i < attachments.length; i++) {
         final isImage = attachments[i].type == 'image';
-        final oldPattern = isImage ? RegExp(r'\[Image #\d+\]') : RegExp(r'\[Pasted Content #\d+\]');
+        final oldPattern = isImage
+            ? RegExp(r'\[Image #\d+\]')
+            : RegExp(r'\[Pasted Content #\d+\]');
         if (oldPattern.hasMatch(updatedText)) {
-          final newPlaceholder = isImage ? '[Image #${i + 1}]' : '[Pasted Content #${i + 1}]';
+          final newPlaceholder = isImage
+              ? '[Image #${i + 1}]'
+              : '[Pasted Content #${i + 1}]';
           updatedText = updatedText.replaceFirst(oldPattern, newPlaceholder);
         }
       }
@@ -560,7 +609,10 @@ class _AttachmentTextEditingController extends TextEditingController {
   }
 
   String _unescapePath(String path) {
-    return path.replaceAll(r'\ ', ' ').replaceAll(r'\(', '(').replaceAll(r'\)', ')');
+    return path
+        .replaceAll(r'\ ', ' ')
+        .replaceAll(r'\(', '(')
+        .replaceAll(r'\)', ')');
   }
 
   /// Fast pre-check: could this string possibly be an image path?
@@ -594,7 +646,8 @@ class _AttachmentTextEditingController extends TextEditingController {
 
     // Double-check extension (defensive)
     final ext = cleanPath.toLowerCase();
-    final hasImageExtension = ext.endsWith('.png') ||
+    final hasImageExtension =
+        ext.endsWith('.png') ||
         ext.endsWith('.jpg') ||
         ext.endsWith('.jpeg') ||
         ext.endsWith('.gif') ||

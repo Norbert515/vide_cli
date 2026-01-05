@@ -43,11 +43,7 @@ class GalleryScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    _getIconForIndex(index),
-                    size: 48,
-                    color: Colors.white,
-                  ),
+                  Icon(_getIconForIndex(index), size: 48, color: Colors.white),
                   const SizedBox(height: 8),
                   Text(
                     'Image ${index + 1}',

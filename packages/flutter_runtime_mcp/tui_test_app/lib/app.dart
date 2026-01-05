@@ -12,10 +12,7 @@ class FlutterRuntimeApp extends StatelessComponent {
   Component build(BuildContext context) {
     return Navigator(
       home: HomeScreen(server: server),
-      popBehavior: const PopBehavior(
-        escapeEnabled: true,
-        customPopKey: 'q',
-      ),
+      popBehavior: const PopBehavior(escapeEnabled: true, customPopKey: 'q'),
     );
   }
 }

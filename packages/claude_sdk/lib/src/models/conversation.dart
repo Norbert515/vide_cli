@@ -100,7 +100,9 @@ class ConversationMessage {
     timestamp: DateTime.now(),
     isComplete: true,
     attachments: attachments,
-    messageType: isCompactSummary ? MessageType.compactSummary : MessageType.userMessage,
+    messageType: isCompactSummary
+        ? MessageType.compactSummary
+        : MessageType.userMessage,
     isCompactSummary: isCompactSummary,
     isVisibleInTranscriptOnly: isVisibleInTranscriptOnly,
   );
@@ -440,7 +442,9 @@ class Conversation {
   /// Total context tokens accumulated across all turns.
   /// Note: This is for billing/stats, NOT for context window percentage.
   int get totalContextTokens =>
-      totalInputTokens + totalCacheReadInputTokens + totalCacheCreationInputTokens;
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
 
   /// Current context window usage (from the latest turn).
   /// This is what should be used for context window percentage display.
@@ -501,7 +505,8 @@ class Conversation {
           currentContextInputTokens ?? this.currentContextInputTokens,
       currentContextCacheReadTokens:
           currentContextCacheReadTokens ?? this.currentContextCacheReadTokens,
-      currentContextCacheCreationTokens: currentContextCacheCreationTokens ??
+      currentContextCacheCreationTokens:
+          currentContextCacheCreationTokens ??
           this.currentContextCacheCreationTokens,
     );
   }

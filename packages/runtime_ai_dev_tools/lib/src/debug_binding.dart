@@ -45,10 +45,12 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
     final WidgetsBinding? existingBinding;
     try {
       existingBinding = WidgetsBinding.instance;
-      print('🔗 [DebugWidgetsFlutterBinding] Existing binding found: ${existingBinding.runtimeType}');
+      print(
+          '🔗 [DebugWidgetsFlutterBinding] Existing binding found: ${existingBinding.runtimeType}');
     } catch (e) {
       // No binding initialized yet - this is expected for first call
-      print('🔗 [DebugWidgetsFlutterBinding] No existing binding, creating DebugWidgetsFlutterBinding');
+      print(
+          '🔗 [DebugWidgetsFlutterBinding] No existing binding, creating DebugWidgetsFlutterBinding');
       DebugWidgetsFlutterBinding();
       print('🔗 [DebugWidgetsFlutterBinding] Created and initialized');
       return WidgetsBinding.instance;
@@ -56,13 +58,16 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
 
     // A binding already exists
     if (existingBinding is DebugWidgetsFlutterBinding) {
-      print('🔗 [DebugWidgetsFlutterBinding] Already using DebugWidgetsFlutterBinding');
+      print(
+          '🔗 [DebugWidgetsFlutterBinding] Already using DebugWidgetsFlutterBinding');
       return existingBinding;
     }
 
     // Different binding exists - warn but return it
-    print('⚠️ [DebugWidgetsFlutterBinding] Different binding already initialized: ${existingBinding.runtimeType}');
-    print('⚠️ [DebugWidgetsFlutterBinding] DebugOverlayWrapper will NOT be automatically injected');
+    print(
+        '⚠️ [DebugWidgetsFlutterBinding] Different binding already initialized: ${existingBinding.runtimeType}');
+    print(
+        '⚠️ [DebugWidgetsFlutterBinding] DebugOverlayWrapper will NOT be automatically injected');
     return existingBinding;
   }
 }

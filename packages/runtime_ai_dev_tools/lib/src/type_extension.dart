@@ -73,9 +73,9 @@ void registerTypeExtension() {
 
 /// Injection method used
 enum _InjectionMethod {
-  imeChannel,    // Low-level IME channel (most reliable for TextFields)
+  imeChannel, // Low-level IME channel (most reliable for TextFields)
   textInputClient, // Direct TextInputClient.updateEditingValue
-  rawKeyEvent,   // Raw keyboard events (for terminals, games)
+  rawKeyEvent, // Raw keyboard events (for terminals, games)
 }
 
 /// Simulates typing the given text with special key support.
@@ -177,7 +177,8 @@ class _TextInputTracker {
         _currentValue = _decodeEditingValue(args);
 
       case 'TextInput.clearClient':
-        print('🔧 [RuntimeAiDevTools] TextInput client cleared (was: $_currentClientId)');
+        print(
+            '🔧 [RuntimeAiDevTools] TextInput client cleared (was: $_currentClientId)');
         _currentClientId = null;
         _currentValue = null;
     }
@@ -299,7 +300,8 @@ class _InterceptingBinaryMessenger implements BinaryMessenger {
   static const _textInputChannel = 'flutter/textinput';
   static const _codec = JSONMethodCodec();
 
-  _InterceptingBinaryMessenger(this._delegate, {required this.onTextInputMessage});
+  _InterceptingBinaryMessenger(this._delegate,
+      {required this.onTextInputMessage});
 
   @override
   Future<ByteData?>? send(String channel, ByteData? message) {
@@ -374,7 +376,8 @@ TextInputClient? _findTextInputClient() {
 }
 
 /// Insert text via TextInputClient (direct widget API)
-Future<void> _insertViaTextInputClient(TextInputClient client, String text) async {
+Future<void> _insertViaTextInputClient(
+    TextInputClient client, String text) async {
   final current = client.currentTextEditingValue ?? TextEditingValue.empty;
   final selection = current.selection;
 
@@ -404,7 +407,8 @@ List<_TypeToken> _parseText(String text) {
 
   for (final match in _specialKeyPattern.allMatches(text)) {
     if (match.start > lastEnd) {
-      tokens.add(_TypeToken(text.substring(lastEnd, match.start), isSpecialKey: false));
+      tokens.add(_TypeToken(text.substring(lastEnd, match.start),
+          isSpecialKey: false));
     }
     tokens.add(_TypeToken(match.group(1)!, isSpecialKey: true));
     lastEnd = match.end;
@@ -428,7 +432,8 @@ class _TypeToken {
 // ============================================================================
 
 /// Handle special key actions
-Future<void> _handleSpecialKey(String keySpec, {_TextInputTracker? tracker}) async {
+Future<void> _handleSpecialKey(String keySpec,
+    {_TextInputTracker? tracker}) async {
   final parts = keySpec.toLowerCase().split('+');
 
   var ctrl = false;
@@ -474,10 +479,22 @@ Future<void> _handleSpecialKey(String keySpec, {_TextInputTracker? tracker}) asy
   if (keyInfo == null) return;
 
   // Press modifiers
-  if (ctrl) await _sendKeyDown(physicalKey: PhysicalKeyboardKey.controlLeft, logicalKey: LogicalKeyboardKey.controlLeft);
-  if (alt) await _sendKeyDown(physicalKey: PhysicalKeyboardKey.altLeft, logicalKey: LogicalKeyboardKey.altLeft);
-  if (shift) await _sendKeyDown(physicalKey: PhysicalKeyboardKey.shiftLeft, logicalKey: LogicalKeyboardKey.shiftLeft);
-  if (meta) await _sendKeyDown(physicalKey: PhysicalKeyboardKey.metaLeft, logicalKey: LogicalKeyboardKey.metaLeft);
+  if (ctrl)
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft);
+  if (alt)
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft);
+  if (shift)
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
+  if (meta)
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft);
 
   if (ctrl || alt || shift || meta) {
     await Future.delayed(const Duration(milliseconds: 5));
@@ -490,24 +507,33 @@ Future<void> _handleSpecialKey(String keySpec, {_TextInputTracker? tracker}) asy
     character: keyInfo.character,
   );
   await Future.delayed(const Duration(milliseconds: 10));
-  await _sendKeyUp(physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
+  await _sendKeyUp(
+      physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
 
   // Release modifiers
   if (meta) {
     await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(physicalKey: PhysicalKeyboardKey.metaLeft, logicalKey: LogicalKeyboardKey.metaLeft);
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft);
   }
   if (shift) {
     await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(physicalKey: PhysicalKeyboardKey.shiftLeft, logicalKey: LogicalKeyboardKey.shiftLeft);
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
   }
   if (alt) {
     await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(physicalKey: PhysicalKeyboardKey.altLeft, logicalKey: LogicalKeyboardKey.altLeft);
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft);
   }
   if (ctrl) {
     await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(physicalKey: PhysicalKeyboardKey.controlLeft, logicalKey: LogicalKeyboardKey.controlLeft);
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft);
   }
 
   await Future.delayed(const Duration(milliseconds: 30));
@@ -522,17 +548,25 @@ Future<void> _simulateCharacterKeyPress(String char) async {
   if (keyInfo == null) return;
 
   if (keyInfo.needsShift) {
-    await _sendKeyDown(physicalKey: PhysicalKeyboardKey.shiftLeft, logicalKey: LogicalKeyboardKey.shiftLeft);
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
     await Future.delayed(const Duration(milliseconds: 5));
   }
 
-  await _sendKeyDown(physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey, character: char);
+  await _sendKeyDown(
+      physicalKey: keyInfo.physicalKey,
+      logicalKey: keyInfo.logicalKey,
+      character: char);
   await Future.delayed(const Duration(milliseconds: 10));
-  await _sendKeyUp(physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
+  await _sendKeyUp(
+      physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
 
   if (keyInfo.needsShift) {
     await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(physicalKey: PhysicalKeyboardKey.shiftLeft, logicalKey: LogicalKeyboardKey.shiftLeft);
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
   }
 }
 
@@ -618,33 +652,60 @@ class _SpecialKeyInfo {
 
 _SpecialKeyInfo? _getSpecialKeyInfo(String key) {
   return switch (key) {
-    'enter' || 'return' => const _SpecialKeyInfo(PhysicalKeyboardKey.enter, LogicalKeyboardKey.enter, '\n'),
-    'tab' => const _SpecialKeyInfo(PhysicalKeyboardKey.tab, LogicalKeyboardKey.tab, '\t'),
-    'backspace' => const _SpecialKeyInfo(PhysicalKeyboardKey.backspace, LogicalKeyboardKey.backspace),
-    'delete' || 'del' => const _SpecialKeyInfo(PhysicalKeyboardKey.delete, LogicalKeyboardKey.delete),
-    'escape' || 'esc' => const _SpecialKeyInfo(PhysicalKeyboardKey.escape, LogicalKeyboardKey.escape),
-    'space' => const _SpecialKeyInfo(PhysicalKeyboardKey.space, LogicalKeyboardKey.space, ' '),
-    'left' || 'arrowleft' => const _SpecialKeyInfo(PhysicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowLeft),
-    'right' || 'arrowright' => const _SpecialKeyInfo(PhysicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowRight),
-    'up' || 'arrowup' => const _SpecialKeyInfo(PhysicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowUp),
-    'down' || 'arrowdown' => const _SpecialKeyInfo(PhysicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown),
-    'home' => const _SpecialKeyInfo(PhysicalKeyboardKey.home, LogicalKeyboardKey.home),
-    'end' => const _SpecialKeyInfo(PhysicalKeyboardKey.end, LogicalKeyboardKey.end),
-    'pageup' || 'pgup' => const _SpecialKeyInfo(PhysicalKeyboardKey.pageUp, LogicalKeyboardKey.pageUp),
-    'pagedown' || 'pgdn' => const _SpecialKeyInfo(PhysicalKeyboardKey.pageDown, LogicalKeyboardKey.pageDown),
-    'insert' || 'ins' => const _SpecialKeyInfo(PhysicalKeyboardKey.insert, LogicalKeyboardKey.insert),
-    'f1' => const _SpecialKeyInfo(PhysicalKeyboardKey.f1, LogicalKeyboardKey.f1),
-    'f2' => const _SpecialKeyInfo(PhysicalKeyboardKey.f2, LogicalKeyboardKey.f2),
-    'f3' => const _SpecialKeyInfo(PhysicalKeyboardKey.f3, LogicalKeyboardKey.f3),
-    'f4' => const _SpecialKeyInfo(PhysicalKeyboardKey.f4, LogicalKeyboardKey.f4),
-    'f5' => const _SpecialKeyInfo(PhysicalKeyboardKey.f5, LogicalKeyboardKey.f5),
-    'f6' => const _SpecialKeyInfo(PhysicalKeyboardKey.f6, LogicalKeyboardKey.f6),
-    'f7' => const _SpecialKeyInfo(PhysicalKeyboardKey.f7, LogicalKeyboardKey.f7),
-    'f8' => const _SpecialKeyInfo(PhysicalKeyboardKey.f8, LogicalKeyboardKey.f8),
-    'f9' => const _SpecialKeyInfo(PhysicalKeyboardKey.f9, LogicalKeyboardKey.f9),
-    'f10' => const _SpecialKeyInfo(PhysicalKeyboardKey.f10, LogicalKeyboardKey.f10),
-    'f11' => const _SpecialKeyInfo(PhysicalKeyboardKey.f11, LogicalKeyboardKey.f11),
-    'f12' => const _SpecialKeyInfo(PhysicalKeyboardKey.f12, LogicalKeyboardKey.f12),
+    'enter' || 'return' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.enter, LogicalKeyboardKey.enter, '\n'),
+    'tab' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.tab, LogicalKeyboardKey.tab, '\t'),
+    'backspace' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.backspace, LogicalKeyboardKey.backspace),
+    'delete' || 'del' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.delete, LogicalKeyboardKey.delete),
+    'escape' || 'esc' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.escape, LogicalKeyboardKey.escape),
+    'space' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.space, LogicalKeyboardKey.space, ' '),
+    'left' || 'arrowleft' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowLeft),
+    'right' || 'arrowright' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowRight),
+    'up' || 'arrowup' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowUp),
+    'down' || 'arrowdown' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown),
+    'home' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.home, LogicalKeyboardKey.home),
+    'end' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.end, LogicalKeyboardKey.end),
+    'pageup' || 'pgup' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.pageUp, LogicalKeyboardKey.pageUp),
+    'pagedown' || 'pgdn' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.pageDown, LogicalKeyboardKey.pageDown),
+    'insert' || 'ins' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.insert, LogicalKeyboardKey.insert),
+    'f1' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f1, LogicalKeyboardKey.f1),
+    'f2' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f2, LogicalKeyboardKey.f2),
+    'f3' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f3, LogicalKeyboardKey.f3),
+    'f4' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f4, LogicalKeyboardKey.f4),
+    'f5' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f5, LogicalKeyboardKey.f5),
+    'f6' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f6, LogicalKeyboardKey.f6),
+    'f7' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f7, LogicalKeyboardKey.f7),
+    'f8' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f8, LogicalKeyboardKey.f8),
+    'f9' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f9, LogicalKeyboardKey.f9),
+    'f10' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f10, LogicalKeyboardKey.f10),
+    'f11' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f11, LogicalKeyboardKey.f11),
+    'f12' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f12, LogicalKeyboardKey.f12),
     _ when key.length == 1 => _getSingleCharSpecialKey(key),
     _ => null,
   };
@@ -652,13 +713,17 @@ _SpecialKeyInfo? _getSpecialKeyInfo(String key) {
 
 _SpecialKeyInfo? _getSingleCharSpecialKey(String char) {
   final code = char.codeUnitAt(0);
-  if (code >= 97 && code <= 122) { // a-z
+  if (code >= 97 && code <= 122) {
+    // a-z
     final keyInfo = _getLowercaseLetterKey(char);
-    if (keyInfo != null) return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
+    if (keyInfo != null)
+      return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
   }
-  if (code >= 48 && code <= 57) { // 0-9
+  if (code >= 48 && code <= 57) {
+    // 0-9
     final keyInfo = _getDigitKey(char);
-    if (keyInfo != null) return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
+    if (keyInfo != null)
+      return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
   }
   return null;
 }
@@ -667,7 +732,10 @@ class _KeyInfo {
   final PhysicalKeyboardKey physicalKey;
   final LogicalKeyboardKey logicalKey;
   final bool needsShift;
-  const _KeyInfo({required this.physicalKey, required this.logicalKey, this.needsShift = false});
+  const _KeyInfo(
+      {required this.physicalKey,
+      required this.logicalKey,
+      this.needsShift = false});
 }
 
 _KeyInfo? _getKeyInfoForCharacter(String char) {
@@ -676,7 +744,10 @@ _KeyInfo? _getKeyInfoForCharacter(String char) {
   if (code >= 97 && code <= 122) return _getLowercaseLetterKey(char);
   if (code >= 65 && code <= 90) return _getUppercaseLetterKey(char);
   if (code >= 48 && code <= 57) return _getDigitKey(char);
-  if (char == ' ') return const _KeyInfo(physicalKey: PhysicalKeyboardKey.space, logicalKey: LogicalKeyboardKey.space);
+  if (char == ' ')
+    return const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.space,
+        logicalKey: LogicalKeyboardKey.space);
 
   return _getSymbolKey(char);
 }
@@ -707,76 +778,207 @@ _KeyInfo? _getDigitKey(String char) {
 
 _KeyInfo? _getSymbolKey(String char) {
   return switch (char) {
-    '-' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.minus, logicalKey: LogicalKeyboardKey.minus),
-    '=' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.equal, logicalKey: LogicalKeyboardKey.equal),
-    '[' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.bracketLeft, logicalKey: LogicalKeyboardKey.bracketLeft),
-    ']' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.bracketRight, logicalKey: LogicalKeyboardKey.bracketRight),
-    '\\' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.backslash, logicalKey: LogicalKeyboardKey.backslash),
-    ';' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.semicolon, logicalKey: LogicalKeyboardKey.semicolon),
-    "'" => const _KeyInfo(physicalKey: PhysicalKeyboardKey.quote, logicalKey: LogicalKeyboardKey.quoteSingle),
-    '`' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.backquote, logicalKey: LogicalKeyboardKey.backquote),
-    ',' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.comma, logicalKey: LogicalKeyboardKey.comma),
-    '.' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.period, logicalKey: LogicalKeyboardKey.period),
-    '/' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.slash, logicalKey: LogicalKeyboardKey.slash),
-    '!' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit1, logicalKey: LogicalKeyboardKey.exclamation, needsShift: true),
-    '@' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit2, logicalKey: LogicalKeyboardKey.at, needsShift: true),
-    '#' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit3, logicalKey: LogicalKeyboardKey.numberSign, needsShift: true),
-    '\$' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit4, logicalKey: LogicalKeyboardKey.dollar, needsShift: true),
-    '%' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit5, logicalKey: LogicalKeyboardKey.percent, needsShift: true),
-    '^' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit6, logicalKey: LogicalKeyboardKey.caret, needsShift: true),
-    '&' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit7, logicalKey: LogicalKeyboardKey.ampersand, needsShift: true),
-    '*' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit8, logicalKey: LogicalKeyboardKey.asterisk, needsShift: true),
-    '(' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit9, logicalKey: LogicalKeyboardKey.parenthesisLeft, needsShift: true),
-    ')' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.digit0, logicalKey: LogicalKeyboardKey.parenthesisRight, needsShift: true),
-    '_' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.minus, logicalKey: LogicalKeyboardKey.underscore, needsShift: true),
-    '+' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.equal, logicalKey: LogicalKeyboardKey.add, needsShift: true),
-    '{' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.bracketLeft, logicalKey: LogicalKeyboardKey.braceLeft, needsShift: true),
-    '}' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.bracketRight, logicalKey: LogicalKeyboardKey.braceRight, needsShift: true),
-    '|' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.backslash, logicalKey: LogicalKeyboardKey.bar, needsShift: true),
-    ':' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.semicolon, logicalKey: LogicalKeyboardKey.colon, needsShift: true),
-    '"' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.quote, logicalKey: LogicalKeyboardKey.quote, needsShift: true),
-    '~' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.backquote, logicalKey: LogicalKeyboardKey.tilde, needsShift: true),
-    '<' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.comma, logicalKey: LogicalKeyboardKey.less, needsShift: true),
-    '>' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.period, logicalKey: LogicalKeyboardKey.greater, needsShift: true),
-    '?' => const _KeyInfo(physicalKey: PhysicalKeyboardKey.slash, logicalKey: LogicalKeyboardKey.question, needsShift: true),
+    '-' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.minus,
+        logicalKey: LogicalKeyboardKey.minus),
+    '=' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.equal,
+        logicalKey: LogicalKeyboardKey.equal),
+    '[' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.bracketLeft,
+        logicalKey: LogicalKeyboardKey.bracketLeft),
+    ']' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.bracketRight,
+        logicalKey: LogicalKeyboardKey.bracketRight),
+    '\\' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.backslash,
+        logicalKey: LogicalKeyboardKey.backslash),
+    ';' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.semicolon,
+        logicalKey: LogicalKeyboardKey.semicolon),
+    "'" => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.quote,
+        logicalKey: LogicalKeyboardKey.quoteSingle),
+    '`' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.backquote,
+        logicalKey: LogicalKeyboardKey.backquote),
+    ',' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.comma,
+        logicalKey: LogicalKeyboardKey.comma),
+    '.' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.period,
+        logicalKey: LogicalKeyboardKey.period),
+    '/' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.slash,
+        logicalKey: LogicalKeyboardKey.slash),
+    '!' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit1,
+        logicalKey: LogicalKeyboardKey.exclamation,
+        needsShift: true),
+    '@' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit2,
+        logicalKey: LogicalKeyboardKey.at,
+        needsShift: true),
+    '#' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit3,
+        logicalKey: LogicalKeyboardKey.numberSign,
+        needsShift: true),
+    '\$' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit4,
+        logicalKey: LogicalKeyboardKey.dollar,
+        needsShift: true),
+    '%' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit5,
+        logicalKey: LogicalKeyboardKey.percent,
+        needsShift: true),
+    '^' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit6,
+        logicalKey: LogicalKeyboardKey.caret,
+        needsShift: true),
+    '&' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit7,
+        logicalKey: LogicalKeyboardKey.ampersand,
+        needsShift: true),
+    '*' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit8,
+        logicalKey: LogicalKeyboardKey.asterisk,
+        needsShift: true),
+    '(' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit9,
+        logicalKey: LogicalKeyboardKey.parenthesisLeft,
+        needsShift: true),
+    ')' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.digit0,
+        logicalKey: LogicalKeyboardKey.parenthesisRight,
+        needsShift: true),
+    '_' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.minus,
+        logicalKey: LogicalKeyboardKey.underscore,
+        needsShift: true),
+    '+' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.equal,
+        logicalKey: LogicalKeyboardKey.add,
+        needsShift: true),
+    '{' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.bracketLeft,
+        logicalKey: LogicalKeyboardKey.braceLeft,
+        needsShift: true),
+    '}' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.bracketRight,
+        logicalKey: LogicalKeyboardKey.braceRight,
+        needsShift: true),
+    '|' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.backslash,
+        logicalKey: LogicalKeyboardKey.bar,
+        needsShift: true),
+    ':' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.semicolon,
+        logicalKey: LogicalKeyboardKey.colon,
+        needsShift: true),
+    '"' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.quote,
+        logicalKey: LogicalKeyboardKey.quote,
+        needsShift: true),
+    '~' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.backquote,
+        logicalKey: LogicalKeyboardKey.tilde,
+        needsShift: true),
+    '<' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.comma,
+        logicalKey: LogicalKeyboardKey.less,
+        needsShift: true),
+    '>' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.period,
+        logicalKey: LogicalKeyboardKey.greater,
+        needsShift: true),
+    '?' => const _KeyInfo(
+        physicalKey: PhysicalKeyboardKey.slash,
+        logicalKey: LogicalKeyboardKey.question,
+        needsShift: true),
     _ => null,
   };
 }
 
 const _letterPhysicalKeys = <int, PhysicalKeyboardKey>{
-  0: PhysicalKeyboardKey.keyA, 1: PhysicalKeyboardKey.keyB, 2: PhysicalKeyboardKey.keyC,
-  3: PhysicalKeyboardKey.keyD, 4: PhysicalKeyboardKey.keyE, 5: PhysicalKeyboardKey.keyF,
-  6: PhysicalKeyboardKey.keyG, 7: PhysicalKeyboardKey.keyH, 8: PhysicalKeyboardKey.keyI,
-  9: PhysicalKeyboardKey.keyJ, 10: PhysicalKeyboardKey.keyK, 11: PhysicalKeyboardKey.keyL,
-  12: PhysicalKeyboardKey.keyM, 13: PhysicalKeyboardKey.keyN, 14: PhysicalKeyboardKey.keyO,
-  15: PhysicalKeyboardKey.keyP, 16: PhysicalKeyboardKey.keyQ, 17: PhysicalKeyboardKey.keyR,
-  18: PhysicalKeyboardKey.keyS, 19: PhysicalKeyboardKey.keyT, 20: PhysicalKeyboardKey.keyU,
-  21: PhysicalKeyboardKey.keyV, 22: PhysicalKeyboardKey.keyW, 23: PhysicalKeyboardKey.keyX,
-  24: PhysicalKeyboardKey.keyY, 25: PhysicalKeyboardKey.keyZ,
+  0: PhysicalKeyboardKey.keyA,
+  1: PhysicalKeyboardKey.keyB,
+  2: PhysicalKeyboardKey.keyC,
+  3: PhysicalKeyboardKey.keyD,
+  4: PhysicalKeyboardKey.keyE,
+  5: PhysicalKeyboardKey.keyF,
+  6: PhysicalKeyboardKey.keyG,
+  7: PhysicalKeyboardKey.keyH,
+  8: PhysicalKeyboardKey.keyI,
+  9: PhysicalKeyboardKey.keyJ,
+  10: PhysicalKeyboardKey.keyK,
+  11: PhysicalKeyboardKey.keyL,
+  12: PhysicalKeyboardKey.keyM,
+  13: PhysicalKeyboardKey.keyN,
+  14: PhysicalKeyboardKey.keyO,
+  15: PhysicalKeyboardKey.keyP,
+  16: PhysicalKeyboardKey.keyQ,
+  17: PhysicalKeyboardKey.keyR,
+  18: PhysicalKeyboardKey.keyS,
+  19: PhysicalKeyboardKey.keyT,
+  20: PhysicalKeyboardKey.keyU,
+  21: PhysicalKeyboardKey.keyV,
+  22: PhysicalKeyboardKey.keyW,
+  23: PhysicalKeyboardKey.keyX,
+  24: PhysicalKeyboardKey.keyY,
+  25: PhysicalKeyboardKey.keyZ,
 };
 
 const _letterLogicalKeys = <int, LogicalKeyboardKey>{
-  0: LogicalKeyboardKey.keyA, 1: LogicalKeyboardKey.keyB, 2: LogicalKeyboardKey.keyC,
-  3: LogicalKeyboardKey.keyD, 4: LogicalKeyboardKey.keyE, 5: LogicalKeyboardKey.keyF,
-  6: LogicalKeyboardKey.keyG, 7: LogicalKeyboardKey.keyH, 8: LogicalKeyboardKey.keyI,
-  9: LogicalKeyboardKey.keyJ, 10: LogicalKeyboardKey.keyK, 11: LogicalKeyboardKey.keyL,
-  12: LogicalKeyboardKey.keyM, 13: LogicalKeyboardKey.keyN, 14: LogicalKeyboardKey.keyO,
-  15: LogicalKeyboardKey.keyP, 16: LogicalKeyboardKey.keyQ, 17: LogicalKeyboardKey.keyR,
-  18: LogicalKeyboardKey.keyS, 19: LogicalKeyboardKey.keyT, 20: LogicalKeyboardKey.keyU,
-  21: LogicalKeyboardKey.keyV, 22: LogicalKeyboardKey.keyW, 23: LogicalKeyboardKey.keyX,
-  24: LogicalKeyboardKey.keyY, 25: LogicalKeyboardKey.keyZ,
+  0: LogicalKeyboardKey.keyA,
+  1: LogicalKeyboardKey.keyB,
+  2: LogicalKeyboardKey.keyC,
+  3: LogicalKeyboardKey.keyD,
+  4: LogicalKeyboardKey.keyE,
+  5: LogicalKeyboardKey.keyF,
+  6: LogicalKeyboardKey.keyG,
+  7: LogicalKeyboardKey.keyH,
+  8: LogicalKeyboardKey.keyI,
+  9: LogicalKeyboardKey.keyJ,
+  10: LogicalKeyboardKey.keyK,
+  11: LogicalKeyboardKey.keyL,
+  12: LogicalKeyboardKey.keyM,
+  13: LogicalKeyboardKey.keyN,
+  14: LogicalKeyboardKey.keyO,
+  15: LogicalKeyboardKey.keyP,
+  16: LogicalKeyboardKey.keyQ,
+  17: LogicalKeyboardKey.keyR,
+  18: LogicalKeyboardKey.keyS,
+  19: LogicalKeyboardKey.keyT,
+  20: LogicalKeyboardKey.keyU,
+  21: LogicalKeyboardKey.keyV,
+  22: LogicalKeyboardKey.keyW,
+  23: LogicalKeyboardKey.keyX,
+  24: LogicalKeyboardKey.keyY,
+  25: LogicalKeyboardKey.keyZ,
 };
 
 const _digitPhysicalKeys = <int, PhysicalKeyboardKey>{
-  0: PhysicalKeyboardKey.digit0, 1: PhysicalKeyboardKey.digit1, 2: PhysicalKeyboardKey.digit2,
-  3: PhysicalKeyboardKey.digit3, 4: PhysicalKeyboardKey.digit4, 5: PhysicalKeyboardKey.digit5,
-  6: PhysicalKeyboardKey.digit6, 7: PhysicalKeyboardKey.digit7, 8: PhysicalKeyboardKey.digit8,
+  0: PhysicalKeyboardKey.digit0,
+  1: PhysicalKeyboardKey.digit1,
+  2: PhysicalKeyboardKey.digit2,
+  3: PhysicalKeyboardKey.digit3,
+  4: PhysicalKeyboardKey.digit4,
+  5: PhysicalKeyboardKey.digit5,
+  6: PhysicalKeyboardKey.digit6,
+  7: PhysicalKeyboardKey.digit7,
+  8: PhysicalKeyboardKey.digit8,
   9: PhysicalKeyboardKey.digit9,
 };
 
 const _digitLogicalKeys = <int, LogicalKeyboardKey>{
-  0: LogicalKeyboardKey.digit0, 1: LogicalKeyboardKey.digit1, 2: LogicalKeyboardKey.digit2,
-  3: LogicalKeyboardKey.digit3, 4: LogicalKeyboardKey.digit4, 5: LogicalKeyboardKey.digit5,
-  6: LogicalKeyboardKey.digit6, 7: LogicalKeyboardKey.digit7, 8: LogicalKeyboardKey.digit8,
+  0: LogicalKeyboardKey.digit0,
+  1: LogicalKeyboardKey.digit1,
+  2: LogicalKeyboardKey.digit2,
+  3: LogicalKeyboardKey.digit3,
+  4: LogicalKeyboardKey.digit4,
+  5: LogicalKeyboardKey.digit5,
+  6: LogicalKeyboardKey.digit6,
+  7: LogicalKeyboardKey.digit7,
+  8: LogicalKeyboardKey.digit8,
   9: LogicalKeyboardKey.digit9,
 };

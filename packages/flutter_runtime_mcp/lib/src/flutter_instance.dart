@@ -237,7 +237,9 @@ class FlutterInstance {
     }
 
     if (_vmService == null) {
-      print('⚠️  [FlutterInstance] VM Service not connected, attempting to connect...');
+      print(
+        '⚠️  [FlutterInstance] VM Service not connected, attempting to connect...',
+      );
       // Try to connect if not already connected
       await _connectToVmService();
       if (_vmService == null) {
@@ -259,12 +261,14 @@ class FlutterInstance {
     }
 
     // Call runtime_ai_dev_tools screenshot extension
-    print('🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.screenshot');
+    print(
+      '🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.screenshot',
+    );
     print('   Using isolateId: $isolateId');
 
     final response = await _vmService!.callServiceExtension(
       'ext.runtime_ai_dev_tools.screenshot',
-      isolateId: isolateId,  // CRITICAL: Must include isolateId!
+      isolateId: isolateId, // CRITICAL: Must include isolateId!
     );
 
     print('📥 [FlutterInstance] Received response from runtime_ai_dev_tools');
@@ -302,7 +306,9 @@ class FlutterInstance {
   ///
   /// Returns true if successful, throws exception if failed
   Future<bool> tap(double x, double y) async {
-    print('🔍 [FlutterInstance] tap() called at coordinates ($x, $y) for instance $id');
+    print(
+      '🔍 [FlutterInstance] tap() called at coordinates ($x, $y) for instance $id',
+    );
 
     if (!_isRunning) {
       print('❌ [FlutterInstance] Instance is not running');
@@ -310,7 +316,9 @@ class FlutterInstance {
     }
 
     if (_vmService == null) {
-      print('⚠️  [FlutterInstance] VM Service not connected, attempting to connect...');
+      print(
+        '⚠️  [FlutterInstance] VM Service not connected, attempting to connect...',
+      );
       await _connectToVmService();
       if (_vmService == null) {
         print('❌ [FlutterInstance] Failed to connect to VM Service');
@@ -327,19 +335,20 @@ class FlutterInstance {
     }
 
     // Try runtime_ai_dev_tools extension (includes tap visualization)
-    print('🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.tap');
+    print(
+      '🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.tap',
+    );
     print('   Parameters: x=$x, y=$y, isolateId=$isolateId');
 
     final response = await _vmService!.callServiceExtension(
       'ext.runtime_ai_dev_tools.tap',
-      isolateId: isolateId,  // CRITICAL: Must include isolateId!
-      args: {
-        'x': x.toString(),
-        'y': y.toString(),
-      },
+      isolateId: isolateId, // CRITICAL: Must include isolateId!
+      args: {'x': x.toString(), 'y': y.toString()},
     );
 
-    print('📥 [FlutterInstance] Received response from runtime_ai_dev_tools.tap');
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.tap',
+    );
     print('   Response type: ${response.type}');
     print('   Response JSON: ${response.json}');
 
@@ -360,7 +369,9 @@ class FlutterInstance {
   ///
   /// Returns true if successful, throws exception if failed
   Future<bool> type(String text) async {
-    print('🔍 [FlutterInstance] type() called with text: "$text" for instance $id');
+    print(
+      '🔍 [FlutterInstance] type() called with text: "$text" for instance $id',
+    );
 
     if (!_isRunning) {
       print('❌ [FlutterInstance] Instance is not running');
@@ -368,7 +379,9 @@ class FlutterInstance {
     }
 
     if (_vmService == null) {
-      print('⚠️  [FlutterInstance] VM Service not connected, attempting to connect...');
+      print(
+        '⚠️  [FlutterInstance] VM Service not connected, attempting to connect...',
+      );
       await _connectToVmService();
       if (_vmService == null) {
         print('❌ [FlutterInstance] Failed to connect to VM Service');
@@ -385,18 +398,20 @@ class FlutterInstance {
     }
 
     // Call runtime_ai_dev_tools type extension
-    print('🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.type');
+    print(
+      '🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.type',
+    );
     print('   Parameters: text=$text, isolateId=$isolateId');
 
     final response = await _vmService!.callServiceExtension(
       'ext.runtime_ai_dev_tools.type',
       isolateId: isolateId,
-      args: {
-        'text': text,
-      },
+      args: {'text': text},
     );
 
-    print('📥 [FlutterInstance] Received response from runtime_ai_dev_tools.type');
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.type',
+    );
     print('   Response type: ${response.type}');
     print('   Response JSON: ${response.json}');
 
@@ -426,7 +441,9 @@ class FlutterInstance {
     int? durationMs,
   }) async {
     print('🔍 [FlutterInstance] scroll() called for instance $id');
-    print('   Start: ($startX, $startY), Delta: ($dx, $dy), Duration: ${durationMs}ms');
+    print(
+      '   Start: ($startX, $startY), Delta: ($dx, $dy), Duration: ${durationMs}ms',
+    );
 
     if (!_isRunning) {
       print('❌ [FlutterInstance] Instance is not running');
@@ -434,7 +451,9 @@ class FlutterInstance {
     }
 
     if (_vmService == null) {
-      print('⚠️  [FlutterInstance] VM Service not connected, attempting to connect...');
+      print(
+        '⚠️  [FlutterInstance] VM Service not connected, attempting to connect...',
+      );
       await _connectToVmService();
       if (_vmService == null) {
         print('❌ [FlutterInstance] Failed to connect to VM Service');
@@ -451,7 +470,9 @@ class FlutterInstance {
     }
 
     // Call runtime_ai_dev_tools scroll extension
-    print('🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.scroll');
+    print(
+      '🔧 [FlutterInstance] Attempting to call ext.runtime_ai_dev_tools.scroll',
+    );
 
     final args = <String, String>{
       'startX': startX.toString(),
@@ -469,7 +490,9 @@ class FlutterInstance {
       args: args,
     );
 
-    print('📥 [FlutterInstance] Received response from runtime_ai_dev_tools.scroll');
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.scroll',
+    );
     print('   Response type: ${response.type}');
     print('   Response JSON: ${response.json}');
 

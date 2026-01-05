@@ -30,7 +30,7 @@ class ProcessManager {
     // Add Dart MCP server (uses stdio transport, Claude handles it)
     mcpServersConfig['dart'] = {
       'command': 'dart',
-      'args': ['mcp-server']
+      'args': ['mcp-server'],
     };
 
     // Create the complete configuration with mcpServers wrapper
@@ -54,4 +54,3 @@ class ProcessManager {
     }
   }
 }
-

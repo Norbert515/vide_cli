@@ -37,7 +37,9 @@ class Checkbox extends StatelessComponent {
           Container(
             padding: EdgeInsets.symmetric(horizontal: 0),
             decoration: focused
-                ? BoxDecoration(border: BoxBorder.all(color: theme.base.primary))
+                ? BoxDecoration(
+                    border: BoxBorder.all(color: theme.base.primary),
+                  )
                 : null,
             child: Text(
               value ? '[X]' : '[ ]',

@@ -6,10 +6,17 @@ class PermissionDialog extends StatefulComponent {
   final String displayAction;
   final String? agentName;
   final String? inferredPattern;
+
   /// Callback with (granted, remember, patternOverride, denyReason)
   /// patternOverride is non-null when user selects a different pattern than the inferred one
   /// denyReason is non-null when user denies with a custom reason
-  final Function(bool granted, bool remember, {String? patternOverride, String? denyReason}) onResponse;
+  final Function(
+    bool granted,
+    bool remember, {
+    String? patternOverride,
+    String? denyReason,
+  })
+  onResponse;
 
   const PermissionDialog({
     required this.toolName,
@@ -23,7 +30,13 @@ class PermissionDialog extends StatefulComponent {
   /// Create from permission request
   factory PermissionDialog.fromRequest({
     required PermissionRequest request,
-    required Function(bool granted, bool remember, {String? patternOverride, String? denyReason}) onResponse,
+    required Function(
+      bool granted,
+      bool remember, {
+      String? patternOverride,
+      String? denyReason,
+    })
+    onResponse,
     Key? key,
   }) {
     return PermissionDialog(
@@ -62,13 +75,17 @@ class _PermissionDialogState extends State<PermissionDialog> {
     ];
 
     // For WebFetch, add an option to allow all WebFetch requests
-    if (component.toolName == 'WebFetch' && component.inferredPattern != null && component.inferredPattern != 'WebFetch') {
-      options.add(_PermissionOption(
-        'Allow all WebFetch',
-        granted: true,
-        remember: true,
-        patternOverride: 'WebFetch',
-      ));
+    if (component.toolName == 'WebFetch' &&
+        component.inferredPattern != null &&
+        component.inferredPattern != 'WebFetch') {
+      options.add(
+        _PermissionOption(
+          'Allow all WebFetch',
+          granted: true,
+          remember: true,
+          patternOverride: 'WebFetch',
+        ),
+      );
     }
 
     options.add(_PermissionOption('Deny', granted: false, remember: false));
@@ -85,8 +102,12 @@ class _PermissionDialogState extends State<PermissionDialog> {
       denyReason = _textController.text;
     }
 
-    component.onResponse(option.granted, option.remember,
-        patternOverride: option.patternOverride, denyReason: denyReason);
+    component.onResponse(
+      option.granted,
+      option.remember,
+      patternOverride: option.patternOverride,
+      denyReason: denyReason,
+    );
   }
 
   @override
@@ -153,24 +174,37 @@ class _PermissionDialogState extends State<PermissionDialog> {
             if (component.agentName != null)
               Text(
                 'Agent: ${component.agentName}',
-                style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.cyan,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
 
             // Tool and action
             Text(
               'Tool: ${component.toolName}',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            Text(component.displayAction, style: TextStyle(color: Colors.white)),
+            Text(
+              component.displayAction,
+              style: TextStyle(color: Colors.white),
+            ),
 
             // Show inferred pattern if "remember" would be used
             if (component.inferredPattern != null)
-              Text('Pattern: ${component.inferredPattern}', style: TextStyle(color: Colors.yellow)),
+              Text(
+                'Pattern: ${component.inferredPattern}',
+                style: TextStyle(color: Colors.yellow),
+              ),
 
             Divider(color: Colors.grey),
 
             // List of options
-            for (int i = 0; i < _options.length; i++) _buildListItem(i, _options[i]),
+            for (int i = 0; i < _options.length; i++)
+              _buildListItem(i, _options[i]),
           ],
         ),
       ),
@@ -221,5 +255,10 @@ class _PermissionOption {
   final bool remember;
   final String? patternOverride;
 
-  _PermissionOption(this.label, {required this.granted, required this.remember, this.patternOverride});
+  _PermissionOption(
+    this.label, {
+    required this.granted,
+    required this.remember,
+    this.patternOverride,
+  });
 }

@@ -102,13 +102,22 @@ class MockClaudeClient implements ClaudeClient {
     }
 
     // Add user message
-    final userMessage = ConversationMessage.user(content: message.text, attachments: message.attachments);
-    _updateConversation(_currentConversation.addMessage(userMessage).withState(ConversationState.sendingMessage));
+    final userMessage = ConversationMessage.user(
+      content: message.text,
+      attachments: message.attachments,
+    );
+    _updateConversation(
+      _currentConversation
+          .addMessage(userMessage)
+          .withState(ConversationState.sendingMessage),
+    );
     _updateStatus(ClaudeStatus.processing);
 
     // Simulate processing delay
     Timer(const Duration(milliseconds: 500), () {
-      _updateConversation(_currentConversation.withState(ConversationState.receivingResponse));
+      _updateConversation(
+        _currentConversation.withState(ConversationState.receivingResponse),
+      );
       _updateStatus(ClaudeStatus.responding);
 
       // Start streaming mock response
@@ -142,14 +151,19 @@ class MockClaudeClient implements ClaudeClient {
     if (userText.toLowerCase().contains('code') ||
         userText.toLowerCase().contains('function') ||
         userText.toLowerCase().contains('class')) {
-      return _mockCodeResponses[DateTime.now().millisecond % _mockCodeResponses.length];
+      return _mockCodeResponses[DateTime.now().millisecond %
+          _mockCodeResponses.length];
     }
 
     // Default to regular responses
     return _mockResponses[DateTime.now().millisecond % _mockResponses.length];
   }
 
-  void _simulateToolUse(String assistantId, List<ClaudeResponse> responses, String finalResponse) {
+  void _simulateToolUse(
+    String assistantId,
+    List<ClaudeResponse> responses,
+    String finalResponse,
+  ) {
     // Add tool use response
     final toolUseId = const Uuid().v4();
     final toolUse = ToolUseResponse(
@@ -164,7 +178,11 @@ class MockClaudeClient implements ClaudeClient {
     // Update conversation with tool use
     _updateConversation(
       _currentConversation.updateLastMessage(
-        ConversationMessage.assistant(id: assistantId, responses: responses, isStreaming: true),
+        ConversationMessage.assistant(
+          id: assistantId,
+          responses: responses,
+          isStreaming: true,
+        ),
       ),
     );
 
@@ -174,7 +192,8 @@ class MockClaudeClient implements ClaudeClient {
         id: const Uuid().v4(),
         timestamp: DateTime.now(),
         toolUseId: toolUseId,
-        content: 'Found 5 relevant results:\n1. First result\n2. Second result\n3. Third result',
+        content:
+            'Found 5 relevant results:\n1. First result\n2. Second result\n3. Third result',
         isError: false,
       );
       responses.add(toolResult);
@@ -182,7 +201,11 @@ class MockClaudeClient implements ClaudeClient {
       // Update with tool result
       _updateConversation(
         _currentConversation.updateLastMessage(
-          ConversationMessage.assistant(id: assistantId, responses: responses, isStreaming: true),
+          ConversationMessage.assistant(
+            id: assistantId,
+            responses: responses,
+            isStreaming: true,
+          ),
         ),
       );
 
@@ -191,7 +214,11 @@ class MockClaudeClient implements ClaudeClient {
     });
   }
 
-  void _simulateTextStreaming(String assistantId, List<ClaudeResponse> responses, String fullResponse) {
+  void _simulateTextStreaming(
+    String assistantId,
+    List<ClaudeResponse> responses,
+    String fullResponse,
+  ) {
     // Split response into chunks for streaming effect
     final words = fullResponse.split(' ');
     int currentIndex = 0;
@@ -233,8 +260,12 @@ class MockClaudeClient implements ClaudeClient {
               )
               .withState(ConversationState.idle)
               .copyWith(
-                totalInputTokens: _currentConversation.totalInputTokens + (completion.inputTokens ?? 0),
-                totalOutputTokens: _currentConversation.totalOutputTokens + (completion.outputTokens ?? 0),
+                totalInputTokens:
+                    _currentConversation.totalInputTokens +
+                    (completion.inputTokens ?? 0),
+                totalOutputTokens:
+                    _currentConversation.totalOutputTokens +
+                    (completion.outputTokens ?? 0),
               ),
         );
 
@@ -275,14 +306,22 @@ class MockClaudeClient implements ClaudeClient {
         // First update - add message
         _updateConversation(
           _currentConversation.addMessage(
-            ConversationMessage.assistant(id: assistantId, responses: responses, isStreaming: true),
+            ConversationMessage.assistant(
+              id: assistantId,
+              responses: responses,
+              isStreaming: true,
+            ),
           ),
         );
       } else {
         // Subsequent updates - update last message
         _updateConversation(
           _currentConversation.updateLastMessage(
-            ConversationMessage.assistant(id: assistantId, responses: responses, isStreaming: true),
+            ConversationMessage.assistant(
+              id: assistantId,
+              responses: responses,
+              isStreaming: true,
+            ),
           ),
         );
       }
@@ -320,7 +359,11 @@ class MockClaudeClient implements ClaudeClient {
     );
 
     // Update conversation state
-    _updateConversation(_currentConversation.addMessage(abortMessage).withState(ConversationState.idle));
+    _updateConversation(
+      _currentConversation
+          .addMessage(abortMessage)
+          .withState(ConversationState.idle),
+    );
 
     _isAborting = false;
   }
@@ -373,6 +416,8 @@ class MockClaudeClient implements ClaudeClient {
     final updatedMessages = [..._currentConversation.messages];
     updatedMessages[lastIndex] = updatedMessage;
 
-    _updateConversation(_currentConversation.copyWith(messages: updatedMessages));
+    _updateConversation(
+      _currentConversation.copyWith(messages: updatedMessages),
+    );
   }
 }

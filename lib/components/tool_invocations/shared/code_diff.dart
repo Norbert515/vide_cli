@@ -10,6 +10,7 @@ class DiffLine {
   final DiffLineType type;
   final String content;
   final String? language;
+
   /// Pre-computed highlighted content. If null, highlighting will be computed during build.
   final TextSpan? highlightedContent;
 
@@ -56,7 +57,11 @@ class CodeDiff extends StatelessComponent {
     );
   }
 
-  Component _buildDiffLine(VideThemeData theme, DiffLine line, int lineNumberWidth) {
+  Component _buildDiffLine(
+    VideThemeData theme,
+    DiffLine line,
+    int lineNumberWidth,
+  ) {
     switch (line.type) {
       case DiffLineType.header:
         return Container(

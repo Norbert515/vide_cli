@@ -24,41 +24,43 @@ void main() {
             'id': 'msg_1',
             'role': 'assistant',
             'content': [
-              {'type': 'text', 'text': 'Hello from assistant'}
-            ]
-          }
+              {'type': 'text', 'text': 'Hello from assistant'},
+            ],
+          },
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<TextResponse>());
         expect((response as TextResponse).content, 'Hello from assistant');
       });
 
-      test('parses type=assistant with tool_use content as ToolUseResponse',
-          () {
-        final json = {
-          'type': 'assistant',
-          'message': {
-            'id': 'msg_1',
-            'role': 'assistant',
-            'content': [
-              {
-                'type': 'tool_use',
-                'id': 'tool_1',
-                'name': 'Read',
-                'input': {'file_path': '/test.txt'}
-              }
-            ]
-          }
-        };
-        final response = ClaudeResponse.fromJson(json);
-        expect(response, isA<ToolUseResponse>());
-      });
+      test(
+        'parses type=assistant with tool_use content as ToolUseResponse',
+        () {
+          final json = {
+            'type': 'assistant',
+            'message': {
+              'id': 'msg_1',
+              'role': 'assistant',
+              'content': [
+                {
+                  'type': 'tool_use',
+                  'id': 'tool_1',
+                  'name': 'Read',
+                  'input': {'file_path': '/test.txt'},
+                },
+              ],
+            },
+          };
+          final response = ClaudeResponse.fromJson(json);
+          expect(response, isA<ToolUseResponse>());
+        },
+      );
 
       test('parses type=tool_use as ToolUseResponse', () {
         final json = {
           'type': 'tool_use',
           'name': 'Write',
-          'input': {'file_path': '/out.txt', 'content': 'data'}
+          'input': {'file_path': '/out.txt', 'content': 'data'},
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<ToolUseResponse>());
@@ -68,7 +70,7 @@ void main() {
         final json = {
           'type': 'error',
           'error': 'Failed',
-          'details': 'More info'
+          'details': 'More info',
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<ErrorResponse>());
@@ -84,7 +86,7 @@ void main() {
         final json = {
           'type': 'system',
           'subtype': 'init',
-          'conversation_id': 'conv_123'
+          'conversation_id': 'conv_123',
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<MetaResponse>());
@@ -96,31 +98,31 @@ void main() {
         expect(response, isA<StatusResponse>());
       });
 
-      test('parses type=system subtype=compact_boundary as CompactBoundaryResponse', () {
-        final json = {
-          'type': 'system',
-          'subtype': 'compact_boundary',
-          'content': 'Conversation compacted',
-          'uuid': 'cb-123',
-          'timestamp': '2024-01-15T12:00:00Z',
-          'compactMetadata': {
-            'trigger': 'manual',
-            'preTokens': 150000,
-          },
-        };
-        final response = ClaudeResponse.fromJson(json);
-        expect(response, isA<CompactBoundaryResponse>());
-        final compactResponse = response as CompactBoundaryResponse;
-        expect(compactResponse.trigger, 'manual');
-        expect(compactResponse.preTokens, 150000);
-        expect(compactResponse.content, 'Conversation compacted');
-      });
+      test(
+        'parses type=system subtype=compact_boundary as CompactBoundaryResponse',
+        () {
+          final json = {
+            'type': 'system',
+            'subtype': 'compact_boundary',
+            'content': 'Conversation compacted',
+            'uuid': 'cb-123',
+            'timestamp': '2024-01-15T12:00:00Z',
+            'compactMetadata': {'trigger': 'manual', 'preTokens': 150000},
+          };
+          final response = ClaudeResponse.fromJson(json);
+          expect(response, isA<CompactBoundaryResponse>());
+          final compactResponse = response as CompactBoundaryResponse;
+          expect(compactResponse.trigger, 'manual');
+          expect(compactResponse.preTokens, 150000);
+          expect(compactResponse.content, 'Conversation compacted');
+        },
+      );
 
       test('parses type=result as CompletionResponse', () {
         final json = {
           'type': 'result',
           'subtype': 'success',
-          'usage': {'input_tokens': 100, 'output_tokens': 50}
+          'usage': {'input_tokens': 100, 'output_tokens': 50},
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<CompletionResponse>());
@@ -130,7 +132,7 @@ void main() {
         final json = {
           'type': 'meta',
           'conversation_id': 'conv_456',
-          'metadata': {'key': 'value'}
+          'metadata': {'key': 'value'},
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<MetaResponse>());
@@ -140,7 +142,7 @@ void main() {
         final json = {
           'type': 'completion',
           'stop_reason': 'end_turn',
-          'usage': {'input_tokens': 200, 'output_tokens': 100}
+          'usage': {'input_tokens': 200, 'output_tokens': 100},
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<CompletionResponse>());
@@ -155,10 +157,10 @@ void main() {
               {
                 'type': 'tool_result',
                 'tool_use_id': 'tool_123',
-                'content': 'Result data'
-              }
-            ]
-          }
+                'content': 'Result data',
+              },
+            ],
+          },
         };
         final response = ClaudeResponse.fromJson(json);
         expect(response, isA<ToolResultResponse>());
@@ -187,10 +189,7 @@ void main() {
     });
 
     test('decodes HTML entities in content', () {
-      final json = {
-        'type': 'text',
-        'content': 'a &lt; b &amp;&amp; c &gt; d'
-      };
+      final json = {'type': 'text', 'content': 'a &lt; b &amp;&amp; c &gt; d'};
       final response = TextResponse.fromJson(json);
       expect(response.content, 'a < b && c > d');
     });
@@ -198,7 +197,7 @@ void main() {
     test('decodes &quot; and &apos; entities', () {
       final json = {
         'type': 'text',
-        'content': '&quot;hello&quot; &apos;world&apos;'
+        'content': '&quot;hello&quot; &apos;world&apos;',
       };
       final response = TextResponse.fromJson(json);
       expect(response.content, '"hello" \'world\'');
@@ -230,9 +229,9 @@ void main() {
           'role': 'assistant',
           'content': [
             {'type': 'text', 'text': 'First part'},
-            {'type': 'text', 'text': ' second part'}
-          ]
-        }
+            {'type': 'text', 'text': ' second part'},
+          ],
+        },
       };
       final response = TextResponse.fromAssistantMessage(json);
       expect(response.content, 'First part second part');
@@ -244,9 +243,9 @@ void main() {
         'message': {
           'id': 'msg_1',
           'content': [
-            {'type': 'text', 'text': 'x &lt; y'}
-          ]
-        }
+            {'type': 'text', 'text': 'x &lt; y'},
+          ],
+        },
       };
       final response = TextResponse.fromAssistantMessage(json);
       expect(response.content, 'x < y');
@@ -255,29 +254,31 @@ void main() {
     test('fromAssistantMessage handles empty content', () {
       final json = {
         'type': 'assistant',
-        'message': {'id': 'msg_1', 'content': []}
+        'message': {'id': 'msg_1', 'content': []},
       };
       final response = TextResponse.fromAssistantMessage(json);
       expect(response.content, '');
     });
 
-    test('fromAssistantMessage is never partial (contains cumulative content)',
-        () {
-      // fromAssistantMessage always contains CUMULATIVE content, not a delta
-      // So it should never be marked as partial, regardless of stop_reason
-      final json = {
-        'type': 'assistant',
-        'message': {
-          'id': 'msg_1',
-          'content': [
-            {'type': 'text', 'text': 'Streaming...'}
-          ],
-          'stop_reason': null
-        }
-      };
-      final response = TextResponse.fromAssistantMessage(json);
-      expect(response.isPartial, false);
-    });
+    test(
+      'fromAssistantMessage is never partial (contains cumulative content)',
+      () {
+        // fromAssistantMessage always contains CUMULATIVE content, not a delta
+        // So it should never be marked as partial, regardless of stop_reason
+        final json = {
+          'type': 'assistant',
+          'message': {
+            'id': 'msg_1',
+            'content': [
+              {'type': 'text', 'text': 'Streaming...'},
+            ],
+            'stop_reason': null,
+          },
+        };
+        final response = TextResponse.fromAssistantMessage(json);
+        expect(response.isPartial, false);
+      },
+    );
 
     test('fromAssistantMessage not partial when stop_reason present', () {
       final json = {
@@ -285,10 +286,10 @@ void main() {
         'message': {
           'id': 'msg_1',
           'content': [
-            {'type': 'text', 'text': 'Complete'}
+            {'type': 'text', 'text': 'Complete'},
           ],
-          'stop_reason': 'end_turn'
-        }
+          'stop_reason': 'end_turn',
+        },
       };
       final response = TextResponse.fromAssistantMessage(json);
       expect(response.isPartial, false);
@@ -300,7 +301,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'Read',
-        'input': <String, dynamic>{}
+        'input': <String, dynamic>{},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.toolName, 'Read');
@@ -310,7 +311,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'tool_name': 'Write',
-        'parameters': <String, dynamic>{}
+        'parameters': <String, dynamic>{},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.toolName, 'Write');
@@ -320,7 +321,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'Read',
-        'input': <String, dynamic>{'file_path': '/test.txt', 'limit': 100}
+        'input': <String, dynamic>{'file_path': '/test.txt', 'limit': 100},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.parameters['file_path'], '/test.txt');
@@ -331,7 +332,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'Write',
-        'parameters': <String, dynamic>{'file_path': '/out.txt'}
+        'parameters': <String, dynamic>{'file_path': '/out.txt'},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.parameters['file_path'], '/out.txt');
@@ -342,7 +343,7 @@ void main() {
         'type': 'tool_use',
         'name': 'Read',
         'input': <String, dynamic>{},
-        'tool_use_id': 'tool_abc123'
+        'tool_use_id': 'tool_abc123',
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.toolUseId, 'tool_abc123');
@@ -352,7 +353,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'mcp__test&amp;tool',
-        'input': <String, dynamic>{}
+        'input': <String, dynamic>{},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.toolName, 'mcp__test&tool');
@@ -362,7 +363,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'Write',
-        'input': <String, dynamic>{'content': 'a &lt; b'}
+        'input': <String, dynamic>{'content': 'a &lt; b'},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.parameters['content'], 'a < b');
@@ -380,10 +381,10 @@ void main() {
               'type': 'tool_use',
               'id': 'tool_456',
               'name': 'Bash',
-              'input': {'command': 'ls -la'}
-            }
-          ]
-        }
+              'input': {'command': 'ls -la'},
+            },
+          ],
+        },
       };
       final response = ToolUseResponse.fromAssistantMessage(json);
       expect(response.toolName, 'Bash');
@@ -394,7 +395,7 @@ void main() {
     test('fromAssistantMessage handles empty content', () {
       final json = {
         'type': 'assistant',
-        'message': {'content': []}
+        'message': {'content': []},
       };
       final response = ToolUseResponse.fromAssistantMessage(json);
       expect(response.toolName, '');
@@ -411,10 +412,10 @@ void main() {
             {
               'type': 'tool_result',
               'tool_use_id': 'tool_xyz',
-              'content': 'result'
-            }
-          ]
-        }
+              'content': 'result',
+            },
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.toolUseId, 'tool_xyz');
@@ -428,10 +429,10 @@ void main() {
             {
               'type': 'tool_result',
               'tool_use_id': 'tool_1',
-              'content': 'Simple string result'
-            }
-          ]
-        }
+              'content': 'Simple string result',
+            },
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.content, 'Simple string result');
@@ -447,11 +448,11 @@ void main() {
               'tool_use_id': 'tool_1',
               'content': [
                 {'type': 'text', 'text': 'First part'},
-                {'type': 'text', 'text': ' second part'}
-              ]
-            }
-          ]
-        }
+                {'type': 'text', 'text': ' second part'},
+              ],
+            },
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.content, 'First part second part');
@@ -466,10 +467,10 @@ void main() {
               'type': 'tool_result',
               'tool_use_id': 'tool_1',
               'content': 'Error occurred',
-              'is_error': true
-            }
-          ]
-        }
+              'is_error': true,
+            },
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.isError, true);
@@ -480,13 +481,9 @@ void main() {
         'type': 'user',
         'message': {
           'content': [
-            {
-              'type': 'tool_result',
-              'tool_use_id': 'tool_1',
-              'content': 'OK'
-            }
-          ]
-        }
+            {'type': 'tool_result', 'tool_use_id': 'tool_1', 'content': 'OK'},
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.isError, false);
@@ -500,10 +497,10 @@ void main() {
             {
               'type': 'tool_result',
               'tool_use_id': 'tool_1',
-              'content': 'x &lt; y &amp;&amp; z &gt; w'
-            }
-          ]
-        }
+              'content': 'x &lt; y &amp;&amp; z &gt; w',
+            },
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.content, 'x < y && z > w');
@@ -514,9 +511,9 @@ void main() {
         'type': 'user',
         'message': {
           'content': [
-            {'type': 'tool_result', 'tool_use_id': 'tool_1', 'content': []}
-          ]
-        }
+            {'type': 'tool_result', 'tool_use_id': 'tool_1', 'content': []},
+          ],
+        },
       };
       final response = ToolResultResponse.fromJson(json);
       expect(response.content, '');
@@ -540,7 +537,7 @@ void main() {
       final json = {
         'type': 'error',
         'error': 'Failed',
-        'details': 'More information here'
+        'details': 'More information here',
       };
       final response = ErrorResponse.fromJson(json);
       expect(response.details, 'More information here');
@@ -550,7 +547,7 @@ void main() {
       final json = {
         'type': 'error',
         'error': 'Failed',
-        'description': 'Description info'
+        'description': 'Description info',
       };
       final response = ErrorResponse.fromJson(json);
       expect(response.details, 'Description info');
@@ -616,7 +613,7 @@ void main() {
       final json = {
         'type': 'status',
         'status': 'processing',
-        'message': 'Working on it'
+        'message': 'Working on it',
       };
       final response = StatusResponse.fromJson(json);
       expect(response.message, 'Working on it');
@@ -634,7 +631,7 @@ void main() {
       final json = {
         'type': 'system',
         'subtype': 'init',
-        'conversation_id': 'conv_abc123'
+        'conversation_id': 'conv_abc123',
       };
       final response = MetaResponse.fromJson(json);
       expect(response.conversationId, 'conv_abc123');
@@ -643,7 +640,7 @@ void main() {
     test('extracts metadata', () {
       final json = {
         'type': 'meta',
-        'metadata': {'version': '1.0', 'model': 'claude-3'}
+        'metadata': {'version': '1.0', 'model': 'claude-3'},
       };
       final response = MetaResponse.fromJson(json);
       expect(response.metadata['version'], '1.0');
@@ -654,7 +651,7 @@ void main() {
       final json = {
         'type': 'meta',
         'conversation_id': 'conv_1',
-        'extra': 'data'
+        'extra': 'data',
       };
       final response = MetaResponse.fromJson(json);
       expect(response.metadata['extra'], 'data');
@@ -671,7 +668,7 @@ void main() {
     test('extracts input_tokens from usage', () {
       final json = {
         'type': 'completion',
-        'usage': {'input_tokens': 150, 'output_tokens': 75}
+        'usage': {'input_tokens': 150, 'output_tokens': 75},
       };
       final response = CompletionResponse.fromJson(json);
       expect(response.inputTokens, 150);
@@ -680,7 +677,7 @@ void main() {
     test('extracts output_tokens from usage', () {
       final json = {
         'type': 'completion',
-        'usage': {'input_tokens': 150, 'output_tokens': 75}
+        'usage': {'input_tokens': 150, 'output_tokens': 75},
       };
       final response = CompletionResponse.fromJson(json);
       expect(response.outputTokens, 75);
@@ -709,7 +706,7 @@ void main() {
       final json = {
         'type': 'result',
         'subtype': 'success',
-        'usage': {'input_tokens': 200, 'output_tokens': 100}
+        'usage': {'input_tokens': 200, 'output_tokens': 100},
       };
       final response = CompletionResponse.fromResultJson(json);
       expect(response.inputTokens, 200);
@@ -775,8 +772,7 @@ void main() {
     });
 
     test('completion_response.json parses correctly', () {
-      final json =
-          FixtureLoader.loadJson('responses/completion_response.json');
+      final json = FixtureLoader.loadJson('responses/completion_response.json');
       final response = ClaudeResponse.fromJson(json);
       expect(response, isA<CompletionResponse>());
       expect((response as CompletionResponse).inputTokens, 100);
@@ -792,8 +788,9 @@ void main() {
     });
 
     test('tool_result_response.json parses correctly', () {
-      final json =
-          FixtureLoader.loadJson('responses/tool_result_response.json');
+      final json = FixtureLoader.loadJson(
+        'responses/tool_result_response.json',
+      );
       final response = ClaudeResponse.fromJson(json);
       expect(response, isA<ToolResultResponse>());
       expect((response as ToolResultResponse).toolUseId, 'tool_test_789');
@@ -867,10 +864,7 @@ void main() {
         'subtype': 'compact_boundary',
         'uuid': 'cb-123',
         'timestamp': '2024-01-15T12:00:00Z',
-        'compactMetadata': {
-          'trigger': 'auto',
-          'preTokens': 200000,
-        },
+        'compactMetadata': {'trigger': 'auto', 'preTokens': 200000},
       };
       final response = CompactBoundaryResponse.fromJson(json);
       expect(response.trigger, 'auto');
@@ -882,10 +876,7 @@ void main() {
         'subtype': 'compact_boundary',
         'uuid': 'cb-123',
         'timestamp': '2024-01-15T12:00:00Z',
-        'compactMetadata': {
-          'trigger': 'manual',
-          'preTokens': 198710,
-        },
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 198710},
       };
       final response = CompactBoundaryResponse.fromJson(json);
       expect(response.preTokens, 198710);
@@ -999,10 +990,7 @@ void main() {
         'subtype': 'compact_boundary',
         'uuid': 'cb-123',
         'timestamp': '2024-01-15T12:00:00Z',
-        'compact_metadata': {
-          'trigger': 'manual',
-          'pre_tokens': 185000,
-        },
+        'compact_metadata': {'trigger': 'manual', 'pre_tokens': 185000},
       };
       final response = CompactBoundaryResponse.fromJson(json);
       expect(response.trigger, 'manual');
@@ -1015,14 +1003,8 @@ void main() {
         'subtype': 'compact_boundary',
         'uuid': 'cb-123',
         'timestamp': '2024-01-15T12:00:00Z',
-        'compactMetadata': {
-          'trigger': 'manual',
-          'preTokens': 200000,
-        },
-        'compact_metadata': {
-          'trigger': 'auto',
-          'pre_tokens': 100000,
-        },
+        'compactMetadata': {'trigger': 'manual', 'preTokens': 200000},
+        'compact_metadata': {'trigger': 'auto', 'pre_tokens': 100000},
       };
       final response = CompactBoundaryResponse.fromJson(json);
       // Should prefer camelCase (from JSONL storage)
@@ -1055,13 +1037,17 @@ void main() {
         'isVisibleInTranscriptOnly': true,
         'message': {
           'role': 'user',
-          'content': 'This session is being continued from a previous conversation...',
+          'content':
+              'This session is being continued from a previous conversation...',
         },
       };
       final response = ClaudeResponse.fromJson(json);
       expect(response, isA<CompactSummaryResponse>());
       final summaryResponse = response as CompactSummaryResponse;
-      expect(summaryResponse.content, contains('This session is being continued'));
+      expect(
+        summaryResponse.content,
+        contains('This session is being continued'),
+      );
       expect(summaryResponse.isVisibleInTranscriptOnly, isTrue);
     });
 
@@ -1072,10 +1058,7 @@ void main() {
         'timestamp': '2024-01-15T12:00:00Z',
         'is_compact_summary': true,
         'is_visible_in_transcript_only': true,
-        'message': {
-          'role': 'user',
-          'content': 'Summary of conversation...',
-        },
+        'message': {'role': 'user', 'content': 'Summary of conversation...'},
       };
       final response = ClaudeResponse.fromJson(json);
       expect(response, isA<CompactSummaryResponse>());
@@ -1108,10 +1091,7 @@ void main() {
         'uuid': 'cs-123',
         'timestamp': '2024-01-15T12:00:00Z',
         'isCompactSummary': true,
-        'message': {
-          'role': 'user',
-          'content': 'Summary...',
-        },
+        'message': {'role': 'user', 'content': 'Summary...'},
       };
       final response = CompactSummaryResponse.fromJson(json);
       expect(response.isVisibleInTranscriptOnly, isTrue);
@@ -1122,7 +1102,7 @@ void main() {
     test('handles nested HTML entities', () {
       final json = {
         'type': 'text',
-        'content': '&amp;lt; should become &lt; which becomes <'
+        'content': '&amp;lt; should become &lt; which becomes <',
       };
       final response = TextResponse.fromJson(json);
       // Note: HTML decoding happens in one pass, not recursively
@@ -1144,7 +1124,7 @@ void main() {
     test('assistant message with null content list', () {
       final json = {
         'type': 'assistant',
-        'message': {'id': 'msg_1', 'content': null}
+        'message': {'id': 'msg_1', 'content': null},
       };
       final response = TextResponse.fromAssistantMessage(json);
       expect(response.content, '');
@@ -1156,7 +1136,7 @@ void main() {
       final json = <String, dynamic>{
         'type': 'tool_use',
         'name': 'NoArgs',
-        'input': <String, dynamic>{}
+        'input': <String, dynamic>{},
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.toolName, 'NoArgs');
@@ -1170,9 +1150,9 @@ void main() {
         'input': <String, dynamic>{
           'nested': <String, dynamic>{
             'value': 'a &lt; b',
-            'array': ['x &gt; y', 'z &amp; w']
-          }
-        }
+            'array': ['x &gt; y', 'z &amp; w'],
+          },
+        },
       };
       final response = ToolUseResponse.fromJson(json);
       expect(response.parameters['nested']['value'], 'a < b');

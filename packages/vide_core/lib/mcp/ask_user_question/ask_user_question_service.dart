@@ -18,7 +18,8 @@ final askUserQuestionServiceProvider = Provider<AskUserQuestionService>((ref) {
 /// 3. Waits for UI to respond
 /// 4. Returns the response to the MCP tool
 class AskUserQuestionService {
-  final _requestController = StreamController<AskUserQuestionRequest>.broadcast();
+  final _requestController =
+      StreamController<AskUserQuestionRequest>.broadcast();
   final Map<String, Completer<AskUserQuestionResponse>> _pendingRequests = {};
 
   /// Stream of requests for the UI to display
@@ -26,7 +27,9 @@ class AskUserQuestionService {
 
   /// Request user answers for a set of questions
   /// Returns a map of question -> answer
-  Future<Map<String, String>> askQuestions(List<AskUserQuestion> questions) async {
+  Future<Map<String, String>> askQuestions(
+    List<AskUserQuestion> questions,
+  ) async {
     final requestId = const Uuid().v4();
     final completer = Completer<AskUserQuestionResponse>();
     _pendingRequests[requestId] = completer;

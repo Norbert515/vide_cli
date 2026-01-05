@@ -8,10 +8,7 @@ class ClaudeSettings {
   @JsonKey(defaultValue: null)
   final HooksConfig? hooks;
 
-  const ClaudeSettings({
-    required this.permissions,
-    this.hooks,
-  });
+  const ClaudeSettings({required this.permissions, this.hooks});
 
   factory ClaudeSettings.defaults() => ClaudeSettings(
     permissions: PermissionsConfig.empty(),

@@ -43,10 +43,7 @@ void main() {
         final encoded = encoder.encode(message);
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
-        expect(
-          decoded['message']['content'][0]['text'],
-          equals('こんにちは世界'),
-        );
+        expect(decoded['message']['content'][0]['text'], equals('こんにちは世界'));
       });
 
       test('encodes Arabic RTL text correctly', () {
@@ -92,10 +89,7 @@ void main() {
         expect(encoded.endsWith('\n'), isTrue);
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
-        expect(
-          decoded['message']['content'][0]['text'].length,
-          equals(100000),
-        );
+        expect(decoded['message']['content'][0]['text'].length, equals(100000));
       });
 
       test('encodes message with many lines', () {
@@ -104,14 +98,8 @@ void main() {
         final encoded = encoder.encode(message);
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
-        expect(
-          decoded['message']['content'][0]['text'],
-          contains('Line 0'),
-        );
-        expect(
-          decoded['message']['content'][0]['text'],
-          contains('Line 999'),
-        );
+        expect(decoded['message']['content'][0]['text'], contains('Line 0'));
+        expect(decoded['message']['content'][0]['text'], contains('Line 999'));
       });
 
       test('encodes message with mixed content and long text', () {
@@ -120,14 +108,8 @@ void main() {
         final encoded = encoder.encode(message);
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
-        expect(
-          decoded['message']['content'][0]['text'],
-          startsWith('Code:\n'),
-        );
-        expect(
-          decoded['message']['content'][0]['text'],
-          endsWith('\nEnd'),
-        );
+        expect(decoded['message']['content'][0]['text'], startsWith('Code:\n'));
+        expect(decoded['message']['content'][0]['text'], endsWith('\nEnd'));
       });
     });
 
@@ -198,9 +180,7 @@ void main() {
       });
 
       test('handles code with various brackets', () {
-        final message = Message(
-          text: 'function test() { return [1, 2, 3]; }',
-        );
+        final message = Message(text: 'function test() { return [1, 2, 3]; }');
         final encoded = encoder.encode(message);
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
@@ -347,9 +327,7 @@ void main() {
       test('encodes tool result with unicode in result', () {
         final encoded = encoder.encodeToolResult(
           toolUseId: 'tool-unicode',
-          result: {
-            'message': '成功 ✓ Complete 🎉',
-          },
+          result: {'message': '成功 ✓ Complete 🎉'},
         );
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;
@@ -361,10 +339,7 @@ void main() {
       test('encodes tool result with error', () {
         final encoded = encoder.encodeToolResult(
           toolUseId: 'tool-error',
-          result: {
-            'error': 'File not found',
-            'path': '/missing/file.txt',
-          },
+          result: {'error': 'File not found', 'path': '/missing/file.txt'},
         );
 
         final decoded = jsonDecode(encoded.trim()) as Map<String, dynamic>;

@@ -17,6 +17,8 @@ typedef CanUseToolCallbackFactory = CanUseToolCallback Function(String cwd);
 /// - REST: Could use auto-approve/deny rules
 ///
 /// If not overridden, returns null (no permission checking).
-final canUseToolCallbackFactoryProvider = Provider<CanUseToolCallbackFactory?>((ref) {
+final canUseToolCallbackFactoryProvider = Provider<CanUseToolCallbackFactory?>((
+  ref,
+) {
   return null; // Default: no permission checking (auto-allow)
 });

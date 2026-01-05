@@ -90,7 +90,9 @@ class ToolInvocationRouter extends StatelessComponent {
   /// Determines if diff view should be shown for Write/Edit/MultiEdit tools
   bool _shouldShowDiff() {
     final toolName = invocation.toolName.toLowerCase();
-    return (toolName == 'write' || toolName == 'edit' || toolName == 'multiedit') &&
+    return (toolName == 'write' ||
+            toolName == 'edit' ||
+            toolName == 'multiedit') &&
         invocation.hasResult &&
         !invocation.isError;
   }
@@ -130,7 +132,10 @@ class ToolInvocationRouter extends StatelessComponent {
         return Row(
           children: [
             Text('◇ ', style: TextStyle(color: Colors.grey)),
-            Text('Question cancelled', style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
+            Text(
+              'Question cancelled',
+              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+            ),
           ],
         );
       }
@@ -152,13 +157,13 @@ class ToolInvocationRouter extends StatelessComponent {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          entry.key,
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        Text(entry.key, style: TextStyle(color: Colors.grey)),
                         Text(
                           '  ${entry.value}',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),

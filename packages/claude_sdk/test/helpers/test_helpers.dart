@@ -108,8 +108,9 @@ Future<Directory> createConversationTempDir(
       .replaceAll(RegExp(r'^-+'), ''); // Remove leading dashes
 
   // Create conversation file
-  final conversationFile =
-      File('${claudeDir.path}/$encodedPath/$sessionId.jsonl');
+  final conversationFile = File(
+    '${claudeDir.path}/$encodedPath/$sessionId.jsonl',
+  );
   await conversationFile.parent.create(recursive: true);
   await conversationFile.writeAsString(jsonlLines.join('\n'));
 

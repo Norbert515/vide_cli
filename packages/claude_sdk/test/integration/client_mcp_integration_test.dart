@@ -76,7 +76,10 @@ void main() {
     });
 
     test('server tool names are accessible', () {
-      final server = TestMcpServer(name: 'tools-server', tools: ['Read', 'Write', 'Edit']);
+      final server = TestMcpServer(
+        name: 'tools-server',
+        tools: ['Read', 'Write', 'Edit'],
+      );
 
       expect(server.toolNames, hasLength(3));
       expect(server.toolNames, contains('Read'));
@@ -96,9 +99,7 @@ void main() {
     });
 
     test('client without explicit MCP servers defaults to empty list', () {
-      final client = ClaudeClientImpl(
-        config: ClaudeConfig.defaults(),
-      );
+      final client = ClaudeClientImpl(config: ClaudeConfig.defaults());
 
       expect(client, isNotNull);
       // Should handle missing servers gracefully

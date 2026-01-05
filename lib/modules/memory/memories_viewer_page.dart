@@ -8,7 +8,12 @@ class MemoriesViewerPage extends StatefulComponent {
   const MemoriesViewerPage({super.key});
 
   static Future push(BuildContext context) async {
-    return Navigator.of(context).push(PageRoute(builder: (context) => MemoriesViewerPage(), settings: RouteSettings()));
+    return Navigator.of(context).push(
+      PageRoute(
+        builder: (context) => MemoriesViewerPage(),
+        settings: RouteSettings(),
+      ),
+    );
   }
 
   @override
@@ -51,7 +56,10 @@ class _MemoriesViewerPageState extends State<MemoriesViewerPage> {
       return Container(
         padding: EdgeInsets.all(2),
         child: Center(
-          child: Text('Loading memories...', style: TextStyle(color: theme.base.outline)),
+          child: Text(
+            'Loading memories...',
+            style: TextStyle(color: theme.base.outline),
+          ),
         ),
       );
     }
@@ -66,7 +74,10 @@ class _MemoriesViewerPageState extends State<MemoriesViewerPage> {
           // Title
           Text(
             'Project Memory',
-            style: TextStyle(decoration: TextDecoration.underline, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              decoration: TextDecoration.underline,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           SizedBox(height: 1),
           // Stats
@@ -79,13 +90,19 @@ class _MemoriesViewerPageState extends State<MemoriesViewerPage> {
           ),
           SizedBox(height: 1),
           // Help text
-          Text('Esc: back | ↑/↓: navigate', style: TextStyle(color: theme.base.outline)),
+          Text(
+            'Esc: back | ↑/↓: navigate',
+            style: TextStyle(color: theme.base.outline),
+          ),
           SizedBox(height: 2),
           // Content
           Expanded(
             child: memories.isEmpty
                 ? Center(
-                    child: Text('No memories stored yet', style: TextStyle(color: theme.base.outline)),
+                    child: Text(
+                      'No memories stored yet',
+                      style: TextStyle(color: theme.base.outline),
+                    ),
                   )
                 : _MemoryList(
                     memories: memories,
@@ -124,12 +141,14 @@ class _MemoryList extends StatelessComponent {
     return Focusable(
       focused: true,
       onKeyEvent: (event) {
-        if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+        if (event.logicalKey == LogicalKey.arrowDown ||
+            event.logicalKey == LogicalKey.keyJ) {
           final newIndex = (selectedIndex + 1).clamp(0, memories.length - 1);
           onIndexChanged(newIndex);
           scrollController.ensureIndexVisible(index: newIndex);
           return true;
-        } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+        } else if (event.logicalKey == LogicalKey.arrowUp ||
+            event.logicalKey == LogicalKey.keyK) {
           final newIndex = (selectedIndex - 1).clamp(0, memories.length - 1);
           onIndexChanged(newIndex);
           scrollController.ensureIndexVisible(index: newIndex);
@@ -142,7 +161,10 @@ class _MemoryList extends StatelessComponent {
         controller: scrollController,
         children: [
           for (int i = 0; i < memories.length; i++) ...[
-            _MemoryEntryComponent(memory: memories[i], selected: selectedIndex == i),
+            _MemoryEntryComponent(
+              memory: memories[i],
+              selected: selectedIndex == i,
+            ),
             if (i < memories.length - 1) SizedBox(height: 1),
           ],
         ],
@@ -163,13 +185,21 @@ class _MemoryEntryComponent extends StatelessComponent {
     final theme = VideTheme.of(context);
 
     // Truncate value if too long
-    final displayValue = memory.value.length > 100 ? '${memory.value.substring(0, 100)}...' : memory.value;
+    final displayValue = memory.value.length > 100
+        ? '${memory.value.substring(0, 100)}...'
+        : memory.value;
 
     return Container(
       padding: EdgeInsets.all(1),
       decoration: BoxDecoration(
-        color: selected ? theme.base.surface : theme.base.surface.withOpacity(0),
-        border: BoxBorder.all(color: selected ? theme.base.primary : theme.base.surface.withOpacity(0)),
+        color: selected
+            ? theme.base.surface
+            : theme.base.surface.withOpacity(0),
+        border: BoxBorder.all(
+          color: selected
+              ? theme.base.primary
+              : theme.base.surface.withOpacity(0),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -177,7 +207,10 @@ class _MemoryEntryComponent extends StatelessComponent {
           // Key
           Text(
             memory.key,
-            style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.primary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           SizedBox(height: 1),
           // Value

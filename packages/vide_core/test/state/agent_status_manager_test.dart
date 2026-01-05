@@ -38,10 +38,7 @@ void main() {
       notifier1.setStatus(AgentStatus.idle);
       notifier2.setStatus(AgentStatus.waitingForUser);
 
-      expect(
-        container.read(agentStatusProvider('agent-1')),
-        AgentStatus.idle,
-      );
+      expect(container.read(agentStatusProvider('agent-1')), AgentStatus.idle);
       expect(
         container.read(agentStatusProvider('agent-2')),
         AgentStatus.waitingForUser,
@@ -51,12 +48,9 @@ void main() {
     test('notifies listeners on status change', () {
       var notificationCount = 0;
 
-      container.listen(
-        agentStatusProvider('agent-1'),
-        (previous, next) {
-          notificationCount++;
-        },
-      );
+      container.listen(agentStatusProvider('agent-1'), (previous, next) {
+        notificationCount++;
+      });
 
       final notifier = container.read(agentStatusProvider('agent-1').notifier);
       notifier.setStatus(AgentStatus.waitingForAgent);
@@ -68,12 +62,9 @@ void main() {
     test('setting same status does not notify listeners', () {
       var notificationCount = 0;
 
-      container.listen(
-        agentStatusProvider('agent-1'),
-        (previous, next) {
-          notificationCount++;
-        },
-      );
+      container.listen(agentStatusProvider('agent-1'), (previous, next) {
+        notificationCount++;
+      });
 
       final notifier = container.read(agentStatusProvider('agent-1').notifier);
       // Initial status is 'working', setting to 'working' again is a no-op

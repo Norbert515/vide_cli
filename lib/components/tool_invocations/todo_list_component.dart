@@ -7,10 +7,7 @@ import 'package:vide_cli/theme/theme.dart';
 class TodoListComponent extends StatelessComponent {
   final List<Map<String, dynamic>> todos;
 
-  const TodoListComponent({
-    required this.todos,
-    super.key,
-  });
+  const TodoListComponent({required this.todos, super.key});
 
   @override
   Component build(BuildContext context) {
@@ -47,7 +44,9 @@ class TodoListComponent extends StatelessComponent {
               Text('Tasks', style: TextStyle(color: theme.base.onSurface)),
               Text(
                 ' (${todos.length} ${todos.length == 1 ? 'item' : 'items'})',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ),
@@ -58,7 +57,9 @@ class TodoListComponent extends StatelessComponent {
               padding: EdgeInsets.only(left: 2),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: [for (final todo in todos) _buildTodoItem(context, todo)],
+                children: [
+                  for (final todo in todos) _buildTodoItem(context, todo),
+                ],
               ),
             ),
         ],

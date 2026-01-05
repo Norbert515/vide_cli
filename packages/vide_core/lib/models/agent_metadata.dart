@@ -60,7 +60,9 @@ class AgentMetadata {
   /// Total context tokens (input + cache read + cache creation).
   /// This represents the actual context window usage.
   int get totalContextTokens =>
-      totalInputTokens + totalCacheReadInputTokens + totalCacheCreationInputTokens;
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
 
   AgentMetadata copyWith({
     AgentId? id,

@@ -136,7 +136,9 @@ Future<void> _getInstanceInfo(McpHttpClient client) async {
 
   print('\nGetting instance info...');
   try {
-    final response = await client.callTool('flutterGetInfo', {'instanceId': instanceId});
+    final response = await client.callTool('flutterGetInfo', {
+      'instanceId': instanceId,
+    });
     print('\n${'─' * 50}');
     print('Response:');
     print(response);
@@ -156,7 +158,10 @@ Future<void> _hotReload(McpHttpClient client) async {
 
   print('\nPerforming hot reload...');
   try {
-    final response = await client.callTool('flutterReload', {'instanceId': instanceId, 'hot': true});
+    final response = await client.callTool('flutterReload', {
+      'instanceId': instanceId,
+      'hot': true,
+    });
     print('\n${'─' * 50}');
     print('Response:');
     print(response);
@@ -176,7 +181,9 @@ Future<void> _hotRestart(McpHttpClient client) async {
 
   print('\nPerforming hot restart...');
   try {
-    final response = await client.callTool('flutterRestart', {'instanceId': instanceId});
+    final response = await client.callTool('flutterRestart', {
+      'instanceId': instanceId,
+    });
     print('\n${'─' * 50}');
     print('Response:');
     print(response);
@@ -196,7 +203,9 @@ Future<void> _stopInstance(McpHttpClient client) async {
 
   print('\nStopping instance...');
   try {
-    final response = await client.callTool('flutterStop', {'instanceId': instanceId});
+    final response = await client.callTool('flutterStop', {
+      'instanceId': instanceId,
+    });
     print('\n${'─' * 50}');
     print('Response:');
     print(response);
@@ -240,7 +249,8 @@ class McpHttpClient {
               if (line.startsWith('event: endpoint')) {
                 // Next line will have the data
                 return;
-              } else if (line.startsWith('data: ') && !sessionCompleter.isCompleted) {
+              } else if (line.startsWith('data: ') &&
+                  !sessionCompleter.isCompleted) {
                 final endpointUrl = line.substring(6);
                 // Extract sessionId from URL like "/messages?sessionId=xxx"
                 final uri = Uri.parse(endpointUrl);
@@ -269,7 +279,9 @@ class McpHttpClient {
           onDone: () {
             print('SSE stream closed');
             if (!sessionCompleter.isCompleted) {
-              sessionCompleter.completeError('SSE stream closed before session ID received');
+              sessionCompleter.completeError(
+                'SSE stream closed before session ID received',
+              );
             }
             // Complete all pending requests with error
             for (final completer in _responseCompleters.values) {
@@ -317,20 +329,29 @@ class McpHttpClient {
       'params': {
         'protocolVersion': '2024-11-05',
         'capabilities': {},
-        'clientInfo': {'name': 'flutter-runtime-manual-test', 'version': '1.0.0'},
+        'clientInfo': {
+          'name': 'flutter-runtime-manual-test',
+          'version': '1.0.0',
+        },
       },
     };
 
     await _sendRequest(initRequest);
 
     // Send initialized notification
-    final initializedNotification = {'jsonrpc': '2.0', 'method': 'notifications/initialized'};
+    final initializedNotification = {
+      'jsonrpc': '2.0',
+      'method': 'notifications/initialized',
+    };
 
     await _sendRequest(initializedNotification);
   }
 
   /// Call an MCP tool
-  Future<String> callTool(String toolName, Map<String, dynamic> arguments) async {
+  Future<String> callTool(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) async {
     final toolRequest = {
       'jsonrpc': '2.0',
       'id': _nextRequestId(),
@@ -345,7 +366,10 @@ class McpHttpClient {
       final result = response['result'];
       if (result['content'] is List) {
         final contents = result['content'] as List;
-        final textContents = contents.where((c) => c['type'] == 'text').map((c) => c['text'] as String).join('\n');
+        final textContents = contents
+            .where((c) => c['type'] == 'text')
+            .map((c) => c['text'] as String)
+            .join('\n');
         return textContents;
       }
     }
@@ -354,7 +378,9 @@ class McpHttpClient {
   }
 
   /// Send a JSON-RPC request via POST to /messages?sessionId=xxx
-  Future<Map<String, dynamic>> _sendRequest(Map<String, dynamic> request) async {
+  Future<Map<String, dynamic>> _sendRequest(
+    Map<String, dynamic> request,
+  ) async {
     // Check if this is a notification (no 'id' field)
     if (!request.containsKey('id')) {
       // Notification, no response expected
