@@ -14,7 +14,11 @@ class FilePreviewOverlay extends StatefulComponent {
   final String filePath;
   final VoidCallback onClose;
 
-  const FilePreviewOverlay({required this.filePath, required this.onClose, super.key});
+  const FilePreviewOverlay({
+    required this.filePath,
+    required this.onClose,
+    super.key,
+  });
 
   @override
   State<FilePreviewOverlay> createState() => _FilePreviewOverlayState();
@@ -129,7 +133,9 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     for (final line in lines) {
       // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
       if (line.startsWith('@@')) {
-        final match = RegExp(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@').firstMatch(line);
+        final match = RegExp(
+          r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@',
+        ).firstMatch(line);
         if (match != null) {
           currentNewLine = int.parse(match.group(1)!);
           pendingRemovals = 0;
@@ -166,32 +172,52 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     if (_lineChanges.isEmpty) {
       return TextSpan(
         text: fileName,
-        style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: theme.base.primary,
+          fontWeight: FontWeight.bold,
+        ),
       );
     }
 
-    final addedCount = _lineChanges.values.where((t) => t == _LineChangeType.added).length;
-    final modifiedCount = _lineChanges.values.where((t) => t == _LineChangeType.modified).length;
+    final addedCount = _lineChanges.values
+        .where((t) => t == _LineChangeType.added)
+        .length;
+    final modifiedCount = _lineChanges.values
+        .where((t) => t == _LineChangeType.modified)
+        .length;
 
     final children = <InlineSpan>[
       TextSpan(
         text: fileName,
-        style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: theme.base.primary,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     ];
 
     if (addedCount > 0) {
-      children.add(TextSpan(
-        text: ' +$addedCount',
-        style: TextStyle(color: theme.base.success, fontWeight: FontWeight.bold),
-      ));
+      children.add(
+        TextSpan(
+          text: ' +$addedCount',
+          style: TextStyle(
+            color: theme.base.success,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
     }
 
     if (modifiedCount > 0) {
-      children.add(TextSpan(
-        text: ' ~$modifiedCount',
-        style: TextStyle(color: theme.base.warning, fontWeight: FontWeight.bold),
-      ));
+      children.add(
+        TextSpan(
+          text: ' ~$modifiedCount',
+          style: TextStyle(
+            color: theme.base.warning,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
     }
 
     return TextSpan(children: children);
@@ -221,7 +247,14 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
               child: Row(
                 children: [
                   Expanded(child: SizedBox()),
-                  Text('← to close', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+                  Text(
+                    '← to close',
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -242,7 +275,12 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
     if (_fileContent == null) {
       return Center(
-        child: Text('Loading...', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary))),
+        child: Text(
+          'Loading...',
+          style: TextStyle(
+            color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+          ),
+        ),
       );
     }
 
@@ -262,7 +300,14 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         controller: _scrollController,
         children: [
           for (var i = 0; i < lines.length; i++)
-            _buildLine(i + 1, lines[i], lineNumberWidth, language, theme, borderColor),
+            _buildLine(
+              i + 1,
+              lines[i],
+              lineNumberWidth,
+              language,
+              theme,
+              borderColor,
+            ),
         ],
       ),
     );
@@ -304,10 +349,17 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     // Highlight the line content if language is detected
     Component contentComponent;
     if (language != null && lineContent.isNotEmpty) {
-      final highlightedSpan = SyntaxHighlighter.highlightCode(lineContent, language, syntaxColors: theme.syntax);
+      final highlightedSpan = SyntaxHighlighter.highlightCode(
+        lineContent,
+        language,
+        syntaxColors: theme.syntax,
+      );
       contentComponent = RichText(text: highlightedSpan);
     } else {
-      contentComponent = Text(lineContent.isEmpty ? ' ' : lineContent, style: TextStyle(color: theme.syntax.plain));
+      contentComponent = Text(
+        lineContent.isEmpty ? ' ' : lineContent,
+        style: TextStyle(color: theme.syntax.plain),
+      );
     }
 
     final lineRow = Row(
