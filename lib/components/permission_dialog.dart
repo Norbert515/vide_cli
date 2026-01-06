@@ -88,6 +88,24 @@ class _PermissionDialogState extends State<PermissionDialog> {
       );
     }
 
+    // For MCP tools, add an option to allow ALL tools from this MCP server
+    if (component.toolName.startsWith('mcp__')) {
+      final parts = component.toolName.split('__');
+      if (parts.length >= 2) {
+        final serverName = parts[1]; // e.g., "dart" from "mcp__dart__dart_fix"
+        final serverPattern = 'mcp__${serverName}__.*'; // Regex pattern
+
+        options.add(
+          _PermissionOption(
+            'Allow all from $serverName',
+            granted: true,
+            remember: true,
+            patternOverride: serverPattern,
+          ),
+        );
+      }
+    }
+
     options.add(_PermissionOption('Deny', granted: false, remember: false));
     return options;
   }

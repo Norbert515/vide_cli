@@ -508,6 +508,69 @@ void main() {
         isTrue,
       );
     });
+
+    test('matches MCP server wildcard pattern (mcp__dart__.*)', () {
+      // Pattern mcp__dart__.* should match all tools from dart MCP server
+      expect(
+        PermissionMatcher.matches(
+          'mcp__dart__.*',
+          'mcp__dart__dart_fix',
+          UnknownToolInput(toolName: 'mcp__dart__dart_fix', raw: {}),
+        ),
+        isTrue,
+      );
+
+      expect(
+        PermissionMatcher.matches(
+          'mcp__dart__.*',
+          'mcp__dart__pub_dev_search',
+          UnknownToolInput(
+            toolName: 'mcp__dart__pub_dev_search',
+            raw: {'query': 'http'},
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('MCP server wildcard does not match tools from different server', () {
+      // Pattern mcp__dart__.* should NOT match tools from vide-git server
+      expect(
+        PermissionMatcher.matches(
+          'mcp__dart__.*',
+          'mcp__vide-git__gitCommit',
+          UnknownToolInput(
+            toolName: 'mcp__vide-git__gitCommit',
+            raw: {'message': 'test'},
+          ),
+        ),
+        isFalse,
+      );
+    });
+
+    test('matches vide-git MCP server wildcard pattern', () {
+      // Pattern mcp__vide-git__.* should match all tools from vide-git server
+      expect(
+        PermissionMatcher.matches(
+          'mcp__vide-git__.*',
+          'mcp__vide-git__gitCommit',
+          UnknownToolInput(
+            toolName: 'mcp__vide-git__gitCommit',
+            raw: {'message': 'test'},
+          ),
+        ),
+        isTrue,
+      );
+
+      expect(
+        PermissionMatcher.matches(
+          'mcp__vide-git__.*',
+          'mcp__vide-git__gitStatus',
+          UnknownToolInput(toolName: 'mcp__vide-git__gitStatus', raw: {}),
+        ),
+        isTrue,
+      );
+    });
   });
 
   group('PermissionMatcher - Tool name regex', () {
