@@ -43,9 +43,6 @@ void main() {
 
         // Should include our test server
         expect(mcpServers.containsKey('test-server'), isTrue);
-
-        // Should also include dart MCP server
-        expect(mcpServers.containsKey('dart'), isTrue);
       });
 
       test('generates correct config for multiple servers', () async {
@@ -79,39 +76,10 @@ void main() {
         expect(mcpServers.containsKey('server-one'), isTrue);
         expect(mcpServers.containsKey('server-two'), isTrue);
 
-        // Should also include dart MCP server
-        expect(mcpServers.containsKey('dart'), isTrue);
-
-        // Total should be 3: two test servers + dart
-        expect(mcpServers.length, 3);
+        // Total should be 2: two test servers
+        // Note: dart MCP server was intentionally disabled due to high CPU usage
+        expect(mcpServers.length, 2);
       });
-
-      test(
-        'always includes dart MCP server when MCP servers provided',
-        () async {
-          final server = TestMcpServer(name: 'custom-server');
-          await server.start();
-
-          addTearDown(() async {
-            await server.stop();
-          });
-
-          final manager = ProcessManager(
-            config: ClaudeConfig.defaults(),
-            mcpServers: [server],
-          );
-
-          final args = await manager.getMcpArgs();
-          final configJson = jsonDecode(args[1]) as Map<String, dynamic>;
-          final mcpServers = configJson['mcpServers'] as Map<String, dynamic>;
-
-          expect(mcpServers.containsKey('dart'), isTrue);
-
-          final dartConfig = mcpServers['dart'] as Map<String, dynamic>;
-          expect(dartConfig['command'], 'dart');
-          expect(dartConfig['args'], ['mcp-server']);
-        },
-      );
 
       test('server config contains correct HTTP transport format', () async {
         final server = TestMcpServer(name: 'http-server');
@@ -185,11 +153,6 @@ void main() {
             mcpServers['field-check-server'] as Map<String, dynamic>;
         expect(customConfig.containsKey('type'), isTrue);
         expect(customConfig.containsKey('url'), isTrue);
-
-        // Check dart server config
-        final dartConfig = mcpServers['dart'] as Map<String, dynamic>;
-        expect(dartConfig.containsKey('command'), isTrue);
-        expect(dartConfig.containsKey('args'), isTrue);
       });
 
       test('uses correct server names as keys', () async {
