@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm/src/components/rich_text.dart';
 import 'package:vide_core/mcp/git/git_client.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/utils/syntax_highlighter.dart';
@@ -13,15 +12,9 @@ import 'package:vide_cli/constants/text_opacity.dart';
 /// Press ESC or left-arrow to close the preview.
 class FilePreviewOverlay extends StatefulComponent {
   final String filePath;
-  final bool focused;
   final VoidCallback onClose;
 
-  const FilePreviewOverlay({
-    required this.filePath,
-    this.focused = true,
-    required this.onClose,
-    super.key,
-  });
+  const FilePreviewOverlay({required this.filePath, required this.onClose, super.key});
 
   @override
   State<FilePreviewOverlay> createState() => _FilePreviewOverlayState();
@@ -122,125 +115,119 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   }
 
   /// Parses unified diff output and populates the changes map
+  ///
+  /// The algorithm tracks consecutive removed lines. When additions follow
+  /// removals, those additions are marked as "modified" (replacement).
+  /// Pure additions (with no preceding removals) are marked as "added".
   void _parseDiffOutput(String diffOutput, Map<int, _LineChangeType> changes) {
     if (diffOutput.isEmpty) return;
 
     final lines = diffOutput.split('\n');
     int? currentNewLine;
+    int pendingRemovals = 0;
 
     for (final line in lines) {
       // Parse hunk header: @@ -oldStart,oldCount +newStart,newCount @@
       if (line.startsWith('@@')) {
-        final match = RegExp(
-          r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@',
-        ).firstMatch(line);
+        final match = RegExp(r'@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@').firstMatch(line);
         if (match != null) {
           currentNewLine = int.parse(match.group(1)!);
+          pendingRemovals = 0;
         }
         continue;
       }
 
       if (currentNewLine == null) continue;
 
-      if (line.startsWith('+') && !line.startsWith('+++')) {
-        // Added line
-        changes[currentNewLine] = _LineChangeType.added;
+      if (line.startsWith('-') && !line.startsWith('---')) {
+        // Removed line - track it but don't increment currentNewLine
+        pendingRemovals++;
+      } else if (line.startsWith('+') && !line.startsWith('+++')) {
+        // Added line - mark as modified if it replaces removed content
+        if (pendingRemovals > 0) {
+          changes[currentNewLine] = _LineChangeType.modified;
+          pendingRemovals--;
+        } else {
+          changes[currentNewLine] = _LineChangeType.added;
+        }
         currentNewLine++;
-      } else if (line.startsWith('-') && !line.startsWith('---')) {
-        // Removed line - mark next line as modified if it exists
-        // Don't increment currentNewLine for removed lines
       } else if (!line.startsWith('\\')) {
-        // Context line (unchanged)
+        // Context line (unchanged) - reset pending removals
+        pendingRemovals = 0;
         currentNewLine++;
       }
     }
   }
 
-  void _handleKeyEvent(KeyboardEvent event) {
-    if (event.logicalKey == LogicalKey.escape ||
-        event.logicalKey == LogicalKey.arrowLeft) {
-      // ESC or left arrow closes the preview and returns to sidebar
-      component.onClose();
-    } else if (event.logicalKey == LogicalKey.arrowUp ||
-        event.logicalKey == LogicalKey.keyK) {
-      _scrollController.scrollUp();
-    } else if (event.logicalKey == LogicalKey.arrowDown ||
-        event.logicalKey == LogicalKey.keyJ) {
-      _scrollController.scrollDown();
-    } else if (event.logicalKey == LogicalKey.pageUp) {
-      _scrollController.pageUp();
-    } else if (event.logicalKey == LogicalKey.pageDown) {
-      _scrollController.pageDown();
-    } else if (event.logicalKey == LogicalKey.home) {
-      _scrollController.scrollToStart();
-    } else if (event.logicalKey == LogicalKey.end) {
-      _scrollController.scrollToEnd();
+  /// Builds the title span with filename and colored change summary.
+  InlineSpan _buildTitleSpan(VideThemeData theme) {
+    final fileName = component.filePath.split('/').last;
+
+    if (_lineChanges.isEmpty) {
+      return TextSpan(
+        text: fileName,
+        style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+      );
     }
+
+    final addedCount = _lineChanges.values.where((t) => t == _LineChangeType.added).length;
+    final modifiedCount = _lineChanges.values.where((t) => t == _LineChangeType.modified).length;
+
+    final children = <InlineSpan>[
+      TextSpan(
+        text: fileName,
+        style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+      ),
+    ];
+
+    if (addedCount > 0) {
+      children.add(TextSpan(
+        text: ' +$addedCount',
+        style: TextStyle(color: theme.base.success, fontWeight: FontWeight.bold),
+      ));
+    }
+
+    if (modifiedCount > 0) {
+      children.add(TextSpan(
+        text: ' ~$modifiedCount',
+        style: TextStyle(color: theme.base.warning, fontWeight: FontWeight.bold),
+      ));
+    }
+
+    return TextSpan(children: children);
   }
 
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final fileName = component.filePath.split('/').last;
-    final borderColor = component.focused
-        ? theme.base.primary
-        : theme.base.outline;
+    final borderColor = theme.base.primary;
 
     return Padding(
       padding: EdgeInsets.only(left: 1, right: 1, top: 1),
-      child: Focusable(
-        focused: component.focused,
-        onKeyEvent: (event) {
-          _handleKeyEvent(event);
-          return true;
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.base.surface,
-            border: BoxBorder.all(color: borderColor),
-            title: BorderTitle(
-              text: fileName,
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
+      child: Container(
+        decoration: BoxDecoration(
+          color: theme.base.surface,
+          border: BoxBorder.all(color: borderColor),
+          title: BorderTitle.rich(
+            textSpan: _buildTitleSpan(theme),
+            alignment: TitleAlignment.left,
+          ),
+        ),
+        child: Column(
+          children: [
+            // Header with navigation hint
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 1),
+              child: Row(
+                children: [
+                  Expanded(child: SizedBox()),
+                  Text('← to close', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+                ],
               ),
-              alignment: TitleAlignment.left,
             ),
-          ),
-          child: Column(
-            children: [
-              // Header with change summary and navigation hint
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                child: Row(
-                  children: [
-                    // Change summary
-                    if (_lineChanges.isNotEmpty) ...[
-                      Text(
-                        '+${_lineChanges.length}',
-                        style: TextStyle(
-                          color: theme.base.success,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(width: 1),
-                    ],
-                    Expanded(child: SizedBox()),
-                    Text(
-                      '← to close',
-                      style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(
-                          TextOpacity.tertiary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // File content
-              Expanded(child: _buildContent(theme)),
-            ],
-          ),
+            // File content
+            Expanded(child: _buildContent(theme)),
+          ],
         ),
       ),
     );
@@ -255,12 +242,7 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
     if (_fileContent == null) {
       return Center(
-        child: Text(
-          'Loading...',
-          style: TextStyle(
-            color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-          ),
-        ),
+        child: Text('Loading...', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary))),
       );
     }
 
@@ -268,12 +250,21 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     final lineNumberWidth = lines.length.toString().length;
     final language = SyntaxHighlighter.detectLanguage(component.filePath);
 
-    return ListView(
+    final borderColor = theme.base.primary;
+
+    return Scrollbar(
       controller: _scrollController,
-      children: [
-        for (var i = 0; i < lines.length; i++)
-          _buildLine(i + 1, lines[i], lineNumberWidth, language, theme),
-      ],
+      thumbVisibility: true,
+      thumbColor: theme.base.primary,
+      trackColor: theme.base.surface,
+      child: ListView(
+        lazy: false,
+        controller: _scrollController,
+        children: [
+          for (var i = 0; i < lines.length; i++)
+            _buildLine(i + 1, lines[i], lineNumberWidth, language, theme, borderColor),
+        ],
+      ),
     );
   }
 
@@ -283,13 +274,14 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     int lineNumberWidth,
     String? language,
     VideThemeData theme,
+    Color borderColor,
   ) {
     final lineNumStr = lineNumber.toString().padLeft(lineNumberWidth);
     final changeType = _lineChanges[lineNumber];
 
     // Determine gutter indicator and colors based on change type
     String gutterChar;
-    Color? gutterColor;
+    Color gutterColor;
     Color? lineBackground;
 
     switch (changeType) {
@@ -304,36 +296,24 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         lineBackground = theme.base.warning.withOpacity(0.1);
         break;
       default:
-        gutterChar = ' ';
-        gutterColor = null;
+        gutterChar = '│';
+        gutterColor = borderColor;
         lineBackground = null;
     }
 
     // Highlight the line content if language is detected
     Component contentComponent;
     if (language != null && lineContent.isNotEmpty) {
-      final highlightedSpan = SyntaxHighlighter.highlightCode(
-        lineContent,
-        language,
-        syntaxColors: theme.syntax,
-      );
+      final highlightedSpan = SyntaxHighlighter.highlightCode(lineContent, language, syntaxColors: theme.syntax);
       contentComponent = RichText(text: highlightedSpan);
     } else {
-      contentComponent = Text(
-        lineContent.isEmpty ? ' ' : lineContent,
-        style: TextStyle(color: theme.syntax.plain),
-      );
+      contentComponent = Text(lineContent.isEmpty ? ' ' : lineContent, style: TextStyle(color: theme.syntax.plain));
     }
 
     final lineRow = Row(
       children: [
-        // Git change indicator (gutter)
-        Text(
-          gutterChar,
-          style: TextStyle(
-            color: gutterColor ?? theme.base.outline.withOpacity(0.3),
-          ),
-        ),
+        // Git change indicator (gutter) - renders as colored border character
+        Text(gutterChar, style: TextStyle(color: gutterColor)),
         // Line number
         Container(
           padding: EdgeInsets.only(right: 1),
@@ -341,7 +321,7 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
             lineNumStr,
             style: TextStyle(
               color: changeType != null
-                  ? gutterColor!.withOpacity(0.8)
+                  ? gutterColor.withOpacity(0.8)
                   : theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),

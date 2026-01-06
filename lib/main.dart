@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
@@ -19,6 +20,13 @@ import 'package:vide_cli/services/sentry_service.dart';
 /// Pages can update this to give focus to the sidebar.
 /// When focused, the sidebar expands; when unfocused, it collapses.
 final sidebarFocusProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for IDE mode state. When true, the git sidebar is shown.
+/// Initialized from global settings and can be toggled via /ide command.
+final ideModeEnabledProvider = StateProvider<bool>((ref) {
+  final configManager = ref.read(videConfigManagerProvider);
+  return configManager.readGlobalSettings().ideModeEnabled;
+});
 
 /// Provider for file preview path. When set, file preview is shown.
 /// Null means no file preview is open.
@@ -99,12 +107,63 @@ class VideApp extends StatelessComponent {
 
 /// Internal widget that handles the app content with optional sidebar.
 /// Separated to allow watching providers that depend on theme being set up.
-class _VideAppContent extends StatelessComponent {
+class _VideAppContent extends StatefulComponent {
+  @override
+  State<_VideAppContent> createState() => _VideAppContentState();
+}
+
+class _VideAppContentState extends State<_VideAppContent> {
+  // Sidebar animation constants
+  static const double _sidebarWidth = 30.0;
+  static const int _animationSteps = 8;
+  static const Duration _animationStepDuration = Duration(milliseconds: 20);
+
+  // Animation state
+  double _currentSidebarWidth = 0.0;
+  Timer? _animationTimer;
+  bool _wasIdeModeEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final ideModeEnabled = context.read(ideModeEnabledProvider);
+    _currentSidebarWidth = ideModeEnabled ? _sidebarWidth : 0.0;
+    _wasIdeModeEnabled = ideModeEnabled;
+  }
+
+  @override
+  void dispose() {
+    _animationTimer?.cancel();
+    super.dispose();
+  }
+
+  void _animateSidebarWidth(double targetWidth) {
+    _animationTimer?.cancel();
+    final startWidth = _currentSidebarWidth;
+    final delta = (targetWidth - startWidth) / _animationSteps;
+    var step = 0;
+
+    _animationTimer = Timer.periodic(_animationStepDuration, (timer) {
+      step++;
+      if (step >= _animationSteps) {
+        timer.cancel();
+        setState(() => _currentSidebarWidth = targetWidth);
+      } else {
+        setState(() => _currentSidebarWidth = startWidth + (delta * step));
+      }
+    });
+  }
+
   @override
   Component build(BuildContext context) {
-    // Check if IDE mode is enabled
-    final configManager = context.read(videConfigManagerProvider);
-    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
+    // Check if IDE mode is enabled (reactive to /ide command)
+    final ideModeEnabled = context.watch(ideModeEnabledProvider);
+
+    // Animate sidebar when IDE mode changes
+    if (ideModeEnabled != _wasIdeModeEnabled) {
+      _wasIdeModeEnabled = ideModeEnabled;
+      _animateSidebarWidth(ideModeEnabled ? _sidebarWidth : 0.0);
+    }
 
     // Watch sidebar focus state and file preview path
     final sidebarFocused = context.watch(sidebarFocusProvider);
@@ -118,7 +177,14 @@ class _VideAppContent extends StatelessComponent {
           child: Padding(
             padding: EdgeInsets.only(left: 1, right: 1, top: 1),
             child: WelcomeScope(
-              child: SetupScope(child: Navigator(home: NetworksOverviewPage())),
+              child: SetupScope(
+                child: Navigator(
+                  home: NetworksOverviewPage(),
+                  // Always disable Navigator's ESC handling to prevent race conditions
+                  // with GitSidebar's ESC handling when file preview is open
+                  popBehavior: PopBehavior(escapeEnabled: false),
+                ),
+              ),
             ),
           ),
         ),
@@ -135,39 +201,48 @@ class _VideAppContent extends StatelessComponent {
       ],
     );
 
-    // If IDE mode is not enabled, just return the navigator
-    if (!ideModeEnabled) {
-      return navigatorContent;
-    }
-
-    // IDE mode: sidebar + main content (either file preview or navigator)
-    // Sidebar stays expanded when file preview is open
-    final sidebarExpanded = sidebarFocused || filePreviewOpen;
+    // Show sidebar if width > 0 or IDE mode is on (to keep it in tree during animation)
+    final showSidebar = _currentSidebarWidth > 0 || ideModeEnabled;
 
     return Row(
       children: [
-        GitSidebar(
-          width: 30,
-          focused: sidebarFocused,
-          expanded: sidebarExpanded,
-          repoPath: Directory.current.path,
-          onExitRight: () {
-            context.read(sidebarFocusProvider.notifier).state = false;
-          },
-        ),
-        // Main content: file preview (when open) or navigator
-        Expanded(
-          child: filePreviewOpen
-              ? FilePreviewOverlay(
-                  filePath: filePreviewPath,
-                  focused: !sidebarFocused,
-                  onClose: () {
-                    // Close file preview, return focus to sidebar
-                    context.read(filePreviewPathProvider.notifier).state = null;
-                    context.read(sidebarFocusProvider.notifier).state = true;
+        if (showSidebar)
+          SizedBox(
+            width: _currentSidebarWidth,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: _sidebarWidth,
+                maxWidth: _sidebarWidth,
+                child: GitSidebar(
+                  width: _sidebarWidth.toInt(),
+                  focused: sidebarFocused,
+                  expanded: true, // Sidebar is always expanded in IDE mode
+                  repoPath: Directory.current.path,
+                  onExitRight: () {
+                    context.read(sidebarFocusProvider.notifier).state = false;
                   },
-                )
-              : navigatorContent,
+                ),
+              ),
+            ),
+          ),
+        // Main content: navigator is always in tree, file preview overlays it
+        // This prevents Navigator from being recreated when file preview closes
+        Expanded(
+          child: Stack(
+            children: [
+              // Navigator is always mounted to preserve route stack
+              navigatorContent,
+              // File preview overlays the navigator when open
+              if (filePreviewOpen)
+                FilePreviewOverlay(
+                  filePath: filePreviewPath!,
+                  onClose: () {
+                    context.read(filePreviewPathProvider.notifier).state = null;
+                  },
+                ),
+            ],
+          ),
         ),
       ],
     );

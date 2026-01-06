@@ -27,11 +27,12 @@ class ProcessManager {
       mcpServersConfig[server.name] = serverConfig;
     }
 
-    // Add Dart MCP server (uses stdio transport, Claude handles it)
-    mcpServersConfig['dart'] = {
-      'command': 'dart',
-      'args': ['mcp-server'],
-    };
+    // Dart MCP server disabled - causes high CPU usage from analysis_server
+    // TODO: Make this configurable per-agent when Dart tools are needed
+    // mcpServersConfig['dart'] = {
+    //   'command': 'dart',
+    //   'args': ['mcp-server'],
+    // };
 
     // Create the complete configuration with mcpServers wrapper
     final fullConfig = {'mcpServers': mcpServersConfig};

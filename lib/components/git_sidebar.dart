@@ -251,9 +251,17 @@ class _GitSidebarState extends State<GitSidebar> {
   ) {
     if (items.isEmpty) return;
 
-    if (event.logicalKey == LogicalKey.escape ||
-        event.logicalKey == LogicalKey.arrowRight) {
-      // ESC or right-arrow: exit sidebar
+    if (event.logicalKey == LogicalKey.escape) {
+      // First check if file preview is open - close it first
+      final filePreviewPath = context.read(filePreviewPathProvider);
+      if (filePreviewPath != null) {
+        context.read(filePreviewPathProvider.notifier).state = null;
+      } else {
+        // No preview open - exit sidebar
+        component.onExitRight?.call();
+      }
+    } else if (event.logicalKey == LogicalKey.arrowRight) {
+      // Right arrow always exits sidebar
       component.onExitRight?.call();
     } else if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
@@ -283,9 +291,8 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.file:
         final fullFilePath = '${component.repoPath}/${item.fullPath}';
-        // Open file preview and transfer focus to it
         context.read(filePreviewPathProvider.notifier).state = fullFilePath;
-        context.read(sidebarFocusProvider.notifier).state = false;
+        // Focus stays on sidebar - ESC will close file preview first
         break;
       case NavigableItemType.branchesHeader:
         _toggleBranchesSection();

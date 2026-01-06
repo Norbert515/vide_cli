@@ -307,6 +307,18 @@ class _AgentChatState extends State<_AgentChat> {
         });
       },
       exitApp: shutdownApp,
+      toggleIdeMode: () {
+        final container = ProviderScope.containerOf(context);
+        final current = container.read(ideModeEnabledProvider);
+        container.read(ideModeEnabledProvider.notifier).state = !current;
+
+        // Also persist to settings
+        final configManager = container.read(videConfigManagerProvider);
+        final settings = configManager.readGlobalSettings();
+        configManager.writeGlobalSettings(
+          settings.copyWith(ideModeEnabled: !current),
+        );
+      },
     );
 
     final result = await dispatcher.dispatch(commandInput, commandContext);

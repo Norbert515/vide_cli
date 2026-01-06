@@ -32,6 +32,7 @@ class CommandContext {
     this.sendMessage,
     this.clearConversation,
     this.exitApp,
+    this.toggleIdeMode,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -51,6 +52,10 @@ class CommandContext {
   /// Callback to exit the application.
   /// Used by /exit command.
   final void Function()? exitApp;
+
+  /// Callback to toggle IDE mode (show/hide git sidebar).
+  /// Used by /ide command.
+  final void Function()? toggleIdeMode;
 }
 
 /// Base interface for all slash commands.

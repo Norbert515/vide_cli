@@ -12,6 +12,8 @@ import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/components/shimmer.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/modules/commands/command_provider.dart';
+import 'package:vide_cli/modules/commands/command.dart';
 
 class NetworksOverviewPage extends StatefulComponent {
   const NetworksOverviewPage({super.key});
@@ -22,6 +24,8 @@ class NetworksOverviewPage extends StatefulComponent {
 
 class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   ProjectType? projectType;
+  String? _commandResult;
+  bool _commandResultIsError = false;
 
   @override
   void initState() {
@@ -64,6 +68,58 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
 
     // Navigate to the execution page immediately
     await NetworkExecutionPage.push(context, network.id);
+  }
+
+  Future<void> _handleCommand(String commandInput) async {
+    final dispatcher = context.read(commandDispatcherProvider);
+
+    final commandContext = CommandContext(
+      agentId: '',
+      workingDirectory: Directory.current.path,
+      sendMessage: null,
+      clearConversation: null,
+      exitApp: shutdownApp,
+      toggleIdeMode: () {
+        final container = ProviderScope.containerOf(context);
+        final current = container.read(ideModeEnabledProvider);
+        container.read(ideModeEnabledProvider.notifier).state = !current;
+
+        final configManager = container.read(videConfigManagerProvider);
+        final settings = configManager.readGlobalSettings();
+        configManager.writeGlobalSettings(
+          settings.copyWith(ideModeEnabled: !current),
+        );
+      },
+    );
+
+    final result = await dispatcher.dispatch(commandInput, commandContext);
+
+    setState(() {
+      _commandResult = result.success ? result.message : result.error;
+      _commandResultIsError = !result.success;
+    });
+
+    // Auto-clear after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _commandResult = null;
+        });
+      }
+    });
+  }
+
+  List<CommandSuggestion> _getCommandSuggestions(String prefix) {
+    final registry = context.read(commandRegistryProvider);
+    final allCommands = registry.allCommands;
+
+    final matching = allCommands.where((cmd) {
+      return cmd.name.toLowerCase().startsWith(prefix.toLowerCase());
+    }).toList();
+
+    return matching.map((cmd) {
+      return CommandSuggestion(name: cmd.name, description: cmd.description);
+    }).toList();
   }
 
   @override
@@ -147,6 +203,8 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                   focused: !sidebarFocused,
                   placeholder: 'Describe your goal (you can attach images)',
                   onSubmit: _handleSubmit,
+                  onCommand: _handleCommand,
+                  commandSuggestions: _getCommandSuggestions,
                   onLeftEdge: ideModeEnabled
                       ? () =>
                             context.read(sidebarFocusProvider.notifier).state =
@@ -155,6 +213,21 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
                 ),
                 padding: EdgeInsets.all(1),
               ),
+              // Command result feedback
+              if (_commandResult != null)
+                Padding(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    _commandResult!,
+                    style: TextStyle(
+                      color: _commandResultIsError
+                          ? theme.base.error
+                          : theme.base.onSurface.withOpacity(
+                              TextOpacity.secondary,
+                            ),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 2),
               Text(
                 'Tab: past networks & settings | Enter: start',
