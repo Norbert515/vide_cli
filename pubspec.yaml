@@ -20,11 +20,11 @@ dependencies:
   nocterm:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 4cfb68f2414c359b8209bf36ab1cda5ed4806f9b
+      ref: 0.3.3
   nocterm_riverpod:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 4cfb68f2414c359b8209bf36ab1cda5ed4806f9b
+      ref: 0.3.3
       path: packages/nocterm_riverpod
   claude_sdk: any
   flutter_runtime_mcp: any
@@ -53,11 +53,11 @@ dependency_overrides:
   nocterm:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 4cfb68f2414c359b8209bf36ab1cda5ed4806f9b
+      ref: 0.3.3
   nocterm_riverpod:
     git:
       url: https://github.com/Norbert515/nocterm.git
-      ref: 4cfb68f2414c359b8209bf36ab1cda5ed4806f9b
+      ref: 0.3.3
       path: packages/nocterm_riverpod
 
 melos:
