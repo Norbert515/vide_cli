@@ -15,6 +15,9 @@ import 'utils/image_resizer.dart';
 class FlutterRuntimeServer extends McpServerBase {
   static const String serverName = 'flutter-runtime';
 
+  /// Timeout for Moondream API calls
+  static const _moondreamTimeout = Duration(seconds: 30);
+
   final _instances = <String, FlutterInstance>{};
   final _instanceWorkingDirs =
       <String, String>{}; // Track working dirs for cleanup
@@ -800,10 +803,17 @@ Instance ID: $instanceId
           );
 
           // Step 3: Use Moondream's point API to find the element coordinates
-          final pointResponse = await _moondreamClient!.point(
-            imageUrl: imageUrl,
-            object: description,
-          );
+          final pointResponse = await _moondreamClient!
+              .point(
+                imageUrl: imageUrl,
+                object: description,
+              )
+              .timeout(
+                _moondreamTimeout,
+                onTimeout: () => throw TimeoutException(
+                  'Moondream point API timed out after ${_moondreamTimeout.inSeconds}s',
+                ),
+              );
 
           // Get normalized coordinates (0-1 range)
           final moondreamX = pointResponse.x;
@@ -1321,10 +1331,11 @@ Instance ID: $instanceId
 
           // Step 3: Use Moondream to analyze the scroll intent
           // Ask for: center of scrollable area and scroll direction
-          final queryResponse = await _moondreamClient!.query(
-            imageUrl: imageUrl,
-            question:
-                '''Analyze this screenshot and the user's scroll instruction: "$instruction"
+          final queryResponse = await _moondreamClient!
+              .query(
+                imageUrl: imageUrl,
+                question:
+                    '''Analyze this screenshot and the user's scroll instruction: "$instruction"
 
 Respond with ONLY a JSON object in this exact format (no markdown, no explanation):
 {"startX": 0.5, "startY": 0.5, "dx": 0.0, "dy": -0.3}
@@ -1337,7 +1348,13 @@ For example:
 - "scroll down" -> {"startX": 0.5, "startY": 0.5, "dx": 0.0, "dy": 0.3}
 - "scroll up" -> {"startX": 0.5, "startY": 0.5, "dx": 0.0, "dy": -0.3}
 - "scroll right" -> {"startX": 0.5, "startY": 0.5, "dx": 0.3, "dy": 0.0}''',
-          );
+              )
+              .timeout(
+                _moondreamTimeout,
+                onTimeout: () => throw TimeoutException(
+                  'Moondream query API timed out after ${_moondreamTimeout.inSeconds}s',
+                ),
+              );
 
           print(
             '📥 [FlutterRuntimeServer] Moondream response: ${queryResponse.answer}',
@@ -1866,10 +1883,17 @@ For example:
     );
 
     // Step 3: Use Moondream's point API to find the element coordinates
-    final pointResponse = await _moondreamClient!.point(
-      imageUrl: imageUrl,
-      object: description,
-    );
+    final pointResponse = await _moondreamClient!
+        .point(
+          imageUrl: imageUrl,
+          object: description,
+        )
+        .timeout(
+          _moondreamTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Moondream point API timed out after ${_moondreamTimeout.inSeconds}s',
+          ),
+        );
 
     // Get normalized coordinates (0-1 range)
     final normalizedX = pointResponse.x;
@@ -1943,19 +1967,48 @@ For example:
 
   @override
   Future<void> onStop() async {
-    // Stop all running instances
-    for (final instance in _instances.values) {
-      await instance.stop();
+    // Stop all running instances with proper error handling
+    final instanceIds = _instances.keys.toList();
+    for (final instanceId in instanceIds) {
+      try {
+        final instance = _instances[instanceId];
+        if (instance != null) {
+          await instance.stop().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              // Instance stop timed out, continue with cleanup
+            },
+          );
+        }
+      } catch (e) {
+        // Log but continue with other instances
+        print(
+          '[FlutterRuntimeServer] Error stopping instance $instanceId: $e',
+        );
+      }
     }
     _instances.clear();
 
     // Clean up all synthetic main files
-    for (final workingDir in _instanceWorkingDirs.values) {
-      await SyntheticMainGenerator.cleanup(workingDir);
+    final workingDirs = _instanceWorkingDirs.values.toList();
+    for (final workingDir in workingDirs) {
+      try {
+        await SyntheticMainGenerator.cleanup(workingDir);
+      } catch (e) {
+        // Log but continue with other cleanup
+        print(
+          '[FlutterRuntimeServer] Error cleaning up synthetic main in $workingDir: $e',
+        );
+      }
     }
     _instanceWorkingDirs.clear();
 
     // Dispose Moondream client
-    _moondreamClient?.dispose();
+    try {
+      _moondreamClient?.dispose();
+    } catch (e) {
+      // Moondream cleanup failed, ignore
+    }
+    _moondreamClient = null;
   }
 }

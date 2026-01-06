@@ -224,6 +224,9 @@ class FlutterInstance {
     }
   }
 
+  /// Timeout duration for VM Service operations
+  static const _vmServiceTimeout = Duration(seconds: 30);
+
   /// Take a screenshot of the Flutter app
   /// Returns PNG image data as bytes, or null if screenshot fails
   ///
@@ -266,10 +269,17 @@ class FlutterInstance {
     );
     print('   Using isolateId: $isolateId');
 
-    final response = await _vmService!.callServiceExtension(
-      'ext.runtime_ai_dev_tools.screenshot',
-      isolateId: isolateId, // CRITICAL: Must include isolateId!
-    );
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.screenshot',
+          isolateId: isolateId, // CRITICAL: Must include isolateId!
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Screenshot timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
 
     print('📥 [FlutterInstance] Received response from runtime_ai_dev_tools');
     print('   Response type: ${response.type}');
@@ -340,11 +350,18 @@ class FlutterInstance {
     );
     print('   Parameters: x=$x, y=$y, isolateId=$isolateId');
 
-    final response = await _vmService!.callServiceExtension(
-      'ext.runtime_ai_dev_tools.tap',
-      isolateId: isolateId, // CRITICAL: Must include isolateId!
-      args: {'x': x.toString(), 'y': y.toString()},
-    );
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.tap',
+          isolateId: isolateId, // CRITICAL: Must include isolateId!
+          args: {'x': x.toString(), 'y': y.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Tap timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
 
     print(
       '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.tap',
@@ -403,11 +420,18 @@ class FlutterInstance {
     );
     print('   Parameters: text=$text, isolateId=$isolateId');
 
-    final response = await _vmService!.callServiceExtension(
-      'ext.runtime_ai_dev_tools.type',
-      isolateId: isolateId,
-      args: {'text': text},
-    );
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.type',
+          isolateId: isolateId,
+          args: {'text': text},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Type timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
 
     print(
       '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.type',
@@ -484,11 +508,18 @@ class FlutterInstance {
       args['durationMs'] = durationMs.toString();
     }
 
-    final response = await _vmService!.callServiceExtension(
-      'ext.runtime_ai_dev_tools.scroll',
-      isolateId: isolateId,
-      args: args,
-    );
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.scroll',
+          isolateId: isolateId,
+          args: args,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'Scroll timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
 
     print(
       '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.scroll',
@@ -533,15 +564,49 @@ class FlutterInstance {
   }
 
   /// Stop the Flutter instance
+  ///
+  /// Performs cleanup in this order:
+  /// 1. Dispose evaluator overlays
+  /// 2. Disconnect VM Service
+  /// 3. Send 'q' to gracefully quit
+  /// 4. Wait for process to exit (with timeout)
+  /// 5. Force kill if graceful shutdown fails
+  /// 6. Close stream controllers
   Future<void> stop() async {
     if (!_isRunning) {
       return;
     }
 
-    // Clean up evaluator overlays
-    await _evaluator?.dispose();
+    // Mark as not running early to prevent concurrent operations
+    _isRunning = false;
 
-    // Send 'q' to gracefully quit
+    // Step 1: Clean up evaluator overlays (best effort)
+    try {
+      await _evaluator?.dispose().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          // Evaluator cleanup timed out, continue with shutdown
+        },
+      );
+    } catch (e) {
+      // Evaluator cleanup failed, continue with shutdown
+    }
+    _evaluator = null;
+
+    // Step 2: Disconnect VM Service (best effort)
+    try {
+      await _vmService?.dispose().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () {
+          // VM Service disconnect timed out, continue with shutdown
+        },
+      );
+    } catch (e) {
+      // VM Service disconnect failed, continue with shutdown
+    }
+    _vmService = null;
+
+    // Step 3 & 4: Send 'q' to gracefully quit and wait for exit
     try {
       process.stdin.writeln('q');
       await process.stdin.flush();
@@ -556,13 +621,21 @@ class FlutterInstance {
         },
       );
     } catch (e) {
-      // If stdin write fails, force kill
-      process.kill(ProcessSignal.sigkill);
+      // If stdin write fails or any other error, force kill
+      try {
+        process.kill(ProcessSignal.sigkill);
+      } catch (_) {
+        // Process may already be dead, ignore
+      }
     }
 
-    _isRunning = false;
-    await _outputController.close();
-    await _errorController.close();
+    // Step 5: Close stream controllers safely
+    if (!_outputController.isClosed) {
+      await _outputController.close();
+    }
+    if (!_errorController.isClosed) {
+      await _errorController.close();
+    }
   }
 
   /// Get a summary of the instance state

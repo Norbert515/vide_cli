@@ -92,6 +92,7 @@ When you finish implementing the solution, you MUST complete ALL verification st
 5. ✅ **Spawn flutter tester agent** - Actually run and test the UI changes
 6. ✅ **Wait for test results** - The tester will message you back with screenshots and findings
 7. ✅ **Fix runtime issues** - Repeat testing until everything works
+8. ✅ **Tell tester when done** - Send "testing complete" message when all tests pass
 
 ### MANDATORY: Send Results Back to Parent Agent
 

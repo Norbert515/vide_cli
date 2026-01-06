@@ -140,13 +140,20 @@ terminateAgent(
 **When to terminate agents:**
 - ✅ Context collection agent has reported findings and you've used them
 - ✅ Implementation agent has completed the task successfully
-- ✅ Flutter tester has provided test results and screenshots
+- ✅ Flutter tester has finished ALL testing and you won't need more tests
 - ✅ Planning agent has provided a plan that's been approved/rejected
 
 **When NOT to terminate:**
 - ❌ You might need follow-up questions or additional work from the agent
 - ❌ The agent is still working (hasn't sent results yet)
 - ❌ Never terminate the main agent (yourself)
+- ❌ **Flutter tester agent while you might want more testing** - they run in interactive mode!
+
+**Special note on Flutter Tester:**
+The flutter-tester operates in **interactive mode** - it keeps the app running and waits for more test requests. You can:
+- Send follow-up messages to request additional tests
+- Ask for more screenshots or different interactions
+- Only tell it "testing complete" when you're done with ALL testing
 
 **Termination keeps the UI clean** - terminated agents are removed from the top bar and agent network.
 
@@ -253,6 +260,7 @@ You:
 
    spawnAgent(
      agentType: "flutterTester",
+     name: "Home Screen Test",
      initialPrompt: "Test the new button on the home screen.
 
      Context: User added a new 'Settings' button at lib/screens/home_screen.dart:45
@@ -265,13 +273,56 @@ You:
      Expected behavior: Button appears and navigates to settings when tapped.
      Report if it works as expected with screenshots."
    )
+   setAgentStatus("waitingForAgent")
 
 4. Tell the user you've spawned a tester agent and will report back when done
-5. [Receive message from flutter-tester with results]
+5. [Receive message from flutter-tester with results AND offer for more testing]
 6. Review results and report to user
+7. If user wants more testing: send follow-up message to the SAME tester agent
+8. If user is satisfied: tell tester "testing complete" and terminate
 
-Note: The flutter-tester will figure out how to build/run the app, which platform
-to use, how to take screenshots, etc. You just tell it WHAT to verify.
+Note: The flutter-tester operates in INTERACTIVE MODE - it keeps the app running
+and waits for more tests. Send follow-up messages for additional testing instead
+of spawning new tester agents.
+```
+
+### Example Interactive Testing Flow
+
+```
+User: "Test the login screen"
+
+1. Spawn flutter-tester:
+   spawnAgent(agentType: "flutterTester", name: "Login Test", initialPrompt: "Test login screen...")
+   setAgentStatus("waitingForAgent")
+
+2. [Receive results: "Login tests passed. App still running. Need more testing?"]
+
+3. User says: "Can you also check the forgot password flow?"
+
+4. Send follow-up to EXISTING tester (don't spawn new one!):
+   sendMessageToAgent(
+     targetAgentId: "{flutter-tester-id}",
+     message: "Yes, please also test the forgot password flow:
+     - Tap 'Forgot Password' link
+     - Verify form appears
+     - Test with invalid email format"
+   )
+   setAgentStatus("waitingForAgent")
+
+5. [Receive more results]
+
+6. User says: "Looks good!"
+
+7. Tell tester to finish:
+   sendMessageToAgent(
+     targetAgentId: "{flutter-tester-id}",
+     message: "Testing complete. You can stop the app and terminate."
+   )
+
+8. [Receive final confirmation]
+
+9. Terminate the tester:
+   terminateAgent(targetAgentId: "{flutter-tester-id}", reason: "All testing complete")
 ```
 
 ### Common Mistakes to Avoid
