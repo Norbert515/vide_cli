@@ -12,7 +12,6 @@ import 'package:highlighting/languages/yaml.dart';
 import 'package:highlighting/languages/markdown.dart';
 import 'package:highlighting/languages/bash.dart';
 import 'package:highlighting/languages/sql.dart';
-import 'package:nocterm/src/painting/text_span.dart';
 import 'package:vide_cli/theme/colors/syntax_colors.dart';
 
 class SyntaxHighlighter {

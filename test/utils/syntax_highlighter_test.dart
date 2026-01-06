@@ -1,5 +1,4 @@
 import 'package:nocterm/nocterm.dart' hide isEmpty;
-import 'package:nocterm/src/painting/text_span.dart';
 import 'package:test/test.dart';
 import 'package:vide_cli/theme/colors/syntax_colors.dart';
 import 'package:vide_cli/utils/syntax_highlighter.dart';
