@@ -168,7 +168,6 @@ class _VideAppContentState extends State<_VideAppContent> {
     // Watch sidebar focus state and file preview path
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
-    final filePreviewOpen = filePreviewPath != null;
 
     // Main navigator content
     final navigatorContent = Column(
@@ -234,9 +233,9 @@ class _VideAppContentState extends State<_VideAppContent> {
               // Navigator is always mounted to preserve route stack
               navigatorContent,
               // File preview overlays the navigator when open
-              if (filePreviewOpen)
+              if (filePreviewPath != null)
                 FilePreviewOverlay(
-                  filePath: filePreviewPath!,
+                  filePath: filePreviewPath,
                   onClose: () {
                     context.read(filePreviewPathProvider.notifier).state = null;
                   },
