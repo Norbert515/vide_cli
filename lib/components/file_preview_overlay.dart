@@ -341,7 +341,7 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         lineBackground = theme.base.warning.withOpacity(0.1);
         break;
       default:
-        gutterChar = '│';
+        gutterChar = ' ';
         gutterColor = borderColor;
         lineBackground = null;
     }

@@ -404,7 +404,6 @@ class _GitSidebarState extends State<GitSidebar> {
       child: Container(
         decoration: BoxDecoration(
           color: theme.base.surface,
-          border: BoxBorder.all(color: theme.base.outline),
         ),
         child: ClipRect(
           child: SizedBox(
