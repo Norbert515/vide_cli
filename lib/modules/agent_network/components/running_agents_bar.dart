@@ -214,15 +214,8 @@ class _AgentColumnState extends State<_AgentColumn> {
       return AgentStatus.working;
     }
 
-    // If Claude is ready/completed but agent claims to be working, override to idle
-    // This handles cases where agent forgot to call setAgentStatus("idle")
-    if ((claudeStatus == ClaudeStatus.ready ||
-            claudeStatus == ClaudeStatus.completed) &&
-        explicitStatus == AgentStatus.working) {
-      return AgentStatus.idle;
-    }
-
-    // Otherwise trust the explicit status
+    // Trust the explicit status - don't override working to idle
+    // Claude can be "ready" between tool calls while agent is still processing
     return explicitStatus;
   }
 
