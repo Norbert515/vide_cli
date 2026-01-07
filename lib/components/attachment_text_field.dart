@@ -39,6 +39,9 @@ class AttachmentTextField extends StatefulComponent {
   /// Used to enable focus navigation to a sidebar.
   final void Function()? onLeftEdge;
 
+  /// Called when the text content changes (for idle detection, etc.)
+  final void Function(String text)? onChanged;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -50,6 +53,7 @@ class AttachmentTextField extends StatefulComponent {
     this.onCommand,
     this.commandSuggestions,
     this.onLeftEdge,
+    this.onChanged,
     super.key,
   });
 
@@ -85,6 +89,8 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     setState(() {
       _selectedSuggestionIndex = 0;
     });
+    // Notify listener of text changes (for idle detection)
+    component.onChanged?.call(_controller.text);
   }
 
   List<CommandSuggestion> _getSuggestions() {
