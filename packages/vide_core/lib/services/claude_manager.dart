@@ -45,6 +45,21 @@ final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((
   return client.statusStream;
 });
 
+/// Provider for watching the conversation from an agent's client.
+///
+/// This provides real-time conversation updates including new messages and tool uses.
+/// Useful for displaying tool activity in the UI.
+final conversationProvider = StreamProvider.family<Conversation, AgentId>((
+  ref,
+  agentId,
+) {
+  final client = ref.watch(claudeProvider(agentId));
+  if (client == null) {
+    return Stream.value(Conversation.empty());
+  }
+  return client.conversation;
+});
+
 final claudeManagerProvider =
     StateNotifierProvider<
       ClaudeManagerStateNotifier,

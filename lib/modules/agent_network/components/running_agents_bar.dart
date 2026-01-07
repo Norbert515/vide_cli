@@ -347,9 +347,9 @@ class _AgentColumnState extends State<_AgentColumn> {
     final hasTaskName = displayedTaskName.isNotEmpty && component.agent.type != 'main' && status != AgentStatus.idle;
     final maxToolLogLines = hasTaskName ? _maxTotalLines - 1 : _maxTotalLines;
 
-    // Get conversation for tool logs
-    final client = context.watch(claudeProvider(component.agent.id));
-    final conversation = client?.currentConversation;
+    // Get conversation for tool logs (using stream provider for real-time updates)
+    final conversationAsync = context.watch(conversationProvider(component.agent.id));
+    final conversation = conversationAsync.valueOrNull;
     final recentToolUses = showToolLog && conversation != null
         ? _getRecentToolUses(conversation, maxToolLogLines)
         : <ToolUseResponse>[];

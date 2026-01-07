@@ -51,14 +51,9 @@ dev_dependencies:
 
 dependency_overrides:
   nocterm:
-    git:
-      url: https://github.com/Norbert515/nocterm.git
-      ref: v0.3.4
+    path: /Users/gustafeden/gustaf/nocterm
   nocterm_riverpod:
-    git:
-      url: https://github.com/Norbert515/nocterm.git
-      ref: v0.3.4
-      path: packages/nocterm_riverpod
+    path: /Users/gustafeden/gustaf/nocterm/packages/nocterm_riverpod
 
 melos:
   name: vide_cli
