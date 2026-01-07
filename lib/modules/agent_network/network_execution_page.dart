@@ -15,9 +15,12 @@ import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
+import 'package:vide_cli/modules/agent_network/state/agent_response_times.dart';
 import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
+import 'package:vide_cli/modules/haiku/haiku_providers.dart';
+import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
@@ -243,6 +246,9 @@ class _AgentChatState extends State<_AgentChat> {
   bool _commandResultIsError = false;
   String? _queuedMessage;
 
+  // Track conversation state changes for response timing
+  ConversationState? _lastConversationState;
+
   @override
   void initState() {
     super.initState();
@@ -251,6 +257,17 @@ class _AgentChatState extends State<_AgentChat> {
     _conversationSubscription = component.client.conversation.listen((
       conversation,
     ) {
+      // Track when response starts/stops for elapsed time display
+      if (conversation.state == ConversationState.receivingResponse &&
+          _lastConversationState != ConversationState.receivingResponse) {
+        AgentResponseTimes.startIfNeeded(component.client.sessionId);
+      } else if (_lastConversationState == ConversationState.receivingResponse &&
+          conversation.state != ConversationState.receivingResponse) {
+        AgentResponseTimes.clear(component.client.sessionId);
+      }
+
+      _lastConversationState = conversation.state;
+
       setState(() {
         _conversation = conversation;
       });
@@ -259,6 +276,12 @@ class _AgentChatState extends State<_AgentChat> {
       _syncTokenStats(conversation);
     });
     _conversation = component.client.currentConversation;
+    _lastConversationState = _conversation.state;
+
+    // If already receiving response when we init, ensure start time is tracked
+    if (_conversation.state == ConversationState.receivingResponse) {
+      AgentResponseTimes.startIfNeeded(component.client.sessionId);
+    }
 
     // Listen to queued message updates
     _queueSubscription = component.client.queuedMessage.listen((text) {
@@ -289,7 +312,29 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(Message message) {
+    // Generate creative loading words with Haiku in the background
+    _generateLoadingWords(message.text);
+
+    // Send the actual message
     component.client.sendMessage(message);
+  }
+
+  /// Helper to generate loading words using MessageEnhancementService
+  void _generateLoadingWords(String userMessage) async {
+    await MessageEnhancementService.generateLoadingWords(
+      userMessage,
+      (words) {
+        if (mounted) {
+          context.read(loadingWordsProvider.notifier).state = words;
+        }
+      },
+    );
+  }
+
+  /// Gets cumulative output token count across the conversation.
+  int? _getOutputTokens() {
+    final total = _conversation.totalOutputTokens;
+    return total > 0 ? total : null;
   }
 
   Future<void> _handleCommand(String commandInput) async {
@@ -522,6 +567,9 @@ class _AgentChatState extends State<_AgentChat> {
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
+    // Get dynamic loading words from provider
+    final dynamicLoadingWords = context.watch(loadingWordsProvider);
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
@@ -571,7 +619,11 @@ class _AgentChatState extends State<_AgentChat> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      EnhancedLoadingIndicator(),
+                      EnhancedLoadingIndicator(
+                        responseStartTime: AgentResponseTimes.get(component.client.sessionId),
+                        outputTokens: _getOutputTokens(),
+                        dynamicWords: dynamicLoadingWords,
+                      ),
                       SizedBox(width: 2),
                       Text(
                         '(Press ESC to stop)',
