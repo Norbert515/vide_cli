@@ -16,6 +16,7 @@ import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 import 'package:vide_cli/modules/haiku/fact_source_service.dart';
+import 'package:vide_cli/services/vide_settings.dart';
 
 /// Provider for sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
@@ -72,6 +73,9 @@ void main(List<String> args, {List<Override> overrides = const []}) async {
 
   // Pre-fetch facts for activity tips (non-blocking)
   FactSourceService.instance.initialize();
+
+  // Load app settings
+  await VideSettingsManager.instance.load();
 
   await container.read(agentNetworksStateNotifierProvider.notifier).init();
 

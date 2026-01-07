@@ -326,8 +326,19 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
   }
 
   void _sendMessage(Message message) {
+    // Clear any previous sommelier commentary
+    context.read(codeSommelierProvider.notifier).state = null;
+
     // Generate creative loading words with Haiku in the background
     _generateLoadingWords(message.text);
+
+    // Check for code and trigger sommelier if enabled (delayed to avoid race with loading words)
+    final textToCheck = message.text;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        _generateSommelierCommentary(textToCheck);
+      }
+    });
 
     // Send the actual message
     component.client.sendMessage(message);
@@ -341,6 +352,24 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
         if (mounted) {
           context.read(loadingWordsProvider.notifier).state = words;
         }
+      },
+    );
+  }
+
+  /// Generate wine-tasting style commentary for pasted code
+  void _generateSommelierCommentary(String text) async {
+    await MessageEnhancementService.generateSommelierCommentary(
+      text,
+      (commentary) {
+        if (!mounted) return;
+        context.read(codeSommelierProvider.notifier).state = commentary;
+
+        // Auto-clear after 30 seconds
+        Future.delayed(const Duration(seconds: 30), () {
+          if (mounted) {
+            context.read(codeSommelierProvider.notifier).state = null;
+          }
+        });
       },
     );
   }
@@ -583,6 +612,7 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
 
     // Get dynamic loading words from provider
     final dynamicLoadingWords = context.watch(loadingWordsProvider);
+    final sommelierCommentary = context.watch(codeSommelierProvider);
 
     // Watch activity tip and agent status for activity tips feature
     final activityTip = context.watch(activityTipProvider);
@@ -658,6 +688,16 @@ class _AgentChatState extends State<_AgentChat> with ActivityTipMixin {
                   )
                 else
                   Text(' '), // Reserve 1 line when loading indicator is hidden
+
+                // Show code sommelier commentary when available
+                if (sommelierCommentary != null)
+                  Container(
+                    padding: EdgeInsets.symmetric(vertical: 1),
+                    child: Text(
+                      '🍷 $sommelierCommentary',
+                      style: TextStyle(color: Colors.magenta.withOpacity(0.8), fontStyle: FontStyle.italic),
+                    ),
+                  ),
 
                 // Show quit warning if active
                 if (component.showQuitWarning)
