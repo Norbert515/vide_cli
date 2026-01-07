@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:claude_sdk/claude_sdk.dart' show ClaudeStatus;
+import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';

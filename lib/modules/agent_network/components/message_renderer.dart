@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_api/claude_api.dart';
+import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/constants/text_opacity.dart';

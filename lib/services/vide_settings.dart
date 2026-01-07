@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import 'package:vide_cli/services/vide_config_manager.dart';
 
 /// App-wide settings for Vide CLI (separate from Claude settings)
 class VideSettings {
@@ -41,8 +40,8 @@ class VideSettingsManager {
   VideSettings get settings => _settings;
 
   String get _settingsPath {
-    final configRoot = VideConfigManager().configRoot;
-    return path.join(configRoot, 'settings.json');
+    final homeDir = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    return path.join(homeDir, '.vide', 'vide_settings.json');
   }
 
   /// Load settings from disk (call once at startup)

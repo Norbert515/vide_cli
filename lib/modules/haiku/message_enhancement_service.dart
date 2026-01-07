@@ -1,6 +1,7 @@
 import 'package:vide_cli/modules/haiku/haiku_service.dart';
 import 'package:vide_cli/modules/haiku/prompts/loading_words_prompt.dart';
 import 'package:vide_cli/modules/haiku/prompts/code_sommelier_prompt.dart';
+import 'package:vide_cli/modules/haiku/prompts/placeholder_prompt.dart';
 import 'package:vide_cli/utils/code_detector.dart';
 import 'package:vide_cli/services/vide_settings.dart';
 
@@ -58,6 +59,52 @@ class MessageEnhancementService {
 
     if (commentary != null) {
       setCommentary(commentary);
+    }
+  }
+
+  /// Generate dynamic placeholder text for the input field.
+  ///
+  /// [now] Current time for seeding randomness.
+  /// [setPlaceholder] Callback to set the generated placeholder in the provider.
+  static Future<void> generatePlaceholderText(
+    DateTime now,
+    void Function(String) setPlaceholder,
+  ) async {
+    final systemPrompt = PlaceholderPrompt.build(now);
+
+    final placeholder = await HaikuService.invoke(
+      systemPrompt: systemPrompt,
+      userMessage: 'Generate placeholder text',
+      delay: Duration.zero,
+    );
+
+    if (placeholder != null) {
+      String text = placeholder.trim();
+
+      // Validate: handle verbose multi-line responses
+      if (text.contains('\n') || text.length > 50) {
+        final lines = text.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
+        String? shortLine;
+        for (final line in lines) {
+          if (line.startsWith('Here') ||
+              line.startsWith('Alright') ||
+              line.contains(':') ||
+              line.startsWith('Pick') ||
+              line.startsWith('I')) continue;
+          final cleaned = line.replaceAll(RegExp(r'^[\*\-\d\.\)]+\s*'), '').replaceAll('**', '').trim();
+          if (cleaned.length >= 3 && cleaned.length <= 45) {
+            shortLine = cleaned;
+            break;
+          }
+        }
+        text = shortLine ?? 'Describe your goal (you can attach images)';
+      }
+
+      if (text.length > 50) {
+        text = 'Describe your goal (you can attach images)';
+      }
+
+      setPlaceholder(text);
     }
   }
 }

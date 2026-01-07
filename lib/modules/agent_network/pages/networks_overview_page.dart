@@ -17,7 +17,6 @@ import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/message_enhancement_service.dart';
-import 'package:vide_cli/utils/project_detector.dart';
 
 class NetworksOverviewPage extends StatefulComponent {
   const NetworksOverviewPage({super.key});
@@ -27,7 +26,6 @@ class NetworksOverviewPage extends StatefulComponent {
 }
 
 class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
-  ProjectType? projectType;
   String? _commandResult;
   bool _commandResultIsError = false;
 
@@ -42,7 +40,6 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   @override
   void initState() {
     super.initState();
-    _loadProjectInfo();
     _generateStartupContent();
   }
 
@@ -73,17 +70,6 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   void dispose() {
     _placeholderTimer?.cancel();
     super.dispose();
-  }
-
-  Future<void> _loadProjectInfo() async {
-    final currentDir = Directory.current.path;
-    final detectedType = ProjectDetector.detectProjectType(currentDir);
-
-    if (mounted) {
-      setState(() {
-        projectType = detectedType;
-      });
-    }
   }
 
   /// Abbreviates the path by replacing home directory with ~
@@ -274,7 +260,7 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
               Container(
                 child: AttachmentTextField(
                   focused: !sidebarFocused,
-                  placeholder: placeholder ?? 'Describe your goal (you can attach images)',
+                  placeholder: placeholder,
                   onSubmit: _handleSubmit,
                   onCommand: _handleCommand,
                   commandSuggestions: _getCommandSuggestions,

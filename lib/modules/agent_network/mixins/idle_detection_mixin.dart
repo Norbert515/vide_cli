@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:claude_api/claude_api.dart';
+import 'package:claude_sdk/claude_sdk.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/haiku/haiku_service.dart';
 import 'package:vide_cli/modules/haiku/haiku_providers.dart';
 import 'package:vide_cli/modules/haiku/prompts/idle_prompt.dart';
-import 'package:vide_cli/modules/agent_network/service/agent_network_manager.dart';
-import 'package:vide_cli/modules/agent_network/service/claude_manager.dart';
 
 /// Mixin that provides idle detection functionality.
 ///
