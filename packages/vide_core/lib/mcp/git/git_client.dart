@@ -263,6 +263,26 @@ class GitClient {
     }
   }
 
+  /// Get the path to the main repository (the root repo, not a worktree).
+  ///
+  /// This returns the same path whether called from the main repo or a worktree.
+  Future<String> getMainRepoPath() async {
+    try {
+      final gitCommonDir = await _runGitCommand(['rev-parse', '--git-common-dir']);
+      final commonDir = gitCommonDir.trim();
+      // git-common-dir returns the .git directory, we need its parent
+      if (commonDir == '.git') {
+        // We're in the main repo
+        return workingDirectory ?? Directory.current.path;
+      }
+      // For worktrees, commonDir is an absolute path to .git in main repo
+      final mainGitDir = Directory(commonDir);
+      return mainGitDir.parent.path;
+    } catch (e) {
+      return workingDirectory ?? Directory.current.path;
+    }
+  }
+
   // Remote operations
 
   /// Download objects and refs from a remote.

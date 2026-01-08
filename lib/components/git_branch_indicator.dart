@@ -10,6 +10,13 @@ final isWorktreeProvider = FutureProvider.family<bool, String>((ref, repoPath) a
   return await client.isWorktree();
 });
 
+/// Provider to get the main repository path for a given repo path.
+/// This returns the same path whether called from the main repo or a worktree.
+final mainRepoPathProvider = FutureProvider.family<String, String>((ref, repoPath) async {
+  final client = GitClient(workingDirectory: repoPath);
+  return await client.getMainRepoPath();
+});
+
 class GitBranchIndicator extends StatelessComponent {
   final String repoPath;
 

@@ -32,10 +32,20 @@ final ideModeEnabledProvider = StateProvider<bool>((ref) {
 /// Null means no file preview is open.
 final filePreviewPathProvider = StateProvider<String?>((ref) => null);
 
-/// Provider for current repository path. Uses effective working directory
-/// when an agent network is active (accounts for worktrees), otherwise
-/// falls back to Directory.current.path.
+/// Manual override for the current repository path.
+/// When set, this takes precedence over the agent network's effective working directory.
+final repoPathOverrideProvider = StateProvider<String?>((ref) => null);
+
+/// Provider for current repository path. Uses manual override if set,
+/// otherwise uses effective working directory from the agent network
+/// (accounts for worktrees), or falls back to Directory.current.path.
 final currentRepoPathProvider = Provider<String>((ref) {
+  // Manual override takes precedence
+  final override = ref.watch(repoPathOverrideProvider);
+  if (override != null) {
+    return override;
+  }
+  // Otherwise use agent network's effective directory
   final networkManager = ref.watch(agentNetworkManagerProvider.notifier);
   return networkManager.effectiveWorkingDirectory;
 });
@@ -240,6 +250,10 @@ class _VideAppContentState extends State<_VideAppContent> {
                           .read(agentNetworkManagerProvider.notifier)
                           .sendMessage(mainAgentId, Message(text: message));
                     }
+                  },
+                  onSwitchWorktree: (path) {
+                    // Switch to the selected worktree directory
+                    context.read(repoPathOverrideProvider.notifier).state = path;
                   },
                 ),
               ),

@@ -28,6 +28,7 @@ enum NavigableItemType {
   changesSectionLabel, // "Changes" label (not collapsible)
   file,
   commitPushAction, // "Commit & push" action for branches with changes
+  switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
   noChangesPlaceholder, // "No changes" placeholder when worktree is clean
   divider, // Visual separator line
   branchSectionLabel, // "Other Branches"
@@ -52,6 +53,7 @@ class NavigableItem {
   final bool isExpanded;
   final bool isLastInSection;
   final String? worktreePath; // For associating items with their worktree
+  final bool isWorktree; // True if this is a worktree (not the main repo)
 
   const NavigableItem({
     required this.type,
@@ -62,6 +64,7 @@ class NavigableItem {
     this.isExpanded = false,
     this.isLastInSection = false,
     this.worktreePath,
+    this.isWorktree = false,
   });
 }
 
@@ -80,6 +83,7 @@ class GitSidebar extends StatefulComponent {
   final String repoPath;
   final int width;
   final void Function(String message)? onSendMessage;
+  final void Function(String path)? onSwitchWorktree;
 
   const GitSidebar({
     required this.focused,
@@ -88,6 +92,7 @@ class GitSidebar extends StatefulComponent {
     required this.repoPath,
     this.width = 30,
     this.onSendMessage,
+    this.onSwitchWorktree,
     super.key,
   });
 
@@ -304,6 +309,14 @@ class _GitSidebarState extends State<GitSidebar> {
     final currentWorktreePath = component.repoPath;
     final gitStatus = gitStatusAsync.valueOrNull;
 
+    // Check if current path is a worktree
+    final isCurrentWorktreeAsync = context.watch(isWorktreeProvider(currentWorktreePath));
+    final isCurrentPathWorktree = isCurrentWorktreeAsync.valueOrNull ?? false;
+
+    // Get main repo path to identify which worktrees are actual worktrees
+    final mainRepoPathAsync = context.watch(mainRepoPathProvider(currentWorktreePath));
+    final mainRepoPath = mainRepoPathAsync.valueOrNull;
+
     // Ensure worktrees are loaded
     if (_cachedBranches == null && !_branchesLoading) {
       _loadBranchesAndWorktrees();
@@ -315,6 +328,7 @@ class _GitSidebarState extends State<GitSidebar> {
       path: currentWorktreePath,
       branch: gitStatus?.branch ?? 'Loading...',
       isCurrentWorktree: true,
+      isWorktree: isCurrentPathWorktree,
       gitStatus: gitStatus,
     ));
 
@@ -332,11 +346,15 @@ class _GitSidebarState extends State<GitSidebar> {
           wtStatus = statusAsync.valueOrNull;
         }
 
+        // Determine if this entry is a worktree (not the main repo)
+        final isWorktree = mainRepoPath != null && worktree.path != mainRepoPath;
+
         items.addAll(_buildWorktreeSection(
           context,
           path: worktree.path,
           branch: worktree.branch,
           isCurrentWorktree: false,
+          isWorktree: isWorktree,
           gitStatus: wtStatus,
         ));
       }
@@ -406,6 +424,7 @@ class _GitSidebarState extends State<GitSidebar> {
     required String path,
     required String branch,
     required bool isCurrentWorktree,
+    required bool isWorktree,
     GitStatus? gitStatus,
   }) {
     final items = <NavigableItem>[];
@@ -417,22 +436,34 @@ class _GitSidebarState extends State<GitSidebar> {
       name: branch,
       worktreePath: path,
       isExpanded: isExpanded,
+      isWorktree: isWorktree,
     ));
 
     if (!isExpanded) return items;
 
+    // For non-current worktrees, add "Switch to" action first
+    if (!isCurrentWorktree) {
+      items.add(NavigableItem(
+        type: NavigableItemType.switchWorktreeAction,
+        name: 'Switch to this worktree',
+        worktreePath: path,
+      ));
+    }
+
     // File items directly under the header (no "Changes" label)
     final changedFiles = _buildChangedFiles(gitStatus);
 
-    // Add "Commit & push" action first if there are changes
-    if (changedFiles.isNotEmpty) {
+    // Add "Commit & push" action if there are changes (current worktree only)
+    if (isCurrentWorktree && changedFiles.isNotEmpty) {
       items.add(NavigableItem(
         type: NavigableItemType.commitPushAction,
         name: 'Commit & push',
         worktreePath: path,
         isLastInSection: false,
       ));
+    }
 
+    if (changedFiles.isNotEmpty) {
       for (var i = 0; i < changedFiles.length; i++) {
         items.add(NavigableItem(
           type: NavigableItemType.file,
@@ -646,6 +677,7 @@ class _GitSidebarState extends State<GitSidebar> {
         });
         break;
       case NavigableItemType.worktreeHeader:
+        // Always toggle expansion - switching is done via dedicated action
         _toggleWorktreeExpansion(item.worktreePath!);
         break;
       case NavigableItemType.changesSectionLabel:
@@ -663,6 +695,10 @@ class _GitSidebarState extends State<GitSidebar> {
       case NavigableItemType.commitPushAction:
         // Send "commit and push" message to the chat
         component.onSendMessage?.call('commit and push');
+        break;
+      case NavigableItemType.switchWorktreeAction:
+        // Switch to the worktree
+        component.onSwitchWorktree?.call(item.worktreePath!);
         break;
       case NavigableItemType.branch:
         // TODO: Could checkout branch or show branch details
@@ -964,6 +1000,14 @@ class _GitSidebarState extends State<GitSidebar> {
           theme,
           availableWidth,
         );
+      case NavigableItemType.switchWorktreeAction:
+        return _buildSwitchWorktreeActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.noChangesPlaceholder:
         return _buildNoChangesPlaceholderRow(
           item,
@@ -1113,6 +1157,7 @@ class _GitSidebarState extends State<GitSidebar> {
     final expandIcon = isExpanded ? '▾' : '▸';
     final highlight = isSelected || isHovered;
     final isCurrentWorktree = item.worktreePath == component.repoPath;
+    final isWorktree = item.isWorktree;
 
     // Get git status for ahead/behind indicators and change count
     final gitStatusAsync =
@@ -1130,6 +1175,9 @@ class _GitSidebarState extends State<GitSidebar> {
     final branchColor =
         isCurrentWorktree ? theme.base.primary : theme.base.onSurface;
 
+    // Show branch icon: ⎇ for worktrees,  for main repo
+    final branchIcon = isWorktree ? '⎇' : '';
+
     return Column(
       children: [
         SizedBox(height: 1), // Top padding outside selection
@@ -1146,7 +1194,7 @@ class _GitSidebarState extends State<GitSidebar> {
               children: [
                 Text(expandIcon, style: TextStyle(color: branchColor)),
                 SizedBox(width: 1),
-                Text('',
+                Text(branchIcon,
                     style: TextStyle(
                         color: isCurrentWorktree
                             ? theme.base.primary
@@ -1298,6 +1346,44 @@ class _GitSidebarState extends State<GitSidebar> {
                 item.name,
                 style: TextStyle(
                   color: theme.base.success,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Switch to worktree" action row.
+  Component _buildSwitchWorktreeActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text('→', style: TextStyle(color: theme.base.primary)),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: theme.base.primary,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
