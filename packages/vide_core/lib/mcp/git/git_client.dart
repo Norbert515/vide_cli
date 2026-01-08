@@ -322,6 +322,23 @@ class GitClient {
     return await _runGitCommand(args);
   }
 
+  /// Push local commits to a remote repository.
+  ///
+  /// [remote] - The remote to push to.
+  /// [branch] - Optional branch name to push.
+  /// [setUpstream] - If true, set upstream tracking for the branch.
+  Future<String> push({
+    String remote = 'origin',
+    String? branch,
+    bool setUpstream = false,
+  }) async {
+    final args = ['push'];
+    if (setUpstream) args.add('-u');
+    args.add(remote);
+    if (branch != null) args.add(branch);
+    return await _runGitCommand(args);
+  }
+
   /// Join two or more development histories together.
   ///
   /// [branch] - The branch to merge into the current branch.

@@ -28,6 +28,7 @@ enum NavigableItemType {
   changesSectionLabel, // "Changes" label (not collapsible)
   file,
   commitPushAction, // "Commit & push" action for branches with changes
+  syncAction, // "Sync" action for branches ahead/behind remote
   mergeToMainAction, // "Merge to main" action for clean branches ahead of main
   switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
   noChangesPlaceholder, // "No changes" placeholder when worktree is clean
@@ -500,6 +501,22 @@ class _GitSidebarState extends State<GitSidebar> {
       ));
     }
 
+    // Add "Sync" action if ahead or behind remote (current worktree only, clean)
+    final ahead = gitStatus?.ahead ?? 0;
+    final behind = gitStatus?.behind ?? 0;
+    if (isCurrentWorktree && changedFiles.isEmpty && (ahead > 0 || behind > 0)) {
+      final syncLabel = behind > 0 && ahead > 0
+          ? 'Sync (↓$behind ↑$ahead)'
+          : behind > 0
+              ? 'Sync (↓$behind)'
+              : 'Sync (↑$ahead)';
+      items.add(NavigableItem(
+        type: NavigableItemType.syncAction,
+        name: syncLabel,
+        worktreePath: path,
+      ));
+    }
+
     // Add "Merge to main" action if branch is clean, ahead of main, and not main/master
     final isMainBranch = branch == 'main' || branch == 'master';
     final isClean = changedFiles.isEmpty;
@@ -749,6 +766,27 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
+  /// Sync with remote: pull --rebase then push.
+  Future<void> _sync() async {
+    final client = GitClient(workingDirectory: component.repoPath);
+
+    try {
+      // Pull with rebase first (IntelliJ style)
+      await client.pull(rebase: true);
+
+      // Then push local commits
+      await client.push();
+
+      // Refresh to reflect the updated state
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      // TODO: Show error to user (e.g., rebase conflicts)
+      // If rebase fails, user needs to resolve conflicts manually
+    }
+  }
+
   /// Activates an item (used for both keyboard and mouse click).
   void _activateItem(NavigableItem item, BuildContext context) {
     switch (item.type) {
@@ -816,6 +854,10 @@ class _GitSidebarState extends State<GitSidebar> {
       case NavigableItemType.commitPushAction:
         // Send "commit and push" message to the chat
         component.onSendMessage?.call('commit and push');
+        break;
+      case NavigableItemType.syncAction:
+        // Sync with remote (pull --rebase, then push)
+        _sync();
         break;
       case NavigableItemType.mergeToMainAction:
         // Merge current branch to main
@@ -1113,6 +1155,14 @@ class _GitSidebarState extends State<GitSidebar> {
         );
       case NavigableItemType.commitPushAction:
         return _buildCommitPushActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.syncAction:
+        return _buildSyncActionRow(
           item,
           isSelected,
           isHovered,
@@ -1491,6 +1541,44 @@ class _GitSidebarState extends State<GitSidebar> {
                 item.name,
                 style: TextStyle(
                   color: theme.base.success,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Sync" action row.
+  Component _buildSyncActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text('⟳', style: TextStyle(color: theme.base.primary)),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: theme.base.primary,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
