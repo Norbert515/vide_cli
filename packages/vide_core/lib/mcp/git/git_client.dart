@@ -406,6 +406,25 @@ class GitClient {
     }
   }
 
+  /// Get the number of commits in the current branch that are not in the target branch.
+  ///
+  /// [targetBranch] - The branch to compare against (e.g., 'main', 'master').
+  /// Returns the count of commits ahead, or 0 if the branch doesn't exist or on error.
+  Future<int> getCommitsAheadOf(String targetBranch) async {
+    try {
+      // Use rev-list to count commits in HEAD that are not in targetBranch
+      final output = await _runGitCommand([
+        'rev-list',
+        '--count',
+        '$targetBranch..HEAD',
+      ]);
+      return int.tryParse(output.trim()) ?? 0;
+    } catch (e) {
+      // Branch might not exist or other error
+      return 0;
+    }
+  }
+
   /// Execute a raw git command with the given arguments.
   ///
   /// This is a lower-level method for when you need direct access to git commands

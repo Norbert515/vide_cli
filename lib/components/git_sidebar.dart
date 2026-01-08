@@ -141,6 +141,7 @@ class _GitSidebarState extends State<GitSidebar> {
   }
   List<GitBranch>? _cachedBranches;
   List<GitWorktree>? _cachedWorktrees;
+  int? _commitsAheadOfMain; // Commits in current branch not in main
   bool _branchesLoading = false;
   static const int _initialBranchCount = 5;
 
@@ -170,6 +171,7 @@ class _GitSidebarState extends State<GitSidebar> {
     if (component.repoPath != old.repoPath) {
       _cachedBranches = null;
       _cachedWorktrees = null;
+      _commitsAheadOfMain = null;
       _branchesLoading = false;
       // Reset selection to current worktree
       _selectedIndex = 2;
@@ -496,11 +498,11 @@ class _GitSidebarState extends State<GitSidebar> {
       ));
     }
 
-    // Add "Merge to main" action if branch is clean, ahead, and not main/master
+    // Add "Merge to main" action if branch is clean, ahead of main, and not main/master
     final isMainBranch = branch == 'main' || branch == 'master';
     final isClean = changedFiles.isEmpty;
-    final isAhead = gitStatus != null && gitStatus.ahead > 0;
-    if (isCurrentWorktree && isClean && isAhead && !isMainBranch) {
+    final isAheadOfMain = (_commitsAheadOfMain ?? 0) > 0;
+    if (isCurrentWorktree && isClean && isAheadOfMain && !isMainBranch) {
       items.add(NavigableItem(
         type: NavigableItemType.mergeToMainAction,
         name: 'Merge to main',
@@ -520,7 +522,7 @@ class _GitSidebarState extends State<GitSidebar> {
           isLastInSection: i == changedFiles.length - 1,
         ));
       }
-    } else if (!isAhead || isMainBranch) {
+    } else if (!isAheadOfMain || isMainBranch) {
       // Show "No changes" placeholder when worktree is clean and not showing merge action
       items.add(NavigableItem(
         type: NavigableItemType.noChangesPlaceholder,
@@ -860,6 +862,13 @@ class _GitSidebarState extends State<GitSidebar> {
       final branches = await client.branches();
       final worktrees = await client.worktreeList();
 
+      // Check commits ahead of main (try 'main' first, then 'master')
+      int commitsAhead = await client.getCommitsAheadOf('main');
+      if (commitsAhead == 0) {
+        // Try master if main didn't work or has 0 commits
+        commitsAhead = await client.getCommitsAheadOf('master');
+      }
+
       // Sort branches: current first, then alphabetically
       branches.sort((a, b) {
         if (a.isCurrent && !b.isCurrent) return -1;
@@ -873,6 +882,7 @@ class _GitSidebarState extends State<GitSidebar> {
       setState(() {
         _cachedBranches = localBranches;
         _cachedWorktrees = worktrees;
+        _commitsAheadOfMain = commitsAhead;
         _branchesLoading = false;
       });
     } catch (e) {
