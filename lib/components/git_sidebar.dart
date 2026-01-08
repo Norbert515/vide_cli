@@ -154,6 +154,8 @@ class _GitSidebarState extends State<GitSidebar> {
   void initState() {
     super.initState();
     _currentWidth = component.expanded ? _expandedWidth : _collapsedWidth;
+    // Load branches and commits ahead info on init
+    _loadBranchesAndWorktrees();
   }
 
   @override
