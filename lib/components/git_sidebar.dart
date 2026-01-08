@@ -28,6 +28,7 @@ enum NavigableItemType {
   changesSectionLabel, // "Changes" label (not collapsible)
   file,
   commitPushAction, // "Commit & push" action for branches with changes
+  mergeToMainAction, // "Merge to main" action for clean branches ahead of main
   switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
   noChangesPlaceholder, // "No changes" placeholder when worktree is clean
   divider, // Visual separator line
@@ -471,6 +472,19 @@ class _GitSidebarState extends State<GitSidebar> {
       ));
     }
 
+    // Add "Merge to main" action if branch is clean, ahead, and not main/master
+    final isMainBranch = branch == 'main' || branch == 'master';
+    final isClean = changedFiles.isEmpty;
+    final isAhead = gitStatus != null && gitStatus.ahead > 0;
+    if (isCurrentWorktree && isClean && isAhead && !isMainBranch) {
+      items.add(NavigableItem(
+        type: NavigableItemType.mergeToMainAction,
+        name: 'Merge to main',
+        worktreePath: path,
+        fullPath: branch, // Store current branch name for merge
+      ));
+    }
+
     if (changedFiles.isNotEmpty) {
       for (var i = 0; i < changedFiles.length; i++) {
         items.add(NavigableItem(
@@ -482,8 +496,8 @@ class _GitSidebarState extends State<GitSidebar> {
           isLastInSection: i == changedFiles.length - 1,
         ));
       }
-    } else {
-      // Show "No changes" placeholder when worktree is clean
+    } else if (!isAhead || isMainBranch) {
+      // Show "No changes" placeholder when worktree is clean and not showing merge action
       items.add(NavigableItem(
         type: NavigableItemType.noChangesPlaceholder,
         name: 'No changes',
@@ -652,6 +666,35 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
+  /// Merge current branch to main: checkout main, merge feature branch, then checkout back.
+  Future<void> _mergeToMain(String featureBranch) async {
+    final client = GitClient(workingDirectory: component.repoPath);
+
+    // Determine the main branch name (main or master)
+    final mainBranch = _cachedBranches?.any((b) => b.name == 'main') == true
+        ? 'main'
+        : 'master';
+
+    try {
+      // 1. Checkout main
+      await client.checkout(mainBranch);
+
+      // 2. Merge the feature branch
+      await client.merge(featureBranch);
+
+      // Refresh branches/worktrees to reflect the change
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      // TODO: Show error to user (e.g., merge conflicts)
+      // Try to go back to the feature branch on failure
+      try {
+        await client.checkout(featureBranch);
+      } catch (_) {}
+    }
+  }
+
   /// Activates an item (used for both keyboard and mouse click).
   void _activateItem(NavigableItem item, BuildContext context) {
     switch (item.type) {
@@ -719,6 +762,10 @@ class _GitSidebarState extends State<GitSidebar> {
       case NavigableItemType.commitPushAction:
         // Send "commit and push" message to the chat
         component.onSendMessage?.call('commit and push');
+        break;
+      case NavigableItemType.mergeToMainAction:
+        // Merge current branch to main
+        _mergeToMain(item.fullPath!);
         break;
       case NavigableItemType.switchWorktreeAction:
         // Switch to the worktree
@@ -988,6 +1035,14 @@ class _GitSidebarState extends State<GitSidebar> {
         );
       case NavigableItemType.commitPushAction:
         return _buildCommitPushActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.mergeToMainAction:
+        return _buildMergeToMainActionRow(
           item,
           isSelected,
           isHovered,
@@ -1340,6 +1395,44 @@ class _GitSidebarState extends State<GitSidebar> {
                 item.name,
                 style: TextStyle(
                   color: theme.base.success,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Merge to main" action row.
+  Component _buildMergeToMainActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text('⤵', style: TextStyle(color: theme.base.primary)),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: theme.base.primary,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
