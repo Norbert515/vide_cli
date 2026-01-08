@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:vide_core/mcp/git/git_client.dart';
 import 'package:vide_core/mcp/git/git_models.dart';
 import 'package:vide_core/mcp/git/git_providers.dart';
+import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -19,11 +21,24 @@ class ChangedFile {
 
 /// Type of navigable item for unified keyboard navigation.
 enum NavigableItemType {
-  changesHeader,
+  newBranchAction, // "+ New branch from..." quick action
+  newWorktreeAction, // "+ New worktree from..." quick action
+  baseBranchOption, // Branch option when selecting base branch
+  worktreeHeader, // Collapsible worktree header with branch name
+  changesSectionLabel, // "Changes" label (not collapsible)
   file,
-  branchesHeader,
+  commitPushAction, // "Commit & push" action for branches with changes
+  divider, // Visual separator line
+  branchSectionLabel, // "Other Branches"
   branch,
   showMoreBranches,
+}
+
+/// State of the quick action flow
+enum QuickActionState {
+  collapsed, // Just showing the action label
+  selectingBaseBranch, // Expanded to show branch options
+  enteringName, // Typing the new branch/worktree name
 }
 
 /// Unified navigable item for keyboard navigation across all sections.
@@ -35,6 +50,7 @@ class NavigableItem {
   final int fileCount;
   final bool isExpanded;
   final bool isLastInSection;
+  final String? worktreePath; // For associating items with their worktree
 
   const NavigableItem({
     required this.type,
@@ -44,6 +60,7 @@ class NavigableItem {
     this.fileCount = 0,
     this.isExpanded = false,
     this.isLastInSection = false,
+    this.worktreePath,
   });
 }
 
@@ -61,6 +78,7 @@ class GitSidebar extends StatefulComponent {
   final VoidCallback? onExitRight;
   final String repoPath;
   final int width;
+  final void Function(String message)? onSendMessage;
 
   const GitSidebar({
     required this.focused,
@@ -68,6 +86,7 @@ class GitSidebar extends StatefulComponent {
     this.onExitRight,
     required this.repoPath,
     this.width = 30,
+    this.onSendMessage,
     super.key,
   });
 
@@ -84,12 +103,30 @@ class _GitSidebarState extends State<GitSidebar> {
   double _currentWidth = 5.0;
   Timer? _animationTimer;
 
-  // Changes section state
-  bool _changesExpanded = false;
-
-  // Branches section state
-  bool _branchesExpanded = false;
+  // Worktree expansion state (per-worktree collapse/expand)
+  Map<String, bool> _worktreeExpansionState = {};
   bool _showAllBranches = false;
+
+  // Quick action state
+  QuickActionState _branchActionState = QuickActionState.collapsed;
+  QuickActionState _worktreeActionState = QuickActionState.collapsed;
+  String? _selectedBaseBranch; // The base branch selected for the action
+  NavigableItemType? _activeInputType; // Which action is in input mode
+  String _inputBuffer = '';
+
+  /// Check if a worktree is expanded. Current worktree expanded by default, others collapsed.
+  bool _isWorktreeExpanded(String worktreePath) {
+    return _worktreeExpansionState[worktreePath] ??
+        (worktreePath == component.repoPath);
+  }
+
+  /// Toggle the expansion state of a worktree.
+  void _toggleWorktreeExpansion(String worktreePath) {
+    setState(() {
+      final current = _isWorktreeExpanded(worktreePath);
+      _worktreeExpansionState[worktreePath] = !current;
+    });
+  }
   List<GitBranch>? _cachedBranches;
   List<GitWorktree>? _cachedWorktrees;
   bool _branchesLoading = false;
@@ -113,6 +150,19 @@ class _GitSidebarState extends State<GitSidebar> {
     if (component.expanded != old.expanded) {
       _animateToWidth(component.expanded ? _expandedWidth : _collapsedWidth);
     }
+    // When focus changes to true, select the current worktree
+    if (component.focused && !old.focused) {
+      _selectCurrentWorktree();
+    }
+  }
+
+  /// Select the current worktree in the navigation list.
+  void _selectCurrentWorktree() {
+    // Find index of current worktree (skip quick actions at top)
+    // Quick actions are at index 0 and 1, current worktree header is at index 2
+    setState(() {
+      _selectedIndex = 2; // Index after the two quick action items
+    });
   }
 
   void _animateToWidth(double targetWidth) {
@@ -140,11 +190,7 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Builds a flat list of all changed files with their statuses from git status.
-  List<ChangedFile> _buildChangedFiles(BuildContext context) {
-    final gitStatusAsync = context.watch(
-      gitStatusStreamProvider(component.repoPath),
-    );
-    final gitStatus = gitStatusAsync.valueOrNull;
+  List<ChangedFile> _buildChangedFiles(dynamic gitStatus) {
     if (gitStatus == null) return [];
 
     final files = <ChangedFile>[];
@@ -180,83 +226,231 @@ class _GitSidebarState extends State<GitSidebar> {
     return files;
   }
 
+  /// Gets the list of base branch options for quick actions.
+  List<String> _getBaseBranchOptions(String currentBranch) {
+    final options = <String>[];
+
+    // Current branch first
+    options.add(currentBranch);
+
+    // Main branch (if different from current)
+    final mainBranch = _cachedBranches?.firstWhere(
+      (b) => b.name == 'main' || b.name == 'master',
+      orElse: () => GitBranch(name: '', isCurrent: false, isRemote: false, lastCommit: ''),
+    );
+    if (mainBranch != null && mainBranch.name.isNotEmpty && mainBranch.name != currentBranch) {
+      options.add(mainBranch.name);
+    }
+
+    // Add "Other..." option if there are more branches
+    final otherBranches = _cachedBranches?.where(
+      (b) => !b.isRemote && b.name != currentBranch && b.name != 'main' && b.name != 'master'
+    ).toList() ?? [];
+    if (otherBranches.isNotEmpty) {
+      options.add('Other...');
+    }
+
+    return options;
+  }
+
   /// Builds the complete list of navigable items including section headers.
   /// This is the unified navigation model for keyboard navigation.
   List<NavigableItem> _buildNavigableItems(BuildContext context) {
     final items = <NavigableItem>[];
-    final changedFiles = _buildChangedFiles(context);
 
-    // 1. Changes header (always present)
-    items.add(
-      NavigableItem(
-        type: NavigableItemType.changesHeader,
-        name: 'Changes',
-        fileCount: changedFiles.length,
-        isExpanded: _changesExpanded,
-      ),
-    );
+    // Get current branch for base options
+    final gitStatusAsync =
+        context.watch(gitStatusStreamProvider(component.repoPath));
+    final currentBranch = gitStatusAsync.valueOrNull?.branch ?? 'main';
 
-    // 2. File items (if Changes is expanded)
-    if (_changesExpanded) {
-      for (var i = 0; i < changedFiles.length; i++) {
-        final file = changedFiles[i];
-        final isLast = i == changedFiles.length - 1;
-        items.add(
-          NavigableItem(
-            type: NavigableItemType.file,
-            name: file.path,
-            fullPath: file.path,
-            status: file.status,
-            isLastInSection: isLast,
-          ),
-        );
+    // New branch action with optional branch selection
+    items.add(NavigableItem(
+      type: NavigableItemType.newBranchAction,
+      name: '+ New branch...',
+      isExpanded: _branchActionState != QuickActionState.collapsed,
+    ));
+
+    // Show branch options if selecting base branch for new branch
+    if (_branchActionState == QuickActionState.selectingBaseBranch) {
+      for (final branch in _getBaseBranchOptions(currentBranch)) {
+        items.add(NavigableItem(
+          type: NavigableItemType.baseBranchOption,
+          name: branch,
+          fullPath: 'branch', // Marker for which action this belongs to
+        ));
       }
     }
 
-    // 3. Branches header (always present)
-    items.add(
-      NavigableItem(
-        type: NavigableItemType.branchesHeader,
-        name: 'Branches',
-        isExpanded: _branchesExpanded,
-      ),
-    );
+    // New worktree action with optional branch selection
+    items.add(NavigableItem(
+      type: NavigableItemType.newWorktreeAction,
+      name: '+ New worktree...',
+      isExpanded: _worktreeActionState != QuickActionState.collapsed,
+    ));
 
-    // 4. Branch items (if Branches is expanded)
-    if (_branchesExpanded && _cachedBranches != null && !_branchesLoading) {
-      final branches = _cachedBranches!;
-      final displayCount = _showAllBranches
-          ? branches.length
-          : _initialBranchCount.clamp(0, branches.length);
+    // Show branch options if selecting base branch for new worktree
+    if (_worktreeActionState == QuickActionState.selectingBaseBranch) {
+      for (final branch in _getBaseBranchOptions(currentBranch)) {
+        items.add(NavigableItem(
+          type: NavigableItemType.baseBranchOption,
+          name: branch,
+          fullPath: 'worktree', // Marker for which action this belongs to
+        ));
+      }
+    }
 
-      final hasShowMore =
-          !_showAllBranches && branches.length > _initialBranchCount;
+    // Always include current worktree first (even if no worktrees cached yet)
+    final currentWorktreePath = component.repoPath;
+    final gitStatus = gitStatusAsync.valueOrNull;
 
-      for (var i = 0; i < displayCount; i++) {
-        final isLast = i == displayCount - 1 && !hasShowMore;
-        items.add(
-          NavigableItem(
-            type: NavigableItemType.branch,
-            name: branches[i].name,
-            isLastInSection: isLast,
-          ),
-        );
+    // Ensure worktrees are loaded
+    if (_cachedBranches == null && !_branchesLoading) {
+      _loadBranchesAndWorktrees();
+    }
+
+    // Build current worktree section
+    items.addAll(_buildWorktreeSection(
+      context,
+      path: currentWorktreePath,
+      branch: gitStatus?.branch ?? 'Loading...',
+      isCurrentWorktree: true,
+      gitStatus: gitStatus,
+    ));
+
+    // Add other worktrees
+    if (_cachedWorktrees != null) {
+      for (final worktree in _cachedWorktrees!) {
+        if (worktree.path == currentWorktreePath) continue; // Skip current
+
+        // Only watch status if expanded (lazy loading)
+        final isExpanded = _isWorktreeExpanded(worktree.path);
+        GitStatus? wtStatus;
+        if (isExpanded) {
+          final statusAsync =
+              context.watch(gitStatusStreamProvider(worktree.path));
+          wtStatus = statusAsync.valueOrNull;
+        }
+
+        items.addAll(_buildWorktreeSection(
+          context,
+          path: worktree.path,
+          branch: worktree.branch,
+          isCurrentWorktree: false,
+          gitStatus: wtStatus,
+        ));
+      }
+    }
+
+    // Add divider and "Other Branches" section
+    if (_cachedBranches != null) {
+      final worktreeBranches =
+          _cachedWorktrees?.map((w) => w.branch).toSet() ?? {};
+      worktreeBranches.add(gitStatus?.branch ?? '');
+
+      final otherBranches = _cachedBranches!
+          .where((b) => !worktreeBranches.contains(b.name) && !b.isRemote)
+          .toList();
+
+      // Find main branch (main or master) - show it first if it's in other branches
+      final mainBranchName = otherBranches.any((b) => b.name == 'main')
+          ? 'main'
+          : otherBranches.any((b) => b.name == 'master')
+              ? 'master'
+              : null;
+
+      // Sort: main/master first, then alphabetically
+      if (mainBranchName != null) {
+        otherBranches.sort((a, b) {
+          if (a.name == mainBranchName) return -1;
+          if (b.name == mainBranchName) return 1;
+          return a.name.compareTo(b.name);
+        });
       }
 
-      // Show more option
-      if (hasShowMore) {
-        items.add(
-          NavigableItem(
+      if (otherBranches.isNotEmpty) {
+        items.add(NavigableItem(type: NavigableItemType.divider, name: ''));
+        items.add(NavigableItem(
+          type: NavigableItemType.branchSectionLabel,
+          name: 'Other Branches',
+        ));
+
+        final displayCount = _showAllBranches
+            ? otherBranches.length
+            : _initialBranchCount.clamp(0, otherBranches.length);
+
+        for (var i = 0; i < displayCount; i++) {
+          items.add(NavigableItem(
+            type: NavigableItemType.branch,
+            name: otherBranches[i].name,
+            isLastInSection: i == displayCount - 1,
+          ));
+        }
+
+        if (!_showAllBranches && otherBranches.length > _initialBranchCount) {
+          items.add(NavigableItem(
             type: NavigableItemType.showMoreBranches,
-            name: 'Show more (${branches.length - _initialBranchCount})',
+            name: 'Show more (${otherBranches.length - _initialBranchCount})',
             isLastInSection: true,
-          ),
-        );
+          ));
+        }
       }
     }
 
     return items;
   }
+
+  /// Builds items for a single worktree section (header + files).
+  List<NavigableItem> _buildWorktreeSection(
+    BuildContext context, {
+    required String path,
+    required String branch,
+    required bool isCurrentWorktree,
+    GitStatus? gitStatus,
+  }) {
+    final items = <NavigableItem>[];
+    final isExpanded = _isWorktreeExpanded(path);
+
+    // Worktree header
+    items.add(NavigableItem(
+      type: NavigableItemType.worktreeHeader,
+      name: branch,
+      worktreePath: path,
+      isExpanded: isExpanded,
+    ));
+
+    if (!isExpanded) return items;
+
+    // File items directly under the header (no "Changes" label)
+    final changedFiles = _buildChangedFiles(gitStatus);
+
+    // Add "Commit & push" action first if there are changes
+    if (changedFiles.isNotEmpty) {
+      items.add(NavigableItem(
+        type: NavigableItemType.commitPushAction,
+        name: 'Commit & push',
+        worktreePath: path,
+        isLastInSection: false,
+      ));
+    }
+
+    for (var i = 0; i < changedFiles.length; i++) {
+      items.add(NavigableItem(
+        type: NavigableItemType.file,
+        name: changedFiles[i].path,
+        fullPath: changedFiles[i].path,
+        status: changedFiles[i].status,
+        worktreePath: path,
+        isLastInSection: i == changedFiles.length - 1,
+      ));
+    }
+
+    return items;
+  }
+
+  /// Check if we're in name input mode for either action
+  bool get _isEnteringName =>
+      _branchActionState == QuickActionState.enteringName ||
+      _worktreeActionState == QuickActionState.enteringName;
 
   void _handleKeyEvent(
     KeyboardEvent event,
@@ -265,8 +459,23 @@ class _GitSidebarState extends State<GitSidebar> {
   ) {
     if (items.isEmpty) return;
 
+    // Handle input mode differently
+    if (_isEnteringName) {
+      _handleInputModeKey(event, context);
+      return;
+    }
+
     if (event.logicalKey == LogicalKey.escape) {
-      // First check if file preview is open - close it first
+      // First check if quick action is expanded - collapse it first
+      if (_branchActionState != QuickActionState.collapsed ||
+          _worktreeActionState != QuickActionState.collapsed) {
+        setState(() {
+          _branchActionState = QuickActionState.collapsed;
+          _worktreeActionState = QuickActionState.collapsed;
+        });
+        return;
+      }
+      // Then check if file preview is open - close it first
       final filePreviewPath = context.read(filePreviewPathProvider);
       if (filePreviewPath != null) {
         context.read(filePreviewPathProvider.notifier).state = null;
@@ -297,19 +506,153 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
+  void _handleInputModeKey(KeyboardEvent event, BuildContext context) {
+    if (event.logicalKey == LogicalKey.escape) {
+      // Cancel input - go back to collapsed state
+      setState(() {
+        _branchActionState = QuickActionState.collapsed;
+        _worktreeActionState = QuickActionState.collapsed;
+        _activeInputType = null;
+        _selectedBaseBranch = null;
+        _inputBuffer = '';
+      });
+    } else if (event.logicalKey == LogicalKey.enter) {
+      // Execute action
+      _executeQuickAction(context);
+    } else if (event.logicalKey == LogicalKey.backspace) {
+      setState(() {
+        if (_inputBuffer.isNotEmpty) {
+          _inputBuffer = _inputBuffer.substring(0, _inputBuffer.length - 1);
+        }
+      });
+    } else if (event.character != null && event.character!.isNotEmpty) {
+      // Add character to buffer
+      setState(() {
+        _inputBuffer += event.character!;
+      });
+    }
+  }
+
+  Future<void> _executeQuickAction(BuildContext context) async {
+    if (_inputBuffer.isEmpty) {
+      setState(() {
+        _branchActionState = QuickActionState.collapsed;
+        _worktreeActionState = QuickActionState.collapsed;
+        _activeInputType = null;
+        _selectedBaseBranch = null;
+      });
+      return;
+    }
+
+    final newBranchName = _inputBuffer.trim();
+    final baseBranch = _selectedBaseBranch;
+    final client = GitClient(workingDirectory: component.repoPath);
+
+    try {
+      if (_activeInputType == NavigableItemType.newBranchAction) {
+        // Create and checkout new branch from base
+        // First checkout base branch if different from current
+        if (baseBranch != null) {
+          await client.checkout(baseBranch);
+        }
+        await client.checkout(newBranchName, create: true);
+      } else if (_activeInputType == NavigableItemType.newWorktreeAction) {
+        // Create worktree with new branch from base
+        // Path: ../reponame-branchname
+        final repoName = p.basename(component.repoPath);
+        final worktreePath =
+            p.join(p.dirname(component.repoPath), '$repoName-$newBranchName');
+        // Use base branch as the starting point
+        await client.worktreeAdd(
+          worktreePath,
+          branch: newBranchName,
+          createBranch: true,
+          baseBranch: baseBranch,
+        );
+      }
+
+      // Refresh branches/worktrees
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      // TODO: Show error to user
+    }
+
+    setState(() {
+      _branchActionState = QuickActionState.collapsed;
+      _worktreeActionState = QuickActionState.collapsed;
+      _activeInputType = null;
+      _selectedBaseBranch = null;
+      _inputBuffer = '';
+    });
+  }
+
   /// Activates an item (used for both keyboard and mouse click).
   void _activateItem(NavigableItem item, BuildContext context) {
     switch (item.type) {
-      case NavigableItemType.changesHeader:
-        _toggleChangesSection();
+      case NavigableItemType.newBranchAction:
+        setState(() {
+          if (_branchActionState == QuickActionState.collapsed) {
+            // Expand to show branch options
+            _branchActionState = QuickActionState.selectingBaseBranch;
+            _worktreeActionState = QuickActionState.collapsed; // Collapse other
+          } else {
+            // Collapse if already expanded
+            _branchActionState = QuickActionState.collapsed;
+          }
+        });
+        break;
+      case NavigableItemType.newWorktreeAction:
+        setState(() {
+          if (_worktreeActionState == QuickActionState.collapsed) {
+            // Expand to show branch options
+            _worktreeActionState = QuickActionState.selectingBaseBranch;
+            _branchActionState = QuickActionState.collapsed; // Collapse other
+          } else {
+            // Collapse if already expanded
+            _worktreeActionState = QuickActionState.collapsed;
+          }
+        });
+        break;
+      case NavigableItemType.baseBranchOption:
+        // User selected a base branch - go to input mode
+        final isForBranch = item.fullPath == 'branch';
+        if (item.name == 'Other...') {
+          // TODO: Show full branch list picker
+          // For now, just use current branch
+          return;
+        }
+        setState(() {
+          _selectedBaseBranch = item.name;
+          _activeInputType = isForBranch
+              ? NavigableItemType.newBranchAction
+              : NavigableItemType.newWorktreeAction;
+          if (isForBranch) {
+            _branchActionState = QuickActionState.enteringName;
+          } else {
+            _worktreeActionState = QuickActionState.enteringName;
+          }
+          _inputBuffer = '';
+        });
+        break;
+      case NavigableItemType.worktreeHeader:
+        _toggleWorktreeExpansion(item.worktreePath!);
+        break;
+      case NavigableItemType.changesSectionLabel:
+      case NavigableItemType.branchSectionLabel:
+      case NavigableItemType.divider:
+        // Labels and dividers are not activatable
         break;
       case NavigableItemType.file:
-        final fullFilePath = '${component.repoPath}/${item.fullPath}';
+        final basePath = item.worktreePath ?? component.repoPath;
+        final fullFilePath = '$basePath/${item.fullPath}';
         context.read(filePreviewPathProvider.notifier).state = fullFilePath;
         // Focus stays on sidebar - ESC will close file preview first
         break;
-      case NavigableItemType.branchesHeader:
-        _toggleBranchesSection();
+      case NavigableItemType.commitPushAction:
+        // Send "commit and push" message to the chat
+        component.onSendMessage?.call('commit and push');
         break;
       case NavigableItemType.branch:
         // TODO: Could checkout branch or show branch details
@@ -320,7 +663,7 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
-  /// Loads branches and worktrees when branches section is expanded.
+  /// Loads branches and worktrees on initialization.
   Future<void> _loadBranchesAndWorktrees() async {
     if (_branchesLoading) return;
 
@@ -355,23 +698,6 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
-  /// Toggles the changes section expansion.
-  void _toggleChangesSection() {
-    setState(() {
-      _changesExpanded = !_changesExpanded;
-    });
-  }
-
-  /// Toggles the branches section expansion.
-  void _toggleBranchesSection() {
-    setState(() {
-      _branchesExpanded = !_branchesExpanded;
-      if (_branchesExpanded && _cachedBranches == null) {
-        _loadBranchesAndWorktrees();
-      }
-    });
-  }
-
   /// Checks if a branch is checked out in a worktree.
   bool _isWorktreeBranch(String branchName) {
     if (_cachedWorktrees == null) return false;
@@ -386,7 +712,6 @@ class _GitSidebarState extends State<GitSidebar> {
     );
     final gitStatus = gitStatusAsync.valueOrNull;
     final navigableItems = _buildNavigableItems(context);
-    final changedFiles = _buildChangedFiles(context);
 
     // Clamp selected index to valid range
     if (navigableItems.isNotEmpty && _selectedIndex >= navigableItems.length) {
@@ -419,7 +744,6 @@ class _GitSidebarState extends State<GitSidebar> {
                       theme,
                       gitStatus,
                       navigableItems,
-                      changedFiles.length,
                     ),
                   ),
           ),
@@ -461,46 +785,48 @@ class _GitSidebarState extends State<GitSidebar> {
     VideThemeData theme,
     dynamic gitStatus,
     List<NavigableItem> items,
-    int totalChanges,
   ) {
+    final isWorktreeAsync =
+        context.watch(isWorktreeProvider(component.repoPath));
+    final isWorktree = isWorktreeAsync.valueOrNull ?? false;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Available width for content (subtract padding)
         final availableWidth =
             constraints.maxWidth.toInt() - 2; // 1 padding on each side
 
+        // Get worktree name from path if in a worktree
+        final worktreeName = isWorktree ? p.basename(component.repoPath) : null;
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Branch name header (static, always visible)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                color: theme.base.outline.withOpacity(0.3),
-              ),
-              child: Row(
-                children: [
-                  Text('', style: TextStyle(color: _vsCodeAccentColor)),
-                  SizedBox(width: 1),
-                  Expanded(
-                    child: Text(
-                      _ellipsize(
-                        gitStatus?.branch ?? 'Loading...',
-                        availableWidth - 3,
-                      ), // -3 for icon and space
-                      style: TextStyle(
-                        color: theme.base.onSurface,
-                        fontWeight: FontWeight.bold,
+            // Worktree indicator (shown only when in a worktree)
+            if (isWorktree && worktreeName != null)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 1),
+                decoration: BoxDecoration(
+                  color: theme.base.primary.withOpacity(0.15),
+                ),
+                child: Row(
+                  children: [
+                    Text('⎇', style: TextStyle(color: theme.base.primary)),
+                    SizedBox(width: 1),
+                    Expanded(
+                      child: Text(
+                        worktreeName,
+                        style: TextStyle(
+                          color: theme.base.primary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // Spacer after header
-            SizedBox(height: 1),
-
-            // Scrollable content - all navigable items
+            // All navigable items in ListView (including main branch header)
             Expanded(
               child: ListView(
                 controller: _scrollController,
@@ -512,21 +838,20 @@ class _GitSidebarState extends State<GitSidebar> {
                       i,
                       theme,
                       availableWidth,
+                      gitStatus,
                     ),
                 ],
               ),
             ),
-
-            // Navigation hint at bottom (no border, just padding)
+            // Navigation hint at bottom
             if (component.focused)
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: 1),
                 child: Text(
                   '→ to exit',
                   style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.disabled,
-                    ),
+                    color:
+                        theme.base.onSurface.withOpacity(TextOpacity.disabled),
                   ),
                 ),
               ),
@@ -536,13 +861,6 @@ class _GitSidebarState extends State<GitSidebar> {
     );
   }
 
-  /// Truncates text with ellipsis if it exceeds maxWidth characters.
-  String _ellipsize(String text, int maxWidth) {
-    if (maxWidth <= 3) return text.length <= maxWidth ? text : '...';
-    if (text.length <= maxWidth) return text;
-    return '${text.substring(0, maxWidth - 3)}...';
-  }
-
   /// Builds a row for any navigable item type.
   Component _buildNavigableItemRow(
     BuildContext context,
@@ -550,6 +868,7 @@ class _GitSidebarState extends State<GitSidebar> {
     int index,
     VideThemeData theme,
     int availableWidth,
+    dynamic gitStatus,
   ) {
     final isSelected = component.focused && _selectedIndex == index;
     final isHovered = _hoveredIndex == index;
@@ -569,6 +888,7 @@ class _GitSidebarState extends State<GitSidebar> {
           isHovered,
           theme,
           availableWidth,
+          gitStatus,
         ),
       ),
     );
@@ -581,10 +901,37 @@ class _GitSidebarState extends State<GitSidebar> {
     bool isHovered,
     VideThemeData theme,
     int availableWidth,
+    dynamic gitStatus,
   ) {
     switch (item.type) {
-      case NavigableItemType.changesHeader:
-        return _buildChangesHeaderRow(
+      case NavigableItemType.newBranchAction:
+      case NavigableItemType.newWorktreeAction:
+        return _buildQuickActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.baseBranchOption:
+        return _buildBaseBranchOptionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.worktreeHeader:
+        return _buildWorktreeHeaderRow(
+          context,
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.changesSectionLabel:
+        return _buildChangesSectionLabelRow(
           item,
           isSelected,
           isHovered,
@@ -599,8 +946,18 @@ class _GitSidebarState extends State<GitSidebar> {
           theme,
           availableWidth,
         );
-      case NavigableItemType.branchesHeader:
-        return _buildBranchesHeaderRow(
+      case NavigableItemType.commitPushAction:
+        return _buildCommitPushActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.divider:
+        return _buildDividerRow(theme, availableWidth);
+      case NavigableItemType.branchSectionLabel:
+        return _buildBranchSectionLabelRow(
           item,
           isSelected,
           isHovered,
@@ -626,8 +983,8 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
-  /// Builds the Changes section header row.
-  Component _buildChangesHeaderRow(
+  /// Builds a quick action row (+ New branch..., + New worktree...).
+  Component _buildQuickActionRow(
     NavigableItem item,
     bool isSelected,
     bool isHovered,
@@ -635,50 +992,229 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
+    final isBranchAction = item.type == NavigableItemType.newBranchAction;
+    final actionState = isBranchAction ? _branchActionState : _worktreeActionState;
+    final isEnteringName = actionState == QuickActionState.enteringName &&
+        _activeInputType == item.type;
+    final isExpanded = actionState != QuickActionState.collapsed;
+
+    // Determine display text based on state
+    String displayText;
+    if (isEnteringName) {
+      // Show input mode with selected base branch
+      final actionName = isBranchAction ? 'branch' : 'worktree';
+      displayText = '  $actionName: $_inputBuffer│'; // │ is cursor
+    } else if (isExpanded) {
+      // Show expanded state with collapse indicator
+      final actionName = isBranchAction ? 'New branch' : 'New worktree';
+      displayText = '▾ $actionName from...';
+    } else {
+      // Show collapsed state
+      final actionName = isBranchAction ? 'New branch' : 'New worktree';
+      displayText = '▸ $actionName...';
+    }
+
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: highlight
           ? BoxDecoration(
               color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
             )
           : null,
-      child: Row(
-        children: [
-          Text(
-            item.isExpanded ? '▾' : '▸',
-            style: TextStyle(
-              color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-            ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 1),
+        child: Text(
+          displayText,
+          style: TextStyle(
+            color: isEnteringName
+                ? theme.base.primary
+                : theme.base.onSurface.withOpacity(TextOpacity.secondary),
           ),
-          SizedBox(width: 1),
-          Text(
-            'Changes',
-            style: TextStyle(
-              color: theme.base.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          // Push badge to the right
-          Expanded(child: SizedBox()),
-          if (item.fileCount > 0)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                color: _vsCodeModifiedColor.withOpacity(0.2),
-              ),
-              child: Text(
-                '${item.fileCount}',
-                style: TextStyle(
-                  color: _vsCodeModifiedColor,
-                ),
-              ),
-            ),
-        ],
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
+        ),
       ),
     );
   }
 
-  /// Builds a file row matching the mockup style exactly.
+  /// Builds a base branch option row (shown when selecting which branch to base from).
+  Component _buildBaseBranchOptionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isOther = item.name == 'Other...';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 3), // Indent under parent action
+        child: Row(
+          children: [
+            Text(
+              isOther ? '…' : '',
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+              ),
+            ),
+            SizedBox(width: isOther ? 1 : 2),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: isOther
+                      ? theme.base.onSurface.withOpacity(TextOpacity.tertiary)
+                      : theme.base.onSurface,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a worktree header row (collapsible section for each worktree).
+  Component _buildWorktreeHeaderRow(
+    BuildContext context,
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final isExpanded = item.isExpanded;
+    final expandIcon = isExpanded ? '▾' : '▸';
+    final highlight = isSelected || isHovered;
+    final isCurrentWorktree = item.worktreePath == component.repoPath;
+
+    // Get git status for ahead/behind indicators and change count
+    final gitStatusAsync =
+        context.watch(gitStatusStreamProvider(item.worktreePath!));
+    final gitStatus = gitStatusAsync.valueOrNull;
+
+    // Count total changes
+    final changeCount = gitStatus != null
+        ? gitStatus.modifiedFiles.length +
+            gitStatus.stagedFiles.length +
+            gitStatus.untrackedFiles.length
+        : 0;
+
+    // Current worktree uses primary color, others use default
+    final branchColor =
+        isCurrentWorktree ? theme.base.primary : theme.base.onSurface;
+
+    return Column(
+      children: [
+        SizedBox(height: 1), // Top padding outside selection
+        Container(
+          decoration: highlight
+              ? BoxDecoration(
+                  color:
+                      theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                )
+              : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 1),
+            child: Row(
+              children: [
+                Text(expandIcon, style: TextStyle(color: branchColor)),
+                SizedBox(width: 1),
+                Text('',
+                    style: TextStyle(
+                        color: isCurrentWorktree
+                            ? theme.base.primary
+                            : _vsCodeAccentColor)),
+                SizedBox(width: 1),
+                Expanded(
+                  child: Text(
+                    item.name,
+                    style: TextStyle(
+                      color: branchColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                // Show change count when collapsed (and has changes)
+                if (!isExpanded && changeCount > 0)
+                  Text(
+                    ' $changeCount',
+                    style: TextStyle(
+                      color: _vsCodeModifiedColor,
+                    ),
+                  ),
+                // Ahead/behind indicators
+                if (gitStatus != null) ...[
+                  if (gitStatus.ahead > 0)
+                    Text(
+                      ' ↑${gitStatus.ahead}',
+                      style: TextStyle(color: theme.base.success),
+                    ),
+                  if (gitStatus.behind > 0)
+                    Text(
+                      ' ↓${gitStatus.behind}',
+                      style: TextStyle(color: _vsCodeModifiedColor),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Builds the "Changes (5)" label row.
+  Component _buildChangesSectionLabelRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final countDisplay = item.fileCount > 0 ? ' (${item.fileCount})' : '';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Text(
+          '${item.name}$countDisplay',
+          style: TextStyle(
+            color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds a visual divider row.
+  Component _buildDividerRow(VideThemeData theme, int availableWidth) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Text(
+        '─' * (availableWidth - 2),
+        style: TextStyle(color: theme.base.outline.withOpacity(0.5)),
+      ),
+    );
+  }
+
+  /// Builds a file row with filename prominently displayed and path below.
   Component _buildFileRow(
     NavigableItem item,
     bool isSelected,
@@ -688,10 +1224,8 @@ class _GitSidebarState extends State<GitSidebar> {
   ) {
     final statusDot = _getStatusDot(item.status);
     final dotColor = _getStatusColor(item.status, theme);
-    final fileName = item.name.split('/').last;
+    final fileName = p.basename(item.name);
     final highlight = isSelected || isHovered;
-    // Tree connector: ╰ for last item, │ for others
-    final connector = item.isLastInSection ? '╰' : '│';
 
     return Container(
       decoration: highlight
@@ -703,14 +1237,14 @@ class _GitSidebarState extends State<GitSidebar> {
         padding: EdgeInsets.only(left: 2),
         child: Row(
           children: [
-            Text(connector, style: TextStyle(color: theme.base.outline)),
-            SizedBox(width: 1),
             Text(statusDot, style: TextStyle(color: dotColor)),
             SizedBox(width: 1),
             Expanded(
               child: Text(
                 fileName,
                 style: TextStyle(color: theme.base.onSurface),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ],
@@ -719,8 +1253,8 @@ class _GitSidebarState extends State<GitSidebar> {
     );
   }
 
-  /// Builds the Branches section header row.
-  Component _buildBranchesHeaderRow(
+  /// Builds a "Commit & push" action row.
+  Component _buildCommitPushActionRow(
     NavigableItem item,
     bool isSelected,
     bool isHovered,
@@ -728,56 +1262,63 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Empty line spacer between sections
-        SizedBox(height: 1),
-        // Header
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: highlight
-              ? BoxDecoration(
-                  color: theme.base.primary.withOpacity(
-                    isSelected ? 0.3 : 0.15,
-                  ),
-                )
-              : null,
-          child: Row(
-            children: [
-              Text(
-                item.isExpanded ? '▾' : '▸',
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text('↑', style: TextStyle(color: theme.base.success)),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                item.name,
                 style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                  color: theme.base.success,
                 ),
-              ),
-              SizedBox(width: 1),
-              Text(
-                'Branches',
-                style: TextStyle(
-                  color: theme.base.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Loading indicator (not navigable, shown inline)
-        if (item.isExpanded && _branchesLoading)
-          Container(
-            padding: EdgeInsets.only(left: 3),
-            child: Text(
-              'Loading...',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
-          ),
-      ],
+          ],
+        ),
+      ),
     );
   }
 
-  /// Builds a branch row with current branch indicator.
+  /// Builds a branch section label row ("Recent", "Other").
+  Component _buildBranchSectionLabelRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Text(
+          item.name,
+          style: TextStyle(
+            color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Builds a branch row with worktree indicator prefix.
   Component _buildBranchRow(
     NavigableItem item,
     bool isSelected,
@@ -796,12 +1337,8 @@ class _GitSidebarState extends State<GitSidebar> {
     );
     final isWorktree = _isWorktreeBranch(item.name);
     final isCurrent = branch?.isCurrent == true;
-    final currentIndicator = isCurrent ? '●' : ' ';
+    final isMainBranch = item.name == 'main' || item.name == 'master';
     final highlight = isSelected || isHovered;
-
-    // Account for "  ● " prefix (4 chars) and potential " W" suffix (2 chars)
-    final maxBranchNameWidth = availableWidth - 4 - (isWorktree ? 2 : 0);
-    final displayName = _ellipsize(item.name, maxBranchNameWidth);
 
     return Container(
       decoration: highlight
@@ -813,22 +1350,35 @@ class _GitSidebarState extends State<GitSidebar> {
         padding: EdgeInsets.only(left: 2),
         child: Row(
           children: [
-            Text(
-              currentIndicator,
-              style: TextStyle(
-                color: isCurrent ? theme.base.success : theme.base.outline,
+            // Worktree indicator at START
+            if (isWorktree)
+              Text(
+                '⎇ ',
+                style: TextStyle(color: theme.base.primary),
+              )
+            else if (isCurrent)
+              Text(
+                '● ',
+                style: TextStyle(color: theme.base.success),
+              )
+            else
+              Text(
+                '  ',
+                style: TextStyle(color: theme.base.outline),
               ),
-            ),
-            SizedBox(width: 1),
             Expanded(
               child: Text(
-                displayName + (isWorktree ? ' W' : ''),
+                item.name,
                 style: TextStyle(
                   color: isCurrent
                       ? theme.base.primary
-                      : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                  fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                      : isMainBranch
+                          ? theme.base.onSurface
+                          : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                  fontWeight: (isCurrent || isMainBranch) ? FontWeight.bold : FontWeight.normal,
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ],
@@ -861,10 +1411,12 @@ class _GitSidebarState extends State<GitSidebar> {
             SizedBox(width: 1),
             Expanded(
               child: Text(
-                _ellipsize(item.name, availableWidth - 5),
+                item.name,
                 style: TextStyle(
                   color: theme.base.primary.withOpacity(TextOpacity.secondary),
                 ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
               ),
             ),
           ],

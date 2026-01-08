@@ -196,10 +196,12 @@ class GitClient {
   /// [path] - The path where the new worktree should be created.
   /// [branch] - Optional branch name for the worktree.
   /// [createBranch] - If true, create a new branch for the worktree.
+  /// [baseBranch] - Optional base branch/commit to create the new branch from.
   Future<void> worktreeAdd(
     String path, {
     String? branch,
     bool createBranch = false,
+    String? baseBranch,
   }) async {
     final args = ['worktree', 'add'];
     if (createBranch && branch != null) {
@@ -208,6 +210,9 @@ class GitClient {
     args.add(path);
     if (!createBranch && branch != null) {
       args.add(branch);
+    } else if (baseBranch != null) {
+      // When creating a new branch, specify the base commit-ish
+      args.add(baseBranch);
     }
     await _runGitCommand(args);
   }
@@ -241,6 +246,21 @@ class GitClient {
   /// [worktree] - The path or name of the worktree to unlock.
   Future<void> worktreeUnlock(String worktree) async {
     await _runGitCommand(['worktree', 'unlock', worktree]);
+  }
+
+  /// Check if the current working directory is a git worktree (not the main repo).
+  ///
+  /// Returns true if this is a worktree, false if it's the main repository.
+  /// A worktree has .git as a file pointing to the main repo, not a directory.
+  Future<bool> isWorktree() async {
+    try {
+      final gitDir = await _runGitCommand(['rev-parse', '--git-dir']);
+      final gitCommonDir = await _runGitCommand(['rev-parse', '--git-common-dir']);
+      // If git-dir != git-common-dir, we're in a worktree
+      return gitDir.trim() != gitCommonDir.trim();
+    } catch (e) {
+      return false;
+    }
   }
 
   // Remote operations
@@ -324,6 +344,46 @@ class GitClient {
   /// Skip the current patch in a rebase.
   Future<void> rebaseSkip() async {
     await _runGitCommand(['rebase', '--skip']);
+  }
+
+  /// Get recently checked out branches from reflog.
+  ///
+  /// Returns a list of branch names in order of most recent checkout.
+  /// [limit] - Maximum number of recent branches to return.
+  Future<List<String>> getRecentBranches({int limit = 10}) async {
+    try {
+      // Get checkouts from reflog
+      final output = await _runGitCommand([
+        'reflog',
+        'show',
+        '--pretty=format:%gs',
+        '-n',
+        '100', // Check last 100 reflog entries
+      ]);
+
+      final recentBranches = <String>[];
+      final seenBranches = <String>{};
+
+      for (final line in output.split('\n')) {
+        // Look for "checkout: moving from X to Y" pattern
+        final match = RegExp(r'checkout: moving from .+ to (.+)').firstMatch(line);
+        if (match != null) {
+          final branch = match.group(1)!;
+          // Skip detached HEAD states (commit hashes)
+          if (!branch.contains(RegExp(r'^[0-9a-f]{7,40}$')) &&
+              !seenBranches.contains(branch)) {
+            seenBranches.add(branch);
+            recentBranches.add(branch);
+            if (recentBranches.length >= limit) break;
+          }
+        }
+      }
+
+      return recentBranches;
+    } catch (e) {
+      // Return empty list on error
+      return [];
+    }
   }
 
   /// Execute a raw git command with the given arguments.
@@ -479,7 +539,8 @@ class GitClient {
       if (line.trim().isEmpty) continue;
 
       final isCurrent = line.startsWith('*');
-      final cleanLine = line.replaceFirst('*', '').trim();
+      // Strip both * (current) and + (diverged from upstream) prefixes
+      final cleanLine = line.replaceFirst(RegExp(r'^[*+]\s*'), '').trim();
       final parts = cleanLine.split(RegExp(r'\s+'));
 
       if (parts.isEmpty) continue;

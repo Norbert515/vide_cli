@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:io';
 
+import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -31,6 +31,14 @@ final ideModeEnabledProvider = StateProvider<bool>((ref) {
 /// Provider for file preview path. When set, file preview is shown.
 /// Null means no file preview is open.
 final filePreviewPathProvider = StateProvider<String?>((ref) => null);
+
+/// Provider for current repository path. Uses effective working directory
+/// when an agent network is active (accounts for worktrees), otherwise
+/// falls back to Directory.current.path.
+final currentRepoPathProvider = Provider<String>((ref) {
+  final networkManager = ref.watch(agentNetworkManagerProvider.notifier);
+  return networkManager.effectiveWorkingDirectory;
+});
 
 /// Provider override for canUseToolCallbackFactory that bridges PermissionService to ClaudeClient.
 ///
@@ -217,9 +225,21 @@ class _VideAppContentState extends State<_VideAppContent> {
                   width: _sidebarWidth.toInt(),
                   focused: sidebarFocused,
                   expanded: true, // Sidebar is always expanded in IDE mode
-                  repoPath: Directory.current.path,
+                  repoPath: context.watch(currentRepoPathProvider),
                   onExitRight: () {
                     context.read(sidebarFocusProvider.notifier).state = false;
+                  },
+                  onSendMessage: (message) {
+                    // Send message to the main agent in the current network
+                    final networkState =
+                        context.read(agentNetworkManagerProvider);
+                    final mainAgentId =
+                        networkState.currentNetwork?.agentIds.firstOrNull;
+                    if (mainAgentId != null) {
+                      context
+                          .read(agentNetworkManagerProvider.notifier)
+                          .sendMessage(mainAgentId, Message(text: message));
+                    }
                   },
                 ),
               ),
