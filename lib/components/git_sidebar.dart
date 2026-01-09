@@ -36,6 +36,9 @@ enum NavigableItemType {
   pushAction, // "Push" action - push to remote
   fetchAction, // "Fetch" action - fetch from remote
   switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
+  worktreeCopyPathAction, // "Copy path" action for worktrees
+  worktreeRemoveAction, // "Remove worktree" action for worktrees
+  worktreeActionsHeader, // Expandable "Actions" header for non-current worktrees
   noChangesPlaceholder, // "No changes" placeholder when worktree is clean
   divider, // Visual separator line
   branchSectionLabel, // "Other Branches"
@@ -135,13 +138,30 @@ class _GitSidebarState extends State<GitSidebar> {
   // Actions menu expansion state
   bool _actionsExpanded = false;
 
+  // Worktree actions expansion state (per-worktree)
+  Set<String> _expandedWorktreeActions = {};
+
   // Loading state for git actions (e.g., 'pull', 'push', 'fetch', 'sync', 'merge')
   String? _loadingAction;
 
+  /// Find which worktree path contains the current working directory.
+  /// Returns the worktree path if CWD is within a worktree, or null if not found.
+  String? _findCurrentWorktreePath() {
+    if (_cachedWorktrees == null) return null;
+    final cwd = component.repoPath;
+    for (final wt in _cachedWorktrees!) {
+      if (cwd == wt.path || cwd.startsWith('${wt.path}/')) {
+        return wt.path;
+      }
+    }
+    return null;
+  }
+
   /// Check if a worktree is expanded. Current worktree expanded by default, others collapsed.
   bool _isWorktreeExpanded(String worktreePath) {
+    final currentPath = _findCurrentWorktreePath() ?? component.repoPath;
     return _worktreeExpansionState[worktreePath] ??
-        (worktreePath == component.repoPath);
+        (worktreePath == currentPath);
   }
 
   /// Toggle the expansion state of a worktree.
@@ -336,15 +356,16 @@ class _GitSidebarState extends State<GitSidebar> {
     }
 
     // Always include current worktree first (even if no worktrees cached yet)
-    final currentWorktreePath = component.repoPath;
+    // Resolve the actual worktree path - CWD might be a subdirectory
+    final resolvedCurrentPath = _findCurrentWorktreePath() ?? component.repoPath;
     final gitStatus = gitStatusAsync.valueOrNull;
 
-    // Check if current path is a worktree
-    final isCurrentWorktreeAsync = context.watch(isWorktreeProvider(currentWorktreePath));
+    // Check if resolved path is a worktree
+    final isCurrentWorktreeAsync = context.watch(isWorktreeProvider(resolvedCurrentPath));
     final isCurrentPathWorktree = isCurrentWorktreeAsync.valueOrNull ?? false;
 
     // Get main repo path to identify which worktrees are actual worktrees
-    final mainRepoPathAsync = context.watch(mainRepoPathProvider(currentWorktreePath));
+    final mainRepoPathAsync = context.watch(mainRepoPathProvider(resolvedCurrentPath));
     final mainRepoPath = mainRepoPathAsync.valueOrNull;
 
     // Ensure worktrees are loaded
@@ -355,7 +376,7 @@ class _GitSidebarState extends State<GitSidebar> {
     // Build current worktree section
     items.addAll(_buildWorktreeSection(
       context,
-      path: currentWorktreePath,
+      path: resolvedCurrentPath,
       branch: gitStatus?.branch ?? 'Loading...',
       isCurrentWorktree: true,
       isWorktree: isCurrentPathWorktree,
@@ -365,7 +386,7 @@ class _GitSidebarState extends State<GitSidebar> {
     // Add other worktrees
     if (_cachedWorktrees != null) {
       for (final worktree in _cachedWorktrees!) {
-        if (worktree.path == currentWorktreePath) continue; // Skip current
+        if (worktree.path == resolvedCurrentPath) continue; // Skip current
 
         // Only watch status if expanded (lazy loading)
         final isExpanded = _isWorktreeExpanded(worktree.path);
@@ -490,13 +511,34 @@ class _GitSidebarState extends State<GitSidebar> {
 
     if (!isExpanded) return items;
 
-    // For non-current worktrees, add "Switch to" action first
+    // For non-current worktrees, add collapsible Actions header
     if (!isCurrentWorktree) {
+      final worktreeActionsExpanded = _expandedWorktreeActions.contains(path);
       items.add(NavigableItem(
-        type: NavigableItemType.switchWorktreeAction,
-        name: 'Switch to this worktree',
+        type: NavigableItemType.worktreeActionsHeader,
+        name: 'Actions',
         worktreePath: path,
+        isExpanded: worktreeActionsExpanded,
       ));
+
+      // Only show actions if expanded
+      if (worktreeActionsExpanded) {
+        items.add(NavigableItem(
+          type: NavigableItemType.switchWorktreeAction,
+          name: 'Switch to this worktree',
+          worktreePath: path,
+        ));
+        items.add(NavigableItem(
+          type: NavigableItemType.worktreeCopyPathAction,
+          name: 'Copy path',
+          worktreePath: path,
+        ));
+        items.add(NavigableItem(
+          type: NavigableItemType.worktreeRemoveAction,
+          name: 'Remove worktree',
+          worktreePath: path,
+        ));
+      }
     }
 
     // File items directly under the header (no "Changes" label)
@@ -915,6 +957,27 @@ class _GitSidebarState extends State<GitSidebar> {
     }
   }
 
+  /// Remove a worktree.
+  Future<void> _removeWorktree(String worktreePath) async {
+    setState(() => _loadingAction = 'remove');
+
+    final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
+
+    try {
+      await client.worktreeRemove(worktreePath);
+      toastNotifier.success('Worktree removed');
+
+      // Refresh to reflect the updated state
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      toastNotifier.error('Failed to remove worktree: ${e.toString()}');
+    } finally {
+      setState(() => _loadingAction = null);
+    }
+  }
+
   /// Activates an item (used for both keyboard and mouse click).
   void _activateItem(NavigableItem item, BuildContext context) {
     switch (item.type) {
@@ -995,6 +1058,15 @@ class _GitSidebarState extends State<GitSidebar> {
         // Switch to the worktree
         component.onSwitchWorktree?.call(item.worktreePath!);
         break;
+      case NavigableItemType.worktreeCopyPathAction:
+        // Copy worktree path to clipboard
+        ClipboardManager.copy(item.worktreePath!);
+        context.read(toastProvider.notifier).success('Path copied to clipboard');
+        break;
+      case NavigableItemType.worktreeRemoveAction:
+        // Remove the worktree
+        if (_loadingAction == null) _removeWorktree(item.worktreePath!);
+        break;
       case NavigableItemType.branch:
         // Toggle branch expansion to show/hide actions
         setState(() {
@@ -1031,6 +1103,17 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.fetchAction:
         if (_loadingAction == null) _fetch();
+        break;
+      case NavigableItemType.worktreeActionsHeader:
+        // Toggle expansion state for this worktree's actions
+        setState(() {
+          final path = item.worktreePath!;
+          if (_expandedWorktreeActions.contains(path)) {
+            _expandedWorktreeActions.remove(path);
+          } else {
+            _expandedWorktreeActions.add(path);
+          }
+        });
         break;
     }
   }
@@ -1359,6 +1442,30 @@ class _GitSidebarState extends State<GitSidebar> {
           theme,
           availableWidth,
         );
+      case NavigableItemType.worktreeCopyPathAction:
+        return _buildWorktreeCopyPathActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.worktreeRemoveAction:
+        return _buildWorktreeRemoveActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.worktreeActionsHeader:
+        return _buildWorktreeActionsHeaderRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.noChangesPlaceholder:
         return _buildNoChangesPlaceholderRow(
           item,
@@ -1525,7 +1632,9 @@ class _GitSidebarState extends State<GitSidebar> {
     final isExpanded = item.isExpanded;
     final expandIcon = isExpanded ? '▾' : '▸';
     final highlight = isSelected || isHovered;
-    final isCurrentWorktree = item.worktreePath == component.repoPath;
+    // Resolve actual worktree path - CWD might be a subdirectory
+    final resolvedCurrentPath = _findCurrentWorktreePath() ?? component.repoPath;
+    final isCurrentWorktree = item.worktreePath == resolvedCurrentPath;
     final isWorktree = item.isWorktree;
 
     // Get git status for ahead/behind indicators and change count
@@ -1619,6 +1728,41 @@ class _GitSidebarState extends State<GitSidebar> {
   ) {
     final highlight = isSelected || isHovered;
     final arrow = _actionsExpanded ? '▾' : '▸';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text(
+              '$arrow Actions',
+              style: TextStyle(
+                color: theme.base.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds the "Actions" header row for non-current worktrees (expandable).
+  Component _buildWorktreeActionsHeaderRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isExpanded = item.isExpanded;
+    final arrow = isExpanded ? '▾' : '▸';
 
     return Container(
       decoration: highlight
@@ -1973,6 +2117,86 @@ class _GitSidebarState extends State<GitSidebar> {
                 item.name,
                 style: TextStyle(
                   color: theme.base.primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Copy path" action row for worktrees.
+  Component _buildWorktreeCopyPathActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text('⎘', style: TextStyle(color: theme.base.primary)),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                item.name,
+                style: TextStyle(
+                  color: theme.base.primary,
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Remove worktree" action row.
+  Component _buildWorktreeRemoveActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'remove';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text(
+              isLoading ? '⟳' : '✕',
+              style: TextStyle(color: theme.base.error),
+            ),
+            SizedBox(width: 1),
+            Expanded(
+              child: Text(
+                isLoading ? 'Removing...' : item.name,
+                style: TextStyle(
+                  color: theme.base.error,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
