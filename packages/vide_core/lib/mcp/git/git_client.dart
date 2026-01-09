@@ -30,7 +30,7 @@ class GitClient {
       '--porcelain=v1',
       '--branch',
     ]);
-    return _parseGitStatus(output);
+    return _parseGitStatus(output, workingDirectory ?? Directory.current.path);
   }
 
   /// Create a git commit.
@@ -472,7 +472,7 @@ class GitClient {
     return result.stdout.toString().trim();
   }
 
-  GitStatus _parseGitStatus(String output) {
+  GitStatus _parseGitStatus(String output, String workingDirectory) {
     final lines = output.split('\n');
     String branch = 'unknown';
     int ahead = 0;
@@ -486,12 +486,13 @@ class GitClient {
         final parts = line.substring(3).split('...');
         branch = parts[0];
         if (parts.length > 1 && parts[1].contains('[')) {
-          final tracking = RegExp(
-            r'\[ahead (\d+)(?:, )?(?:behind (\d+))?\]',
-          ).firstMatch(parts[1]);
-          if (tracking != null) {
-            ahead = int.tryParse(tracking.group(1) ?? '0') ?? 0;
-            behind = int.tryParse(tracking.group(2) ?? '0') ?? 0;
+          final aheadMatch = RegExp(r'ahead (\d+)').firstMatch(parts[1]);
+          final behindMatch = RegExp(r'behind (\d+)').firstMatch(parts[1]);
+          if (aheadMatch != null) {
+            ahead = int.tryParse(aheadMatch.group(1) ?? '0') ?? 0;
+          }
+          if (behindMatch != null) {
+            behind = int.tryParse(behindMatch.group(1) ?? '0') ?? 0;
           }
         }
       } else if (line.length > 2) {
@@ -504,7 +505,23 @@ class GitClient {
         if (status[1] == 'M') {
           modified.add(file);
         } else if (status == '??') {
-          untracked.add(file);
+          if (file.endsWith('/')) {
+            // Expand directory into individual files
+            final dir = Directory('$workingDirectory/$file');
+            if (dir.existsSync()) {
+              final entities = dir.listSync(recursive: true);
+              for (final entity in entities) {
+                if (entity is File) {
+                  // Get path relative to working directory
+                  final relativePath =
+                      entity.path.substring(workingDirectory.length + 1);
+                  untracked.add(relativePath);
+                }
+              }
+            }
+          } else {
+            untracked.add(file);
+          }
         }
       }
     }

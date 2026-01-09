@@ -5,6 +5,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/components/git_sidebar.dart';
+import 'package:vide_cli/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
@@ -274,6 +275,8 @@ class _VideAppContentState extends State<_VideAppContent> {
                     context.read(filePreviewPathProvider.notifier).state = null;
                   },
                 ),
+              // Toast notifications overlay everything
+              const ToastOverlay(),
             ],
           ),
         ),

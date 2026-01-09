@@ -8,6 +8,7 @@ import 'package:vide_core/mcp/git/git_models.dart';
 import 'package:vide_core/mcp/git/git_providers.dart';
 import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/main.dart';
+import 'package:vide_cli/services/toast_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
@@ -27,9 +28,13 @@ enum NavigableItemType {
   worktreeHeader, // Collapsible worktree header with branch name
   changesSectionLabel, // "Changes" label (not collapsible)
   file,
+  actionsHeader, // Expandable "Actions" header
   commitPushAction, // "Commit & push" action for branches with changes
   syncAction, // "Sync" action for branches ahead/behind remote
   mergeToMainAction, // "Merge to main" action for clean branches ahead of main
+  pullAction, // "Pull" action - pull from remote
+  pushAction, // "Push" action - push to remote
+  fetchAction, // "Fetch" action - fetch from remote
   switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
   noChangesPlaceholder, // "No changes" placeholder when worktree is clean
   divider, // Visual separator line
@@ -126,6 +131,12 @@ class _GitSidebarState extends State<GitSidebar> {
   String? _selectedBaseBranch; // The base branch selected for the action
   NavigableItemType? _activeInputType; // Which action is in input mode
   String _inputBuffer = '';
+
+  // Actions menu expansion state
+  bool _actionsExpanded = false;
+
+  // Loading state for git actions (e.g., 'pull', 'push', 'fetch', 'sync', 'merge')
+  String? _loadingAction;
 
   /// Check if a worktree is expanded. Current worktree expanded by default, others collapsed.
   bool _isWorktreeExpanded(String worktreePath) {
@@ -491,43 +502,75 @@ class _GitSidebarState extends State<GitSidebar> {
     // File items directly under the header (no "Changes" label)
     final changedFiles = _buildChangedFiles(gitStatus);
 
-    // Add "Commit & push" action if there are changes (current worktree only)
-    if (isCurrentWorktree && changedFiles.isNotEmpty) {
+    // For current worktree, add Actions menu before changed files
+    if (isCurrentWorktree) {
+      // Add Actions header
       items.add(NavigableItem(
-        type: NavigableItemType.commitPushAction,
-        name: 'Commit & push',
+        type: NavigableItemType.actionsHeader,
+        name: 'Actions',
         worktreePath: path,
-        isLastInSection: false,
+        isExpanded: _actionsExpanded,
       ));
-    }
 
-    // Add "Sync" action if ahead or behind remote (current worktree only, clean)
-    final ahead = gitStatus?.ahead ?? 0;
-    final behind = gitStatus?.behind ?? 0;
-    if (isCurrentWorktree && changedFiles.isEmpty && (ahead > 0 || behind > 0)) {
-      final syncLabel = behind > 0 && ahead > 0
-          ? 'Sync (↓$behind ↑$ahead)'
-          : behind > 0
-              ? 'Sync (↓$behind)'
-              : 'Sync (↑$ahead)';
-      items.add(NavigableItem(
-        type: NavigableItemType.syncAction,
-        name: syncLabel,
-        worktreePath: path,
-      ));
-    }
+      // Add child actions if expanded
+      if (_actionsExpanded) {
+        // Conditional: "Commit & push" - only when there are changes
+        if (changedFiles.isNotEmpty) {
+          items.add(NavigableItem(
+            type: NavigableItemType.commitPushAction,
+            name: 'Commit & push',
+            worktreePath: path,
+          ));
+        }
 
-    // Add "Merge to main" action if branch is clean, ahead of main, and not main/master
-    final isMainBranch = branch == 'main' || branch == 'master';
-    final isClean = changedFiles.isEmpty;
-    final isAheadOfMain = (_commitsAheadOfMain ?? 0) > 0;
-    if (isCurrentWorktree && isClean && isAheadOfMain && !isMainBranch) {
-      items.add(NavigableItem(
-        type: NavigableItemType.mergeToMainAction,
-        name: 'Merge to main',
-        worktreePath: path,
-        fullPath: branch, // Store current branch name for merge
-      ));
+        // Conditional: "Sync" - only when ahead or behind remote
+        final ahead = gitStatus?.ahead ?? 0;
+        final behind = gitStatus?.behind ?? 0;
+        if (ahead > 0 || behind > 0) {
+          final syncLabel = behind > 0 && ahead > 0
+              ? 'Sync (↓$behind ↑$ahead)'
+              : behind > 0
+                  ? 'Sync (↓$behind)'
+                  : 'Sync (↑$ahead)';
+          items.add(NavigableItem(
+            type: NavigableItemType.syncAction,
+            name: syncLabel,
+            worktreePath: path,
+          ));
+        }
+
+        // Conditional: "Merge to main" - only when clean, ahead of main, not on main/master
+        final isMainBranch = branch == 'main' || branch == 'master';
+        final isClean = changedFiles.isEmpty;
+        final isAheadOfMain = (_commitsAheadOfMain ?? 0) > 0;
+        if (isClean && isAheadOfMain && !isMainBranch) {
+          items.add(NavigableItem(
+            type: NavigableItemType.mergeToMainAction,
+            name: 'Merge to main',
+            worktreePath: path,
+            fullPath: branch, // Store current branch name for merge
+          ));
+        }
+
+        // Always visible actions
+        items.add(NavigableItem(
+          type: NavigableItemType.pullAction,
+          name: 'Pull',
+          worktreePath: path,
+        ));
+
+        items.add(NavigableItem(
+          type: NavigableItemType.pushAction,
+          name: 'Push',
+          worktreePath: path,
+        ));
+
+        items.add(NavigableItem(
+          type: NavigableItemType.fetchAction,
+          name: 'Fetch',
+          worktreePath: path,
+        ));
+      }
     }
 
     if (changedFiles.isNotEmpty) {
@@ -541,14 +584,20 @@ class _GitSidebarState extends State<GitSidebar> {
           isLastInSection: i == changedFiles.length - 1,
         ));
       }
-    } else if (!isAheadOfMain || isMainBranch) {
-      // Show "No changes" placeholder when worktree is clean and not showing merge action
-      items.add(NavigableItem(
-        type: NavigableItemType.noChangesPlaceholder,
-        name: 'No changes',
-        worktreePath: path,
-        isLastInSection: true,
-      ));
+    } else if (!isCurrentWorktree || ((!(_actionsExpanded && ((_commitsAheadOfMain ?? 0) > 0 && branch != 'main' && branch != 'master'))))) {
+      // Show "No changes" placeholder when:
+      // - Not current worktree, or
+      // - Current worktree and not showing merge action in expanded actions
+      final isMainBranch = branch == 'main' || branch == 'master';
+      final isAheadOfMain = (_commitsAheadOfMain ?? 0) > 0;
+      if (!isAheadOfMain || isMainBranch || !isCurrentWorktree) {
+        items.add(NavigableItem(
+          type: NavigableItemType.noChangesPlaceholder,
+          name: 'No changes',
+          worktreePath: path,
+          isLastInSection: true,
+        ));
+      }
     }
 
     return items;
@@ -739,7 +788,10 @@ class _GitSidebarState extends State<GitSidebar> {
 
   /// Merge current branch to main: checkout main, merge feature branch, then checkout back.
   Future<void> _mergeToMain(String featureBranch) async {
+    setState(() => _loadingAction = 'merge');
+
     final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
 
     // Determine the main branch name (main or master)
     final mainBranch = _cachedBranches?.any((b) => b.name == 'main') == true
@@ -753,22 +805,29 @@ class _GitSidebarState extends State<GitSidebar> {
       // 2. Merge the feature branch
       await client.merge(featureBranch);
 
+      toastNotifier.success('Merged to main successfully');
+
       // Refresh branches/worktrees to reflect the change
       _cachedBranches = null;
       _cachedWorktrees = null;
       await _loadBranchesAndWorktrees();
     } catch (e) {
-      // TODO: Show error to user (e.g., merge conflicts)
+      toastNotifier.error('Merge failed: ${e.toString()}');
       // Try to go back to the feature branch on failure
       try {
         await client.checkout(featureBranch);
       } catch (_) {}
+    } finally {
+      setState(() => _loadingAction = null);
     }
   }
 
   /// Sync with remote: pull --rebase then push.
   Future<void> _sync() async {
+    setState(() => _loadingAction = 'sync');
+
     final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
 
     try {
       // Pull with rebase first (IntelliJ style)
@@ -777,13 +836,82 @@ class _GitSidebarState extends State<GitSidebar> {
       // Then push local commits
       await client.push();
 
+      toastNotifier.success('Synced successfully');
+
       // Refresh to reflect the updated state
       _cachedBranches = null;
       _cachedWorktrees = null;
       await _loadBranchesAndWorktrees();
     } catch (e) {
-      // TODO: Show error to user (e.g., rebase conflicts)
-      // If rebase fails, user needs to resolve conflicts manually
+      toastNotifier.error('Sync failed: ${e.toString()}');
+    } finally {
+      setState(() => _loadingAction = null);
+    }
+  }
+
+  /// Pull from remote.
+  Future<void> _pull() async {
+    setState(() => _loadingAction = 'pull');
+
+    final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
+
+    try {
+      await client.pull();
+      toastNotifier.success('Pulled successfully');
+
+      // Refresh to reflect the updated state
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      toastNotifier.error('Pull failed: ${e.toString()}');
+    } finally {
+      setState(() => _loadingAction = null);
+    }
+  }
+
+  /// Push to remote.
+  Future<void> _push() async {
+    setState(() => _loadingAction = 'push');
+
+    final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
+
+    try {
+      await client.push();
+      toastNotifier.success('Pushed successfully');
+
+      // Refresh to reflect the updated state
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      toastNotifier.error('Push failed: ${e.toString()}');
+    } finally {
+      setState(() => _loadingAction = null);
+    }
+  }
+
+  /// Fetch from remote.
+  Future<void> _fetch() async {
+    setState(() => _loadingAction = 'fetch');
+
+    final client = GitClient(workingDirectory: component.repoPath);
+    final toastNotifier = context.read(toastProvider.notifier);
+
+    try {
+      await client.fetch();
+      toastNotifier.success('Fetched successfully');
+
+      // Refresh to reflect the updated state
+      _cachedBranches = null;
+      _cachedWorktrees = null;
+      await _loadBranchesAndWorktrees();
+    } catch (e) {
+      toastNotifier.error('Fetch failed: ${e.toString()}');
+    } finally {
+      setState(() => _loadingAction = null);
     }
   }
 
@@ -857,11 +985,11 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.syncAction:
         // Sync with remote (pull --rebase, then push)
-        _sync();
+        if (_loadingAction == null) _sync();
         break;
       case NavigableItemType.mergeToMainAction:
         // Merge current branch to main
-        _mergeToMain(item.fullPath!);
+        if (_loadingAction == null) _mergeToMain(item.fullPath!);
         break;
       case NavigableItemType.switchWorktreeAction:
         // Switch to the worktree
@@ -889,6 +1017,20 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.showMoreBranches:
         setState(() => _showAllBranches = true);
+        break;
+      case NavigableItemType.actionsHeader:
+        setState(() {
+          _actionsExpanded = !_actionsExpanded;
+        });
+        break;
+      case NavigableItemType.pullAction:
+        if (_loadingAction == null) _pull();
+        break;
+      case NavigableItemType.pushAction:
+        if (_loadingAction == null) _push();
+        break;
+      case NavigableItemType.fetchAction:
+        if (_loadingAction == null) _fetch();
         break;
     }
   }
@@ -1153,6 +1295,14 @@ class _GitSidebarState extends State<GitSidebar> {
           theme,
           availableWidth,
         );
+      case NavigableItemType.actionsHeader:
+        return _buildActionsHeaderRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
       case NavigableItemType.commitPushAction:
         return _buildCommitPushActionRow(
           item,
@@ -1171,6 +1321,30 @@ class _GitSidebarState extends State<GitSidebar> {
         );
       case NavigableItemType.mergeToMainAction:
         return _buildMergeToMainActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.pullAction:
+        return _buildPullActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.pushAction:
+        return _buildPushActionRow(
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
+      case NavigableItemType.fetchAction:
+        return _buildFetchActionRow(
           item,
           isSelected,
           isHovered,
@@ -1435,6 +1609,40 @@ class _GitSidebarState extends State<GitSidebar> {
     );
   }
 
+  /// Builds the "Actions" header row (expandable).
+  Component _buildActionsHeaderRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final arrow = _actionsExpanded ? '▾' : '▸';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 2),
+        child: Row(
+          children: [
+            Text(
+              '$arrow Actions',
+              style: TextStyle(
+                color: theme.base.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// Builds the "Changes (5)" label row.
   Component _buildChangesSectionLabelRow(
     NavigableItem item,
@@ -1531,7 +1739,7 @@ class _GitSidebarState extends State<GitSidebar> {
             )
           : null,
       child: Padding(
-        padding: EdgeInsets.only(left: 2),
+        padding: EdgeInsets.only(left: 4),
         child: Row(
           children: [
             Text('↑', style: TextStyle(color: theme.base.success)),
@@ -1561,6 +1769,7 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'sync';
 
     return Container(
       decoration: highlight
@@ -1569,14 +1778,14 @@ class _GitSidebarState extends State<GitSidebar> {
             )
           : null,
       child: Padding(
-        padding: EdgeInsets.only(left: 2),
+        padding: EdgeInsets.only(left: 4),
         child: Row(
           children: [
             Text('⟳', style: TextStyle(color: theme.base.primary)),
             SizedBox(width: 1),
             Expanded(
               child: Text(
-                item.name,
+                isLoading ? 'Syncing...' : item.name,
                 style: TextStyle(
                   color: theme.base.primary,
                 ),
@@ -1599,6 +1808,7 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'merge';
 
     return Container(
       decoration: highlight
@@ -1607,20 +1817,128 @@ class _GitSidebarState extends State<GitSidebar> {
             )
           : null,
       child: Padding(
-        padding: EdgeInsets.only(left: 2),
+        padding: EdgeInsets.only(left: 4),
         child: Row(
           children: [
-            Text('⤵', style: TextStyle(color: theme.base.primary)),
+            Text(
+              isLoading ? '⟳' : '⤵',
+              style: TextStyle(color: theme.base.primary),
+            ),
             SizedBox(width: 1),
             Expanded(
               child: Text(
-                item.name,
+                isLoading ? 'Merging...' : item.name,
                 style: TextStyle(
                   color: theme.base.primary,
                 ),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Pull" action row.
+  Component _buildPullActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'pull';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Row(
+          children: [
+            Text(
+              isLoading ? '⟳ ' : '↓ ',
+              style: TextStyle(color: theme.base.primary),
+            ),
+            Text(
+              isLoading ? 'Pulling...' : 'Pull',
+              style: TextStyle(color: theme.base.onSurface),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Push" action row.
+  Component _buildPushActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'push';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Row(
+          children: [
+            Text(
+              isLoading ? '⟳ ' : '↑ ',
+              style: TextStyle(color: theme.base.primary),
+            ),
+            Text(
+              isLoading ? 'Pushing...' : 'Push',
+              style: TextStyle(color: theme.base.onSurface),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Builds a "Fetch" action row.
+  Component _buildFetchActionRow(
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final highlight = isSelected || isHovered;
+    final isLoading = _loadingAction == 'fetch';
+
+    return Container(
+      decoration: highlight
+          ? BoxDecoration(
+              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+            )
+          : null,
+      child: Padding(
+        padding: EdgeInsets.only(left: 4),
+        child: Row(
+          children: [
+            Text(
+              isLoading ? '⟳ ' : '⚡ ',
+              style: TextStyle(color: theme.base.primary),
+            ),
+            Text(
+              isLoading ? 'Fetching...' : 'Fetch',
+              style: TextStyle(color: theme.base.onSurface),
             ),
           ],
         ),
