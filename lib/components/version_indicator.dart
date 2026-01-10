@@ -34,12 +34,11 @@ class _VersionIndicatorState extends State<VersionIndicator> {
   ];
   Timer? _spinnerTimer;
   int _spinnerIndex = 0;
+  UpdateStatus? _lastStatus;
 
   @override
   void initState() {
     super.initState();
-    _startSpinner();
-
     // Trigger initial update check after a short delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -49,6 +48,7 @@ class _VersionIndicatorState extends State<VersionIndicator> {
   }
 
   void _startSpinner() {
+    if (_spinnerTimer != null) return; // Already running
     _spinnerTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       setState(() {
         _spinnerIndex = (_spinnerIndex + 1) % _spinnerFrames.length;
@@ -56,9 +56,30 @@ class _VersionIndicatorState extends State<VersionIndicator> {
     });
   }
 
+  void _stopSpinner() {
+    _spinnerTimer?.cancel();
+    _spinnerTimer = null;
+  }
+
+  void _updateSpinnerForStatus(UpdateStatus status) {
+    final wasDownloading = _lastStatus == UpdateStatus.downloading;
+    final isDownloading = status == UpdateStatus.downloading;
+
+    if (isDownloading && !wasDownloading) {
+      _startSpinner();
+    } else if (!isDownloading && wasDownloading) {
+      _stopSpinner();
+    } else if (isDownloading && _spinnerTimer == null) {
+      // Handle initial mount with downloading status
+      _startSpinner();
+    }
+
+    _lastStatus = status;
+  }
+
   @override
   void dispose() {
-    _spinnerTimer?.cancel();
+    _stopSpinner();
     super.dispose();
   }
 
@@ -66,6 +87,9 @@ class _VersionIndicatorState extends State<VersionIndicator> {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final updateState = context.watch(autoUpdateServiceProvider);
+
+    // Start/stop spinner based on status changes (only runs when downloading)
+    _updateSpinnerForStatus(updateState.status);
 
     return _buildContent(theme, updateState);
   }
