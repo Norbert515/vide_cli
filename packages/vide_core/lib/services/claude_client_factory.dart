@@ -14,15 +14,25 @@ import 'vide_config_manager.dart';
 abstract class ClaudeClientFactory {
   /// Creates a ClaudeClient synchronously with background initialization.
   /// The client will be usable immediately but may queue messages until init completes.
+  ///
+  /// [networkId] is the ID of the agent network (session ID in REST API).
+  /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   ClaudeClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
   });
 
   /// Creates a ClaudeClient asynchronously, waiting for full initialization.
+  ///
+  /// [networkId] is the ID of the agent network (session ID in REST API).
+  /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   Future<ClaudeClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
   });
 }
 
@@ -47,6 +57,8 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   ClaudeClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
   }) {
     final cwd = _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
@@ -55,23 +67,26 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       enableStreaming: _enableStreaming,
     );
 
-    final mcpServers =
-        config.mcpServers
-            ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
+    final mcpServers = config.mcpServers
+            ?.map((server) => _ref.watch(genericMcpServerProvider(
                   AgentIdAndMcpServerType(
                     agentId: agentId,
                     mcpServerType: server,
+                    projectPath: cwd,
                   ),
-                ),
-              ),
-            )
+                )))
             .toList() ??
         [];
 
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(cwd);
+    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
+    ));
 
     return ClaudeClient.createNonBlocking(
       config: claudeConfig,
@@ -84,6 +99,8 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   Future<ClaudeClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
   }) async {
     final cwd = _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
@@ -92,23 +109,26 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       enableStreaming: _enableStreaming,
     );
 
-    final mcpServers =
-        config.mcpServers
-            ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
+    final mcpServers = config.mcpServers
+            ?.map((server) => _ref.watch(genericMcpServerProvider(
                   AgentIdAndMcpServerType(
                     agentId: agentId,
                     mcpServerType: server,
+                    projectPath: cwd,
                   ),
-                ),
-              ),
-            )
+                )))
             .toList() ??
         [];
 
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(cwd);
+    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
+    ));
 
     return await ClaudeClient.create(
       config: claudeConfig,

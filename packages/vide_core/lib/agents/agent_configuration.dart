@@ -82,11 +82,22 @@ class AgentConfiguration {
     String? workingDirectory,
     bool enableStreaming = true,
   }) {
+    // Translate client permission modes to valid Claude CLI modes.
+    // Valid CLI modes: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan
+    // 'ask' is not a valid CLI mode - it's a vide-specific mode that means
+    // "prompt the user via WebSocket". We translate it to 'default' for the CLI
+    // and let the SDK callback handle the actual permission decisions.
+    final cliPermissionMode = switch (permissionMode) {
+      'ask' => 'default', // 'ask' is vide-specific, use 'default' for CLI
+      null => 'acceptEdits',
+      _ => permissionMode,
+    };
+
     return ClaudeConfig(
       appendSystemPrompt: systemPrompt,
       allowedTools: allowedTools,
       model: model,
-      permissionMode: permissionMode ?? 'acceptEdits',
+      permissionMode: cliPermissionMode,
       temperature: temperature,
       maxTokens: maxTokens,
       sessionId: sessionId,

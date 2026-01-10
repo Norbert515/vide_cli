@@ -9,5 +9,7 @@ const int testPortBase = 18080;
 
 /// Port offsets for different test files.
 /// Use large offsets (100+) to avoid port reuse issues when tests run in parallel.
-const int endToEndTestOffset = 0;
-const int streamingTurnsTestOffset = 100;
+const int sessionApiTestOffset = 200;
+const int reconnectionTestOffset = 300;
+const int filesystemTestOffset = 400;
+const int phase25ComprehensiveTestOffset = 500;

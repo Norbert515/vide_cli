@@ -491,7 +491,13 @@ Safe commands (read-only operations like `ls`, `cat`, `git status`) are auto-app
 
 ## REST API Server
 
-The `vide_server` package provides a REST API with WebSocket streaming for agent networks.
+The `vide_server` package provides a REST API with bidirectional WebSocket streaming for agent sessions.
+
+**Note:** Phase 2.5 introduces breaking changes from Phase 2:
+- Endpoint path changes: `/api/v1/networks` → `/api/v1/sessions`
+- JSON format: camelCase → kebab-case
+- WebSocket: per-agent → per-session multiplexed
+- Messages: HTTP POST → WebSocket `user-message`
 
 ### Running the Server
 
@@ -504,39 +510,75 @@ Note the port number from server output (e.g., `http://127.0.0.1:63139`).
 
 ### API Endpoints
 
-- `GET /health` - Health check (returns "OK")
-- `POST /api/v1/networks` - Create agent network
-  - Body: `{"initialMessage": "...", "workingDirectory": "/path"}`
-  - Returns: `{"networkId": "uuid", "mainAgentId": "uuid", "createdAt": "..."}`
-- `POST /api/v1/networks/{networkId}/messages` - Send message (multi-turn conversation)
-  - Body: `{"content": "Your message here"}`
-- `ws://host:port/api/v1/networks/{networkId}/agents/{agentId}/stream` - Stream events via WebSocket
+- `GET /health` - Health check (returns `{"status": "ok", "version": "0.1.0"}`)
+- `POST /api/v1/sessions` - Create session
+  - Body: `{"initial-message": "...", "working-directory": "/path", "model?": "sonnet|opus|haiku"}`
+  - Returns: `{"session-id": "uuid", "main-agent-id": "uuid", "created-at": "..."}`
+- `ws://host:port/api/v1/sessions/{session-id}/stream` - Bidirectional WebSocket (all agents multiplexed)
+- `GET /api/v1/filesystem?path=/path` - Browse filesystem
+- `POST /api/v1/filesystem` - Validate path (body: `{"path": "/path"}`)
 
-### WebSocket Event Types
+### WebSocket Event Types (Server → Client)
 
-- `connected` - WebSocket connection established
-- `status` - Agent status update (e.g., "connected")
-- `message` - Full user or assistant message (start of new message)
-- `message_delta` - Streaming chunk of assistant message (incremental text)
-- `tool_use` - Agent is using a tool
-- `tool_result` - Tool execution result
-- `done` - Turn complete
-- `error` - Error occurred
+All events include attribution fields: `seq`, `event-id`, `agent-id`, `agent-type`, `agent-name`, `task-name`, `timestamp`.
 
-**Streaming Behavior:**
-1. `message` event when message starts
-2. Multiple `message_delta` events with incremental chunks as text is generated
-3. Client appends deltas to display streaming text effect
+| Event | Description |
+|-------|-------------|
+| `connected` | Session metadata, `last-seq`, agent list |
+| `history` | All events (including in-progress) for reconnection |
+| `status` | Agent status: working, waiting-for-agent, waiting-for-user, idle |
+| `message` | Streaming message with `role`, `is-partial`, `event-id` |
+| `tool-use` | Agent invoking a tool |
+| `tool-result` | Tool execution result |
+| `permission-request` | Tool needs user approval |
+| `permission-timeout` | Permission auto-denied after 60s |
+| `agent-spawned` | New agent added to session |
+| `agent-terminated` | Agent removed from session |
+| `done` | Agent turn completed (with `reason`) |
+| `aborted` | Operation cancelled |
+| `error` | Error with `code` and `message` |
+
+### WebSocket Message Types (Client → Server)
+
+| Message | Description | Fields |
+|---------|-------------|--------|
+| `user-message` | Send message | `content`, `model?`, `permission-mode?` |
+| `permission-response` | Allow/deny permission | `request-id`, `allow`, `message?` |
+| `abort` | Cancel all active agents | (none) |
+
+### Message Streaming
+
+Messages stream as partial chunks with shared `event-id`:
+
+```json
+{"seq": 3, "event-id": "uuid", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "Let me "}, ...}
+{"seq": 4, "event-id": "uuid", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "help you "}, ...}
+{"seq": 5, "event-id": "uuid", "type": "message", "is-partial": false, "data": {"role": "assistant", "content": ""}, ...}
+```
+
+- Server does NOT accumulate content - sends each chunk as received
+- Client accumulates chunks with matching `event-id`
+- Final chunk has `is-partial: false` (content may be empty)
+- `seq` enables ordering and deduplication on reconnect
 
 ### How It Works
 
-1. **Create a network** via `POST /api/v1/networks` - returns IDs immediately
-2. **Connect to WebSocket** - triggers actual network creation (lazy initialization)
-3. **Receive events** - all conversation events stream in real-time
-4. **Send messages** - use `POST /api/v1/networks/{networkId}/messages` to continue conversation
-5. **Process responses** - handle messages, tool use, and completion events
+1. **Create session** via `POST /api/v1/sessions` - returns IDs immediately
+2. **Connect WebSocket** to `/api/v1/sessions/{session-id}/stream`
+3. **Receive `connected`** with session metadata and `last-seq`
+4. **Receive `history`** with all events (if any) for state recovery
+5. **Stream events** from all agents (main + spawned) in real-time
+6. **Send messages** via WebSocket `user-message` (not HTTP POST)
+7. **Handle permissions** via `permission-request`/`permission-response`
+8. **Reconnect anytime** - receive full history, deduplicate via `seq`
 
-Network creation is lazy - happens when WebSocket connects, ensuring no events are missed.
+### Session State Recovery
+
+On connect/reconnect:
+1. Server sends `connected` with `last-seq`
+2. Server sends `history` with all events (including in-progress)
+3. Client tracks `last-seq`, discards duplicates if `event.seq <= last-seq`
+4. Live events continue from where history left off
 
 ### Testing the Server
 

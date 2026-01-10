@@ -369,6 +369,12 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
+  Future<void> setPermissionMode(String mode) async {
+    // Mock implementation - just log it
+    print('[MockClaudeClient] Setting permission mode to: $mode');
+  }
+
+  @override
   Future<void> close() async {
     _activeTimer?.cancel();
     await _conversationController.close();

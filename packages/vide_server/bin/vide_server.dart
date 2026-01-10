@@ -17,8 +17,11 @@ import 'package:vide_core/services/permission_provider.dart';
 import 'package:vide_core/utils/working_dir_provider.dart';
 import 'package:vide_server/services/rest_permission_service.dart';
 import 'package:vide_server/services/network_cache_manager.dart';
+import 'package:vide_server/services/server_config.dart';
+import 'package:vide_server/services/session_permission_manager.dart';
 import 'package:vide_server/middleware/cors_middleware.dart';
-import 'package:vide_server/routes/network_routes.dart';
+import 'package:vide_server/routes/filesystem_routes.dart';
+import 'package:vide_server/routes/session_routes.dart';
 
 void main(List<String> arguments) async {
   // Parse command-line arguments
@@ -91,6 +94,18 @@ void main(List<String> arguments) async {
   log.info('Starting Vide API Server...');
   log.fine('Port: ${port ?? "auto"}');
 
+  // Load server configuration
+  final serverConfig = await ServerConfig.load();
+  log.info('Permission timeout: ${serverConfig.permissionTimeoutSeconds}s');
+  if (serverConfig.autoApproveAll) {
+    log.warning(
+      'Auto-approve-all is enabled - all permissions will be granted!',
+    );
+  }
+
+  // Initialize permission manager with config
+  SessionPermissionManager.instance.initialize(serverConfig);
+
   // Get home directory
   final homeDir =
       Platform.environment['HOME'] ??
@@ -107,9 +122,9 @@ void main(List<String> arguments) async {
       videConfigManagerProvider.overrideWithValue(
         VideConfigManager(configRoot: configRoot),
       ),
-      // Permission callback factory with auto-approve/deny rules
+      // Permission callback factory that uses appropriate callback based on permission mode
       canUseToolCallbackFactoryProvider.overrideWithValue(
-        createRestPermissionCallback,
+        createSmartPermissionCallback,
       ),
       // Working directory provider - uses current directory as default
       //
@@ -142,7 +157,7 @@ void main(List<String> arguments) async {
   final cacheManager = NetworkCacheManager(persistenceManager);
 
   // Create HTTP handler with routes
-  final handler = _createHandler(container, cacheManager);
+  final handler = _createHandler(container, cacheManager, serverConfig);
 
   // Start server on localhost only (no authentication for MVP)
   final server = await shelf_io.serve(
@@ -171,29 +186,29 @@ void main(List<String> arguments) async {
 Handler _createHandler(
   ProviderContainer container,
   NetworkCacheManager cacheManager,
+  ServerConfig serverConfig,
 ) {
   final router = Router();
 
-  // API routes
-  router.post('/api/v1/networks', (Request request) {
-    return createNetwork(request, container, cacheManager);
+  // Phase 2.5 API routes (session-based, kebab-case)
+  router.post('/api/v1/sessions', (Request request) {
+    return createSession(request, container, cacheManager);
   });
 
-  router.post('/api/v1/networks/<networkId>/messages', (
+  router.get('/api/v1/sessions/<sessionId>/stream', (
     Request request,
-    String networkId,
+    String sessionId,
   ) {
-    return sendMessage(request, networkId, container, cacheManager);
+    return streamSessionWebSocket(sessionId, container, cacheManager)(request);
   });
 
-  router.get('/api/v1/networks/<networkId>/agents/<agentId>/stream', (
-    Request request,
-    String networkId,
-    String agentId,
-  ) {
-    return streamAgentWebSocket(networkId, agentId, container, cacheManager)(
-      request,
-    );
+  // Filesystem browsing API
+  router.get('/api/v1/filesystem', (Request request) {
+    return listDirectory(request, serverConfig);
+  });
+
+  router.post('/api/v1/filesystem', (Request request) {
+    return createDirectory(request, serverConfig);
   });
 
   // Health check endpoint

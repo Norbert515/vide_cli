@@ -1,18 +1,18 @@
 #!/usr/bin/env dart
 
-/// Interactive REPL client for Vide Server
+/// Interactive REPL client for Vide Server (Phase 2.5 Session API)
 ///
 /// Usage:
 ///   dart run example/client.dart --port 63139
 ///   dart run example/client.dart -p 63139
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:args/args.dart';
-import 'package:http/http.dart' as http;
-import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'lib/vide_client.dart';
 
 void main(List<String> args) async {
-  // Parse arguments
   final parser = ArgParser()
     ..addFlag(
       'help',
@@ -49,13 +49,11 @@ void main(List<String> args) async {
     exit(1);
   }
 
-  // Show help if requested or no arguments provided
   if (argResults['help'] as bool || args.isEmpty) {
     printUsage();
     exit(args.isEmpty ? 1 : 0);
   }
 
-  // Validate port is provided
   final portStr = argResults['port'] as String?;
   if (portStr == null) {
     print('Error: --port is required');
@@ -73,46 +71,40 @@ void main(List<String> args) async {
   }
 
   final workingDir = Directory.current.path;
-  final serverUrl = 'http://127.0.0.1:$port';
+  final client = VideClient(port: port);
 
   print('╔════════════════════════════════════════════════════════════════╗');
   print('║              Vide Interactive REPL Client                      ║');
   print('╚════════════════════════════════════════════════════════════════╝');
   print('');
-  print('Server: $serverUrl');
+  print('Server: http://127.0.0.1:$port');
   print('Working Directory: $workingDir');
   print('');
   print('Type /help for available commands.');
   print('');
 
-  // Step 1: Verify server is running
   print('→ Connecting to server...');
   try {
-    final healthResponse = await http
-        .get(Uri.parse('$serverUrl/health'))
-        .timeout(const Duration(seconds: 2));
-    if (healthResponse.statusCode != 200 || healthResponse.body != 'OK') {
-      print('✗ Error: Server is not responding correctly');
-      print('  Please start the server first:');
-      print('    cd packages/vide_server && dart run bin/vide_server.dart');
-      exit(1);
-    }
+    await client.checkHealth();
+  } on VideClientException catch (e) {
+    print('✗ Error: ${e.message}');
+    print('  Please start the server first:');
+    print('    cd packages/vide_server && dart run bin/vide_server.dart');
+    exit(1);
   } catch (e) {
-    print('✗ Error: Could not connect to server at $serverUrl');
-    print('  Please check that the server is running on port $port');
+    print('✗ Error: Could not connect to server on port $port');
+    print('  Please check that the server is running.');
     print('  Start the server with:');
     print('    cd packages/vide_server && dart run bin/vide_server.dart');
     exit(1);
   }
-  print('✓ Connected to $serverUrl');
+  print('✓ Connected');
   print('');
 
-  // Step 2: Start REPL loop (network will be created on first message)
-  await _runRepl(serverUrl, workingDir, port);
+  await _runRepl(client, workingDir);
 }
 
-/// Run the interactive REPL loop
-Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
+Future<void> _runRepl(VideClient client, String workingDir) async {
   print('╔════════════════════════════════════════════════════════════════╗');
   print('║                    Interactive Session                         ║');
   print('╚════════════════════════════════════════════════════════════════╝');
@@ -121,26 +113,22 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('');
   stdout.write('You: ');
 
-  String? networkId;
-  String? mainAgentId;
-  WebSocketChannel? channel;
-  var shouldExit = false;
+  Session? session;
+  final eventHandler = _EventHandler();
 
   await for (final line
-      in stdin.transform(utf8.decoder).transform(LineSplitter())) {
+      in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
     final input = line.trim();
-
-    // Check for commands
     final inputLower = input.toLowerCase();
+
     if (inputLower == '/exit' ||
         inputLower == '/quit' ||
         inputLower == 'exit' ||
         inputLower == 'quit') {
       print('');
-      if (networkId != null) {
+      if (session != null) {
         print('Ending session...');
-        shouldExit = true;
-        await channel?.sink.close();
+        await session.close();
       }
       break;
     }
@@ -158,91 +146,50 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
       continue;
     }
 
-    // Skip empty input
     if (input.isEmpty) {
       stdout.write('You: ');
       continue;
     }
 
-    // First message - create network and connect WebSocket
-    if (networkId == null) {
+    if (session == null) {
       print('');
       print('→ Creating session with your message...');
 
-      final createResponse = await http.post(
-        Uri.parse('$serverUrl/api/v1/networks'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'initialMessage': input,
-          'workingDirectory': workingDir,
-        }),
-      );
-
-      if (createResponse.statusCode != 200) {
-        print('✗ Error creating session: ${createResponse.body}');
+      try {
+        session = await client.createSession(
+          initialMessage: input,
+          workingDirectory: workingDir,
+        );
+      } on VideClientException catch (e) {
+        print('✗ Error creating session: ${e.message}');
         stdout.write('\nYou: ');
         continue;
       }
 
-      final networkData = jsonDecode(createResponse.body);
-      networkId = networkData['networkId'];
-      mainAgentId = networkData['mainAgentId'];
-
-      print('✓ Session created (ID: $networkId)');
+      print('✓ Session created (ID: ${session.id})');
       print('');
-      print('→ Connecting to agent stream...');
 
-      // Connect to WebSocket
-      final wsUrl =
-          'ws://127.0.0.1:$port/api/v1/networks/$networkId/agents/$mainAgentId/stream';
-      channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      final s = session;
+      s.events.listen(
+        (event) {
+          eventHandler.handle(event);
 
-      // Listen for WebSocket messages in background
-      channel.stream.listen(
-        (message) {
-          final event = jsonDecode(message as String);
-          _handleEvent(event);
-
-          // Track when agent is done processing
-          if (event['type'] == 'done') {
-            if (!shouldExit) {
-              stdout.write('\nYou: ');
-            }
+          if (event is DoneEvent && s.status == SessionStatus.open) {
+            stdout.write('\nYou: ');
           }
         },
         onError: (error) {
-          print('\n✗ WebSocket error: $error');
-          shouldExit = true;
+          print('\n✗ Stream error: $error');
         },
         onDone: () {
-          if (!shouldExit) {
-            print('\n✗ WebSocket connection closed unexpectedly');
+          if (s.status == SessionStatus.error) {
+            print('\n✗ Connection error: ${s.error}');
           }
-          shouldExit = true;
         },
       );
-
-      print('✓ Connected');
-      print('');
-
-      // Wait for first response (event handler will prompt for next input)
     } else {
-      // Subsequent messages - send via /messages endpoint
       print('');
-
-      final sendResponse = await http.post(
-        Uri.parse('$serverUrl/api/v1/networks/$networkId/messages'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'content': input}),
-      );
-
-      if (sendResponse.statusCode != 200) {
-        print('✗ Error sending message: ${sendResponse.body}');
-        stdout.write('\nYou: ');
-        continue;
-      }
-
-      // Wait for response (event handler will prompt for next input)
+      session.send(input);
     }
   }
 
@@ -252,32 +199,108 @@ Future<void> _runRepl(String serverUrl, String workingDir, int port) async {
   print('╚════════════════════════════════════════════════════════════════╝');
 }
 
-/// Track current streaming message
-String? _currentStreamRole;
-final _currentStreamBuffer = StringBuffer();
+/// Handles incoming events with streaming message support.
+class _EventHandler {
+  String? _currentEventId;
+  MessageRole? _currentStreamRole;
+  final _buffer = StringBuffer();
 
-/// Handle different SSE event types
-void _handleEvent(Map<String, dynamic> event) {
-  final type = event['type'];
-  final agentName = event['agentName'] ?? 'Agent';
-  final data = event['data'];
+  void handle(VideEvent event) {
+    final agentName = event.agent?.name ?? 'Agent';
 
-  switch (type) {
-    case 'status':
-      print('[$agentName] Status: ${data['status']}');
-      break;
+    switch (event) {
+      case ConnectedEvent(:final sessionId, :final mainAgentId):
+        print('[$agentName] Connected to session $sessionId');
+        print('  Main agent: $mainAgentId');
 
-    case 'message':
-      // Full message (start of new message)
-      final role = data['role'];
-      final content = data['content'];
+      case HistoryEvent(:final lastSeq, :final events):
+        if (events.isNotEmpty) {
+          print(
+            '[$agentName] Loaded ${events.length} history events (seq: $lastSeq)',
+          );
+        }
 
-      // Start tracking this message for streaming
+      case StatusEvent(:final status):
+        print('[$agentName] Status: ${status.name}');
+
+      case MessageEvent(:final role, :final content, :final isPartial, :final eventId):
+        _handleMessage(role, content, isPartial, eventId);
+
+      case ToolUseEvent(:final toolName):
+        _closeStreamingMessage();
+        print('');
+        print('🔧 Using tool: $toolName');
+
+      case ToolResultEvent(:final toolName, :final isError):
+        if (isError) {
+          print('   ✗ Error from $toolName');
+        } else {
+          print('   ✓ $toolName completed');
+        }
+
+      case AgentSpawnedEvent(:final spawnedBy):
+        print('');
+        print('🚀 Agent spawned: $agentName (${event.agent?.id})');
+        print('   by: $spawnedBy');
+
+      case AgentTerminatedEvent(:final reason):
+        print('');
+        print('🛑 Agent terminated: $agentName');
+        if (reason != null) {
+          print('   reason: $reason');
+        }
+
+      case PermissionRequestEvent(:final requestId, :final toolName):
+        print('');
+        print('⚠️  Permission requested: $toolName');
+        print('   Request ID: $requestId');
+        print('   (Auto-approving in this client)');
+
+      case PermissionTimeoutEvent(:final requestId):
+        print('');
+        print('⏰ Permission timeout: $requestId');
+
+      case DoneEvent():
+        _closeStreamingMessage();
+        print('');
+        print('✓ Turn complete');
+
+      case AbortedEvent():
+        _closeStreamingMessage();
+        print('');
+        print('🛑 Aborted');
+
+      case ErrorEvent(:final message, :final code):
+        print('');
+        print('✗ Error: $message');
+        if (code != null) {
+          print('  Code: $code');
+        }
+
+      case UnknownEvent(:final type):
+        print('[Event: $type]');
+    }
+  }
+
+  void _handleMessage(
+    MessageRole role,
+    String content,
+    bool isPartial,
+    String? eventId,
+  ) {
+    if (_currentEventId != eventId) {
+      if (_currentStreamRole == MessageRole.assistant &&
+          _buffer.isNotEmpty) {
+        print('');
+        print('└─');
+      }
+
+      _currentEventId = eventId;
       _currentStreamRole = role;
-      _currentStreamBuffer.clear();
-      _currentStreamBuffer.write(content);
+      _buffer.clear();
+      _buffer.write(content);
 
-      if (role == 'user') {
+      if (role == MessageRole.user) {
         print('');
         print('┌─ User');
         print('│ $content');
@@ -287,67 +310,29 @@ void _handleEvent(Map<String, dynamic> event) {
         print('┌─ Assistant');
         stdout.write('│ $content');
       }
-      break;
-
-    case 'message_delta':
-      // Streaming chunk (delta to current message)
-      final delta = data['delta'];
-
-      if (_currentStreamRole == 'assistant') {
-        // Append to buffer
-        _currentStreamBuffer.write(delta);
-
-        // Write delta directly to stdout (no newline)
-        stdout.write(delta);
+    } else {
+      if (_currentStreamRole == MessageRole.assistant && content.isNotEmpty) {
+        _buffer.write(content);
+        stdout.write(content);
       }
-      break;
+    }
 
-    case 'tool_use':
-      // Close any open streaming message before showing tool use
-      if (_currentStreamRole == 'assistant') {
-        print('');
-        print('└─');
-        _currentStreamRole = null;
-        _currentStreamBuffer.clear();
-      }
-
-      final toolName = data['toolName'];
+    if (!isPartial && _currentStreamRole == MessageRole.assistant) {
       print('');
-      print('🔧 Using tool: $toolName');
-      break;
-
-    case 'tool_result':
-      final toolName = data['toolName'];
-      final isError = data['isError'] ?? false;
-      if (isError) {
-        print('   ✗ Error from $toolName');
-      } else {
-        print('   ✓ $toolName completed');
-      }
-      break;
-
-    case 'done':
-      // Close any open streaming message
-      if (_currentStreamRole == 'assistant') {
-        print('');
-        print('└─');
-      }
+      print('└─');
+      _currentEventId = null;
       _currentStreamRole = null;
-      _currentStreamBuffer.clear();
+      _buffer.clear();
+    }
+  }
 
+  void _closeStreamingMessage() {
+    if (_currentStreamRole == MessageRole.assistant && _buffer.isNotEmpty) {
       print('');
-      print('✓ Turn complete');
-      break;
-
-    case 'error':
-      print('');
-      print('✗ Error: ${data['message']}');
-      if (data['stack'] != null) {
-        print('  Stack: ${data['stack']}');
-      }
-      break;
-
-    default:
-      print('[Event: $type]');
+      print('└─');
+    }
+    _currentEventId = null;
+    _currentStreamRole = null;
+    _buffer.clear();
   }
 }

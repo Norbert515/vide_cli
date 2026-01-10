@@ -37,6 +37,8 @@ This starts an interactive REPL where you can have multi-turn conversations with
 
 ## API Endpoints
 
+All JSON uses **kebab-case** for property names (e.g., `session-id`, `initial-message`).
+
 ### Health Check
 
 ```
@@ -45,15 +47,17 @@ GET /health
 
 Returns `OK` if the server is running.
 
-### Create Network
+### Create Session
 
 ```
-POST /api/v1/networks
+POST /api/v1/sessions
 Content-Type: application/json
 
 {
-  "initialMessage": "Your prompt here",
-  "workingDirectory": "/path/to/project"
+  "initial-message": "Your prompt here",
+  "working-directory": "/path/to/project",
+  "model": "sonnet",           // optional: "sonnet" (default), "opus", "haiku"
+  "permission-mode": "ask"     // optional: "accept-edits" (default), "plan", "ask", "deny"
 }
 ```
 
@@ -61,60 +65,70 @@ Returns:
 
 ```json
 {
-  "networkId": "uuid",
-  "mainAgentId": "uuid",
-  "createdAt": "2024-01-01T12:00:00.000Z"
+  "session-id": "uuid",
+  "main-agent-id": "uuid",
+  "created-at": "2024-01-01T12:00:00.000Z"
 }
 ```
 
-### Send Message to Agent
+### Stream Session Events (WebSocket)
 
 ```
-POST /api/v1/networks/{networkId}/messages
-Content-Type: application/json
-
-{
-  "content": "Your message here"
-}
+ws://host:port/api/v1/sessions/{session-id}/stream
 ```
 
-Sends a message to the main agent in an existing network, continuing the conversation.
+Streams JSON events in real-time from **all agents** in the session (multiplexed).
 
-### Stream Agent Events (WebSocket)
+**Server → Client Event Types:**
 
-```
-ws://host:port/api/v1/networks/{networkId}/agents/{agentId}/stream
-```
-
-Streams JSON events in real-time as Claude processes the request.
-
-**Event Types:**
-
-- `connected` - WebSocket connection established
-- `status` - Agent status update (e.g., "connected")
-- `message` - Full user or assistant message (start of new message)
-- `message_delta` - Streaming chunk of assistant message (only the new text)
-- `tool_use` - Agent is using a tool
-- `tool_result` - Tool execution result
-- `done` - Turn complete
+- `connected` - WebSocket connection established with session metadata
+- `history` - All previous events (for reconnection/catch-up)
+- `status` - Agent status update (working, waiting-for-agent, waiting-for-user, idle)
+- `message` - Streaming message chunk with `is-partial` flag and `event-id`
+- `tool-use` - Agent is invoking a tool
+- `tool-result` - Tool execution completed
+- `permission-request` - Tool needs user approval (when `permission-mode: "ask"`)
+- `permission-timeout` - Permission request timed out (auto-denied)
+- `agent-spawned` - New sub-agent created
+- `agent-terminated` - Sub-agent finished and removed
+- `aborted` - Confirms abort request was processed
+- `done` - Agent turn complete
 - `error` - Error occurred
+
+**Client → Server Message Types:**
+
+Send JSON messages to the WebSocket to interact:
+
+```json
+{"type": "user-message", "content": "Your message here", "model": "opus", "permission-mode": "ask"}
+```
+
+```json
+{"type": "permission-response", "request-id": "uuid", "allow": true}
+```
+
+```json
+{"type": "abort"}
+```
 
 **Streaming Behavior:**
 
 Messages are streamed in real-time as Claude generates them:
-1. `message` event with initial content when message starts
-2. Multiple `message_delta` events with incremental chunks as text is generated
-3. Client should append deltas to display streaming text effect
+1. `message` event with `is-partial: true` for each chunk
+2. All chunks share the same `event-id` for correlation
+3. Final `message` event has `is-partial: false`
+4. Each event has a `seq` number for ordering/deduplication
 
 ## How It Works
 
-1. **Create a network** via `POST /api/v1/networks` - returns IDs immediately
-2. **Connect to WebSocket** - this triggers the actual network creation (lazy initialization)
-3. **Receive events** - all conversation events stream in real-time
-4. **Send messages** - use `POST /api/v1/networks/{networkId}/messages` to continue the conversation
-5. **Process responses** - handle messages, tool use, and completion events
+1. **Create a session** via `POST /api/v1/sessions` - returns IDs immediately
+2. **Connect to WebSocket** at `/api/v1/sessions/{session-id}/stream`
+3. **Receive `connected` event** with session metadata
+4. **Receive `history` event** with all previous events (if any)
+5. **Send messages** via WebSocket `user-message` type
+6. **Process responses** - handle messages, tool use, permissions, and completion events
 
-Network creation is lazy - it happens when the WebSocket stream connects, ensuring no events are missed. Once the network is created, you can send multiple messages to continue the conversation across multiple turns.
+Session creation is lazy - the agent network starts when the WebSocket connects, ensuring no events are missed. The WebSocket is bidirectional - send messages and receive events on the same connection.
 
 ## Example Output
 
@@ -133,8 +147,8 @@ Type "exit" or "quit" to end the session.
 
 → Creating session...
 ✓ Session created
-  Network ID: 584b6e68-6bc3-4656-995c-d01e669413a6
-  Agent ID: ae6f24bd-f9a4-4c80-953d-2329d1385e4f
+  Session ID: 584b6e68-6bc3-4656-995c-d01e669413a6
+  Main Agent ID: ae6f24bd-f9a4-4c80-953d-2329d1385e4f
 
 → Connecting to WebSocket stream...
 
@@ -146,7 +160,7 @@ Session ready! Type your messages below:
 
 You: What is 2+2?
 
-[Main] Status: connected
+[Main] Status: working
 
 ┌─ User
 │ What is 2+2?

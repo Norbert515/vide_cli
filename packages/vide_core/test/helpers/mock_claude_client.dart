@@ -77,6 +77,11 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
+  Future<void> setPermissionMode(String mode) async {
+    // Mock implementation - no-op
+  }
+
+  @override
   Future<void> close() async {
     _isClosed = true;
     await _conversationController.close();

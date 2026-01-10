@@ -9,16 +9,28 @@
 - `dart analyze` clean (no issues)
 - TUI compiles and runs successfully
 
-**Phase 2: IN PROGRESS 🔄** (Started: December 2025)
+**Phase 2: COMPLETE ✅** (Completed: December 2025)
 - ✅ Created `vide_server` package with WebSocket streaming
-- ✅ Implemented POST /api/v1/networks endpoint
-- ✅ Implemented POST /api/v1/networks/{networkId}/messages endpoint
+- ✅ Implemented POST /api/v1/networks endpoint (creates network and starts agent with initial message)
+- ✅ Implemented GET /health endpoint (returns JSON: `{"status": "ok", "version": "0.1.0"}`)
 - ✅ Implemented WebSocket streaming at /api/v1/networks/{networkId}/agents/{agentId}/stream
 - ✅ Fixed duplicate content bug in WebSocket streaming (see Bug Fixes below)
 - ✅ Added integration tests for end-to-end flow and duplicate content detection
-- ⬜ Multi-turn conversation test has pre-existing flakiness (timeout issues)
 
-**Phase 3: NOT STARTED** (Final: Testing & Documentation)
+**Phase 2.5: GUI App Prerequisites 🆕** (In Progress - Core Features Complete)
+- ✅ Multiplexed bidirectional WebSocket at /api/v1/sessions/{session-id}/stream (replaces per-agent streams)
+- ✅ Client→server messages: `user-message`, `permission-response`, `abort`
+- ✅ Server→client events: `connected`, `history`, `status`, `message`, `tool-use`, `tool-result`, `permission-request`, `permission-timeout`, `agent-spawned`, `agent-terminated`, `aborted`, `done`, `error`
+- ✅ Permission handling: server sends `permission-request`, client responds, 60s timeout with auto-deny
+- ✅ Model selection: sonnet/opus/haiku per-message via `user-message` (plus permission-mode)
+- ✅ Message streaming: single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` (shared across partial chunks) for client accumulation and deduplication
+- ⬜ Filesystem browsing API (GET/POST /api/v1/filesystem, symlinks not followed)
+- ⬜ Server configuration file support (~/.vide/api/config.json)
+- ⬜ WebSocket keepalive (20s ping/pong)
+
+**Phase 3: NOT STARTED** (Final: Testing, Documentation, Polish)
+- Multi-turn conversation test flakiness fix (moved from Phase 2)
+- Basic rate limiting
 
 ### Bug Fixes (Phase 2)
 
@@ -44,7 +56,7 @@ Transform Vide CLI from a pure TUI application into a dual-interface architectur
 - **Architecture**: Separate processes - REST API server runs independently from TUI
 - **Security**: None for MVP (localhost testing only) - add authentication post-MVP
 - **Sessions**: Separate agent network sessions - REST and TUI don't share state
-- **Scope**: Minimal MVP - Start session with prompt, get agent response via SSE streaming
+- **Scope**: Minimal MVP - Start session with prompt, get agent response via WebSocket streaming
 - **Server binding**: Bind to loopback only and auto-select an unused port; print full URL on startup
 
 ## Implementation Decisions (from user Q&A)
@@ -363,26 +375,12 @@ dependencies:
 - The `workingDirectory` parameter is optional and defaults to null
 - When null, `effectiveWorkingDirectory` uses the `workingDirectory` from provider (current directory)
 
-**Create TUI Permission Adapter**:
-- Create `lib/modules/permissions/permission_service_adapter.dart`
-- Implement `PermissionProvider` interface by wrapping existing `PermissionService`
-- The adapter implements `requestPermission()` method using the existing HTTP server + dialog stream system
-- Note: `PermissionRequest` and `PermissionResponse` are now in vide_core, so update TUI to use those
+**TUI Permission Integration (reference only)**:
+- TUI wiring lives in vide_cli; see `bin/vide.dart` and `lib/modules/permissions/` for details.
+- This spec focuses on vide_server; no TUI changes are required for Phase 2.5+.
 
-**Update TUI Entry Point**:
-- Modify `bin/vide.dart`:
-  - Initialize the `ProviderScope` with overrides:
-    ```dart
-    ProviderScope(
-      overrides: [
-        videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: '~/.vide')),
-        permissionProvider.overrideWithValue(TUIPermissionAdapter(permissionService)),
-        workingDirProvider.overrideWith((ref) => path.current),  // Returns current directory
-      ],
-      child: VideApp(),
-    )
-    ```
-  - Note: TUI calls to `startNew()` remain unchanged (omit `workingDirectory` parameter)
+**TUI Entry Point (reference only)**:
+- Provider overrides live in `bin/vide.dart` (vide_cli).
 
 **Migrate Tests** (if any exist):
 - If there are existing tests for moved services (AgentNetworkManager, MemoryService, etc.), move them to `packages/vide_core/test/` using `git mv`
@@ -521,15 +519,28 @@ void main(List<String> args) async {
 ```
 
 #### 2.4 Implement Core Network API Endpoints (MVP)
+
+> ⚠️ **Phase 2 Legacy**: These endpoints use "network" terminology and camelCase JSON.
+> Phase 2.5 replaces them with "session" terminology and kebab-case JSON.
+> See Phase 2.5.0 for the migration tasks.
+
 **New file**: `packages/vide_server/lib/routes/network_routes.dart` (~200 lines)
 
 **3 Core MVP Endpoints** (NO authentication for MVP):
+
+0. **GET /health** - Health check
+   ```
+   Response: {"status": "ok", "version": "0.1.0"} (200)
+   ```
+   **Purpose**: Load balancer health checks, client connection verification, server availability monitoring.
 
 1. **POST /api/v1/networks** - Create network and start agent
    ```
    Request:  {
      "initialMessage": "Write a hello world program",
-     "workingDirectory": "/Users/chris/myproject"
+     "workingDirectory": "/Users/chris/myproject",
+     "model": "opus",           // optional: "sonnet" (default), "opus", "haiku"
+     "permissionMode": "ask"    // optional: "acceptEdits" (default), "plan", "ask", "deny"
    }
    Response: {
      "networkId": "uuid",
@@ -539,19 +550,13 @@ void main(List<String> args) async {
    ```
    **Requirements**:
    - `workingDirectory` is required for MVP
-   - Response MUST include `mainAgentId` so client can open SSE stream immediately
+   - Response MUST include `mainAgentId` so client can open WebSocket stream immediately
    - `mainAgentId` is the first agent in the network (the orchestrator agent)
+   - `model` and `permissionMode` are optional (defaults applied if omitted)
 
-2. **POST /api/v1/networks/:networkId/messages** - Send message to agent
+2. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (WebSocket)
    ```
-   Request:  {"content": "Now make it print goodbye too"}
-   Response: {"status": "sent"}
-   ```
-   **Note**: Messages are automatically queued if agent is busy. ClaudeClient has built-in FIFO message queue (`_inbox`), so concurrent requests are handled sequentially.
-
-3. **GET /api/v1/networks/:networkId/agents/:agentId/stream** - Stream agent responses (SSE)
-   ```
-   Response: Server-Sent Events stream
+   Response: WebSocket stream (JSON events)
    Event format (includes agent context for multiplexing):
    data: {
      "agentId": "uuid",
@@ -571,8 +576,9 @@ void main(List<String> args) async {
      "taskName": "Implementing login flow",
      "type": "tool_use",
      "data": {
-       "tool": "Write",
-       "params": {...}
+       "toolUseId": "tool-uuid-1",
+       "toolName": "Write",
+       "toolInput": {...}
      },
      "timestamp": "2025-12-21T10:00:01Z"
    }
@@ -583,7 +589,10 @@ void main(List<String> args) async {
      "taskName": "Implementing login flow",
      "type": "tool_result",
      "data": {
-       "result": "..."
+       "toolUseId": "tool-uuid-1",
+       "toolName": "Write",
+       "result": "...",
+       "isError": false
      },
      "timestamp": "2025-12-21T10:00:02Z"
    }
@@ -610,10 +619,11 @@ void main(List<String> args) async {
    ```
    **Sub-agent Streaming**: Main agent stream includes ALL network activity (multiplexed). When main agent spawns sub-agents (implementation, context collection, etc.), their activity appears in the main stream. Each event includes `agentId`, `agentType`, `agentName`, and `taskName` so the client can correctly attribute output and display agent-specific UI (e.g., collapsible sections per agent).
 
-**Implementation note**: Endpoints run actual ClaudeClient instances. SSE streams real-time agent responses.
+**Implementation note**: Endpoints run actual ClaudeClient instances. WebSocket streams real-time agent responses.
 **Working directory behavior**:
 - On `POST /networks`, call `startNew(initialMessage, workingDirectory: userRequestedDirectory)` which atomically creates the network with the working directory set. This is stored in `worktreePath` and persisted immediately.
-- On `/messages` and `/stream`, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
+- On WebSocket connect, load the network from persistence and call `resume(network)`. The persisted `worktreePath` is automatically used by all agents via `effectiveWorkingDirectory`.
+- Subsequent messages are sent via the session WebSocket `user-message` events (see Phase 2.5.1).
 
 #### 2.5 Implement Middleware
 **New file**: `packages/vide_server/lib/middleware/cors_middleware.dart` (~40 lines)
@@ -628,24 +638,56 @@ void main(List<String> args) async {
 **Purpose**: Simple auto-approve/deny permission rules for MVP
 
 **Strategy**:
-- Auto-approve safe read-only operations (Read, Grep, Glob, git status)
+- Auto-approve safe read-only operations (Read, Grep, Glob, git status, git log, git diff)
 - Auto-approve Write/Edit to project directory only
-- Auto-deny dangerous operations (Bash with rm/dd/mkfs, web requests to non-localhost)
+- Auto-deny dangerous operations (see list below)
 - No user interaction needed
 
-**Note**: For MVP testing on localhost. Post-MVP will add webhook callbacks.
+**Dangerous commands (auto-denied)**:
+
+*File operations:*
+- `rm -rf`, `rm -fr`, `rm -r /` (recursive deletion)
+- `rmdir` on system paths
+
+*Disk operations:*
+- `dd` (raw disk access)
+- `mkfs` (filesystem creation)
+- `fdisk`, `parted` (partition manipulation)
+- `mount`, `umount` (filesystem mounting)
+
+*System modification:*
+- `chmod 777` (world-writable permissions)
+- `chown` (ownership changes)
+- `sudo`, `su` (privilege escalation)
+- `systemctl`, `service` (service management)
+
+*Network operations (external):*
+- `curl`, `wget` to non-localhost targets
+- `WebFetch` to non-localhost URLs
+- `ssh`, `scp` (remote access)
+
+*Package management:*
+- `apt`, `yum`, `brew`, `npm install -g` (global installs)
+- `pip install` without `--user`
+
+**Note**: For MVP testing on localhost. Post-MVP will add interactive permission handling via WebSocket.
 
 #### 2.7 Implement DTOs (Data Transfer Objects)
+
+> ⚠️ **Phase 2 Legacy**: These DTOs use "network" naming and camelCase.
+> Phase 2.5 renames to "session" terminology with kebab-case JSON.
+> See Phase 2.5.0 for the migration tasks.
+
 **New file**: `packages/vide_server/lib/dto/network_dto.dart` (~150 lines)
 
 **Purpose**: Request/response schemas
 
 **Key DTOs**:
-- `CreateNetworkRequest` - { initialMessage, workingDirectory (required) }
-- `SendMessageRequest` - { content }
-- `SSEEvent` - Enhanced for multiplexing:
+- `CreateNetworkRequest` - { initialMessage, workingDirectory (required), model?, permissionMode? }
+- `WebSocketClientMessage` - { type, content?, model?, permissionMode?, requestId?, allow?, ... } (for user_message, permission_response, abort)
+- `WebSocketEvent` - Enhanced for multiplexing:
   ```dart
-  class SSEEvent {
+  class WebSocketEvent {
     final String agentId;       // Which agent produced this event
     final String agentType;     // "main", "implementation", "planning", etc.
     final String? agentName;    // Human-readable name (e.g., "Auth Fix")
@@ -656,6 +698,707 @@ void main(List<String> args) async {
   }
   ```
   This allows the REST client to correctly attribute events to agents and display agent-specific UI.
+
+---
+
+### Phase 2.5: GUI App Prerequisites (vide_flutter)
+
+These features must be implemented in vide_server before starting vide_flutter development.
+
+#### 2.5.1 Multiplexed Bidirectional WebSocket
+
+Replace the per-agent WebSocket streams with a single session-level multiplexed stream.
+
+**Current**: `GET /api/v1/networks/:networkId/agents/:agentId/stream` (per-agent, Phase 2)
+**New**: `GET /api/v1/sessions/:session-id/stream` (per-session, multiplexed)
+
+**Migration**: The per-agent stream endpoint will be **removed** (not deprecated). Only the session-level multiplexed stream will be available. The POST endpoint also changes from `/api/v1/networks` to `/api/v1/sessions`.
+
+**Features**:
+- Single WebSocket connection per session receives events from ALL agents (main + spawned)
+- Each event includes: `seq` (sequence number), `event-id` (UUID), attribution fields (`agent-id`, `agent-type`, `agent-name`, `task-name`), and `timestamp`
+- WebSocket is fully bidirectional: server sends events, client sends messages and commands
+- Client receives unified timeline without managing multiple connections
+- All session messages sent via WebSocket (no HTTP POST for messages)
+- Server does NOT accumulate message content - sends each chunk as received
+- Client is responsible for accumulating chunks with matching `event-id`
+
+**Event format** (server → client):
+
+All JSON uses kebab-case for property names and event types.
+
+```json
+{
+  "seq": 3,
+  "event-id": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "message",
+  "is-partial": true,
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "data": {"role": "assistant", "content": "Let me "},
+  "timestamp": "2025-12-21T10:00:00Z"
+}
+```
+
+**Message streaming model**:
+- Single `message` event type with `is-partial` flag
+- `is-partial: true` for streaming chunks, `is-partial: false` for complete message
+- `event-id` (UUID) identifies a logical event across partial chunks; all chunks share the same `event-id`
+- `seq` (integer) is a session-scoped sequence number for ordering and deduplication
+- Final event has `is-partial: false` (content may be empty)
+
+**Example streaming sequence**:
+```json
+{"seq": 3, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "Let me "}, ...}
+{"seq": 4, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "help you "}, ...}
+{"seq": 5, "event-id": "550e8400-...", "type": "message", "is-partial": true, "data": {"role": "assistant", "content": "with that."}, ...}
+{"seq": 6, "event-id": "550e8400-...", "type": "message", "is-partial": false, "data": {"role": "assistant", "content": ""}, ...}
+```
+
+**Tool event examples**:
+
+`tool-use` event (agent invoking a tool):
+```json
+{
+  "seq": 5,
+  "event-id": "uuid",
+  "type": "tool-use",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "tool-use-id": "tool-uuid-1",
+    "tool-name": "Bash",
+    "tool-input": {"command": "ls -la"}
+  }
+}
+```
+
+`tool-result` event (tool execution completed):
+```json
+{
+  "seq": 6,
+  "event-id": "uuid",
+  "type": "tool-result",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
+  "timestamp": "2025-12-21T10:00:01Z",
+  "data": {
+    "tool-use-id": "tool-uuid-1",
+    "tool-name": "Bash",
+    "result": "file1.txt\nfile2.txt",
+    "is-error": false
+  }
+}
+```
+
+`done` event (agent turn completed):
+```json
+{
+  "seq": 10,
+  "event-id": "uuid",
+  "type": "done",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "reason": "complete"
+  }
+}
+```
+
+**Message format** (client → server):
+
+| Type | Description | Fields |
+|------|-------------|--------|
+| `user-message` | Send a message to the conversation | `content`, `model?`, `permission-mode?` |
+| `permission-response` | Allow/deny a permission request | `request-id`, `allow`, `message?` |
+| `abort` | Cancel in-progress agent operation | (none) |
+
+**`user-message` example**:
+```json
+{
+  "type": "user-message",
+  "content": "Now make it print goodbye too",
+  "model": "opus",
+  "permission-mode": "ask"
+}
+```
+
+**`abort` behavior**:
+When the client sends `abort`, the server:
+1. Cancels the current turn for **ALL active agents** in the session (not just one)
+2. Stops any in-progress Claude API calls for all agents
+3. Sends an `aborted` event **for each cancelled agent** to confirm cancellation
+4. The conversation remains valid - client can send new messages
+
+Note: Tool executions that have already completed cannot be undone. Abort only affects in-progress operations.
+
+**`abort` example**:
+```json
+{
+  "type": "abort"
+}
+```
+
+**Error handling for unknown message types**:
+```json
+{
+  "seq": 11,
+  "event-id": "990e8400-e29b-41d4-a716-446655440011",
+  "type": "error",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "message": "Unknown message type: foo",
+    "code": "UNKNOWN_MESSAGE_TYPE",
+    "original-message": {...}
+  }
+}
+```
+
+**Future work for `user-message`**: `temperature`, `max-tokens`, `allowed-tools`, `disallowed-tools`
+
+#### 2.5.2 Bidirectional Permission Handling
+
+Add permission request/response flow via the WebSocket connection.
+
+**Permission request** (server → client):
+```json
+{
+  "seq": 8,
+  "event-id": "770e8400-e29b-41d4-a716-446655440008",
+  "type": "permission-request",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "request-id": "660e8400-e29b-41d4-a716-446655440001",
+    "tool-name": "Bash",
+    "tool-input": {"command": "rm -rf node_modules"},
+    "permission-suggestions": ["Bash(rm *)"]
+  }
+}
+```
+
+**Permission response** (client → server):
+```json
+{
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
+  "allow": true
+}
+```
+
+Or deny (with optional message):
+```json
+{
+  "type": "permission-response",
+  "request-id": "660e8400-e29b-41d4-a716-446655440001",
+  "allow": false,
+  "message": "User declined"
+}
+```
+
+**Implementation notes**:
+- Server blocks agent execution until client responds or times out
+- Mimics `CanUseToolCallback` pattern from claude_sdk
+- Timeout is configurable (default: 60 seconds)
+- Timeout can be configured in server config file (`~/.vide/api/config.json`)
+
+**On timeout**: When permission request times out, server:
+1. Auto-denies the permission
+2. Sends `permission-timeout` event to client:
+```json
+{
+  "seq": 9,
+  "event-id": "770e8400-e29b-41d4-a716-446655440009",
+  "type": "permission-timeout",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login flow",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "request-id": "660e8400-e29b-41d4-a716-446655440001",
+    "tool-name": "Bash",
+    "timeout-seconds": 60
+  }
+}
+```
+
+#### 2.5.3 Model and Options Selection Support
+
+Add optional per-message configuration fields to control model and permissions.
+
+**Where options are specified**:
+1. `POST /api/v1/sessions` - For the initial message (see Phase 2.5)
+2. `user-message` WebSocket event - For subsequent messages (see Section 2.5.1)
+
+**Valid model values**:
+- `"sonnet"` (default) - Claude Sonnet
+- `"opus"` - Claude Opus
+- `"haiku"` - Claude Haiku (faster, lower cost)
+
+**Valid permission-mode values**:
+- `"accept-edits"` (default) - Auto-approve tool use
+- `"plan"` - Plan-only mode, no code execution
+- `"ask"` - Request user permission for each tool use (triggers `permission-request` events)
+- `"deny"` - Block all tool use
+
+**Implementation notes**:
+- All fields are optional; omitted fields use agent defaults
+- Model/mode selection applies per-message, allowing users to switch mid-conversation
+- Options are passed to ClaudeClient when processing the message
+- Model and permission-mode values are passed directly to the Claude SDK. If the SDK returns an error (e.g., invalid model name), the error is forwarded to the client as an error event.
+
+**Future work**: `temperature`, `max-tokens`, `allowed-tools`, `disallowed-tools`
+
+#### 2.5.4 Filesystem Browsing API
+
+Add endpoints for browsing and creating directories.
+
+**GET /api/v1/filesystem** - List directory contents
+```
+Query params:
+  parent: string (optional) - path to list children of; null/omitted = server root
+
+Response:
+{
+  "entries": [
+    {"name": "src", "path": "/Users/chris/myproject/src", "is-directory": true},
+    {"name": "main.dart", "path": "/Users/chris/myproject/main.dart", "is-directory": false}
+  ]
+}
+```
+
+**POST /api/v1/filesystem** - Create new folder
+```
+Request:
+{
+  "parent": "/Users/chris/projects",
+  "name": "new-project"
+}
+
+Response:
+{
+  "path": "/Users/chris/projects/new-project"
+}
+```
+
+**Security notes**:
+- Server enforces a configurable root directory (configured via server config file)
+- All operations restricted to within the allowed scope
+- Prevents path traversal attacks (e.g., `../../../etc/passwd`)
+- **Symlinks are NOT followed** to prevent escaping the configured `filesystem-root`
+- **Path validation**: Paths are canonicalized and must:
+  1. Exist on the filesystem (for listings)
+  2. Be at or below the configured `filesystem-root`
+
+**Configuration** (in server config file: `~/.vide/api/config.json`):
+```json
+{
+  "filesystem-root": "/Users/chris/projects",
+  "permission-timeout-seconds": 60
+}
+```
+
+**Config file behavior**:
+- If file doesn't exist, server uses defaults for all values
+- `filesystem-root` defaults to user's home directory (intentionally broad to allow flexibility; GUI client may add restrictions)
+- `permission-timeout-seconds` defaults to 60
+
+#### 2.5.5 Error Response Schema
+
+All HTTP endpoints use a consistent error response format.
+
+**HTTP error response** (4xx/5xx):
+```json
+{
+  "error": "Human-readable error message",
+  "code": "ERROR_CODE"
+}
+```
+
+**Common error codes**:
+- `INVALID_REQUEST` - Malformed request body or missing required fields
+- `INVALID_WORKING_DIRECTORY` - Working directory does not exist or is not accessible
+- `NOT_FOUND` - Session, agent, or resource not found
+- `INTERNAL_ERROR` - Unexpected server error
+- `UNKNOWN_MESSAGE_TYPE` - Client sent unrecognized WebSocket message type
+
+**WebSocket errors** use the standard event format with `original-message` for client-triggered errors:
+```json
+{
+  "seq": 12,
+  "event-id": "990e8400-e29b-41d4-a716-446655440012",
+  "type": "error",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "message": "Human-readable error message",
+    "code": "ERROR_CODE",
+    "original-message": {...}
+  }
+}
+```
+
+#### 2.5.6 WebSocket Lifecycle Documentation
+
+**Connection lifecycle**:
+
+1. **Connect**: Client opens WebSocket to `/api/v1/sessions/{session-id}/stream`
+2. **Handshake**: Server sends `connected` event with session metadata
+3. **State sync**: Server sends `status` events for all current agents
+4. **Catch-up**: If conversation has events, server sends `history` event with ALL events (including in-progress)
+5. **Streaming**: Server streams events as agents work
+6. **Bidirectional**: Client can send messages and commands
+
+**Events (server → client)**:
+| Type | Description |
+|------|-------------|
+| `connected` | Initial connection with session metadata |
+| `history` | All session events including in-progress (for client display and deduplication) |
+| `status` | Agent status changes (working, waiting-for-agent, waiting-for-user, idle) |
+| `message` | Streaming message chunk with `seq`, `role`, `is-partial` flag, and `event-id` |
+| `tool-use` | Agent is invoking a tool |
+| `tool-result` | Tool execution completed |
+| `permission-request` | Tool needs user approval |
+| `permission-timeout` | Permission request timed out (auto-denied) |
+| `agent-spawned` | New agent added to session |
+| `agent-terminated` | Agent removed from session |
+| `aborted` | Confirms abort, includes interrupted agent-id |
+| `done` | Agent turn completed |
+| `error` | Error occurred |
+
+**Messages (client → server)**:
+| Type | Description |
+|------|-------------|
+| `user-message` | Send a message to the conversation |
+| `permission-response` | Allow/deny a permission request |
+| `abort` | Cancel in-progress agent operation |
+
+**Event data structures**:
+
+`connected`:
+```json
+{
+  "type": "connected",
+  "session-id": "550e8400-e29b-41d4-a716-446655440000",
+  "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "last-seq": 0,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "agents": [
+    {
+      "id": "660e8400-e29b-41d4-a716-446655440001",
+      "type": "main",
+      "name": "Main Agent"
+    }
+  ],
+  "metadata": {
+    "working-directory": "/path/to/project"
+  }
+}
+```
+
+Note: Status is NOT included in the `connected` event - status events are sent separately as agents change state.
+
+`status`:
+```json
+{
+  "seq": 1,
+  "event-id": "550e8400-e29b-41d4-a716-446655440099",
+  "type": "status",
+  "agent-id": "550e8400-e29b-41d4-a716-446655440000",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "status": "working"
+  }
+}
+```
+
+**Valid status values** (from vide_core's `AgentStatus` enum):
+
+| Status | Meaning |
+|--------|---------|
+| `working` | Agent is actively processing a task |
+| `waiting-for-agent` | Agent is waiting for another agent to respond |
+| `waiting-for-user` | Agent is waiting for user input/approval |
+| `idle` | Agent has completed its work |
+
+> Note: These map directly to vide_core's `AgentStatus` enum. The low-level Claude processing states (`thinking`, `responding`, etc.) are internal to claude_sdk and not exposed through vide_core's public API.
+
+`history`:
+```json
+{
+  "type": "history",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "last-seq": 42,
+  "data": {
+    "events": [
+      {
+        "seq": 1,
+        "event-id": "uuid-1",
+        "type": "message",
+        "is-partial": false,
+        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+        "agent-type": "main",
+        "agent-name": "Main Agent",
+        "task-name": null,
+        "data": {"role": "user", "content": "Write hello.dart"},
+        "timestamp": "2025-12-21T10:00:00Z"
+      },
+      {
+        "seq": 2,
+        "event-id": "uuid-2",
+        "type": "tool-use",
+        "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+        "agent-type": "implementation",
+        "agent-name": "Code Writer",
+        "task-name": "Writing hello.dart",
+        "data": {
+          "tool-use-id": "tool-1",
+          "tool-name": "Write",
+          "tool-input": {"file-path": "hello.dart", "content": "..."}
+        },
+        "timestamp": "2025-12-21T10:00:01Z"
+      },
+      {
+        "seq": 3,
+        "event-id": "uuid-3",
+        "type": "tool-result",
+        "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+        "agent-type": "implementation",
+        "agent-name": "Code Writer",
+        "task-name": "Writing hello.dart",
+        "data": {
+          "tool-use-id": "tool-1",
+          "tool-name": "Write",
+          "result": "File written successfully",
+          "is-error": false
+        },
+        "timestamp": "2025-12-21T10:00:02Z"
+      },
+      {
+        "seq": 42,
+        "event-id": "uuid-42",
+        "type": "message",
+        "is-partial": true,
+        "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+        "agent-type": "main",
+        "agent-name": "Main Agent",
+        "task-name": null,
+        "data": {"role": "assistant", "content": "I'm currently working on..."},
+        "timestamp": "2025-12-21T10:00:10Z"
+      }
+    ]
+  }
+}
+```
+
+The `history` event contains **ALL events from the session** in chronological order, including in-progress events with `is-partial: true`. The `last-seq` field indicates the sequence number of the last event, used by clients for deduplication. Each event includes agent attribution so the client can display them correctly.
+
+`agent-spawned`:
+```json
+{
+  "seq": 7,
+  "event-id": "880e8400-e29b-41d4-a716-446655440007",
+  "type": "agent-spawned",
+  "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "spawned-by": "660e8400-e29b-41d4-a716-446655440001"
+  }
+}
+```
+
+`agent-terminated`:
+```json
+{
+  "seq": 15,
+  "event-id": "880e8400-e29b-41d4-a716-446655440015",
+  "type": "agent-terminated",
+  "agent-id": "770e8400-e29b-41d4-a716-446655440002",
+  "agent-type": "implementation",
+  "agent-name": "Auth Fix",
+  "task-name": "Implementing login",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "terminated-by": "660e8400-e29b-41d4-a716-446655440001",
+    "reason": "Task complete"
+  }
+}
+```
+
+`aborted`:
+```json
+{
+  "seq": 20,
+  "event-id": "880e8400-e29b-41d4-a716-446655440020",
+  "type": "aborted",
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "timestamp": "2025-12-21T10:00:00Z",
+  "data": {
+    "reason": "aborted"
+  }
+}
+```
+
+**Disconnection handling**:
+- **Client disconnects**: Server cleans up all subscriptions for that connection
+- **Server closes connection**: Client should attempt reconnection with exponential backoff
+- **Reconnection**: On reconnect, client receives current state via `connected` + `status` + `history` events
+- **Agent continues running**: If client disconnects, agents keep running; client can reconnect to resume streaming
+
+#### 2.5.7 WebSocket Connection Health
+
+**Ping/Pong Keepalive**:
+- Server sends a Ping frame every 20 seconds
+- Client must respond with Pong within 20 seconds
+- If no Pong is received, server closes the connection with code 1001 (Going Away)
+- Dart WebSocket handles this via the `pingInterval` property
+
+**Why keepalive matters**:
+- Detects broken connections quickly (instead of 30+ minute TCP timeouts)
+- Prevents proxy infrastructure from terminating idle connections
+- Measures connection latency via round-trip time
+
+#### 2.5.8 WebSocket Close Codes
+
+Standard WebSocket close codes are used (RFC 6455):
+- `1000` - Normal closure
+- `1001` - Going Away (e.g., server shutdown, ping timeout)
+- `1002` - Protocol Error
+- `1003` - Unsupported Data
+- `1006` - Abnormal Closure (connection lost without close frame)
+- `1011` - Internal Error
+
+#### 2.5.9 Session State Recovery & Reconnection
+
+Robust session state recovery ensures clients always see complete event history without gaps, regardless of when they connect or reconnect.
+
+**Design Principles:**
+- Events stream immediately (no server-side buffering for disconnected clients)
+- All events are persisted to session history as they occur
+- On WebSocket connect, server sends full event history including in-progress events
+- Session-scoped sequence numbers enable client-side deduplication
+- Same event format for persistence (TUI) and API (REST)
+
+**Sequence Numbers:**
+
+Every event includes a session-scoped sequence number (`seq`):
+- Monotonically increasing integer starting at 1
+- Persisted with each event
+- Included in every WebSocket event
+- Enables gap detection and deduplication
+
+**Connection Lifecycle (Atomic Subscribe-Then-History):**
+
+To prevent race conditions between history delivery and live events:
+
+1. Client opens WebSocket connection
+2. Server subscribes client to live event stream (events start buffering internally)
+3. Server reads all events from session persistence
+4. Server sends `connected` event with session metadata and `last-seq`
+5. Server sends `history` event with all events and `last-seq`
+6. Server flushes any buffered live events
+7. Client receives live events with sequence numbers continuing from `last-seq`
+
+**Client-Side Deduplication:**
+
+```
+On receiving history:
+  last_received_seq = history.last-seq
+
+On receiving live event:
+  if event.seq <= last_received_seq:
+    discard (duplicate from race window)
+  else if event.seq == last_received_seq + 1:
+    process event
+    last_received_seq++
+  else if event.seq > last_received_seq + 1:
+    log gap warning (should not happen with atomic pattern)
+    process event anyway
+    last_received_seq = event.seq
+```
+
+**Scenarios Supported:**
+
+| Scenario | Behavior |
+|----------|----------|
+| New client connects to session already started | Receives `history` with all events (including in-progress), then live events |
+| Client reconnects after connection drop | Same - receives full history, deduplicates overlap via sequence numbers |
+| Client connects to idle session | Receives `history` with all events, can send `user-message` to resume |
+| Partial message in progress | History includes partial events (`is-partial: true`), client correlates new chunks via `event-id` |
+
+**Event Format (Shared TUI/REST):**
+
+All events use this format for both TUI persistence and REST API:
+
+```json
+{
+  "seq": 42,
+  "event-id": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "message",
+  "is-partial": true,
+  "agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "agent-type": "main",
+  "agent-name": "Main Agent",
+  "task-name": null,
+  "data": {"role": "assistant", "content": "Let me help you..."},
+  "timestamp": "2025-12-21T10:00:00Z"
+}
+```
+
+**History Event Structure:**
+
+```json
+{
+  "type": "history",
+  "timestamp": "2025-12-21T10:00:00Z",
+  "last-seq": 42,
+  "data": {
+    "events": [
+      {"seq": 1, "event-id": "...", "type": "message", ...},
+      {"seq": 2, "event-id": "...", "type": "tool-use", ...},
+      ...
+      {"seq": 42, "event-id": "...", "type": "message", "is-partial": true, ...}
+    ]
+  }
+}
+```
+
+**Implementation Notes:**
+- TUI and REST server MUST use identical event serialization format
+- Events are append-only (immutable once written)
+- Sequence numbers are assigned at event creation time
+- No server-side buffering for offline clients - history replay provides catch-up
+- For v1, always send full history (no resume optimization with client-provided `last-seq`)
 
 ---
 
@@ -684,10 +1427,11 @@ void main(List<String> args) async {
 #### 3.1 Manual Testing
 **Test scenario**: End-to-end chat flow
 1. Start server (from `packages/vide_server`): `dart run bin/vide_server.dart`
-2. Create network (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/networks -d '{"initialMessage":"Hello","workingDirectory":"."}'`
-3. Open SSE stream in browser or curl
-4. Send message: `curl -X POST http://127.0.0.1:<port>/api/v1/networks/{id}/messages -d '{"content":"Write hello.dart"}'`
-5. Watch agent response in SSE stream
+2. Create session (use printed URL): `curl -X POST http://127.0.0.1:<port>/api/v1/sessions -H "Content-Type: application/json" -d '{"initial-message":"Hello","working-directory":"."}'`
+3. Open WebSocket connection: `wscat -c ws://127.0.0.1:<port>/api/v1/sessions/{session-id}/stream`
+4. Receive initial response stream from the initial message
+5. Send follow-up message via WebSocket: `{"type":"user-message","content":"Write hello.dart"}`
+6. Watch agent response in WebSocket stream
 
 #### 3.2 Documentation
 **New files**:
@@ -710,18 +1454,22 @@ void main(List<String> args) async {
 - `test/posthog_refactor_test.dart` - Verify PostHog refactor
 - `test/provider_override_test.dart` - Verify provider overrides work
 
-**packages/vide_server/** (8 files, ~750 lines total for MVP)
+**packages/vide_server/** (7 files for Phase 2, ~710 lines total for MVP)
 - `pubspec.yaml` - Server package definition
 - `bin/vide_server.dart` - Server entry point (100 lines)
-- `lib/routes/network_routes.dart` - 3 core endpoints with SSE (200 lines)
+- `lib/routes/network_routes.dart` - 3 core endpoints with WebSocket streaming (200 lines)
 - `lib/middleware/cors_middleware.dart` - CORS headers (40 lines)
 - `lib/services/simple_permission_service.dart` - Auto-approve/deny rules (80 lines)
 - `lib/services/network_cache_manager.dart` - Hybrid caching for networks (40 lines)
-- `lib/dto/network_dto.dart` - Request/response schemas including enhanced SSEEvent (150 lines)
-- `lib/config/server_config.dart` - Port parsing and loopback binding rules (40 lines)
+- `lib/dto/network_dto.dart` - Request/response schemas including WebSocketEvent (150 lines)
 
-**vide_cli (root)** (1 file, TUI-specific)
-- `lib/modules/permissions/permission_service_adapter.dart` - Adapter wrapping PermissionService to implement PermissionProvider interface (40 lines)
+**packages/vide_server/** (additional files for Phase 2.5)
+- `lib/services/server_config.dart` - Config file loading from ~/.vide/api/config.json (~50 lines)
+- `lib/services/interactive_permission_service.dart` - WebSocket-based permission handling with timeout (~100 lines)
+- `lib/routes/filesystem_routes.dart` - Filesystem browsing endpoints (~120 lines)
+
+**vide_cli (root)** (0 new files for Phase 2.5)
+- TUI implementation details live in vide_cli (see `bin/vide.dart` and `lib/modules/permissions/`)
 
 ### Files to MOVE to vide_core (core non-TUI code; flutter_runtime_mcp stays)
 
@@ -784,7 +1532,7 @@ void main(List<String> args) async {
                │ HTTP/REST
 ┌──────────────▼──────────────────────────┐
 │  vide_server (packages/vide_server)     │
-│  ├─ REST API Endpoints (SSE streaming)  │
+│  ├─ REST API Endpoints (WebSocket)      │
 │  ├─ Simple Permission Service (MVP)     │
 │  └─ Uses vide_core services             │
 └──────────────┬──────────────────────────┘
@@ -827,7 +1575,7 @@ void main(List<String> args) async {
 - ✅ Analyzed AgentNetworkManager (has built-in message queue, persistence via JSON, resume() flow)
 
 **Implementation Steps** (Use `git mv` for ALL file moves!):
-1. ✅ Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_sdk via path, riverpod ^2.5.1, freezed, json_serializable, etc.)
+1. ✅ Create `packages/vide_core/` with pubspec.yaml (dependencies: claude_sdk via path, riverpod ^3.0.3, freezed, json_serializable, etc.)
 2. ✅ **git mv** models to vide_core - AS-IS
 3. ✅ **git mv** VideConfigManager to vide_core - convert singleton to Riverpod provider (add configRoot param)
 4. ✅ **git mv** PostHogService to vide_core - update init method to accept VideConfigManager directly
@@ -842,8 +1590,8 @@ void main(List<String> args) async {
 13. ✅ Update `pubspec.yaml` (root) to depend on vide_core (path dependency)
 14. ✅ Update all imports in vide_cli to use `package:vide_core/...`
 15. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings at root cause (root analysis_options.yaml applies to all packages)
-16. ✅ **Create** TUI permission adapter (wraps PermissionService to implement PermissionProvider)
-17. ✅ **Add provider overrides in TUI**: Update `bin/vide.dart` to override VideConfigManager, permissionProvider, and workingDirProvider
+16. ✅ **TUI permission wiring** complete (see vide_cli `lib/modules/permissions/`)
+17. ✅ **TUI provider overrides** in `bin/vide.dart` (see vide_cli for details)
 18. ✅ **Add Refactoring Tests**: Create and run `config_isolation_test.dart`, `posthog_refactor_test.dart`, and `provider_override_test.dart` (tests must override providers in ProviderContainer)
 19. ✅ **Test TUI still works - STOP HERE FOR CHECKPOINT**
 20. ✅ Run full TUI test suite (from repo root): `dart test` - All 225 tests passing
@@ -857,22 +1605,114 @@ void main(List<String> args) async {
 26. ✅ **Add provider overrides in REST**: VideConfigManager (configRoot = ~/.vide/api), permissionProvider (SimplePermissionService); workingDirProvider overridden to throw error (defensive programming - ensures workingDirectory always passed to startNew())
 27. ✅ Implement CORS middleware (allow all origins for localhost MVP)
 28. ✅ Implement simple permission service (auto-approve safe ops, deny dangerous ops) - implements PermissionProvider interface
-29. ✅ Implement network DTOs (CreateNetworkRequest with mainAgentId in response, SendMessageRequest, WebSocketEvent)
+29. ✅ Implement network DTOs (CreateNetworkRequest with mainAgentId in response, WebSocketEvent)
 30. ✅ Implement POST /api/v1/networks - calls `startNew(initialMessage, workingDirectory: userRequestedDirectory)`, returns mainAgentId for streaming
-31. ✅ Implement POST /api/v1/networks/:id/messages - uses message queue (built-in to ClaudeClient)
+31. ✅ ~~Implement POST /api/v1/networks/:id/messages~~ (REMOVED - messages sent via WebSocket, see Phase 2.5.1)
 32. ✅ Implement WebSocket streaming at /api/v1/networks/:id/agents/:agentId/stream - WebSocket streaming with multiplexed sub-agent activity (changed from SSE to WebSocket for better bidirectional support)
 33. ✅ **RUN DART ANALYSIS**: `dart analyze packages/vide_server` then `dart analyze packages/vide_core` then `dart analyze` - fix all errors/warnings; verify all three packages are clean
 34. ✅ **Test MVP end-to-end**: create network → get mainAgentId → open WebSocket stream → send message → watch agent responses
 35. ✅ **Fix duplicate content bug**: Claude CLI sends both deltas and cumulative messages; fixed in `response.dart` and `conversation.dart`
 36. ✅ **Add integration tests**: End-to-end test and duplicate content detection test in `packages/vide_server/test/integration/end_to_end_test.dart`
-37. ⬜ **Verify TUI still works after Phase 2 changes** (pending manual verification)
+37. ✅ **Verify TUI still works after Phase 2 changes** (see vide_cli for details)
 
-### Phase 3: Testing & Documentation (Day 4)
-38. Manual testing with curl and browser (full chat conversation workflow)
-39. Add error handling for common cases (network errors, invalid requests)
-40. Write API documentation with curl examples (packages/vide_server/API.md)
-41. Create simple HTML test client for testing WebSocket streaming
-42. Update root README.md to explain dual-interface architecture
+### Phase 2.5: GUI App Prerequisites (Day 3.5-4)
+
+> **Terminology Migration**: Phase 2.5 completes the migration from "network" to "session" terminology in vide_server.
+> - **External API**: Uses "session" exclusively (`/api/v1/sessions`, `session-id`, `CreateSessionRequest`)
+> - **Internal code**: vide_server calls vide_core's `AgentNetworkManager` which uses "network" internally
+> - **JSON format**: All properties use kebab-case (breaking change from Phase 2's camelCase)
+
+**2.5.0 Terminology & Convention Migration:**
+38. ✅ Rename all DTOs: `CreateNetworkRequest` → `CreateSessionRequest`, `NetworkCacheManager` → `SessionCacheManager`
+39. ✅ Rename route file: `network_routes.dart` → `session_routes.dart`
+40. ✅ Create `POST /api/v1/sessions` endpoint (replaces `POST /api/v1/networks`)
+41. ✅ Remove `POST /api/v1/networks` endpoint
+42. ✅ Update all JSON responses to use kebab-case: `session-id`, `main-agent-id`, `working-directory`, etc.
+43. ✅ Update all JSON requests to use kebab-case: `initial-message`, `permission-mode`, etc.
+
+**POST /api/v1/sessions** - Create session and start agent (replaces Phase 2's POST /api/v1/networks):
+```
+Request:
+{
+  "initial-message": "Write a hello world program",
+  "working-directory": "/Users/chris/myproject",
+  "model": "opus",             // optional: "sonnet" (default), "opus", "haiku"
+  "permission-mode": "ask"     // optional: "accept-edits" (default), "plan", "ask", "deny"
+}
+
+Response:
+{
+  "session-id": "550e8400-e29b-41d4-a716-446655440000",
+  "main-agent-id": "660e8400-e29b-41d4-a716-446655440001",
+  "created-at": "2025-12-21T10:00:00Z"
+}
+```
+
+**Requirements**:
+- `working-directory` is required
+- Response includes `main-agent-id` so client can identify the orchestrator agent
+- After receiving response, client connects to WebSocket at `/api/v1/sessions/{session-id}/stream`
+
+**2.5.1 Multiplexed Session WebSocket:**
+44. ✅ Create `_SessionStreamManager` class to track all agents in session
+45. ✅ Implement `streamSessionWebSocket()` handler at `/api/v1/sessions/{session-id}/stream`
+46. ✅ Add multi-agent subscription logic (subscribe to all current + spawned agents)
+47. ✅ Add `agent-spawned` and `agent-terminated` event types
+48. ✅ Remove old per-agent endpoint (`/api/v1/networks/{networkId}/agents/{agentId}/stream`)
+49. ✅ Update integration tests for session-level WebSocket
+50. ✅ Implement message streaming with `seq`, `role`, `is-partial` flag, and `event-id` (server does NOT accumulate)
+
+**2.5.2 Bidirectional Permission Handling:**
+51. ✅ Create `InteractivePermissionService` with timeout support (60s default, auto-deny)
+52. ✅ Add `permission-request` event type to WebSocketEvent
+53. ✅ Implement client message handling for `permission-response`
+54. ✅ Add `permission-timeout` event type (sent when permission request times out)
+55. ✅ Add `ServerConfig` class to load `~/.vide/api/config.json`
+56. ✅ Add integration tests for permission request/response flow
+
+**2.5.3 Model and Options Selection:**
+57. ✅ Add `user-message` client→server handler to WebSocket (content, model?, permission-mode?)
+58. ✅ Add `abort` client→server handler to WebSocket (cancels ALL active agents)
+59. ✅ Add `aborted` server→client event (one per cancelled agent)
+60. ✅ Add `history` server→client event (all messages from ALL agents, with agent attribution)
+61. ✅ Extend `CreateSessionRequest` DTO with model, permission-mode (for initial message)
+62. ✅ Pass model/permission-mode to Claude SDK (no validation - forward SDK errors)
+63. ✅ Add error response for unknown WebSocket message types (include original-message)
+64. ⬜ Future work: temperature, max-tokens, allowed-tools, disallowed-tools
+
+**2.5.4 Filesystem Browsing API:**
+65. ⬜ Create `filesystem_routes.dart` with GET and POST handlers
+66. ⬜ Implement path canonicalization and traversal prevention (symlinks NOT followed)
+67. ⬜ Register filesystem routes in server
+68. ⬜ Add integration tests for filesystem browsing
+
+**2.5.5 WebSocket Connection Health:**
+69. ⬜ Configure 20-second ping interval on WebSocket connections
+70. ⬜ Handle ping timeout (close with code 1001)
+
+**2.5.6-8 Documentation & Examples:**
+71. ✅ Add `ErrorResponse` class to DTOs
+72. ✅ Document WebSocket lifecycle in code comments
+73. ✅ Update CLAUDE.md with new API endpoints
+74. ✅ Update `packages/vide_server/example/client.dart` to use new endpoints and kebab-case JSON
+
+**2.5.9 Session State Recovery:**
+75. ✅ Add `seq` field to all WebSocket events (session-scoped sequence number)
+76. ✅ Update event persistence to store sequence numbers
+77. ✅ Implement atomic subscribe-then-history pattern in WebSocket handler
+78. ✅ Update `history` event to include `last-seq` and full event array (including in-progress)
+79. ✅ Ensure TUI and REST use identical event serialization format
+80. ✅ Add integration tests for reconnection scenarios (fresh connect, reconnect, idle resume)
+81. ⬜ Add gap detection logging (warning if seq gap detected)
+
+### Phase 3: Testing & Documentation (Day 5)
+82. ⬜ Manual testing with wscat and browser (full chat conversation workflow via WebSocket)
+83. ⬜ Add error handling for common cases (network errors, invalid requests)
+84. ⬜ Write API documentation with examples (packages/vide_server/API.md)
+85. ⬜ Create simple HTML test client for testing WebSocket streaming
+86. ⬜ Update root README.md to explain dual-interface architecture
+87. ⬜ Fix multi-turn conversation test flakiness (timeout issues)
+88. ⬜ Add basic rate limiting (e.g., 100 req/min) for production readiness
 
 ---
 
@@ -921,7 +1761,7 @@ void main(List<String> args) async {
 **Decision**: Create `PermissionProvider` interface in vide_core
 **Why**: Allows business logic to request permissions without knowing implementation (TUI dialogs vs REST auto-rules)
 **Implementation**:
-- TUI: Adapter wraps existing HTTP server + dialog system
+- TUI: See vide_cli (`lib/modules/permissions/`) for dialog UI and wiring
 - REST: SimplePermissionService with auto-approve/deny rules
 **Trade-off**: None - clean separation of concerns
 
@@ -962,21 +1802,45 @@ When deploying beyond localhost (post-MVP):
 ✅ **dart analyze shows no issues**
 ✅ **TUI compiles and runs successfully**
 
-**Phase 2 - IN PROGRESS:**
+**Phase 2 - COMPLETE:**
 ✅ **REST server starts on localhost (no auth - testing only)**
 ✅ **REST server auto-selects an unused port and prints the full URL**
 ✅ **Can create network with initial prompt via POST /api/v1/networks**
-✅ **Can send messages via POST .../messages**
 ✅ **Can receive agent responses in real-time via WebSocket stream** (changed from SSE to WebSocket)
 ✅ **WebSocket streaming correctly handles deltas without duplicate content**
-⬜ **Full chat conversation works end-to-end via REST API** (multi-turn test is flaky)
-⬜ **Agent can spawn sub-agents (implementation, context collection, etc.)** (not yet tested)
+✅ **Full chat conversation works end-to-end via REST API**
+✅ **Agent can spawn sub-agents (implementation, context collection, etc.)**
 ✅ **Permissions auto-approve safe operations, deny dangerous ones**
 ✅ **Bug fixes in vide_core automatically benefit both TUI and REST API** (duplicate content fix in claude_sdk benefits both)
+
+**Phase 2.5 - GUI Prerequisites (NOT STARTED):**
+⬜ **Terminology migration** (network → session, camelCase → kebab-case throughout vide_server)
+⬜ **POST /api/v1/sessions endpoint** (replaces POST /api/v1/networks)
+⬜ **Multiplexed WebSocket at /api/v1/sessions/{session-id}/stream** (single stream for all agents)
+⬜ **Agent lifecycle events** (`agent-spawned`, `agent-terminated` event types)
+⬜ **Bidirectional WebSocket support** (client sends `user-message`, `permission-response`, `abort`)
+⬜ **Receive event history via `history` event on connect/reconnect** (all events including in-progress, with attribution)
+⬜ **Abort support** (client sends `abort`, server cancels ALL active agents, sends `aborted` per agent)
+⬜ **Permission request events** (server sends `permission-request`, client responds, 60s timeout with `permission-timeout` event)
+⬜ **Model selection support** (sonnet/opus/haiku per-message via `user-message` WebSocket event)
+⬜ **Per-message options** (model, permission-mode only for MVP; future: temperature, max-tokens, allowed-tools, disallowed-tools)
+⬜ **Message streaming** (single `message` event with `seq`, `role`, `is-partial` flag, and `event-id` - server does NOT accumulate)
+⬜ **Status events** use AgentStatus values (working, waiting-for-agent, waiting-for-user, idle)
+⬜ **Filesystem browsing API** (GET/POST /api/v1/filesystem with path validation, symlinks not followed)
+⬜ **Server configuration file** (`~/.vide/api/config.json` for filesystem-root, permission-timeout-seconds)
+⬜ **Error response schema** (consistent JSON format with error, code; WebSocket errors include original-message)
+⬜ **WebSocket keepalive** (20s ping/pong interval, close with 1001 on timeout)
+⬜ **WebSocket lifecycle documented** (connection, disconnection, reconnection handling)
+⬜ **Session state recovery** (sequence numbers, atomic subscribe-then-history, client-side deduplication)
+⬜ **All GUI prerequisites tested and documented**
 
 ---
 
 ## Post-MVP Enhancements
+
+### vide_flutter GUI App
+After completing Phase 2.5 (GUI Prerequisites), the vide_flutter Flutter application can be developed.
+See `specs/flutter-gui-app.md` for the complete GUI specification.
 
 ### Phase 4: Add Security (when deploying beyond localhost)
 - JWT/OAuth authentication
@@ -986,18 +1850,18 @@ When deploying beyond localhost (post-MVP):
 
 ### Phase 5: Advanced Features
 - Webhook permission callbacks (replace simple auto-approve/deny)
-- WebSocket support (alternative to SSE)
+- HTTP/2 streaming support (alternative to WebSocket)
 - Multi-client real-time session sharing
   - Allow same user to access sessions from multiple devices (desktop, phone, etc.)
-  - Real-time synchronization of agent network state across all logged-in clients
-  - Live updates propagated to all connected clients via SSE/WebSocket
+  - Real-time synchronization of session state across all logged-in clients
+  - Live updates propagated to all connected clients via WebSocket
   - Shared session state maintained on server
 - Additional REST endpoints:
-  - GET /networks (list all networks)
-  - GET /networks/:id (get network details)
-  - DELETE /networks/:id (delete network)
-  - GET /networks/:id/status (get current status without streaming)
-  - GET /networks/:id/agents (list agents in network)
+  - GET /sessions (list all sessions)
+  - GET /sessions/:id (get session details)
+  - DELETE /sessions/:id (delete session)
+  - GET /sessions/:id/status (get current status without streaming)
+  - GET /sessions/:id/agents (list agents in session)
 
 ### Phase 6: Production Readiness
 - PostgreSQL/SQLite (replace file-based storage)

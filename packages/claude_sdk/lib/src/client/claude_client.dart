@@ -56,6 +56,12 @@ abstract class ClaudeClient {
   /// The most recent status from Claude.
   ClaudeStatus get currentStatus;
 
+  /// Sets the permission mode for subsequent tool use.
+  ///
+  /// [mode] - The permission mode to set (e.g., 'acceptEdits', 'plan', 'ask', 'deny').
+  /// This is sent as a control request to the Claude CLI.
+  Future<void> setPermissionMode(String mode);
+
   T? getMcpServer<T extends McpServerBase>(String name);
 
   /// Creates and fully initializes a client.
@@ -536,6 +542,17 @@ class ClaudeClientImpl implements ClaudeClient {
         _currentConversation.withError('Failed to abort: $e'),
       );
     }
+  }
+
+  @override
+  Future<void> setPermissionMode(String mode) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      // Client not initialized yet - this will take effect when it starts
+      // via the config's permissionMode field
+      return;
+    }
+    await controlProtocol.setPermissionMode(mode);
   }
 
   @override
