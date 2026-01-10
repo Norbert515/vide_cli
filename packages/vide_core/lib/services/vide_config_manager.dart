@@ -69,15 +69,17 @@ class VideConfigManager {
   ///
   /// Replaces forward slashes (/) with hyphens (-)
   /// Example: /Users/bob/project -> -Users-bob-project
+  /// On Windows: D:\project -> D-project (colon removed as it's invalid in filenames)
   String _encodeProjectPath(String absolutePath) {
     // Normalize the path first to handle trailing slashes, etc.
     final normalized = path.normalize(absolutePath);
 
     // Replace path separators with hyphens
-    // On Windows, also handle backslashes
+    // On Windows, also handle backslashes and colons (invalid in filenames)
     String encoded = normalized.replaceAll('/', '-');
     if (Platform.isWindows) {
       encoded = encoded.replaceAll('\\', '-');
+      encoded = encoded.replaceAll(':', '');  // Remove colons (e.g., D: -> D)
     }
 
     return encoded;
