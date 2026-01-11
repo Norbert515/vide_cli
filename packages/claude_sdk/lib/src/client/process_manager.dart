@@ -48,7 +48,9 @@ class ProcessManager {
   /// Check if the Claude CLI is available in the system PATH.
   static Future<bool> isClaudeAvailable() async {
     try {
-      final result = await Process.run('which', ['claude']);
+      // Use 'where' on Windows, 'which' on Unix
+      final command = Platform.isWindows ? 'where' : 'which';
+      final result = await Process.run(command, ['claude']);
       return result.exitCode == 0;
     } catch (e) {
       return false;

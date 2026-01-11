@@ -35,7 +35,7 @@ void main(List<String> args) async {
     workingDirProvider.overrideWithValue(Directory.current.path),
   ];
 
-  app.main(args, overrides: overrides);
+  await app.main(args, overrides: overrides);
 }
 
 void _printHelp() {
