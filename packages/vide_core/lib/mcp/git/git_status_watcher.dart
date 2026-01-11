@@ -1,32 +1,28 @@
 import 'dart:async';
-import 'package:watcher/watcher.dart';
-import 'package:path/path.dart' as p;
 import 'git_client.dart';
 import 'git_models.dart';
 
 /// Watches a git repository for changes and streams GitStatus updates.
 ///
-/// Uses file system watchers on both the working tree and .git/ directory,
-/// with 300ms debouncing to prevent excessive git status calls.
+/// Uses simple polling instead of file system watchers for better performance.
+/// Git's internal caching (and optionally FSMonitor) handles the heavy lifting.
 class GitStatusWatcher {
   final String repoPath;
+  final Duration pollInterval;
   final GitClient _gitClient;
 
-  DirectoryWatcher? _workingTreeWatcher;
-  DirectoryWatcher? _dotGitWatcher;
-  StreamSubscription? _workingTreeSubscription;
-  StreamSubscription? _dotGitSubscription;
-
-  Timer? _debounceTimer;
-  static const _debounceDuration = Duration(milliseconds: 300);
+  Timer? _pollTimer;
 
   final _statusController = StreamController<GitStatus>.broadcast();
   Stream<GitStatus> get statusStream => _statusController.stream;
 
   bool _isDisposed = false;
+  GitStatus? _lastStatus;
 
-  GitStatusWatcher({required this.repoPath})
-    : _gitClient = GitClient(workingDirectory: repoPath);
+  GitStatusWatcher({
+    required this.repoPath,
+    this.pollInterval = const Duration(seconds: 5),
+  }) : _gitClient = GitClient(workingDirectory: repoPath);
 
   /// Starts watching the repository for changes.
   /// Call this after construction to begin receiving status updates.
@@ -36,29 +32,8 @@ class GitStatusWatcher {
     // Emit initial status
     await _refreshStatus();
 
-    // Watch working tree (exclude .git/)
-    _workingTreeWatcher = DirectoryWatcher(repoPath);
-    _workingTreeSubscription = _workingTreeWatcher!.events
-        .where(
-          (event) =>
-              !event.path.contains('${p.separator}.git${p.separator}') &&
-              !event.path.endsWith('${p.separator}.git'),
-        )
-        .listen(_onFileChange);
-
-    // Watch .git/ directory (exclude lock files)
-    final dotGitPath = p.join(repoPath, '.git');
-    _dotGitWatcher = DirectoryWatcher(dotGitPath);
-    _dotGitSubscription = _dotGitWatcher!.events
-        .where((event) => !event.path.endsWith('.lock'))
-        .listen(_onFileChange);
-  }
-
-  void _onFileChange(WatchEvent event) {
-    if (_isDisposed) return;
-
-    _debounceTimer?.cancel();
-    _debounceTimer = Timer(_debounceDuration, _refreshStatus);
+    // Start polling timer
+    _pollTimer = Timer.periodic(pollInterval, (_) => _refreshStatus());
   }
 
   Future<void> _refreshStatus() async {
@@ -67,11 +42,34 @@ class GitStatusWatcher {
     try {
       final status = await _gitClient.status();
       if (!_isDisposed) {
-        _statusController.add(status);
+        // Only emit if status actually changed
+        if (_lastStatus == null || !_statusEquals(_lastStatus!, status)) {
+          _lastStatus = status;
+          _statusController.add(status);
+        }
       }
     } catch (e) {
       // Silently ignore errors (repo might be in inconsistent state during git operations)
     }
+  }
+
+  /// Compare two GitStatus objects for equality.
+  bool _statusEquals(GitStatus a, GitStatus b) {
+    return a.branch == b.branch &&
+        a.ahead == b.ahead &&
+        a.behind == b.behind &&
+        a.hasChanges == b.hasChanges &&
+        _listEquals(a.modifiedFiles, b.modifiedFiles) &&
+        _listEquals(a.stagedFiles, b.stagedFiles) &&
+        _listEquals(a.untrackedFiles, b.untrackedFiles);
+  }
+
+  bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Manually trigger a status refresh (e.g., after a git operation).
@@ -82,9 +80,7 @@ class GitStatusWatcher {
     if (_isDisposed) return;
     _isDisposed = true;
 
-    _debounceTimer?.cancel();
-    await _workingTreeSubscription?.cancel();
-    await _dotGitSubscription?.cancel();
+    _pollTimer?.cancel();
     await _statusController.close();
   }
 }

@@ -505,23 +505,9 @@ class GitClient {
         if (status[1] == 'M') {
           modified.add(file);
         } else if (status == '??') {
-          if (file.endsWith('/')) {
-            // Expand directory into individual files
-            final dir = Directory('$workingDirectory/$file');
-            if (dir.existsSync()) {
-              final entities = dir.listSync(recursive: true);
-              for (final entity in entities) {
-                if (entity is File) {
-                  // Get path relative to working directory
-                  final relativePath =
-                      entity.path.substring(workingDirectory.length + 1);
-                  untracked.add(relativePath);
-                }
-              }
-            }
-          } else {
-            untracked.add(file);
-          }
+          // Don't expand directories - just show the directory name
+          // Expanding with listSync is expensive and blocks the UI
+          untracked.add(file.endsWith('/') ? file.substring(0, file.length - 1) : file);
         }
       }
     }

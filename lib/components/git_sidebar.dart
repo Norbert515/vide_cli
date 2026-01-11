@@ -1367,6 +1367,7 @@ class _GitSidebarState extends State<GitSidebar> {
           isHovered,
           theme,
           availableWidth,
+          gitStatus,
         );
       case NavigableItemType.changesSectionLabel:
         return _buildChangesSectionLabelRow(
@@ -1634,6 +1635,7 @@ class _GitSidebarState extends State<GitSidebar> {
     bool isHovered,
     VideThemeData theme,
     int availableWidth,
+    dynamic gitStatus,
   ) {
     final isExpanded = item.isExpanded;
     final expandIcon = isExpanded ? '▾' : '▸';
@@ -1643,10 +1645,7 @@ class _GitSidebarState extends State<GitSidebar> {
     final isCurrentWorktree = item.worktreePath == resolvedCurrentPath;
     final isWorktree = item.isWorktree;
 
-    // Get git status for ahead/behind indicators and change count
-    final gitStatusAsync =
-        context.watch(gitStatusStreamProvider(item.worktreePath!));
-    final gitStatus = gitStatusAsync.valueOrNull;
+    // gitStatus is passed in from parent - only watched for current/expanded worktrees
 
     // Count total changes
     final changeCount = gitStatus != null
