@@ -47,6 +47,8 @@ class MainAgentConfig {
         //McpServerType.dart,
         //McpServerType.figma,
       ],
+      // Allow Skill tool for invoking user-defined skills
+      allowedTools: ['Skill'],
     );
   }
 

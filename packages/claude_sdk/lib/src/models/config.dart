@@ -19,6 +19,7 @@ class ClaudeConfig {
   final List<String>? allowedTools;
   final List<String>? disallowedTools;
   final int? maxTurns;
+  final List<String>? settingSources;
 
   /// Whether to enable streaming of partial messages.
   /// When true, text is streamed character-by-character as it's generated.
@@ -42,6 +43,7 @@ class ClaudeConfig {
     this.allowedTools,
     this.disallowedTools,
     this.maxTurns,
+    this.settingSources,
     this.enableStreaming = true,
   });
 
@@ -117,6 +119,10 @@ class ClaudeConfig {
       args.addAll(['--max-turns', maxTurns.toString()]);
     }
 
+    if (settingSources != null && settingSources!.isNotEmpty) {
+      args.addAll(['--setting-sources', settingSources!.join(',')]);
+    }
+
     if (additionalFlags != null) {
       args.addAll(additionalFlags!);
     }
@@ -140,6 +146,7 @@ class ClaudeConfig {
     List<String>? allowedTools,
     List<String>? disallowedTools,
     int? maxTurns,
+    List<String>? settingSources,
     bool? enableStreaming,
   }) {
     return ClaudeConfig(
@@ -158,6 +165,7 @@ class ClaudeConfig {
       allowedTools: allowedTools ?? this.allowedTools,
       disallowedTools: disallowedTools ?? this.disallowedTools,
       maxTurns: maxTurns ?? this.maxTurns,
+      settingSources: settingSources ?? this.settingSources,
       enableStreaming: enableStreaming ?? this.enableStreaming,
     );
   }

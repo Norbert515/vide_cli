@@ -32,6 +32,9 @@ ClaudeConfig _$ClaudeConfigFromJson(Map<String, dynamic> json) => ClaudeConfig(
       ?.map((e) => e as String)
       .toList(),
   maxTurns: (json['maxTurns'] as num?)?.toInt(),
+  settingSources: (json['settingSources'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
   enableStreaming: json['enableStreaming'] as bool? ?? true,
 );
 
@@ -52,5 +55,6 @@ Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
       'allowedTools': instance.allowedTools,
       'disallowedTools': instance.disallowedTools,
       'maxTurns': instance.maxTurns,
+      'settingSources': instance.settingSources,
       'enableStreaming': instance.enableStreaming,
     };

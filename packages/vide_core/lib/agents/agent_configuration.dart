@@ -103,6 +103,8 @@ class AgentConfiguration {
       sessionId: sessionId,
       workingDirectory: workingDirectory,
       enableStreaming: enableStreaming,
+      // Enable skill loading from user and project directories
+      settingSources: ['user', 'project'],
     );
   }
 
