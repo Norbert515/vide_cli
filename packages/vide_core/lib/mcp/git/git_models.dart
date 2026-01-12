@@ -63,3 +63,14 @@ class GitBranch {
     required this.lastCommit,
   });
 }
+
+/// Represents a git repository discovered in multi-repo mode.
+class GitRepository {
+  final String path;
+  final String name;
+
+  const GitRepository({
+    required this.path,
+    required this.name,
+  });
+}

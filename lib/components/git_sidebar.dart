@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -46,6 +47,7 @@ enum NavigableItemType {
   branchCheckoutAction, // "Checkout" action under expanded branch
   branchWorktreeAction, // "Create worktree" action under expanded branch
   showMoreBranches,
+  repoHeader, // Collapsible repository header for multi-repo mode
 }
 
 /// State of the quick action flow
@@ -144,6 +146,25 @@ class _GitSidebarState extends State<GitSidebar> {
   // Loading state for git actions (e.g., 'pull', 'push', 'fetch', 'sync', 'merge')
   String? _loadingAction;
 
+  // Multi-repo support
+  List<GitRepository>? _childRepos;
+  bool? _isMultiRepoMode;
+  final Map<String, bool> _repoExpansionState = {};
+
+  // Per-repo state management for multi-repo mode
+  final Map<String, List<GitBranch>> _repoBranches = {};
+  final Map<String, List<GitWorktree>> _repoWorktrees = {};
+  final Map<String, int> _repoCommitsAheadOfMain = {};
+  final Map<String, bool> _repoActionsExpanded = {};
+  final Map<String, String?> _repoExpandedBranchName = {};
+
+  // Per-repo quick action state for multi-repo mode
+  final Map<String, QuickActionState> _repoBranchActionState = {};
+  final Map<String, QuickActionState> _repoWorktreeActionState = {};
+  final Map<String, String?> _repoSelectedBaseBranch = {};
+  final Map<String, NavigableItemType?> _repoActiveInputType = {};
+  String? _activeInputRepoPath; // Track which repo is in input mode
+
   /// Find which worktree path contains the current working directory.
   /// Returns the worktree path if CWD is within a worktree, or null if not found.
   String? _findCurrentWorktreePath() {
@@ -171,6 +192,64 @@ class _GitSidebarState extends State<GitSidebar> {
       _worktreeExpansionState[worktreePath] = !current;
     });
   }
+
+  /// Check if a repo is expanded. Collapsed by default in multi-repo mode.
+  bool _isRepoExpanded(String repoPath) {
+    return _repoExpansionState[repoPath] ?? false;
+  }
+
+  /// Toggle the expansion state of a repository.
+  void _toggleRepoExpansion(String repoPath) {
+    final wasExpanded = _isRepoExpanded(repoPath);
+    setState(() {
+      _repoExpansionState[repoPath] = !wasExpanded;
+    });
+
+    // Load data when expanding (if not already loaded)
+    if (!wasExpanded && !_repoBranches.containsKey(repoPath)) {
+      _loadRepoBranchesAndWorktrees(repoPath);
+    }
+  }
+
+  /// Loads branches and worktrees for a specific repository in multi-repo mode.
+  Future<void> _loadRepoBranchesAndWorktrees(String repoPath) async {
+    final client = GitClient(workingDirectory: repoPath);
+
+    try {
+      final branches = await client.branches();
+      final worktrees = await client.worktreeList();
+
+      // Get commits ahead of main for merge action visibility
+      int commitsAhead = 0;
+      final status = await client.status();
+      if (status.branch != 'main' && status.branch != 'master') {
+        try {
+          final mainBranch =
+              branches.any((b) => b.name == 'main') ? 'main' : 'master';
+          commitsAhead = await client.getCommitsAheadOf(mainBranch);
+        } catch (_) {}
+      }
+
+      // Sort branches: current first, then alphabetically
+      branches.sort((a, b) {
+        if (a.isCurrent && !b.isCurrent) return -1;
+        if (!a.isCurrent && b.isCurrent) return 1;
+        return a.name.compareTo(b.name);
+      });
+
+      // Filter out remote branches
+      final localBranches = branches.where((b) => !b.isRemote).toList();
+
+      setState(() {
+        _repoBranches[repoPath] = localBranches;
+        _repoWorktrees[repoPath] = worktrees;
+        _repoCommitsAheadOfMain[repoPath] = commitsAhead;
+      });
+    } catch (e) {
+      // Handle error - repo might not be accessible
+    }
+  }
+
   List<GitBranch>? _cachedBranches;
   List<GitWorktree>? _cachedWorktrees;
   int? _commitsAheadOfMain; // Commits in current branch not in main
@@ -186,8 +265,50 @@ class _GitSidebarState extends State<GitSidebar> {
   void initState() {
     super.initState();
     _currentWidth = component.expanded ? _expandedWidth : _collapsedWidth;
-    // Load branches and commits ahead info on init
-    _loadBranchesAndWorktrees();
+    // Detect repo mode and load branches/worktrees
+    _detectRepoMode();
+  }
+
+  /// Detect whether we're in single-repo or multi-repo mode.
+  Future<void> _detectRepoMode() async {
+    final gitDir = Directory(p.join(component.repoPath, '.git'));
+    if (await gitDir.exists()) {
+      // Single repo mode (existing behavior)
+      setState(() {
+        _isMultiRepoMode = false;
+      });
+      _loadBranchesAndWorktrees();
+    } else {
+      // Check for child repos
+      final childRepos = await _findChildRepos(component.repoPath);
+      setState(() {
+        _isMultiRepoMode = childRepos.isNotEmpty;
+        _childRepos = childRepos;
+      });
+    }
+  }
+
+  /// Find git repositories in immediate subdirectories.
+  Future<List<GitRepository>> _findChildRepos(String parentPath) async {
+    final repos = <GitRepository>[];
+    final parentDir = Directory(parentPath);
+
+    if (!await parentDir.exists()) return repos;
+
+    await for (final entity in parentDir.list(followLinks: false)) {
+      if (entity is Directory) {
+        final gitDir = Directory(p.join(entity.path, '.git'));
+        if (await gitDir.exists()) {
+          repos.add(GitRepository(
+            path: entity.path,
+            name: p.basename(entity.path),
+          ));
+        }
+      }
+    }
+
+    repos.sort((a, b) => a.name.compareTo(b.name));
+    return repos;
   }
 
   @override
@@ -207,8 +328,12 @@ class _GitSidebarState extends State<GitSidebar> {
       _cachedWorktrees = null;
       _commitsAheadOfMain = null;
       _branchesLoading = false;
-      // Reset selection to current worktree
-      _selectedIndex = 2;
+      _isMultiRepoMode = null;
+      _childRepos = null;
+      // Re-detect repo mode
+      _detectRepoMode();
+      // Reset selection
+      _selectedIndex = 0;
     }
   }
 
@@ -309,9 +434,44 @@ class _GitSidebarState extends State<GitSidebar> {
     return options;
   }
 
+  /// Gets the list of base branch options for quick actions in multi-repo mode.
+  List<String> _getRepoBranchOptions(String repoPath, GitStatus? status) {
+    final options = <String>[];
+
+    // Current branch first
+    if (status?.branch != null) {
+      options.add(status!.branch);
+    }
+
+    // Main/master if different from current
+    final branches = _repoBranches[repoPath] ?? [];
+    for (final branch in branches) {
+      if ((branch.name == 'main' || branch.name == 'master') &&
+          branch.name != status?.branch) {
+        options.add(branch.name);
+        break;
+      }
+    }
+
+    // Add "Other..." option if there are more branches
+    final otherBranches = branches.where(
+      (b) => !b.isRemote && b.name != status?.branch && b.name != 'main' && b.name != 'master'
+    ).toList();
+    if (otherBranches.isNotEmpty) {
+      options.add('Other...');
+    }
+
+    return options;
+  }
+
   /// Builds the complete list of navigable items including section headers.
   /// This is the unified navigation model for keyboard navigation.
   List<NavigableItem> _buildNavigableItems(BuildContext context) {
+    // Check if we're in multi-repo mode
+    if (_isMultiRepoMode == true && _childRepos != null) {
+      return _buildMultiRepoItems(context);
+    }
+
     final items = <NavigableItem>[];
 
     // Get current branch for base options
@@ -617,11 +777,12 @@ class _GitSidebarState extends State<GitSidebar> {
 
     if (changedFiles.isNotEmpty) {
       for (var i = 0; i < changedFiles.length; i++) {
+        final file = changedFiles[i];
         items.add(NavigableItem(
           type: NavigableItemType.file,
-          name: changedFiles[i].path,
-          fullPath: changedFiles[i].path,
-          status: changedFiles[i].status,
+          name: file.path,
+          fullPath: file.path,
+          status: file.status,
           worktreePath: path,
           isLastInSection: i == changedFiles.length - 1,
         ));
@@ -645,10 +806,281 @@ class _GitSidebarState extends State<GitSidebar> {
     return items;
   }
 
+  /// Builds navigable items for multi-repo mode.
+  List<NavigableItem> _buildMultiRepoItems(BuildContext context) {
+    final items = <NavigableItem>[];
+
+    if (_childRepos == null || _childRepos!.isEmpty) {
+      // Show empty state
+      items.add(NavigableItem(
+        type: NavigableItemType.noChangesPlaceholder,
+        name: 'No git repositories found',
+        isLastInSection: true,
+      ));
+      return items;
+    }
+
+    for (final repo in _childRepos!) {
+      // Only watch status if expanded (lazy loading)
+      GitStatus? status;
+      if (_isRepoExpanded(repo.path)) {
+        final statusAsync = context.watch(gitStatusStreamProvider(repo.path));
+        status = statusAsync.valueOrNull;
+      }
+
+      items.addAll(_buildRepoSection(context, repo, status));
+    }
+
+    return items;
+  }
+
+  /// Builds items for a single repository section in multi-repo mode.
+  List<NavigableItem> _buildRepoSection(
+    BuildContext context,
+    GitRepository repo,
+    GitStatus? status,
+  ) {
+    final items = <NavigableItem>[];
+    final isExpanded = _isRepoExpanded(repo.path);
+    final branches = _repoBranches[repo.path];
+    final worktrees = _repoWorktrees[repo.path];
+    final commitsAhead = _repoCommitsAheadOfMain[repo.path] ?? 0;
+
+    // Calculate change count for collapsed header
+    final changeCount = (status?.modifiedFiles.length ?? 0) +
+        (status?.untrackedFiles.length ?? 0) +
+        (status?.stagedFiles.length ?? 0);
+
+    // Add repo header
+    items.add(NavigableItem(
+      type: NavigableItemType.repoHeader,
+      name: repo.name,
+      fullPath: repo.path,
+      isExpanded: isExpanded,
+      fileCount: changeCount,
+    ));
+
+    if (!isExpanded) return items;
+
+    // === QUICK ACTIONS (New branch, New worktree) ===
+    final branchActionState = _repoBranchActionState[repo.path] ?? QuickActionState.collapsed;
+    final worktreeActionState = _repoWorktreeActionState[repo.path] ?? QuickActionState.collapsed;
+
+    // New branch action
+    items.add(NavigableItem(
+      type: NavigableItemType.newBranchAction,
+      name: '+ New branch...',
+      isExpanded: branchActionState != QuickActionState.collapsed,
+      worktreePath: repo.path,
+    ));
+
+    // Add base branch options if expanded
+    if (branchActionState == QuickActionState.selectingBaseBranch) {
+      final branchOptions = _getRepoBranchOptions(repo.path, status);
+      for (final option in branchOptions) {
+        items.add(NavigableItem(
+          type: NavigableItemType.baseBranchOption,
+          name: option,
+          fullPath: 'branch', // Marker for which action this belongs to
+          worktreePath: repo.path,
+        ));
+      }
+    }
+
+    // New worktree action
+    items.add(NavigableItem(
+      type: NavigableItemType.newWorktreeAction,
+      name: '+ New worktree...',
+      isExpanded: worktreeActionState != QuickActionState.collapsed,
+      worktreePath: repo.path,
+    ));
+
+    // Add base branch options for worktree if expanded
+    if (worktreeActionState == QuickActionState.selectingBaseBranch) {
+      final branchOptions = _getRepoBranchOptions(repo.path, status);
+      for (final option in branchOptions) {
+        items.add(NavigableItem(
+          type: NavigableItemType.baseBranchOption,
+          name: option,
+          fullPath: 'worktree', // Marker for which action this belongs to
+          worktreePath: repo.path,
+        ));
+      }
+    }
+
+    // === ACTIONS SECTION ===
+    final actionsExpanded = _repoActionsExpanded[repo.path] ?? false;
+    items.add(NavigableItem(
+      type: NavigableItemType.actionsHeader,
+      name: 'Actions',
+      isExpanded: actionsExpanded,
+      worktreePath: repo.path,
+    ));
+
+    if (actionsExpanded && status != null) {
+      // Conditional: "Commit & push" - only when there are changes
+      final changedFiles = _buildChangedFiles(status);
+      if (changedFiles.isNotEmpty) {
+        items.add(NavigableItem(
+          type: NavigableItemType.commitPushAction,
+          name: 'Commit & push',
+          worktreePath: repo.path,
+        ));
+      }
+
+      // Conditional: "Sync" - only when ahead or behind remote
+      final ahead = status.ahead;
+      final behind = status.behind;
+      if (ahead > 0 || behind > 0) {
+        final syncLabel = behind > 0 && ahead > 0
+            ? 'Sync (↓$behind ↑$ahead)'
+            : behind > 0
+                ? 'Sync (↓$behind)'
+                : 'Sync (↑$ahead)';
+        items.add(NavigableItem(
+          type: NavigableItemType.syncAction,
+          name: syncLabel,
+          worktreePath: repo.path,
+        ));
+      }
+
+      // Conditional: "Merge to main" - only when clean, ahead of main, not on main/master
+      final isMainBranch = status.branch == 'main' || status.branch == 'master';
+      final isClean = !status.hasChanges;
+      if (isClean && commitsAhead > 0 && !isMainBranch) {
+        items.add(NavigableItem(
+          type: NavigableItemType.mergeToMainAction,
+          name: 'Merge to main',
+          worktreePath: repo.path,
+          fullPath: status.branch,
+        ));
+      }
+
+      // Always visible actions
+      items.add(NavigableItem(
+        type: NavigableItemType.pullAction,
+        name: 'Pull',
+        worktreePath: repo.path,
+      ));
+
+      items.add(NavigableItem(
+        type: NavigableItemType.pushAction,
+        name: 'Push',
+        worktreePath: repo.path,
+      ));
+
+      items.add(NavigableItem(
+        type: NavigableItemType.fetchAction,
+        name: 'Fetch',
+        worktreePath: repo.path,
+      ));
+    }
+
+    // === CHANGED FILES SECTION ===
+    if (status != null) {
+      final changedFiles = _buildChangedFiles(status);
+      if (changedFiles.isEmpty) {
+        items.add(NavigableItem(
+          type: NavigableItemType.noChangesPlaceholder,
+          name: 'No changes',
+          worktreePath: repo.path,
+        ));
+      } else {
+        for (final file in changedFiles) {
+          items.add(NavigableItem(
+            type: NavigableItemType.file,
+            name: file.path,
+            fullPath: file.path,
+            status: file.status,
+            worktreePath: repo.path,
+          ));
+        }
+      }
+    }
+
+    // === OTHER BRANCHES SECTION ===
+    if (branches != null && branches.isNotEmpty) {
+      // Filter out current branch and worktree branches
+      final currentBranch = status?.branch;
+      final worktreeBranches = worktrees?.map((w) => w.branch).toSet() ?? {};
+      final otherBranches = branches
+          .where(
+              (b) => b.name != currentBranch && !worktreeBranches.contains(b.name))
+          .toList();
+
+      if (otherBranches.isNotEmpty) {
+        items.add(NavigableItem(
+          type: NavigableItemType.divider,
+          name: '',
+          worktreePath: repo.path,
+        ));
+        items.add(NavigableItem(
+          type: NavigableItemType.branchSectionLabel,
+          name: 'Other Branches',
+          worktreePath: repo.path,
+        ));
+
+        // Show up to 5 branches initially
+        final displayBranches = otherBranches.take(5).toList();
+        final expandedBranch = _repoExpandedBranchName[repo.path];
+
+        for (final branch in displayBranches) {
+          final isBranchExpanded = expandedBranch == branch.name;
+          items.add(NavigableItem(
+            type: NavigableItemType.branch,
+            name: branch.name,
+            isExpanded: isBranchExpanded,
+            worktreePath: repo.path,
+          ));
+
+          if (isBranchExpanded) {
+            items.add(NavigableItem(
+              type: NavigableItemType.branchCheckoutAction,
+              name: 'Checkout',
+              fullPath: branch.name,
+              worktreePath: repo.path,
+            ));
+            items.add(NavigableItem(
+              type: NavigableItemType.branchWorktreeAction,
+              name: 'Create worktree',
+              fullPath: branch.name,
+              worktreePath: repo.path,
+            ));
+          }
+        }
+
+        // Show "Show more" if needed
+        if (otherBranches.length > 5) {
+          items.add(NavigableItem(
+            type: NavigableItemType.showMoreBranches,
+            name: 'Show more (${otherBranches.length - 5})',
+            worktreePath: repo.path,
+          ));
+        }
+      }
+    }
+
+    return items;
+  }
+
   /// Check if we're in name input mode for either action
-  bool get _isEnteringName =>
-      _branchActionState == QuickActionState.enteringName ||
-      _worktreeActionState == QuickActionState.enteringName;
+  bool get _isEnteringName {
+    // Check global state (single-repo mode)
+    if (_branchActionState == QuickActionState.enteringName ||
+        _worktreeActionState == QuickActionState.enteringName) {
+      return true;
+    }
+
+    // Check per-repo states (multi-repo mode)
+    for (final state in _repoBranchActionState.values) {
+      if (state == QuickActionState.enteringName) return true;
+    }
+    for (final state in _repoWorktreeActionState.values) {
+      if (state == QuickActionState.enteringName) return true;
+    }
+
+    return false;
+  }
 
   void _handleKeyEvent(
     KeyboardEvent event,
@@ -708,10 +1140,19 @@ class _GitSidebarState extends State<GitSidebar> {
     if (event.logicalKey == LogicalKey.escape) {
       // Cancel input - go back to collapsed state
       setState(() {
+        // Reset single-repo state
         _branchActionState = QuickActionState.collapsed;
         _worktreeActionState = QuickActionState.collapsed;
         _activeInputType = null;
         _selectedBaseBranch = null;
+        // Reset multi-repo state
+        if (_activeInputRepoPath != null) {
+          _repoBranchActionState[_activeInputRepoPath!] = QuickActionState.collapsed;
+          _repoWorktreeActionState[_activeInputRepoPath!] = QuickActionState.collapsed;
+          _repoActiveInputType[_activeInputRepoPath!] = null;
+          _repoSelectedBaseBranch[_activeInputRepoPath!] = null;
+          _activeInputRepoPath = null;
+        }
         _inputBuffer = '';
       });
     } else if (event.logicalKey == LogicalKey.enter) {
@@ -732,34 +1173,55 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   Future<void> _executeQuickAction(BuildContext context) async {
+    // Determine if we're in multi-repo mode (has activeInputRepoPath)
+    final repoPath = _activeInputRepoPath;
+
     if (_inputBuffer.isEmpty) {
       setState(() {
+        // Reset single-repo state
         _branchActionState = QuickActionState.collapsed;
         _worktreeActionState = QuickActionState.collapsed;
         _activeInputType = null;
         _selectedBaseBranch = null;
+        // Reset multi-repo state
+        if (repoPath != null) {
+          _repoBranchActionState[repoPath] = QuickActionState.collapsed;
+          _repoWorktreeActionState[repoPath] = QuickActionState.collapsed;
+          _repoActiveInputType[repoPath] = null;
+          _repoSelectedBaseBranch[repoPath] = null;
+          _activeInputRepoPath = null;
+        }
       });
       return;
     }
 
     final newBranchName = _inputBuffer.trim();
-    final baseBranch = _selectedBaseBranch;
-    final client = GitClient(workingDirectory: component.repoPath);
+
+    // Determine the target repo path and related state
+    final targetRepoPath = repoPath ?? component.repoPath;
+    final baseBranch = repoPath != null
+        ? _repoSelectedBaseBranch[repoPath]
+        : _selectedBaseBranch;
+    final activeType = repoPath != null
+        ? _repoActiveInputType[repoPath]
+        : _activeInputType;
+
+    final client = GitClient(workingDirectory: targetRepoPath);
 
     try {
-      if (_activeInputType == NavigableItemType.newBranchAction) {
+      if (activeType == NavigableItemType.newBranchAction) {
         // Create and checkout new branch from base
         // First checkout base branch if different from current
         if (baseBranch != null) {
           await client.checkout(baseBranch);
         }
         await client.checkout(newBranchName, create: true);
-      } else if (_activeInputType == NavigableItemType.newWorktreeAction) {
+      } else if (activeType == NavigableItemType.newWorktreeAction) {
         // Create worktree with new branch from base
         // Path: ../reponame-branchname
-        final repoName = p.basename(component.repoPath);
+        final repoName = p.basename(targetRepoPath);
         final worktreePath =
-            p.join(p.dirname(component.repoPath), '$repoName-$newBranchName');
+            p.join(p.dirname(targetRepoPath), '$repoName-$newBranchName');
         // Use base branch as the starting point
         await client.worktreeAdd(
           worktreePath,
@@ -768,52 +1230,72 @@ class _GitSidebarState extends State<GitSidebar> {
           baseBranch: baseBranch,
         );
 
-        // Auto-switch to the new worktree
-        component.onSwitchWorktree?.call(worktreePath);
+        // Auto-switch to the new worktree (only for single-repo mode)
+        if (repoPath == null) {
+          component.onSwitchWorktree?.call(worktreePath);
+        }
       }
 
       // Refresh branches/worktrees
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (repoPath != null) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       // TODO: Show error to user
     }
 
     setState(() {
+      // Reset single-repo state
       _branchActionState = QuickActionState.collapsed;
       _worktreeActionState = QuickActionState.collapsed;
       _activeInputType = null;
       _selectedBaseBranch = null;
+      // Reset multi-repo state
+      if (repoPath != null) {
+        _repoBranchActionState[repoPath] = QuickActionState.collapsed;
+        _repoWorktreeActionState[repoPath] = QuickActionState.collapsed;
+        _repoActiveInputType[repoPath] = null;
+        _repoSelectedBaseBranch[repoPath] = null;
+        _activeInputRepoPath = null;
+      }
       _inputBuffer = '';
     });
   }
 
   /// Checkout a branch from the "Other Branches" list.
-  Future<void> _checkoutBranch(String branchName) async {
-    final client = GitClient(workingDirectory: component.repoPath);
+  Future<void> _checkoutBranch(String branchName, String repoPath) async {
+    final client = GitClient(workingDirectory: repoPath);
 
     try {
       await client.checkout(branchName);
 
       // Refresh branches/worktrees to reflect the change
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       // TODO: Show error to user (e.g., uncommitted changes)
     }
   }
 
   /// Create a worktree from an existing branch.
-  Future<void> _createWorktreeFromBranch(String branchName) async {
-    final client = GitClient(workingDirectory: component.repoPath);
+  Future<void> _createWorktreeFromBranch(
+      String branchName, String repoPath) async {
+    final client = GitClient(workingDirectory: repoPath);
 
     try {
       // Create worktree path: ../reponame-branchname
-      final repoName = p.basename(component.repoPath);
+      final repoName = p.basename(repoPath);
       final worktreePath =
-          p.join(p.dirname(component.repoPath), '$repoName-$branchName');
+          p.join(p.dirname(repoPath), '$repoName-$branchName');
 
       // Create worktree with existing branch (don't create new branch)
       await client.worktreeAdd(
@@ -822,27 +1304,36 @@ class _GitSidebarState extends State<GitSidebar> {
         createBranch: false,
       );
 
-      // Auto-switch to the new worktree
-      component.onSwitchWorktree?.call(worktreePath);
+      // Auto-switch to the new worktree (only for single-repo mode)
+      if (_isMultiRepoMode != true) {
+        component.onSwitchWorktree?.call(worktreePath);
+      }
 
       // Refresh branches/worktrees to reflect the change
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       // TODO: Show error to user
     }
   }
 
   /// Merge current branch to main: checkout main, merge feature branch, then checkout back.
-  Future<void> _mergeToMain(String featureBranch) async {
+  Future<void> _mergeToMain(String featureBranch, String repoPath) async {
     setState(() => _loadingAction = 'merge');
 
-    final client = GitClient(workingDirectory: component.repoPath);
+    final client = GitClient(workingDirectory: repoPath);
     final toastNotifier = context.read(toastProvider.notifier);
 
     // Determine the main branch name (main or master)
-    final mainBranch = _cachedBranches?.any((b) => b.name == 'main') == true
+    final branches = _isMultiRepoMode == true
+        ? _repoBranches[repoPath]
+        : _cachedBranches;
+    final mainBranch = branches?.any((b) => b.name == 'main') == true
         ? 'main'
         : 'master';
 
@@ -856,9 +1347,13 @@ class _GitSidebarState extends State<GitSidebar> {
       toastNotifier.success('Merged to main successfully');
 
       // Refresh branches/worktrees to reflect the change
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       toastNotifier.error('Merge failed: ${e.toString()}');
       // Try to go back to the feature branch on failure
@@ -871,10 +1366,10 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Sync with remote: pull --rebase then push.
-  Future<void> _sync() async {
+  Future<void> _sync(String repoPath) async {
     setState(() => _loadingAction = 'sync');
 
-    final client = GitClient(workingDirectory: component.repoPath);
+    final client = GitClient(workingDirectory: repoPath);
     final toastNotifier = context.read(toastProvider.notifier);
 
     try {
@@ -887,9 +1382,13 @@ class _GitSidebarState extends State<GitSidebar> {
       toastNotifier.success('Synced successfully');
 
       // Refresh to reflect the updated state
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       toastNotifier.error('Sync failed: ${e.toString()}');
     } finally {
@@ -898,10 +1397,10 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Pull from remote.
-  Future<void> _pull() async {
+  Future<void> _pull(String repoPath) async {
     setState(() => _loadingAction = 'pull');
 
-    final client = GitClient(workingDirectory: component.repoPath);
+    final client = GitClient(workingDirectory: repoPath);
     final toastNotifier = context.read(toastProvider.notifier);
 
     try {
@@ -909,9 +1408,13 @@ class _GitSidebarState extends State<GitSidebar> {
       toastNotifier.success('Pulled successfully');
 
       // Refresh to reflect the updated state
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       toastNotifier.error('Pull failed: ${e.toString()}');
     } finally {
@@ -920,10 +1423,10 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Push to remote.
-  Future<void> _push() async {
+  Future<void> _push(String repoPath) async {
     setState(() => _loadingAction = 'push');
 
-    final client = GitClient(workingDirectory: component.repoPath);
+    final client = GitClient(workingDirectory: repoPath);
     final toastNotifier = context.read(toastProvider.notifier);
 
     try {
@@ -931,9 +1434,13 @@ class _GitSidebarState extends State<GitSidebar> {
       toastNotifier.success('Pushed successfully');
 
       // Refresh to reflect the updated state
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       toastNotifier.error('Push failed: ${e.toString()}');
     } finally {
@@ -942,10 +1449,10 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   /// Fetch from remote.
-  Future<void> _fetch() async {
+  Future<void> _fetch(String repoPath) async {
     setState(() => _loadingAction = 'fetch');
 
-    final client = GitClient(workingDirectory: component.repoPath);
+    final client = GitClient(workingDirectory: repoPath);
     final toastNotifier = context.read(toastProvider.notifier);
 
     try {
@@ -953,9 +1460,13 @@ class _GitSidebarState extends State<GitSidebar> {
       toastNotifier.success('Fetched successfully');
 
       // Refresh to reflect the updated state
-      _cachedBranches = null;
-      _cachedWorktrees = null;
-      await _loadBranchesAndWorktrees();
+      if (_isMultiRepoMode == true) {
+        await _loadRepoBranchesAndWorktrees(repoPath);
+      } else {
+        _cachedBranches = null;
+        _cachedWorktrees = null;
+        await _loadBranchesAndWorktrees();
+      }
     } catch (e) {
       toastNotifier.error('Fetch failed: ${e.toString()}');
     } finally {
@@ -988,28 +1499,54 @@ class _GitSidebarState extends State<GitSidebar> {
   void _activateItem(NavigableItem item, BuildContext context) {
     switch (item.type) {
       case NavigableItemType.newBranchAction:
-        setState(() {
-          if (_branchActionState == QuickActionState.collapsed) {
-            // Expand to show branch options
-            _branchActionState = QuickActionState.selectingBaseBranch;
-            _worktreeActionState = QuickActionState.collapsed; // Collapse other
-          } else {
-            // Collapse if already expanded
-            _branchActionState = QuickActionState.collapsed;
-          }
-        });
+        final repoPath = item.worktreePath;
+        if (repoPath != null) {
+          // Multi-repo mode
+          setState(() {
+            final currentState = _repoBranchActionState[repoPath] ?? QuickActionState.collapsed;
+            if (currentState == QuickActionState.collapsed) {
+              _repoBranchActionState[repoPath] = QuickActionState.selectingBaseBranch;
+              _repoWorktreeActionState[repoPath] = QuickActionState.collapsed; // Collapse other
+            } else {
+              _repoBranchActionState[repoPath] = QuickActionState.collapsed;
+            }
+          });
+        } else {
+          // Single-repo mode
+          setState(() {
+            if (_branchActionState == QuickActionState.collapsed) {
+              _branchActionState = QuickActionState.selectingBaseBranch;
+              _worktreeActionState = QuickActionState.collapsed; // Collapse other
+            } else {
+              _branchActionState = QuickActionState.collapsed;
+            }
+          });
+        }
         break;
       case NavigableItemType.newWorktreeAction:
-        setState(() {
-          if (_worktreeActionState == QuickActionState.collapsed) {
-            // Expand to show branch options
-            _worktreeActionState = QuickActionState.selectingBaseBranch;
-            _branchActionState = QuickActionState.collapsed; // Collapse other
-          } else {
-            // Collapse if already expanded
-            _worktreeActionState = QuickActionState.collapsed;
-          }
-        });
+        final wtRepoPath = item.worktreePath;
+        if (wtRepoPath != null) {
+          // Multi-repo mode
+          setState(() {
+            final currentState = _repoWorktreeActionState[wtRepoPath] ?? QuickActionState.collapsed;
+            if (currentState == QuickActionState.collapsed) {
+              _repoWorktreeActionState[wtRepoPath] = QuickActionState.selectingBaseBranch;
+              _repoBranchActionState[wtRepoPath] = QuickActionState.collapsed; // Collapse other
+            } else {
+              _repoWorktreeActionState[wtRepoPath] = QuickActionState.collapsed;
+            }
+          });
+        } else {
+          // Single-repo mode
+          setState(() {
+            if (_worktreeActionState == QuickActionState.collapsed) {
+              _worktreeActionState = QuickActionState.selectingBaseBranch;
+              _branchActionState = QuickActionState.collapsed; // Collapse other
+            } else {
+              _worktreeActionState = QuickActionState.collapsed;
+            }
+          });
+        }
         break;
       case NavigableItemType.baseBranchOption:
         // User selected a base branch - go to input mode
@@ -1019,18 +1556,37 @@ class _GitSidebarState extends State<GitSidebar> {
           // For now, just use current branch
           return;
         }
-        setState(() {
-          _selectedBaseBranch = item.name;
-          _activeInputType = isForBranch
-              ? NavigableItemType.newBranchAction
-              : NavigableItemType.newWorktreeAction;
-          if (isForBranch) {
-            _branchActionState = QuickActionState.enteringName;
-          } else {
-            _worktreeActionState = QuickActionState.enteringName;
-          }
-          _inputBuffer = '';
-        });
+        final optionRepoPath = item.worktreePath;
+        if (optionRepoPath != null) {
+          // Multi-repo mode
+          setState(() {
+            _repoSelectedBaseBranch[optionRepoPath] = item.name;
+            _repoActiveInputType[optionRepoPath] = isForBranch
+                ? NavigableItemType.newBranchAction
+                : NavigableItemType.newWorktreeAction;
+            if (isForBranch) {
+              _repoBranchActionState[optionRepoPath] = QuickActionState.enteringName;
+            } else {
+              _repoWorktreeActionState[optionRepoPath] = QuickActionState.enteringName;
+            }
+            _activeInputRepoPath = optionRepoPath;
+            _inputBuffer = '';
+          });
+        } else {
+          // Single-repo mode
+          setState(() {
+            _selectedBaseBranch = item.name;
+            _activeInputType = isForBranch
+                ? NavigableItemType.newBranchAction
+                : NavigableItemType.newWorktreeAction;
+            if (isForBranch) {
+              _branchActionState = QuickActionState.enteringName;
+            } else {
+              _worktreeActionState = QuickActionState.enteringName;
+            }
+            _inputBuffer = '';
+          });
+        }
         break;
       case NavigableItemType.worktreeHeader:
         // Always toggle expansion - switching is done via dedicated action
@@ -1054,11 +1610,17 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.syncAction:
         // Sync with remote (pull --rebase, then push)
-        if (_loadingAction == null) _sync();
+        if (_loadingAction == null) {
+          final repoPath = item.worktreePath ?? component.repoPath;
+          _sync(repoPath);
+        }
         break;
       case NavigableItemType.mergeToMainAction:
         // Merge current branch to main
-        if (_loadingAction == null) _mergeToMain(item.fullPath!);
+        if (_loadingAction == null) {
+          final repoPath = item.worktreePath ?? component.repoPath;
+          _mergeToMain(item.fullPath!, repoPath);
+        }
         break;
       case NavigableItemType.switchWorktreeAction:
         // Switch to the worktree
@@ -1075,40 +1637,80 @@ class _GitSidebarState extends State<GitSidebar> {
         break;
       case NavigableItemType.branch:
         // Toggle branch expansion to show/hide actions
-        setState(() {
-          if (_expandedBranchName == item.name) {
-            _expandedBranchName = null; // Collapse if already expanded
-          } else {
-            _expandedBranchName = item.name; // Expand this branch
-          }
-        });
+        final repoPath = item.worktreePath;
+        if (repoPath != null && _isMultiRepoMode == true) {
+          // Multi-repo mode
+          setState(() {
+            final current = _repoExpandedBranchName[repoPath];
+            _repoExpandedBranchName[repoPath] =
+                current == item.name ? null : item.name;
+          });
+        } else {
+          // Single-repo mode
+          setState(() {
+            if (_expandedBranchName == item.name) {
+              _expandedBranchName = null; // Collapse if already expanded
+            } else {
+              _expandedBranchName = item.name; // Expand this branch
+            }
+          });
+        }
         break;
       case NavigableItemType.branchCheckoutAction:
         // Checkout the branch
-        _checkoutBranch(item.fullPath!);
-        setState(() => _expandedBranchName = null); // Collapse after action
+        final checkoutRepoPath = item.worktreePath ?? component.repoPath;
+        _checkoutBranch(item.fullPath!, checkoutRepoPath);
+        if (item.worktreePath != null && _isMultiRepoMode == true) {
+          setState(() => _repoExpandedBranchName[item.worktreePath!] = null);
+        } else {
+          setState(() => _expandedBranchName = null);
+        }
         break;
       case NavigableItemType.branchWorktreeAction:
         // Create a worktree from this branch
-        _createWorktreeFromBranch(item.fullPath!);
-        setState(() => _expandedBranchName = null); // Collapse after action
+        final wtRepoPath = item.worktreePath ?? component.repoPath;
+        _createWorktreeFromBranch(item.fullPath!, wtRepoPath);
+        if (item.worktreePath != null && _isMultiRepoMode == true) {
+          setState(() => _repoExpandedBranchName[item.worktreePath!] = null);
+        } else {
+          setState(() => _expandedBranchName = null);
+        }
         break;
       case NavigableItemType.showMoreBranches:
         setState(() => _showAllBranches = true);
         break;
       case NavigableItemType.actionsHeader:
-        setState(() {
-          _actionsExpanded = !_actionsExpanded;
-        });
+        final actionsRepoPath = item.worktreePath;
+        if (actionsRepoPath != null && _isMultiRepoMode == true) {
+          // Multi-repo mode
+          setState(() {
+            _repoActionsExpanded[actionsRepoPath] =
+                !(_repoActionsExpanded[actionsRepoPath] ?? false);
+          });
+        } else {
+          // Single-repo mode
+          setState(() {
+            _actionsExpanded = !_actionsExpanded;
+          });
+        }
         break;
       case NavigableItemType.pullAction:
-        if (_loadingAction == null) _pull();
+        if (_loadingAction == null) {
+          final pullRepoPath = item.worktreePath ?? component.repoPath;
+          _pull(pullRepoPath);
+        }
         break;
       case NavigableItemType.pushAction:
-        if (_loadingAction == null) _push();
+        if (_loadingAction == null) {
+          final pushRepoPath = item.worktreePath ?? component.repoPath;
+          _push(pushRepoPath);
+        }
         break;
       case NavigableItemType.fetchAction:
-        if (_loadingAction == null) _fetch();
+        if (_loadingAction == null) {
+          final fetchRepoPath = item.worktreePath ?? component.repoPath;
+          _fetch(fetchRepoPath);
+        }
         break;
       case NavigableItemType.worktreeActionsHeader:
         // Toggle expansion state for this worktree's actions
@@ -1120,6 +1722,10 @@ class _GitSidebarState extends State<GitSidebar> {
             _expandedWorktreeActions.add(path);
           }
         });
+        break;
+      case NavigableItemType.repoHeader:
+        // Toggle repository expansion in multi-repo mode
+        _toggleRepoExpansion(item.fullPath!);
         break;
     }
   }
@@ -1525,6 +2131,15 @@ class _GitSidebarState extends State<GitSidebar> {
           theme,
           availableWidth,
         );
+      case NavigableItemType.repoHeader:
+        return _buildRepoHeaderRow(
+          context,
+          item,
+          isSelected,
+          isHovered,
+          theme,
+          availableWidth,
+        );
     }
   }
 
@@ -1537,11 +2152,29 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
+    final repoPath = item.worktreePath;
     final isBranchAction = item.type == NavigableItemType.newBranchAction;
-    final actionState = isBranchAction ? _branchActionState : _worktreeActionState;
-    final isEnteringName = actionState == QuickActionState.enteringName &&
-        _activeInputType == item.type;
-    final isExpanded = actionState != QuickActionState.collapsed;
+
+    // Determine action state based on single-repo or multi-repo mode
+    QuickActionState actionState;
+    bool isEnteringName;
+    bool isExpanded;
+
+    if (repoPath != null) {
+      // Multi-repo mode
+      actionState = isBranchAction
+          ? (_repoBranchActionState[repoPath] ?? QuickActionState.collapsed)
+          : (_repoWorktreeActionState[repoPath] ?? QuickActionState.collapsed);
+      isEnteringName = actionState == QuickActionState.enteringName &&
+          _repoActiveInputType[repoPath] == item.type;
+      isExpanded = actionState != QuickActionState.collapsed;
+    } else {
+      // Single-repo mode
+      actionState = isBranchAction ? _branchActionState : _worktreeActionState;
+      isEnteringName = actionState == QuickActionState.enteringName &&
+          _activeInputType == item.type;
+      isExpanded = actionState != QuickActionState.collapsed;
+    }
 
     // Determine display text based on state
     String displayText;
@@ -1732,7 +2365,12 @@ class _GitSidebarState extends State<GitSidebar> {
     int availableWidth,
   ) {
     final highlight = isSelected || isHovered;
-    final arrow = _actionsExpanded ? '▾' : '▸';
+    // Use per-repo expansion state in multi-repo mode
+    final repoPath = item.worktreePath;
+    final isExpanded = (repoPath != null && _isMultiRepoMode == true)
+        ? (_repoActionsExpanded[repoPath] ?? false)
+        : _actionsExpanded;
+    final arrow = isExpanded ? '▾' : '▸';
 
     return Container(
       decoration: highlight
@@ -1818,6 +2456,108 @@ class _GitSidebarState extends State<GitSidebar> {
           ),
         ),
       ),
+    );
+  }
+
+  /// Builds a repository header row for multi-repo mode.
+  Component _buildRepoHeaderRow(
+    BuildContext context,
+    NavigableItem item,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final isExpanded = item.isExpanded;
+    final expandIcon = isExpanded ? '▾' : '▸';
+    final highlight = isSelected || isHovered;
+
+    // Always watch status for repo header (need branch info even when collapsed)
+    GitStatus? status;
+    if (item.fullPath != null) {
+      final statusAsync =
+          context.watch(gitStatusStreamProvider(item.fullPath!));
+      status = statusAsync.valueOrNull;
+    }
+
+    // Use fileCount from NavigableItem for collapsed count (calculated in _buildRepoSection)
+    // Fall back to live count if expanded
+    final changeCount = isExpanded && status != null
+        ? status.modifiedFiles.length +
+            status.stagedFiles.length +
+            status.untrackedFiles.length
+        : item.fileCount;
+
+    return Column(
+      children: [
+        SizedBox(height: 1), // Top padding outside selection
+        Container(
+          decoration: highlight
+              ? BoxDecoration(
+                  color:
+                      theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                )
+              : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 1),
+            child: Row(
+              children: [
+                Text(expandIcon,
+                    style: TextStyle(color: theme.base.onSurface)),
+                SizedBox(width: 1),
+                Text('',
+                    style: TextStyle(color: _vsCodeAccentColor)),
+                SizedBox(width: 1),
+                Flexible(
+                  flex: 2,
+                  child: Text(
+                    item.name,
+                    style: TextStyle(
+                      color: theme.base.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+                // Show branch info
+                if (status != null) ...[
+                  Flexible(
+                    flex: 1,
+                    child: Text(
+                      ' ${status.branch}',
+                      style: TextStyle(
+                        color: theme.base.onSurface
+                            .withOpacity(TextOpacity.secondary),
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                ],
+                // Ahead/behind indicators
+                if (status != null &&
+                    (status.ahead > 0 || status.behind > 0)) ...[
+                  if (status.behind > 0)
+                    Text(' ↓${status.behind}',
+                        style: TextStyle(color: _vsCodeModifiedColor)),
+                  if (status.ahead > 0)
+                    Text(' ↑${status.ahead}',
+                        style: TextStyle(color: theme.base.success)),
+                ],
+                // Show change count when collapsed (and has changes)
+                if (!isExpanded && changeCount > 0)
+                  Text(
+                    ' $changeCount',
+                    style: TextStyle(
+                      color: _vsCodeModifiedColor,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
