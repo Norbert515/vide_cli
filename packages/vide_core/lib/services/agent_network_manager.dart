@@ -366,11 +366,27 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
 
-  /// Set worktree path for the current session. All new agents will use this directory.
+  /// Set worktree path for the current session.
+  ///
+  /// This will restart all agents so they use the new working directory.
+  /// Agent conversation history is cleared since Claude CLI cannot change
+  /// its working directory mid-session.
   Future<void> setWorktreePath(String? worktreePath) async {
     final network = state.currentNetwork;
     if (network == null) return;
 
+    // 1. Abort and remove all existing Claude clients
+    final claudeManagerNotifier = _ref.read(claudeManagerProvider.notifier);
+    final claudeClients = _ref.read(claudeManagerProvider);
+    for (final agentId in network.agentIds) {
+      final client = claudeClients[agentId];
+      if (client != null) {
+        await client.abort();
+      }
+      claudeManagerNotifier.removeAgent(agentId);
+    }
+
+    // 2. Update network with new worktree path
     final updated = worktreePath == null
         ? network.copyWith(
             clearWorktreePath: true,
@@ -380,10 +396,26 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
             worktreePath: worktreePath,
             lastActiveAt: DateTime.now(),
           );
+
+    // 3. Update state first so effectiveWorkingDirectory returns new path
+    state = state.copyWith(currentNetwork: updated);
+
+    // 4. Recreate Claude clients for all agents with new working directory
+    for (final agentMetadata in updated.agents) {
+      final config = _getConfigurationForType(agentMetadata.type);
+      final client = _clientFactory.createSync(
+        agentId: agentMetadata.id,
+        config: config,
+        networkId: updated.id,
+        agentType: agentMetadata.type,
+      );
+      claudeManagerNotifier.addAgent(agentMetadata.id, client);
+    }
+
+    // 5. Persist the updated network
     await _ref
         .read(agentNetworkPersistenceManagerProvider)
         .saveNetwork(updated);
-    state = state.copyWith(currentNetwork: updated);
   }
 
   void sendMessage(AgentId agentId, Message message) {

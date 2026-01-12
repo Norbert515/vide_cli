@@ -254,6 +254,10 @@ class _VideAppContentState extends State<_VideAppContent> {
                   onSwitchWorktree: (path) {
                     // Switch to the selected worktree directory
                     context.read(repoPathOverrideProvider.notifier).state = path;
+                    // Also update the agent network's working directory
+                    context
+                        .read(agentNetworkManagerProvider.notifier)
+                        .setWorktreePath(path);
                   },
                 ),
               ),

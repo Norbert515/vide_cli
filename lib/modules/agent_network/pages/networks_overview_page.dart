@@ -57,9 +57,11 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   void _handleSubmit(Message message) async {
     // Start a new agent network with the full message (preserves attachments)
     // This returns immediately - client creation happens in background
+    // Use the repo path override if user selected a worktree before starting
+    final worktreePath = context.read(repoPathOverrideProvider);
     final network = await context
         .read(agentNetworkManagerProvider.notifier)
-        .startNew(message);
+        .startNew(message, workingDirectory: worktreePath);
 
     // Update the networks list
     context
