@@ -106,6 +106,42 @@ sendMessageToAgent(
 
 **Golden Rule**: If someone asks you to report back, you MUST call `sendMessageToAgent` - writing a summary is not enough!
 
+### Collaborative Agent Patterns
+
+Agents can work together in iterative loops. Here are common collaboration patterns:
+
+**Flutter Tester ↔ Implementation Agent (Fix Loop)**
+```
+Flutter Tester: Finds bug while testing
+    ↓
+Spawns Implementation Agent: "Fix this issue"
+    ↓
+Implementation Agent: Makes fix, reports back
+    ↓
+Flutter Tester: Hot reloads, verifies
+    ↓
+(Repeats if more fixes needed)
+```
+
+**Main Agent ↔ Flutter Tester (Guidance Loop)**
+```
+Main Agent: Spawns tester for testing
+    ↓
+Flutter Tester: Tests, finds issue needing clarification
+    ↓
+Messages Main Agent: "Two options - which should I pursue?"
+    ↓
+Main Agent: Provides guidance
+    ↓
+Flutter Tester: Proceeds with chosen approach
+```
+
+**Key collaboration principles:**
+- **Sub-agents can spawn their own sub-agents** (tester can spawn implementation)
+- **Agents can ask for guidance** when decisions are needed
+- **Hot reload enables fast iteration** without restarting apps
+- **Keep parent informed** of major decisions or blockers
+
 ### Common Mistake to Avoid
 
 Many agents make this mistake: they complete their work, write a nice summary like "Implementation complete! Here's what I did...", and then stop WITHOUT calling `sendMessageToAgent`.
