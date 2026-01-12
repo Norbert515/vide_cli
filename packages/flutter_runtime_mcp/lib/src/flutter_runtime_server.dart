@@ -23,11 +23,24 @@ class FlutterRuntimeServer extends McpServerBase {
       <String, String>{}; // Track working dirs for cleanup
   final _uuid = const Uuid();
   MoondreamClient? _moondreamClient;
+  final bool _useLocalMoondream;
 
-  FlutterRuntimeServer() : super(name: serverName, version: '1.0.0') {
-    // Try to initialize Moondream client from environment
+  FlutterRuntimeServer({bool useLocalMoondream = false})
+      : _useLocalMoondream = useLocalMoondream,
+        super(name: serverName, version: '1.0.0') {
+    _initializeMoondreamClient();
+  }
+
+  /// Initialize Moondream client based on configuration.
+  /// If useLocalMoondream is true, uses LocalMoondreamClient with auto-start.
+  /// Otherwise, uses cloud API from environment.
+  Future<void> _initializeMoondreamClient() async {
     try {
-      _moondreamClient = MoondreamClient.fromEnvironment();
+      if (_useLocalMoondream) {
+        _moondreamClient = await LocalMoondreamClient.withAutoStart();
+      } else {
+        _moondreamClient = MoondreamClient.fromEnvironment();
+      }
     } catch (e) {
       // Moondream not available - flutterAct will fail with clear error
     }

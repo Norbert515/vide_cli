@@ -32,12 +32,19 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool ideModeEnabled;
 
+  /// Whether to use local Moondream Station instead of cloud API.
+  /// When true, connects to localhost:2020 and auto-starts the server if needed.
+  /// Defaults to false (use cloud API).
+  @JsonKey(defaultValue: false)
+  final bool useLocalMoondream;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
     this.enableStreaming = true,
     this.autoUpdatesEnabled = true,
     this.ideModeEnabled = false,
+    this.useLocalMoondream = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -53,6 +60,7 @@ class VideGlobalSettings {
     bool? enableStreaming,
     bool? autoUpdatesEnabled,
     bool? ideModeEnabled,
+    bool? useLocalMoondream,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -60,6 +68,7 @@ class VideGlobalSettings {
       enableStreaming: enableStreaming ?? this.enableStreaming,
       autoUpdatesEnabled: autoUpdatesEnabled ?? this.autoUpdatesEnabled,
       ideModeEnabled: ideModeEnabled ?? this.ideModeEnabled,
+      useLocalMoondream: useLocalMoondream ?? this.useLocalMoondream,
     );
   }
 }

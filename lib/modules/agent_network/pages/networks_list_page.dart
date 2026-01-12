@@ -99,6 +99,18 @@ class _NetworksListPageState extends State<NetworksListPage> {
                 setState(() {}); // Trigger rebuild to update badge
                 return true;
               }
+              if (event.logicalKey == LogicalKey.keyM) {
+                // Toggle Moondream local/cloud setting
+                final configManager = context.read(videConfigManagerProvider);
+                final currentSettings = configManager.readGlobalSettings();
+                configManager.writeGlobalSettings(
+                  currentSettings.copyWith(
+                    useLocalMoondream: !currentSettings.useLocalMoondream,
+                  ),
+                );
+                setState(() {}); // Trigger rebuild to update badge
+                return true;
+              }
               return false;
             },
             child: Row(
@@ -109,13 +121,15 @@ class _NetworksListPageState extends State<NetworksListPage> {
                 _ThemeBadge(),
                 SizedBox(width: 2),
                 _StreamingBadge(),
+                SizedBox(width: 2),
+                _MoondreamBadge(),
               ],
             ),
           ),
           SizedBox(height: 1),
           // Help text
           Text(
-            'Esc: home | Backspace×2: delete | V: memories | T: theme | S: streaming',
+            'Esc: home | Backspace×2: delete | V: memories | T: theme | S: streaming | M: moondream',
             style: TextStyle(
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
@@ -377,6 +391,45 @@ class _StreamingBadge extends StatelessComponent {
           ),
           child: Text(
             isEnabled ? 'On' : 'Off',
+            style: TextStyle(
+              color: theme.base.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Moondream badge showing local/cloud mode
+class _MoondreamBadge extends StatelessComponent {
+  const _MoondreamBadge();
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+    final configManager = context.read(videConfigManagerProvider);
+    final isLocal = configManager.readGlobalSettings().useLocalMoondream;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(color: theme.base.outline),
+          child: Text(
+            'Moondream',
+            style: TextStyle(color: theme.base.onSurface),
+          ),
+        ),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          decoration: BoxDecoration(
+            color: isLocal ? theme.base.primary : theme.base.surface,
+          ),
+          child: Text(
+            isLocal ? 'Local' : 'Cloud',
             style: TextStyle(
               color: theme.base.onSurface,
               fontWeight: FontWeight.bold,

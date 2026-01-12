@@ -130,3 +130,12 @@ class MoondreamTimeoutException extends MoondreamException {
     super.stackTrace,
   });
 }
+
+/// Server start error - failed to start Moondream Station
+class MoondreamServerStartException extends MoondreamException {
+  const MoondreamServerStartException({
+    required super.message,
+    super.type = 'server_start_error',
+    super.stackTrace,
+  });
+}

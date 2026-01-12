@@ -3,6 +3,7 @@ library moondream_api;
 
 // Client
 export 'src/client/moondream_client.dart';
+export 'src/client/local_moondream_client.dart';
 
 // Models
 export 'src/models/config.dart';

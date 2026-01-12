@@ -9,10 +9,13 @@ import 'memory_mcp_server.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
+import '../services/vide_config_manager.dart';
 
 final flutterRuntimeServerProvider =
     Provider.family<FlutterRuntimeServer, AgentId>((ref, agentId) {
-      return FlutterRuntimeServer();
+      final configManager = ref.read(videConfigManagerProvider);
+      final useLocal = configManager.readGlobalSettings().useLocalMoondream;
+      return FlutterRuntimeServer(useLocalMoondream: useLocal);
     });
 
 /// Parameters for creating an MCP server instance.
