@@ -538,16 +538,69 @@ class FlutterInstance {
   }
 
   /// Perform hot reload
+  ///
+  /// Hot reload works by sending 'r' to stdin and waiting for the completion
+  /// message in stdout. The VM Service's `reloadSources` method is only available
+  /// when Flutter tools is the launcher (it registers it as a service extension).
+  /// Since we connect directly to the VM Service URI, we use stdin approach.
   Future<String> hotReload() async {
     if (!_isRunning) {
       throw StateError('Instance is not running');
     }
 
-    // Send 'r' to trigger hot reload
-    process.stdin.writeln('r');
-    await process.stdin.flush();
+    // Create a completer that will be resolved when we detect reload completion
+    final reloadCompleter = Completer<String>();
 
-    return 'Hot reload triggered';
+    // Listen for reload completion messages in stdout
+    StreamSubscription<String>? subscription;
+    Timer? timeoutTimer;
+
+    subscription = output.listen((line) {
+      // Flutter outputs messages like:
+      // "Reloaded 1 of 537 libraries in 234ms."
+      // "Reloaded 5 of 537 libraries in 1,234ms (compile: 500 ms, reload: 234 ms)."
+      // Or on failure: "Hot reload was rejected"
+      if (line.contains('Reloaded') && line.contains('libraries')) {
+        if (!reloadCompleter.isCompleted) {
+          reloadCompleter.complete(line.trim());
+        }
+      } else if (line.contains('Hot reload was rejected')) {
+        if (!reloadCompleter.isCompleted) {
+          reloadCompleter.completeError(StateError('Hot reload was rejected'));
+        }
+      } else if (line.contains('Hot reload failed')) {
+        if (!reloadCompleter.isCompleted) {
+          reloadCompleter.completeError(StateError(line.trim()));
+        }
+      }
+    });
+
+    // Set up timeout
+    timeoutTimer = Timer(const Duration(seconds: 30), () {
+      if (!reloadCompleter.isCompleted) {
+        reloadCompleter.completeError(
+          TimeoutException('Hot reload timed out after 30 seconds'),
+        );
+      }
+    });
+
+    try {
+      // Send 'r' to trigger hot reload
+      process.stdin.writeln('r');
+      await process.stdin.flush();
+
+      // Wait for completion
+      final result = await reloadCompleter.future;
+
+      // Refresh evaluator AFTER reload completes
+      await _refreshEvaluator();
+
+      return result;
+    } finally {
+      // Clean up
+      timeoutTimer.cancel();
+      await subscription.cancel();
+    }
   }
 
   /// Perform hot restart (full restart)
@@ -560,7 +613,40 @@ class FlutterInstance {
     process.stdin.writeln('R');
     await process.stdin.flush();
 
+    // Hot restart creates a new isolate, so we MUST refresh the evaluator
+    // to get the new isolate ID. Wait a bit for Flutter to restart.
+    await Future.delayed(const Duration(milliseconds: 1500));
+    await _refreshEvaluator();
+
     return 'Hot restart triggered';
+  }
+
+  /// Refresh the evaluator to get a fresh isolate ID
+  ///
+  /// This is needed after hot reload/restart because the isolate may change.
+  Future<void> _refreshEvaluator() async {
+    if (_vmService == null) return;
+
+    // Clear the old evaluator
+    _evaluator = null;
+
+    // Retry a few times since the new isolate may not be immediately available
+    for (var attempt = 0; attempt < 5; attempt++) {
+      try {
+        _evaluator = await VmServiceEvaluator.create(_vmService!);
+        if (_evaluator != null) {
+          print('✅ [FlutterInstance] Evaluator refreshed with new isolate ID: ${_evaluator!.isolateId}');
+          return;
+        }
+      } catch (e) {
+        print('⚠️  [FlutterInstance] Evaluator refresh attempt ${attempt + 1} failed: $e');
+      }
+
+      // Wait before retrying
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+
+    print('❌ [FlutterInstance] Failed to refresh evaluator after 5 attempts');
   }
 
   /// Stop the Flutter instance
