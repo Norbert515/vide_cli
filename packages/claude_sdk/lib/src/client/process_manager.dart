@@ -13,28 +13,19 @@ class ProcessManager {
   /// Generate CLI arguments for MCP server configuration.
   ///
   /// Returns a list of arguments to pass to the Claude CLI, including
-  /// the --mcp-config flag with JSON configuration for all registered servers.
+  /// the --mcp-config flag with JSON configuration for vide's managed servers.
+  /// Claude CLI automatically merges this with .mcp.json, ~/.claude.json, etc.
   Future<List<String>> getMcpArgs() async {
     if (mcpServers.isEmpty) {
       return [];
     }
 
-    // Create the proper mcpServers configuration object
+    // Create config for vide's managed MCP servers only
     final mcpServersConfig = <String, dynamic>{};
-
     for (final server in mcpServers) {
-      final serverConfig = server.toClaudeConfig();
-      mcpServersConfig[server.name] = serverConfig;
+      mcpServersConfig[server.name] = server.toClaudeConfig();
     }
 
-    // Dart MCP server disabled - causes high CPU usage from analysis_server
-    // TODO: Make this configurable per-agent when Dart tools are needed
-    // mcpServersConfig['dart'] = {
-    //   'command': 'dart',
-    //   'args': ['mcp-server'],
-    // };
-
-    // Create the complete configuration with mcpServers wrapper
     final fullConfig = {'mcpServers': mcpServersConfig};
 
     // Note: We do NOT add --allowed-tools here. Adding only MCP tools to

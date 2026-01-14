@@ -15,6 +15,9 @@ class MockClaudeClient implements ClaudeClient {
   @override
   final String workingDirectory;
 
+  @override
+  void Function(MetaResponse response)? onMetaResponseReceived;
+
   final List<Message> sentMessages = [];
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();

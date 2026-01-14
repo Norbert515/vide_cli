@@ -13,6 +13,7 @@ export 'models/agent_metadata.dart';
 export 'models/agent_id.dart';
 export 'models/agent_status.dart';
 export 'models/memory_entry.dart';
+export 'models/mcp_server_info.dart';
 export 'models/vide_global_settings.dart';
 
 // Services
@@ -56,6 +57,7 @@ export 'utils/working_dir_provider.dart';
 
 // State Management
 export 'state/agent_status_manager.dart';
+export 'state/agent_mcp_state_manager.dart';
 
 // Permissions
 export 'services/permissions/permission_matcher.dart';

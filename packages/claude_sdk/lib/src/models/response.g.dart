@@ -54,6 +54,10 @@ ToolResultResponse _$ToolResultResponseFromJson(Map<String, dynamic> json) =>
       toolUseId: json['toolUseId'] as String,
       content: json['content'] as String,
       isError: json['isError'] as bool? ?? false,
+      stdout: json['stdout'] as String?,
+      stderr: json['stderr'] as String?,
+      interrupted: json['interrupted'] as bool?,
+      isImage: json['isImage'] as bool?,
       rawData: json['rawData'] as Map<String, dynamic>?,
     );
 
@@ -65,6 +69,10 @@ Map<String, dynamic> _$ToolResultResponseToJson(ToolResultResponse instance) =>
       'toolUseId': instance.toolUseId,
       'content': instance.content,
       'isError': instance.isError,
+      'stdout': instance.stdout,
+      'stderr': instance.stderr,
+      'interrupted': instance.interrupted,
+      'isImage': instance.isImage,
     };
 
 ErrorResponse _$ErrorResponseFromJson(Map<String, dynamic> json) =>
@@ -86,6 +94,70 @@ Map<String, dynamic> _$ErrorResponseToJson(ErrorResponse instance) =>
       'details': instance.details,
       'code': instance.code,
     };
+
+ApiErrorResponse _$ApiErrorResponseFromJson(Map<String, dynamic> json) =>
+    ApiErrorResponse(
+      id: json['id'] as String,
+      timestamp: DateTime.parse(json['timestamp'] as String),
+      level: json['level'] as String,
+      cause: json['cause'] as Map<String, dynamic>?,
+      error: json['error'] as Map<String, dynamic>?,
+      retryInMs: (json['retryInMs'] as num?)?.toDouble(),
+      retryAttempt: (json['retryAttempt'] as num?)?.toInt(),
+      maxRetries: (json['maxRetries'] as num?)?.toInt(),
+      rawData: json['rawData'] as Map<String, dynamic>?,
+    );
+
+Map<String, dynamic> _$ApiErrorResponseToJson(ApiErrorResponse instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'timestamp': instance.timestamp.toIso8601String(),
+      'rawData': instance.rawData,
+      'level': instance.level,
+      'cause': instance.cause,
+      'error': instance.error,
+      'retryInMs': instance.retryInMs,
+      'retryAttempt': instance.retryAttempt,
+      'maxRetries': instance.maxRetries,
+    };
+
+TurnDurationResponse _$TurnDurationResponseFromJson(
+  Map<String, dynamic> json,
+) => TurnDurationResponse(
+  id: json['id'] as String,
+  timestamp: DateTime.parse(json['timestamp'] as String),
+  durationMs: (json['durationMs'] as num).toInt(),
+  rawData: json['rawData'] as Map<String, dynamic>?,
+);
+
+Map<String, dynamic> _$TurnDurationResponseToJson(
+  TurnDurationResponse instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'timestamp': instance.timestamp.toIso8601String(),
+  'rawData': instance.rawData,
+  'durationMs': instance.durationMs,
+};
+
+LocalCommandResponse _$LocalCommandResponseFromJson(
+  Map<String, dynamic> json,
+) => LocalCommandResponse(
+  id: json['id'] as String,
+  timestamp: DateTime.parse(json['timestamp'] as String),
+  content: json['content'] as String,
+  level: json['level'] as String,
+  rawData: json['rawData'] as Map<String, dynamic>?,
+);
+
+Map<String, dynamic> _$LocalCommandResponseToJson(
+  LocalCommandResponse instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'timestamp': instance.timestamp.toIso8601String(),
+  'rawData': instance.rawData,
+  'content': instance.content,
+  'level': instance.level,
+};
 
 StatusResponse _$StatusResponseFromJson(Map<String, dynamic> json) =>
     StatusResponse(
@@ -143,6 +215,12 @@ CompletionResponse _$CompletionResponseFromJson(Map<String, dynamic> json) =>
       cacheCreationInputTokens: (json['cacheCreationInputTokens'] as num?)
           ?.toInt(),
       totalCostUsd: (json['totalCostUsd'] as num?)?.toDouble(),
+      modelUsage: json['modelUsage'] as Map<String, dynamic>?,
+      permissionDenials: (json['permissionDenials'] as List<dynamic>?)
+          ?.map((e) => e as Map<String, dynamic>)
+          .toList(),
+      durationApiMs: (json['durationApiMs'] as num?)?.toInt(),
+      serverToolUse: json['serverToolUse'] as Map<String, dynamic>?,
       rawData: json['rawData'] as Map<String, dynamic>?,
     );
 
@@ -157,6 +235,10 @@ Map<String, dynamic> _$CompletionResponseToJson(CompletionResponse instance) =>
       'cacheReadInputTokens': instance.cacheReadInputTokens,
       'cacheCreationInputTokens': instance.cacheCreationInputTokens,
       'totalCostUsd': instance.totalCostUsd,
+      'modelUsage': instance.modelUsage,
+      'permissionDenials': instance.permissionDenials,
+      'durationApiMs': instance.durationApiMs,
+      'serverToolUse': instance.serverToolUse,
     };
 
 UnknownResponse _$UnknownResponseFromJson(Map<String, dynamic> json) =>

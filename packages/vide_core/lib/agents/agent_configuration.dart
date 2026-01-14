@@ -103,8 +103,11 @@ class AgentConfiguration {
       sessionId: sessionId,
       workingDirectory: workingDirectory,
       enableStreaming: enableStreaming,
-      // Enable skill loading from user and project directories
-      settingSources: ['user', 'project'],
+      // Enable all setting sources:
+      // - user: ~/.claude.json (user-level settings)
+      // - project: .claude/settings.json (project settings)
+      // - local: .mcp.json (MCP server configurations)
+      settingSources: ['user', 'project', 'local'],
     );
   }
 

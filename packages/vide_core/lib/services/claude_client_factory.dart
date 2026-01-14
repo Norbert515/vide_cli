@@ -4,6 +4,7 @@ import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_provider.dart';
+import '../state/agent_mcp_state_manager.dart';
 import 'permission_provider.dart';
 import 'vide_config_manager.dart';
 
@@ -78,6 +79,12 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
             .toList() ??
         [];
 
+    // Register managed servers with state tracker
+    final mcpStateNotifier = _ref.read(agentMcpStateProvider(agentId).notifier);
+    for (final server in mcpServers) {
+      mcpStateNotifier.addManagedServer(server);
+    }
+
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
     final canUseTool = callbackFactory?.call(PermissionCallbackContext(
       cwd: cwd,
@@ -88,11 +95,20 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       networkId: networkId,
     ));
 
-    return ClaudeClient.createNonBlocking(
+    final client = ClaudeClient.createNonBlocking(
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
+      // Pass callback to factory so it's set BEFORE init() is called
+      onMetaResponseReceived: (metaResponse) {
+        final data = metaResponse.rawData ?? metaResponse.metadata;
+        _ref.read(agentMcpStateProvider(agentId).notifier).updateFromInitMessage(
+              data,
+            );
+      },
     );
+
+    return client;
   }
 
   @override
@@ -120,6 +136,12 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
             .toList() ??
         [];
 
+    // Register managed servers with state tracker
+    final mcpStateNotifier = _ref.read(agentMcpStateProvider(agentId).notifier);
+    for (final server in mcpServers) {
+      mcpStateNotifier.addManagedServer(server);
+    }
+
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
     final canUseTool = callbackFactory?.call(PermissionCallbackContext(
       cwd: cwd,
@@ -130,10 +152,18 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       networkId: networkId,
     ));
 
-    return await ClaudeClient.create(
+    final client = await ClaudeClient.create(
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
+      // Pass callback to factory so it's set BEFORE init() is called
+      onMetaResponseReceived: (metaResponse) {
+        _ref.read(agentMcpStateProvider(agentId).notifier).updateFromInitMessage(
+              metaResponse.rawData ?? metaResponse.metadata,
+            );
+      },
     );
+
+    return client;
   }
 }

@@ -13,6 +13,9 @@ class MockClaudeClient implements ClaudeClient {
   @override
   final String sessionId;
 
+  @override
+  void Function(MetaResponse response)? onMetaResponseReceived;
+
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();

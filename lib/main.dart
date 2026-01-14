@@ -5,6 +5,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/components/git_sidebar.dart';
+import 'package:vide_cli/components/mcp_servers_panel.dart';
 import 'package:vide_cli/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
@@ -21,6 +22,9 @@ import 'package:vide_cli/services/sentry_service.dart';
 /// Pages can update this to give focus to the sidebar.
 /// When focused, the sidebar expands; when unfocused, it collapses.
 final sidebarFocusProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for MCP panel focus state
+final mcpPanelFocusProvider = StateProvider<bool>((ref) => false);
 
 /// Provider for IDE mode state. When true, the git sidebar is shown.
 /// Initialized from global settings and can be toggled via /ide command.
@@ -136,10 +140,18 @@ class _VideAppContentState extends State<_VideAppContent> {
   static const int _animationSteps = 8;
   static const Duration _animationStepDuration = Duration(milliseconds: 20);
 
+  // MCP panel constants
+  static const double _mcpPanelWidth = 32.0;
+
   // Animation state
   double _currentSidebarWidth = 0.0;
   Timer? _animationTimer;
   bool _wasIdeModeEnabled = false;
+
+  // MCP panel animation state
+  double _currentMcpPanelWidth = 0.0;
+  Timer? _mcpPanelAnimationTimer;
+  bool _wasMcpPanelVisible = false;
 
   @override
   void initState() {
@@ -152,6 +164,7 @@ class _VideAppContentState extends State<_VideAppContent> {
   @override
   void dispose() {
     _animationTimer?.cancel();
+    _mcpPanelAnimationTimer?.cancel();
     super.dispose();
   }
 
@@ -172,6 +185,23 @@ class _VideAppContentState extends State<_VideAppContent> {
     });
   }
 
+  void _animateMcpPanelWidth(double targetWidth) {
+    _mcpPanelAnimationTimer?.cancel();
+    final startWidth = _currentMcpPanelWidth;
+    final delta = (targetWidth - startWidth) / _animationSteps;
+    var step = 0;
+
+    _mcpPanelAnimationTimer = Timer.periodic(_animationStepDuration, (timer) {
+      step++;
+      if (step >= _animationSteps) {
+        timer.cancel();
+        setState(() => _currentMcpPanelWidth = targetWidth);
+      } else {
+        setState(() => _currentMcpPanelWidth = startWidth + (delta * step));
+      }
+    });
+  }
+
   @override
   Component build(BuildContext context) {
     // Check if IDE mode is enabled (reactive to /ide command)
@@ -186,6 +216,19 @@ class _VideAppContentState extends State<_VideAppContent> {
     // Watch sidebar focus state and file preview path
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
+
+    // Watch MCP panel state
+    final networkManager = context.watch(agentNetworkManagerProvider);
+    final currentNetwork = networkManager.currentNetwork;
+    final mainAgentId = currentNetwork?.agentIds.firstOrNull;
+    final mcpPanelFocused = context.watch(mcpPanelFocusProvider);
+    final showMcpPanel = mainAgentId != null && ideModeEnabled;
+
+    // Animate MCP panel when visibility changes
+    if (showMcpPanel != _wasMcpPanelVisible) {
+      _wasMcpPanelVisible = showMcpPanel;
+      _animateMcpPanelWidth(showMcpPanel ? _mcpPanelWidth : 0.0);
+    }
 
     // Main navigator content
     final navigatorContent = Column(
@@ -283,6 +326,27 @@ class _VideAppContentState extends State<_VideAppContent> {
             ],
           ),
         ),
+        // MCP Servers panel on the right
+        if (_currentMcpPanelWidth > 0 || showMcpPanel)
+          SizedBox(
+            width: _currentMcpPanelWidth,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topRight,
+                minWidth: _mcpPanelWidth,
+                maxWidth: _mcpPanelWidth,
+                child: McpServersPanel(
+                  agentId: mainAgentId ?? '',
+                  width: _mcpPanelWidth,
+                  focused: mcpPanelFocused,
+                  expanded: true,
+                  onExitLeft: () {
+                    context.read(mcpPanelFocusProvider.notifier).state = false;
+                  },
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }

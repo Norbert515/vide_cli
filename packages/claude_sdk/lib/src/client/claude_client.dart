@@ -27,6 +27,9 @@ abstract class ClaudeClient {
 
   String get workingDirectory;
 
+  /// Callback when a MetaResponse (init message) is received
+  abstract void Function(MetaResponse response)? onMetaResponseReceived;
+
   /// Stream that emits whenever the queued message changes.
   /// Emits the current queued text, or null when queue is cleared.
   Stream<String?> get queuedMessage;
@@ -71,6 +74,7 @@ abstract class ClaudeClient {
     List<McpServerBase>? mcpServers,
     Map<HookEvent, List<HookMatcher>>? hooks,
     CanUseToolCallback? canUseTool,
+    void Function(MetaResponse response)? onMetaResponseReceived,
   }) async {
     final client = ClaudeClientImpl(
       config: config ?? ClaudeConfig.defaults(),
@@ -78,6 +82,8 @@ abstract class ClaudeClient {
       hooks: hooks,
       canUseTool: canUseTool,
     );
+    // Set callback BEFORE init so it's available when init message arrives
+    client.onMetaResponseReceived = onMetaResponseReceived;
     await client.init();
     return client;
   }
@@ -90,6 +96,7 @@ abstract class ClaudeClient {
     List<McpServerBase>? mcpServers,
     Map<HookEvent, List<HookMatcher>>? hooks,
     CanUseToolCallback? canUseTool,
+    void Function(MetaResponse response)? onMetaResponseReceived,
   }) {
     final client = ClaudeClientImpl(
       config: config ?? ClaudeConfig.defaults(),
@@ -97,6 +104,8 @@ abstract class ClaudeClient {
       hooks: hooks,
       canUseTool: canUseTool,
     );
+    // Set callback BEFORE init so it's available when init message arrives
+    client.onMetaResponseReceived = onMetaResponseReceived;
     // Initialize in background - don't await
     client.init();
     return client;
@@ -115,6 +124,9 @@ class ClaudeClientImpl implements ClaudeClient {
 
   /// Permission callback for control protocol
   final CanUseToolCallback? canUseTool;
+
+  @override
+  void Function(MetaResponse response)? onMetaResponseReceived;
 
   /// Response processor for handling Claude responses
   final ResponseProcessor _responseProcessor = ResponseProcessor();
@@ -327,6 +339,11 @@ class ClaudeClientImpl implements ClaudeClient {
       // Extract and emit status updates
       if (response is StatusResponse) {
         _updateStatus(response.status);
+      }
+
+      // Notify callback when MetaResponse (init message) is received
+      if (response is MetaResponse) {
+        onMetaResponseReceived?.call(response);
       }
 
       // Delegate response processing to ResponseProcessor

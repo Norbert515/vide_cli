@@ -31,6 +31,9 @@ class ResponseToMessageConverter {
       CompactSummaryResponse r => _convertCompactSummaryResponse(r, ts),
       UserMessageResponse r => _convertUserMessageResponse(r, ts),
       ErrorResponse r => _convertErrorResponse(r, ts),
+      ApiErrorResponse r => _convertApiErrorResponse(r, ts),
+      TurnDurationResponse r => _convertTurnDurationResponse(r, ts),
+      LocalCommandResponse r => _convertLocalCommandResponse(r, ts),
       StatusResponse r => _convertStatusResponse(r, ts),
       MetaResponse r => _convertMetaResponse(r, ts),
       CompletionResponse r => _convertCompletionResponse(r, ts),
@@ -133,6 +136,55 @@ class ResponseToMessageConverter {
       isComplete: true,
       isStreaming: false,
     ).copyWith(error: response.error, messageType: MessageType.error);
+  }
+
+  static ConversationMessage _convertApiErrorResponse(
+    ApiErrorResponse response,
+    DateTime timestamp,
+  ) {
+    // API errors are transient and typically retried by Claude Code internally.
+    // We convert them to assistant messages with error type for visibility.
+    return ConversationMessage(
+      id: response.id,
+      role: MessageRole.system,
+      content: response.message,
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.status,
+      responses: [response],
+    );
+  }
+
+  static ConversationMessage _convertTurnDurationResponse(
+    TurnDurationResponse response,
+    DateTime timestamp,
+  ) {
+    // Turn duration is metadata about the turn, convert to status message.
+    return ConversationMessage(
+      id: response.id,
+      role: MessageRole.system,
+      content: 'Turn completed in ${response.durationMs}ms',
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.status,
+      responses: [response],
+    );
+  }
+
+  static ConversationMessage _convertLocalCommandResponse(
+    LocalCommandResponse response,
+    DateTime timestamp,
+  ) {
+    // Local command output, convert to status message.
+    return ConversationMessage(
+      id: response.id,
+      role: MessageRole.system,
+      content: response.content,
+      timestamp: timestamp,
+      isComplete: true,
+      messageType: MessageType.status,
+      responses: [response],
+    );
   }
 
   static ConversationMessage _convertStatusResponse(

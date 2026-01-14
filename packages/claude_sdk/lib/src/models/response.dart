@@ -154,8 +154,17 @@ sealed class ClaudeResponse {
         if (subtype == 'init') {
           return MetaResponse.fromJson(json);
         }
+        if (subtype == 'api_error') {
+          return ApiErrorResponse.fromJson(json);
+        }
         if (subtype == 'compact_boundary') {
           return CompactBoundaryResponse.fromJson(json);
+        }
+        if (subtype == 'turn_duration') {
+          return TurnDurationResponse.fromJson(json);
+        }
+        if (subtype == 'local_command') {
+          return LocalCommandResponse.fromJson(json);
         }
         return StatusResponse.fromJson(json);
       case 'result':
@@ -336,14 +345,36 @@ class ToolResultResponse extends ClaudeResponse {
   final String content;
   final bool isError;
 
+  /// stdout output from tool execution (if available)
+  final String? stdout;
+
+  /// stderr output from tool execution (if available)
+  final String? stderr;
+
+  /// Whether the tool execution was interrupted
+  final bool? interrupted;
+
+  /// Whether the result contains image data
+  final bool? isImage;
+
   const ToolResultResponse({
     required super.id,
     required super.timestamp,
     required this.toolUseId,
     required this.content,
     this.isError = false,
+    this.stdout,
+    this.stderr,
+    this.interrupted,
+    this.isImage,
     super.rawData,
   });
+
+  /// Whether the tool execution was interrupted
+  bool get wasInterrupted => interrupted ?? false;
+
+  /// Whether the result contains image data
+  bool get hasImage => isImage ?? false;
 
   factory ToolResultResponse.fromJson(Map<String, dynamic> json) {
     final message = json['message'] as Map<String, dynamic>;
@@ -352,6 +383,10 @@ class ToolResultResponse extends ClaudeResponse {
     String toolUseId = '';
     String content = '';
     bool isError = false;
+    String? stdout;
+    String? stderr;
+    bool? interrupted;
+    bool? isImage;
 
     if (contentList != null && contentList.isNotEmpty) {
       final toolResult = contentList.first as Map<String, dynamic>;
@@ -375,6 +410,15 @@ class ToolResultResponse extends ClaudeResponse {
       isError = toolResult['is_error'] ?? false;
     }
 
+    // Extract execution metadata from tool_use_result if present
+    final toolUseResult = json['tool_use_result'] as Map<String, dynamic>?;
+    if (toolUseResult != null) {
+      stdout = toolUseResult['stdout'] as String?;
+      stderr = toolUseResult['stderr'] as String?;
+      interrupted = toolUseResult['interrupted'] as bool?;
+      isImage = toolUseResult['isImage'] as bool?;
+    }
+
     // Decode HTML entities that may come from Claude CLI
     final decodedContent = HtmlEntityDecoder.decode(content);
 
@@ -384,6 +428,10 @@ class ToolResultResponse extends ClaudeResponse {
       toolUseId: toolUseId,
       content: decodedContent,
       isError: isError,
+      stdout: stdout,
+      stderr: stderr,
+      interrupted: interrupted,
+      isImage: isImage,
       rawData: json,
     );
   }
@@ -418,6 +466,151 @@ class ErrorResponse extends ClaudeResponse {
   }
 
   Map<String, dynamic> toJson() => _$ErrorResponseToJson(this);
+}
+
+/// API error response from Claude CLI (system subtype: api_error)
+///
+/// This represents transient API errors that Claude Code handles internally,
+/// often with automatic retries. These include rate limits, server errors,
+/// and other recoverable API failures.
+@JsonSerializable()
+class ApiErrorResponse extends ClaudeResponse {
+  /// Error level (e.g., 'error', 'warning')
+  final String level;
+
+  /// The underlying cause of the error
+  final Map<String, dynamic>? cause;
+
+  /// Structured error information
+  final Map<String, dynamic>? error;
+
+  /// Milliseconds before retry (if retrying)
+  final double? retryInMs;
+
+  /// Current retry attempt number
+  final int? retryAttempt;
+
+  /// Maximum number of retries configured
+  final int? maxRetries;
+
+  const ApiErrorResponse({
+    required super.id,
+    required super.timestamp,
+    required this.level,
+    this.cause,
+    this.error,
+    this.retryInMs,
+    this.retryAttempt,
+    this.maxRetries,
+    super.rawData,
+  });
+
+  /// Whether this error will be retried
+  bool get willRetry => retryInMs != null && retryInMs! > 0;
+
+  /// Human-readable error message extracted from cause or error
+  String get message {
+    // Try to extract message from cause
+    if (cause != null) {
+      final causeMessage = cause!['message'] as String?;
+      if (causeMessage != null) return causeMessage;
+    }
+    // Try to extract message from error
+    if (error != null) {
+      final errorMessage = error!['message'] as String?;
+      if (errorMessage != null) return errorMessage;
+    }
+    return 'API error occurred';
+  }
+
+  /// Error type extracted from cause (e.g., 'overloaded_error', 'rate_limit_error')
+  String? get errorType {
+    return cause?['type'] as String? ?? error?['type'] as String?;
+  }
+
+  factory ApiErrorResponse.fromJson(Map<String, dynamic> json) {
+    return ApiErrorResponse(
+      id: json['uuid'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      level: json['level'] as String? ?? 'error',
+      cause: json['cause'] as Map<String, dynamic>?,
+      error: json['error'] as Map<String, dynamic>?,
+      retryInMs: (json['retryInMs'] as num?)?.toDouble(),
+      retryAttempt: json['retryAttempt'] as int?,
+      maxRetries: json['maxRetries'] as int?,
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$ApiErrorResponseToJson(this);
+}
+
+/// Turn duration response from Claude CLI (system subtype: turn_duration)
+///
+/// This reports the duration of a completed turn in milliseconds.
+@JsonSerializable()
+class TurnDurationResponse extends ClaudeResponse {
+  /// Duration of the turn in milliseconds
+  final int durationMs;
+
+  const TurnDurationResponse({
+    required super.id,
+    required super.timestamp,
+    required this.durationMs,
+    super.rawData,
+  });
+
+  factory TurnDurationResponse.fromJson(Map<String, dynamic> json) {
+    return TurnDurationResponse(
+      id: json['uuid'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      durationMs: json['durationMs'] as int? ?? 0,
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$TurnDurationResponseToJson(this);
+}
+
+/// Local command (slash command) execution response (system subtype: local_command)
+///
+/// This tracks slash command execution status and output.
+@JsonSerializable()
+class LocalCommandResponse extends ClaudeResponse {
+  /// The content/output of the command
+  final String content;
+
+  /// Log level (e.g., 'info', 'warning', 'error')
+  final String level;
+
+  const LocalCommandResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    required this.level,
+    super.rawData,
+  });
+
+  factory LocalCommandResponse.fromJson(Map<String, dynamic> json) {
+    return LocalCommandResponse(
+      id: json['uuid'] as String? ??
+          DateTime.now().millisecondsSinceEpoch.toString(),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      content: json['content'] as String? ?? '',
+      level: json['level'] as String? ?? 'info',
+      rawData: json,
+    );
+  }
+
+  Map<String, dynamic> toJson() => _$LocalCommandResponseToJson(this);
 }
 
 @JsonSerializable()
@@ -459,6 +652,66 @@ class MetaResponse extends ClaudeResponse {
     super.rawData,
   });
 
+  /// MCP servers from init message
+  List<Map<String, dynamic>>? get mcpServers {
+    final servers = metadata['mcp_servers'];
+    if (servers == null) return null;
+    return (servers as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Available tools from init message
+  List<String>? get tools {
+    final toolsList = metadata['tools'];
+    if (toolsList == null) return null;
+    return (toolsList as List).cast<String>();
+  }
+
+  /// Claude Code version from init message
+  String? get claudeCodeVersion => metadata['claude_code_version'] as String?;
+
+  /// Model name from init message
+  String? get model => metadata['model'] as String?;
+
+  /// Available skills from init message
+  List<String>? get skills {
+    final skillsList = metadata['skills'];
+    if (skillsList == null) return null;
+    return (skillsList as List).cast<String>();
+  }
+
+  /// Available agent types from init message
+  List<String>? get agents {
+    final agentsList = metadata['agents'];
+    if (agentsList == null) return null;
+    return (agentsList as List).cast<String>();
+  }
+
+  /// Available slash commands from init message
+  List<String>? get slashCommands {
+    final cmdList = metadata['slash_commands'];
+    if (cmdList == null) return null;
+    return (cmdList as List).cast<String>();
+  }
+
+  /// Loaded plugins from init message
+  List<Map<String, dynamic>>? get plugins {
+    final pluginList = metadata['plugins'];
+    if (pluginList == null) return null;
+    return (pluginList as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Permission mode from init message (e.g., 'default', 'plan', 'bypassPermissions')
+  String? get permissionMode => metadata['permissionMode'] as String?;
+
+  /// API key source from init message (e.g., 'ANTHROPIC_API_KEY')
+  String? get apiKeySource => metadata['apiKeySource'] as String?;
+
+  /// Session ID from init message
+  String? get sessionId => metadata['session_id'] as String?;
+
+  /// Working directory from init message
+  String? get cwd => metadata['cwd'] as String?;
+
   factory MetaResponse.fromJson(Map<String, dynamic> json) {
     return MetaResponse(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -481,6 +734,18 @@ class CompletionResponse extends ClaudeResponse {
   final int? cacheCreationInputTokens;
   final double? totalCostUsd;
 
+  /// Per-model token usage breakdown (model ID -> usage stats)
+  final Map<String, dynamic>? modelUsage;
+
+  /// List of permission denials that occurred during the turn
+  final List<Map<String, dynamic>>? permissionDenials;
+
+  /// Duration of API calls in milliseconds
+  final int? durationApiMs;
+
+  /// Server-side tool usage statistics
+  final Map<String, dynamic>? serverToolUse;
+
   const CompletionResponse({
     required super.id,
     required super.timestamp,
@@ -490,6 +755,10 @@ class CompletionResponse extends ClaudeResponse {
     this.cacheReadInputTokens,
     this.cacheCreationInputTokens,
     this.totalCostUsd,
+    this.modelUsage,
+    this.permissionDenials,
+    this.durationApiMs,
+    this.serverToolUse,
     super.rawData,
   });
 
@@ -499,6 +768,18 @@ class CompletionResponse extends ClaudeResponse {
       (inputTokens ?? 0) +
       (cacheReadInputTokens ?? 0) +
       (cacheCreationInputTokens ?? 0);
+
+  /// Get usage for a specific model
+  Map<String, dynamic>? getModelUsage(String modelId) {
+    return modelUsage?[modelId] as Map<String, dynamic>?;
+  }
+
+  /// Get all model IDs that were used
+  List<String> get usedModels => modelUsage?.keys.toList() ?? [];
+
+  /// Whether any permissions were denied during this turn
+  bool get hadPermissionDenials =>
+      permissionDenials != null && permissionDenials!.isNotEmpty;
 
   factory CompletionResponse.fromJson(Map<String, dynamic> json) {
     return CompletionResponse(
@@ -510,6 +791,12 @@ class CompletionResponse extends ClaudeResponse {
       cacheReadInputTokens: json['usage']?['cache_read_input_tokens'],
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
+      modelUsage: json['modelUsage'] as Map<String, dynamic>?,
+      permissionDenials:
+          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      durationApiMs: json['duration_api_ms'] as int?,
+      serverToolUse:
+          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }
@@ -524,6 +811,12 @@ class CompletionResponse extends ClaudeResponse {
       cacheReadInputTokens: json['usage']?['cache_read_input_tokens'],
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
+      modelUsage: json['modelUsage'] as Map<String, dynamic>?,
+      permissionDenials:
+          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      durationApiMs: json['duration_api_ms'] as int?,
+      serverToolUse:
+          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }

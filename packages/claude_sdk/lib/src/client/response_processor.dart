@@ -53,6 +53,9 @@ class ResponseProcessor {
       // Non-message responses - pass through unchanged
       StatusResponse() => _passThrough(currentConversation),
       MetaResponse() => _passThrough(currentConversation),
+      ApiErrorResponse() => _passThrough(currentConversation),
+      TurnDurationResponse() => _passThrough(currentConversation),
+      LocalCommandResponse() => _passThrough(currentConversation),
       UnknownResponse() => _passThrough(currentConversation),
     };
   }
