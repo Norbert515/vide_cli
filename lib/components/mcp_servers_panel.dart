@@ -152,7 +152,7 @@ class _McpServersPanelState extends State<McpServersPanel> {
                         ),
                         Spacer(),
                         Text(
-                          '${mcpStatus?.connectedServers.length ?? 0}/${servers.length}',
+                          '${servers.where((s) => s.status == McpServerStatus.connected).length}/${servers.length}',
                           style: TextStyle(
                             color: theme.base.onSurface
                                 .withOpacity(TextOpacity.tertiary),
