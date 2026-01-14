@@ -7,6 +7,7 @@ default:
 install: compile
     mkdir -p ~/.vide/bin
     mkdir -p ~/.local/bin
+    rm -rf ~/.vide/updates/pending/
     cp vide ~/.vide/bin/vide
     codesign -s - ~/.vide/bin/vide
     cp scripts/vide-wrapper.sh ~/.local/bin/vide

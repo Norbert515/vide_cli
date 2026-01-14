@@ -1832,6 +1832,8 @@ class _GitSidebarState extends State<GitSidebar> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // Top padding to align with main content
+        SizedBox(height: 1),
         // Header area matching expanded state (no bottom border)
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
@@ -1870,6 +1872,8 @@ class _GitSidebarState extends State<GitSidebar> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Top padding to align with main content
+            SizedBox(height: 1),
             // All navigable items in ListView (including branch headers)
             Expanded(
               child: ListView(

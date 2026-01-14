@@ -75,17 +75,22 @@ class _McpServersPanelState extends State<McpServersPanel> {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final mcpStatus = _mcpStatus;
-    final servers = mcpStatus?.servers ?? [];
+    // Filter out internal vide-* MCP servers
+    final servers = (mcpStatus?.servers ?? [])
+        .where((s) => !s.name.startsWith('vide-'))
+        .toList();
 
     if (!component.expanded) {
-      // Collapsed view - just show count
-      final connectedCount = mcpStatus?.connectedServers.length ?? 0;
-      final hasErrors = mcpStatus?.failedServers.isNotEmpty ?? false;
+      // Collapsed view - just show count (filtered)
+      final connectedCount = servers.where((s) => s.status == McpServerStatus.connected).length;
+      final hasErrors = servers.any((s) => s.status == McpServerStatus.failed);
       return SizedBox(
         width: 3,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
+            // Top padding to align with main content
+            SizedBox(height: 1),
             Text(
               '{}',
               style: TextStyle(
@@ -131,6 +136,8 @@ class _McpServersPanelState extends State<McpServersPanel> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Top padding to align with main content
+                  SizedBox(height: 1),
                   // Header
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 1),

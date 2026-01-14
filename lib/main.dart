@@ -143,6 +143,9 @@ class _VideAppContentState extends State<_VideAppContent> {
   // MCP panel constants
   static const double _mcpPanelWidth = 32.0;
 
+  // Minimum terminal width to show sidebars (main content needs ~80 chars)
+  static const double _minWidthForSidebars = 120.0;
+
   // Animation state
   double _currentSidebarWidth = 0.0;
   Timer? _animationTimer;
@@ -228,6 +231,36 @@ class _VideAppContentState extends State<_VideAppContent> {
       _animateMcpPanelWidth(showMcpPanel ? _mcpPanelWidth : 0.0);
     }
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Check if terminal is wide enough for sidebars
+        final terminalWidth = constraints.maxWidth;
+        final hasEnoughWidth = terminalWidth >= _minWidthForSidebars;
+
+        return _buildMainLayout(
+          context,
+          ideModeEnabled: ideModeEnabled,
+          sidebarFocused: sidebarFocused,
+          filePreviewPath: filePreviewPath,
+          initialClient: initialClient,
+          mcpPanelFocused: mcpPanelFocused,
+          showMcpPanel: showMcpPanel,
+          hasEnoughWidth: hasEnoughWidth,
+        );
+      },
+    );
+  }
+
+  Component _buildMainLayout(
+    BuildContext context, {
+    required bool ideModeEnabled,
+    required bool sidebarFocused,
+    required String? filePreviewPath,
+    required InitialClaudeClient initialClient,
+    required bool mcpPanelFocused,
+    required bool showMcpPanel,
+    required bool hasEnoughWidth,
+  }) {
     // Main navigator content
     final navigatorContent = Column(
       children: [
@@ -260,7 +293,8 @@ class _VideAppContentState extends State<_VideAppContent> {
     );
 
     // Show sidebar if width > 0 or IDE mode is on (to keep it in tree during animation)
-    final showSidebar = _currentSidebarWidth > 0 || ideModeEnabled;
+    // Only show sidebars when terminal is wide enough
+    final showSidebar = hasEnoughWidth && (_currentSidebarWidth > 0 || ideModeEnabled);
 
     return Row(
       children: [
@@ -324,8 +358,8 @@ class _VideAppContentState extends State<_VideAppContent> {
             ],
           ),
         ),
-        // MCP Servers panel on the right
-        if (_currentMcpPanelWidth > 0 || showMcpPanel)
+        // MCP Servers panel on the right (only when terminal is wide enough)
+        if (hasEnoughWidth && (_currentMcpPanelWidth > 0 || showMcpPanel))
           SizedBox(
             width: _currentMcpPanelWidth,
             child: ClipRect(
