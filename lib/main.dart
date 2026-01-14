@@ -9,6 +9,7 @@ import 'package:vide_cli/components/mcp_servers_panel.dart';
 import 'package:vide_cli/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
+import 'package:vide_cli/modules/agent_network/pages/remote_session_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
 import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
@@ -17,6 +18,7 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
+import 'package:vide_cli/services/session_service.dart';
 
 /// Provider for sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
@@ -73,14 +75,26 @@ final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.ove
   };
 });
 
-Future<void> main(List<String> args, {List<Override> overrides = const []}) async {
+Future<void> main(
+  List<String> args, {
+  List<Override> overrides = const [],
+  String? remoteServerUri,
+}) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
   // Create provider container with overrides from entry point and permission callback
+  // Use a holder to pass container reference into provider (chicken-and-egg problem)
+  final containerHolder = _ContainerHolder();
   final container = ProviderContainer(
-    overrides: [_canUseToolCallbackFactoryOverride, ...overrides],
+    overrides: [
+      _canUseToolCallbackFactoryOverride,
+      // Override providerContainerProvider so SessionService can access the container
+      providerContainerProvider.overrideWith((ref) => containerHolder.container!),
+      ...overrides,
+    ],
   );
+  containerHolder.container = container;
 
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);
@@ -96,20 +110,29 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   await runApp(
     ProviderScope(
       parent: container,
-      child: VideApp(container: container),
+      child: VideApp(
+        container: container,
+        remoteServerUri: remoteServerUri,
+      ),
     ),
   );
 }
 
 class VideApp extends StatelessComponent {
   final ProviderContainer container;
+  final String? remoteServerUri;
 
-  VideApp({required this.container});
+  VideApp({required this.container, this.remoteServerUri});
 
   @override
   Component build(BuildContext context) {
     // Get explicit theme if set, otherwise null for auto-detect
     final explicitTheme = context.watch(explicitThemeProvider);
+
+    // Determine the content based on whether we're connecting to a remote session
+    final content = remoteServerUri != null
+        ? RemoteSessionPage(serverUri: remoteServerUri!)
+        : _VideAppContent();
 
     return NoctermApp(
       title: context.watch(consoleTitleProvider),
@@ -119,10 +142,10 @@ class VideApp extends StatelessComponent {
           // If we have an explicit theme, wrap with matching VideTheme
           ? VideTheme(
               data: VideThemeData.fromBrightness(explicitTheme),
-              child: _VideAppContent(),
+              child: content,
             )
           // Otherwise, use auto-detection
-          : VideTheme.auto(child: _VideAppContent()),
+          : VideTheme.auto(child: content),
     );
   }
 }
@@ -382,4 +405,9 @@ class _VideAppContentState extends State<_VideAppContent> {
       ],
     );
   }
+}
+
+/// Helper class to resolve circular dependency when passing container to providers.
+class _ContainerHolder {
+  ProviderContainer? container;
 }

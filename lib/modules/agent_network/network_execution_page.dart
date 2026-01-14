@@ -9,6 +9,8 @@ import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/ask_user_question_dialog.dart';
 import 'package:vide_cli/components/queue_indicator.dart';
+import 'package:vide_cli/components/remote_access_dialog.dart';
+import 'package:vide_cli/components/join_request_dialog.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -20,6 +22,7 @@ import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
+import 'package:vide_cli/services/session_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
@@ -48,6 +51,139 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   static const _quitTimeWindow = Duration(seconds: 2);
 
   int selectedAgentIndex = 0;
+
+  // Remote access state
+  bool _showRemoteAccessDialog = false;
+  RemoteAccessState _remoteAccessState = const RemoteAccessState();
+  final List<JoinRequest> _pendingJoinRequests = [];
+  StreamSubscription<RemoteAccessState>? _remoteAccessSubscription;
+  StreamSubscription<JoinRequest>? _joinRequestSubscription;
+  SessionService? _sessionService;
+
+  @override
+  void initState() {
+    super.initState();
+    _initSessionService();
+  }
+
+  void _initSessionService() {
+    final container = ProviderScope.containerOf(context);
+    _sessionService = container.read(sessionServiceProvider);
+
+    // Listen to remote access state changes
+    _remoteAccessSubscription =
+        _sessionService!.remoteAccessStateStream.listen((state) {
+      setState(() => _remoteAccessState = state);
+    });
+    _remoteAccessState = _sessionService!.remoteAccessState;
+
+    // Listen to join requests
+    _joinRequestSubscription = _sessionService!.joinRequests.listen((request) {
+      setState(() => _pendingJoinRequests.add(request));
+    });
+  }
+
+  @override
+  void dispose() {
+    _remoteAccessSubscription?.cancel();
+    _joinRequestSubscription?.cancel();
+    super.dispose();
+  }
+
+  // State for dialog selection
+  int _remoteAccessDialogIndex = 0;
+  int _joinRequestDialogIndex = 0;
+
+  /// Handle key events for the remote access dialog
+  bool _handleRemoteAccessDialogKey(event) {
+    final optionCount = _remoteAccessState.isEnabled ? 2 : 2; // Close/Disable or Enable/Cancel
+
+    if (event.logicalKey == LogicalKey.arrowUp) {
+      setState(() {
+        _remoteAccessDialogIndex = (_remoteAccessDialogIndex - 1) % optionCount;
+        if (_remoteAccessDialogIndex < 0) _remoteAccessDialogIndex = optionCount - 1;
+      });
+      return true;
+    } else if (event.logicalKey == LogicalKey.arrowDown) {
+      setState(() {
+        _remoteAccessDialogIndex = (_remoteAccessDialogIndex + 1) % optionCount;
+      });
+      return true;
+    } else if (event.logicalKey == LogicalKey.enter) {
+      _handleRemoteAccessSelection();
+      return true;
+    } else if (event.logicalKey == LogicalKey.escape ||
+        (event.logicalKey == LogicalKey.keyR && event.isControlPressed)) {
+      setState(() => _showRemoteAccessDialog = false);
+      return true;
+    }
+    return true; // Consume all other keys when dialog is open
+  }
+
+  /// Handle remote access dialog selection
+  Future<void> _handleRemoteAccessSelection() async {
+    if (_remoteAccessState.isEnabled) {
+      // Options: Close, Disable
+      if (_remoteAccessDialogIndex == 0) {
+        setState(() => _showRemoteAccessDialog = false);
+      } else {
+        await _sessionService?.disableRemoteAccess();
+        setState(() => _showRemoteAccessDialog = false);
+      }
+    } else {
+      // Options: Enable, Cancel
+      if (_remoteAccessDialogIndex == 0) {
+        await _sessionService?.enableRemoteAccess(sessionId: component.networkId);
+      } else {
+        setState(() => _showRemoteAccessDialog = false);
+      }
+    }
+  }
+
+  /// Handle key events for the join request dialog
+  bool _handleJoinRequestDialogKey(event, JoinRequest request) {
+    const optionCount = 3; // Allow (interact), Allow (view-only), Deny
+
+    if (event.logicalKey == LogicalKey.arrowUp) {
+      setState(() {
+        _joinRequestDialogIndex = (_joinRequestDialogIndex - 1) % optionCount;
+        if (_joinRequestDialogIndex < 0) _joinRequestDialogIndex = optionCount - 1;
+      });
+      return true;
+    } else if (event.logicalKey == LogicalKey.arrowDown) {
+      setState(() {
+        _joinRequestDialogIndex = (_joinRequestDialogIndex + 1) % optionCount;
+      });
+      return true;
+    } else if (event.logicalKey == LogicalKey.enter) {
+      _handleJoinRequestSelection(request);
+      return true;
+    } else if (event.logicalKey == LogicalKey.escape) {
+      // Escape denies
+      _sessionService?.respondToJoinRequest(request.id, JoinResponse.deny);
+      setState(() => _pendingJoinRequests.removeAt(0));
+      return true;
+    }
+    return true; // Consume all other keys when dialog is open
+  }
+
+  /// Handle join request dialog selection
+  void _handleJoinRequestSelection(JoinRequest request) {
+    final JoinResponse response;
+    switch (_joinRequestDialogIndex) {
+      case 0:
+        response = JoinResponse.allow;
+      case 1:
+        response = JoinResponse.allowReadOnly;
+      default:
+        response = JoinResponse.deny;
+    }
+    _sessionService?.respondToJoinRequest(request.id, response);
+    setState(() {
+      _pendingJoinRequests.removeAt(0);
+      _joinRequestDialogIndex = 0;
+    });
+  }
 
   Component _buildAgentChat(
     BuildContext context,
@@ -106,6 +242,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         networkId: component.networkId,
         showQuitWarning: _showQuitWarning,
         ideModeEnabled: ideModeEnabled,
+        isModalOpen: _showRemoteAccessDialog || _pendingJoinRequests.isNotEmpty,
       ),
     );
   }
@@ -157,7 +294,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Display the network goal with git branch indicator
+          // Display the network goal with git branch indicator and remote status
           Row(
             children: [
               Expanded(
@@ -166,6 +303,15 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
+              // Remote access status indicator
+              if (_remoteAccessState.isEnabled &&
+                  _remoteAccessState.serverInfo != null) ...[
+                Text(
+                  'Remote: ${_remoteAccessState.serverInfo!.address}:${_remoteAccessState.serverInfo!.port}',
+                  style: TextStyle(color: Colors.green),
+                ),
+                SizedBox(width: 1),
+              ],
               GitBranchIndicator(repoPath: workingDirectory),
             ],
           ),
@@ -186,10 +332,24 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       ),
     );
 
+    // Check for pending join requests
+    final currentJoinRequest =
+        _pendingJoinRequests.isNotEmpty ? _pendingJoinRequests.first : null;
+
     return PermissionScope(
       child: Focusable(
         focused: true,
         onKeyEvent: (event) {
+          // When remote access dialog is showing, handle its key events
+          if (_showRemoteAccessDialog) {
+            return _handleRemoteAccessDialogKey(event);
+          }
+
+          // When join request dialog is showing, handle its key events
+          if (currentJoinRequest != null) {
+            return _handleJoinRequestDialogKey(event, currentJoinRequest);
+          }
+
           // Tab: Cycle through agents
           if (event.logicalKey == LogicalKey.tab &&
               networkState.agentIds.isNotEmpty) {
@@ -206,9 +366,47 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             return true;
           }
 
+          // Ctrl+R: Toggle remote access dialog
+          if (event.logicalKey == LogicalKey.keyR && event.isControlPressed) {
+            setState(() => _showRemoteAccessDialog = !_showRemoteAccessDialog);
+            return true;
+          }
+
           return false;
         },
-        child: MouseRegion(child: content),
+        child: Stack(
+          children: [
+            MouseRegion(child: content),
+            // Join request dialog takes priority (shows on top)
+            if (currentJoinRequest != null)
+              Positioned(
+                top: 3,
+                left: 2,
+                right: 2,
+                child: JoinRequestDialog(
+                  request: currentJoinRequest,
+                  onResponse: (response) {
+                    _sessionService?.respondToJoinRequest(
+                      currentJoinRequest.id,
+                      response,
+                    );
+                    setState(() => _pendingJoinRequests.removeAt(0));
+                  },
+                ),
+              )
+            // Remote access dialog
+            else if (_showRemoteAccessDialog)
+              Positioned(
+                top: 3,
+                left: 2,
+                right: 2,
+                child: RemoteAccessDialog(
+                  state: _remoteAccessState,
+                  selectedIndex: _remoteAccessDialogIndex,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -220,6 +418,7 @@ class _AgentChat extends StatefulComponent {
   final String networkId;
   final bool showQuitWarning;
   final bool ideModeEnabled;
+  final bool isModalOpen;
 
   const _AgentChat({
     required this.agentId,
@@ -227,6 +426,7 @@ class _AgentChat extends StatefulComponent {
     required this.networkId,
     this.showQuitWarning = false,
     this.ideModeEnabled = false,
+    this.isModalOpen = false,
     super.key,
   });
 
@@ -673,7 +873,7 @@ class _AgentChatState extends State<_AgentChat> {
                 else
                   AttachmentTextField(
                     enabled:
-                        true, // Always enabled - messages queue during processing
+                        !component.isModalOpen, // Disabled when modal is open
                     placeholder: 'Type a message...',
                     onSubmit: _sendMessage,
                     onCommand: _handleCommand,

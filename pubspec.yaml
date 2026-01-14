@@ -15,6 +15,8 @@ workspace:
   - packages/moondream_api
   - packages/vide_core
   - packages/vide_server
+  - packages/vide_interface
+  - packages/vide_client
 
 dependencies:
   nocterm:
@@ -29,6 +31,8 @@ dependencies:
   claude_sdk: any
   flutter_runtime_mcp: any
   vide_core: any
+  vide_client: any
+  vide_interface: any
   riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
   freezed_annotation: ^2.4.1

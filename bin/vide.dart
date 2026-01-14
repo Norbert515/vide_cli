@@ -16,6 +16,26 @@ void main(List<String> args) async {
     exit(0);
   }
 
+  // Handle --connect flag for connecting to remote server
+  String? remoteServerUri;
+  for (var i = 0; i < args.length; i++) {
+    if (args[i] == '--connect' || args[i] == '-c') {
+      if (i + 1 < args.length) {
+        remoteServerUri = args[i + 1];
+        // Validate URI format
+        if (!_isValidServerUri(remoteServerUri)) {
+          print('Error: Invalid server URI: $remoteServerUri');
+          print('Expected format: host:port (e.g., 192.168.1.100:8547)');
+          exit(1);
+        }
+      } else {
+        print('Error: --connect requires a server address (e.g., --connect 192.168.1.100:8547)');
+        exit(1);
+      }
+      break;
+    }
+  }
+
   // Determine config root for TUI: ~/.vide
   final homeDir =
       Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
@@ -35,7 +55,22 @@ void main(List<String> args) async {
     workingDirProvider.overrideWithValue(Directory.current.path),
   ];
 
-  await app.main(args, overrides: overrides);
+  await app.main(args, overrides: overrides, remoteServerUri: remoteServerUri);
+}
+
+bool _isValidServerUri(String uri) {
+  // Allow host:port format
+  final parts = uri.split(':');
+  if (parts.length != 2) return false;
+
+  final port = int.tryParse(parts[1]);
+  if (port == null || port < 1 || port > 65535) return false;
+
+  // Host can be IP or hostname
+  final host = parts[0];
+  if (host.isEmpty) return false;
+
+  return true;
 }
 
 void _printHelp() {
@@ -46,8 +81,14 @@ USAGE:
     vide [OPTIONS]
 
 OPTIONS:
-    -h, --help       Print this help message
-    -v, --version    Print version information
+    -h, --help                    Print this help message
+    -v, --version                 Print version information
+    -c, --connect <host:port>     Connect to a remote vide session
+
+REMOTE ACCESS:
+    To enable remote access from within a session, press Ctrl+R.
+    Other devices on your local network can then connect using:
+        vide --connect <ip>:<port>
 
 ENVIRONMENT VARIABLES:
     DISABLE_AUTOUPDATER=1    Disable automatic updates

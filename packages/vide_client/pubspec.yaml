@@ -1,0 +1,13 @@
+name: vide_client
+description: Lightweight client for connecting to remote vide servers.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  vide_interface: any
+  web_socket_channel: ^3.0.2
+  http: ^1.2.2

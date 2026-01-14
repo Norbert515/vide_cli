@@ -71,3 +71,15 @@ export 'services/permissions/tool_input.dart';
 // Settings
 export 'services/settings/local_settings_manager.dart';
 export 'models/claude_settings.dart';
+
+// Transport
+export 'transport/direct_session_transport.dart';
+
+// Server
+export 'server/embedded_server.dart';
+export 'server/join_request.dart';
+
+// Re-export key types from vide_interface used by server
+// Note: Do NOT re-export AgentStatus - vide_core has its own AgentStatus enum
+export 'package:vide_interface/vide_interface.dart'
+    show ClientPermission, ConnectedClient, ServerInfo, SessionInfo, AgentInfo;
