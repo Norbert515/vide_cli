@@ -23,9 +23,11 @@ class MockClaudeClient implements ClaudeClient {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _queuedMessageController = StreamController<String?>.broadcast();
+  final _initDataController = StreamController<MetaResponse>.broadcast();
   Conversation _currentConversation = Conversation.empty();
   String? _queuedMessageText;
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
+  MetaResponse? _initData;
   bool _isAborted = false;
   bool _isClosed = false;
 
@@ -45,10 +47,16 @@ class MockClaudeClient implements ClaudeClient {
   ClaudeStatus get currentStatus => _currentStatus;
 
   @override
-  Conversation get currentConversation => _currentConversation;
+  Stream<MetaResponse> get initDataStream => _initDataController.stream;
 
   @override
-  bool get isAborting => _isAborted;
+  MetaResponse? get initData => _initData;
+
+  @override
+  Future<void> get initialized => Future.value();
+
+  @override
+  Conversation get currentConversation => _currentConversation;
 
   @override
   Stream<String?> get queuedMessage => _queuedMessageController.stream;
@@ -85,11 +93,42 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
+  Future<McpStatusResponse> getMcpStatus() async {
+    return const McpStatusResponse(servers: []);
+  }
+
+  @override
+  Future<SetModelResponse> setModel(String model) async {
+    return SetModelResponse(model: model);
+  }
+
+  @override
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+    return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
+  }
+
+  @override
+  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false}) async {
+    // Mock implementation - no-op
+  }
+
+  @override
+  Future<void> interrupt() async {
+    await abort();
+  }
+
+  @override
+  Future<void> rewindFiles(String userMessageId) async {
+    // Mock implementation - no-op
+  }
+
+  @override
   Future<void> close() async {
     _isClosed = true;
     await _conversationController.close();
     await _turnCompleteController.close();
     await _statusController.close();
+    await _initDataController.close();
     await _queuedMessageController.close();
   }
 

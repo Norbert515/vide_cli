@@ -26,6 +26,7 @@ export 'services/agent_network_persistence_manager.dart';
 export 'services/agent_network_manager.dart';
 export 'services/claude_client_factory.dart';
 export 'services/claude_manager.dart';
+export 'services/initial_claude_client.dart';
 
 // Agents
 export 'agents/agent_configuration.dart';
@@ -57,7 +58,6 @@ export 'utils/working_dir_provider.dart';
 
 // State Management
 export 'state/agent_status_manager.dart';
-export 'state/agent_mcp_state_manager.dart';
 
 // Permissions
 export 'services/permissions/permission_matcher.dart';

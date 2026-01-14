@@ -217,12 +217,10 @@ class _VideAppContentState extends State<_VideAppContent> {
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
 
-    // Watch MCP panel state
-    final networkManager = context.watch(agentNetworkManagerProvider);
-    final currentNetwork = networkManager.currentNetwork;
-    final mainAgentId = currentNetwork?.agentIds.firstOrNull;
+    // Watch MCP panel state - use initial client, show panel from start in IDE mode
+    final initialClient = context.watch(initialClaudeClientProvider);
     final mcpPanelFocused = context.watch(mcpPanelFocusProvider);
-    final showMcpPanel = mainAgentId != null && ideModeEnabled;
+    final showMcpPanel = ideModeEnabled;
 
     // Animate MCP panel when visibility changes
     if (showMcpPanel != _wasMcpPanelVisible) {
@@ -336,7 +334,7 @@ class _VideAppContentState extends State<_VideAppContent> {
                 minWidth: _mcpPanelWidth,
                 maxWidth: _mcpPanelWidth,
                 child: McpServersPanel(
-                  agentId: mainAgentId ?? '',
+                  initialClient: initialClient,
                   width: _mcpPanelWidth,
                   focused: mcpPanelFocused,
                   expanded: true,

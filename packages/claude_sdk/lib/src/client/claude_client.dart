@@ -11,6 +11,7 @@ import '../mcp/server/mcp_server_base.dart';
 import '../protocol/json_decoder.dart';
 import '../control/control_types.dart';
 import '../control/control_protocol.dart';
+import '../control/control_responses.dart';
 import 'conversation_loader.dart';
 import 'process_manager.dart';
 import 'response_processor.dart';
@@ -23,12 +24,25 @@ abstract class ClaudeClient {
   void sendMessage(Message message);
   Future<void> close();
   Future<void> abort();
-  bool get isAborting;
 
   String get workingDirectory;
 
   /// Callback when a MetaResponse (init message) is received
+  @Deprecated('Use initDataStream instead')
   abstract void Function(MetaResponse response)? onMetaResponseReceived;
+
+  /// Stream of init data (MetaResponse) from the Claude CLI.
+  /// Emits when the init message is received after CLI starts.
+  /// Contains MCP servers, tools, skills, model, etc.
+  Stream<MetaResponse> get initDataStream;
+
+  /// The most recent init data, or null if not yet received.
+  MetaResponse? get initData;
+
+  /// Future that completes when the client has finished initializing.
+  /// Use this to wait for the control protocol to be ready before
+  /// calling methods like getMcpStatus().
+  Future<void> get initialized;
 
   /// Stream that emits whenever the queued message changes.
   /// Emits the current queued text, or null when queue is cleared.
@@ -66,6 +80,45 @@ abstract class ClaudeClient {
   Future<void> setPermissionMode(String mode);
 
   T? getMcpServer<T extends McpServerBase>(String name);
+
+  // ============================================================
+  // CONTROL PROTOCOL METHODS
+  // These allow querying and controlling the Claude CLI session
+  // ============================================================
+
+  /// Get the status of all MCP servers.
+  ///
+  /// This can be called before sending any user messages to get
+  /// information about configured MCP servers.
+  ///
+  /// Returns [McpStatusResponse] containing status of all MCP servers.
+  /// Throws if the control protocol is not yet initialized.
+  Future<McpStatusResponse> getMcpStatus();
+
+  /// Set the model for subsequent API calls.
+  ///
+  /// [model] - Model identifier (e.g., 'sonnet', 'opus', 'haiku',
+  /// or full model ID like 'claude-sonnet-4-5-20250929')
+  Future<SetModelResponse> setModel(String model);
+
+  /// Set the maximum thinking tokens for extended thinking.
+  ///
+  /// [maxTokens] - Maximum number of thinking tokens (0 to disable)
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens);
+
+  /// Configure MCP servers dynamically.
+  ///
+  /// [servers] - List of MCP server configurations to add/update
+  /// [replace] - If true, replaces all existing servers. If false, merges.
+  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false});
+
+  /// Interrupt the current execution.
+  Future<void> interrupt();
+
+  /// Rewind files to a previous state.
+  ///
+  /// [userMessageId] - The message ID to rewind to
+  Future<void> rewindFiles(String userMessageId);
 
   /// Creates and fully initializes a client.
   /// Awaits initialization before returning.
@@ -135,6 +188,10 @@ class ClaudeClientImpl implements ClaudeClient {
   final ProcessLifecycleManager _lifecycleManager = ProcessLifecycleManager();
 
   bool _isInitialized = false;
+  final Completer<void> _initializedCompleter = Completer<void>();
+
+  @override
+  Future<void> get initialized => _initializedCompleter.future;
 
   /// Tracks whether this is the first message in the session.
   /// Used to determine whether to use --session-id (new) or --resume (existing).
@@ -147,15 +204,14 @@ class ClaudeClientImpl implements ClaudeClient {
   /// When not null, a _startControlProtocol() call is in progress.
   Future<void>? _startingControlProtocol;
 
-  @override
-  bool get isAborting => _lifecycleManager.isAborting;
-
   // Conversation state management - persistent across process invocations
   final _conversationController = StreamController<Conversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
+  final _initDataController = StreamController<MetaResponse>.broadcast();
   Conversation _currentConversation = Conversation.empty();
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
+  MetaResponse? _initData;
 
   // Message queue for messages sent while processing
   String? _queuedMessageText;
@@ -179,6 +235,12 @@ class ClaudeClientImpl implements ClaudeClient {
 
   @override
   ClaudeStatus get currentStatus => _currentStatus;
+
+  @override
+  Stream<MetaResponse> get initDataStream => _initDataController.stream;
+
+  @override
+  MetaResponse? get initData => _initData;
 
   @override
   Conversation get currentConversation => _currentConversation;
@@ -241,6 +303,11 @@ class ClaudeClientImpl implements ClaudeClient {
 
     // Control protocol is always required
     await _startControlProtocol();
+
+    // Signal that initialization is complete
+    if (!_initializedCompleter.isCompleted) {
+      _initializedCompleter.complete();
+    }
 
     // Flush any messages that were queued before init completed
     _flushPendingMessages();
@@ -341,8 +408,12 @@ class ClaudeClientImpl implements ClaudeClient {
         _updateStatus(response.status);
       }
 
-      // Notify callback when MetaResponse (init message) is received
+      // Store and emit init data when MetaResponse is received
       if (response is MetaResponse) {
+        _initData = response;
+        _initDataController.add(response);
+        // Also call legacy callback for backwards compatibility
+        // ignore: deprecated_member_use_from_same_package
         onMetaResponseReceived?.call(response);
       }
 
@@ -518,42 +589,15 @@ class ClaudeClientImpl implements ClaudeClient {
 
   @override
   Future<void> abort() async {
-    if (!_lifecycleManager.isRunning) {
-      // Still need to reset state if we're showing as processing
-      if (_currentConversation.isProcessing) {
-        _updateConversation(
-          _currentConversation.withState(ConversationState.idle),
-        );
-      }
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      // Not initialized yet, nothing to abort
       return;
     }
 
     try {
-      // Delegate abort to lifecycle manager
-      await _lifecycleManager.abort();
-
-      // Add synthetic abort message to conversation
-      final assistantId = DateTime.now().millisecondsSinceEpoch.toString();
-      final abortMessage = ConversationMessage.assistant(
-        id: assistantId,
-        responses: [
-          ErrorResponse(
-            id: assistantId,
-            timestamp: DateTime.now(),
-            error: 'Interrupted by user',
-            details: 'Process stopped by user (Ctrl+C)',
-          ),
-        ],
-        isStreaming: false,
-        isComplete: true,
-      );
-
-      // Update conversation state
-      _updateConversation(
-        _currentConversation
-            .addMessage(abortMessage)
-            .withState(ConversationState.idle),
-      );
+      // Use control protocol interrupt for graceful stop
+      await controlProtocol.interrupt();
     } catch (e) {
       _updateConversation(
         _currentConversation.withError('Failed to abort: $e'),
@@ -570,6 +614,64 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
     await controlProtocol.setPermissionMode(mode);
+  }
+
+  @override
+  Future<McpStatusResponse> getMcpStatus() async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot query MCP status');
+    }
+    return await controlProtocol.getMcpStatus();
+  }
+
+  @override
+  Future<SetModelResponse> setModel(String model) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot set model');
+    }
+    return await controlProtocol.setModel(model);
+  }
+
+  @override
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot set max thinking tokens');
+    }
+    return await controlProtocol.setMaxThinkingTokens(maxTokens);
+  }
+
+  @override
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  }) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot set MCP servers');
+    }
+    await controlProtocol.setMcpServers(servers, replace: replace);
+  }
+
+  @override
+  Future<void> interrupt() async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      // No active session to interrupt
+      return;
+    }
+    await controlProtocol.interrupt();
+  }
+
+  @override
+  Future<void> rewindFiles(String userMessageId) async {
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot rewind files');
+    }
+    await controlProtocol.rewindFiles(userMessageId);
   }
 
   @override
@@ -592,6 +694,7 @@ class ClaudeClientImpl implements ClaudeClient {
     await _conversationController.close();
     await _turnCompleteController.close();
     await _statusController.close();
+    await _initDataController.close();
     await _queuedMessageController.close();
 
     _isInitialized = false;

@@ -1,19 +1,20 @@
+import 'dart:async';
+import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/vide_core.dart' hide McpServerStatus, McpServerInfo;
 
-/// Panel displaying MCP servers and their status for an agent.
+/// Panel displaying MCP servers and their status.
 class McpServersPanel extends StatefulComponent {
-  final AgentId agentId;
+  final InitialClaudeClient initialClient;
   final bool focused;
   final bool expanded;
   final double width;
   final VoidCallback? onExitLeft;
 
   const McpServersPanel({
-    required this.agentId,
+    required this.initialClient,
     this.focused = false,
     this.expanded = true,
     this.width = 32,
@@ -29,14 +30,26 @@ class _McpServersPanelState extends State<McpServersPanel> {
   int _selectedIndex = 0;
   bool _showTools = false;
   final _scrollController = ScrollController();
+  McpStatusResponse? _mcpStatus;
+  StreamSubscription<McpStatusResponse>? _subscription;
 
-  void _handleKeyEvent(
-    KeyboardEvent event,
-    List<McpServerInfo> servers,
-  ) {
+  @override
+  void initState() {
+    super.initState();
+    _mcpStatus = component.initialClient.mcpStatus;
+    _subscription = component.initialClient.mcpStatusStream.listen((status) {
+      setState(() => _mcpStatus = status);
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _handleKeyEvent(KeyboardEvent event, int serverCount) {
     if (!component.focused) return;
-
-    final serverCount = servers.length;
     if (serverCount == 0) return;
 
     if (event.logicalKey == LogicalKey.arrowUp ||
@@ -61,11 +74,13 @@ class _McpServersPanelState extends State<McpServersPanel> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final mcpState = context.watch(agentMcpStateProvider(component.agentId));
-    final servers = mcpState.servers;
+    final mcpStatus = _mcpStatus;
+    final servers = mcpStatus?.servers ?? [];
 
     if (!component.expanded) {
       // Collapsed view - just show count
+      final connectedCount = mcpStatus?.connectedServers.length ?? 0;
+      final hasErrors = mcpStatus?.failedServers.isNotEmpty ?? false;
       return SizedBox(
         width: 3,
         child: Column(
@@ -78,21 +93,15 @@ class _McpServersPanelState extends State<McpServersPanel> {
               ),
             ),
             Text(
-              '${mcpState.connectedServers.length}',
+              '$connectedCount',
               style: TextStyle(
-                color: mcpState.errorServers.isNotEmpty
-                    ? theme.status.error
-                    : theme.status.idle,
+                color: hasErrors ? theme.status.error : theme.status.idle,
               ),
             ),
           ],
         ),
       );
     }
-
-    // Build sections
-    final managedServers = servers.where((s) => s.isManaged).toList();
-    final externalServers = servers.where((s) => !s.isManaged).toList();
 
     // Clamp selected index
     if (servers.isNotEmpty && _selectedIndex >= servers.length) {
@@ -102,13 +111,11 @@ class _McpServersPanelState extends State<McpServersPanel> {
     return Focusable(
       focused: component.focused,
       onKeyEvent: (event) {
-        _handleKeyEvent(event, servers);
+        _handleKeyEvent(event, servers.length);
         return true;
       },
       child: Container(
-        decoration: BoxDecoration(
-          color: theme.base.surface,
-        ),
+        decoration: BoxDecoration(color: theme.base.surface),
         child: Row(
           children: [
             // Left border separator
@@ -122,149 +129,84 @@ class _McpServersPanelState extends State<McpServersPanel> {
             SizedBox(
               width: component.width - 1,
               child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 1),
-                  child: Row(
-                    children: [
-                      Text(
-                        'MCP Servers',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: theme.base.onSurface,
-                        ),
-                      ),
-                      Spacer(),
-                      Text(
-                        '${mcpState.connectedServers.length}/${servers.length}',
-                        style: TextStyle(
-                          color: theme.base.onSurface
-                              .withOpacity(TextOpacity.tertiary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Divider(color: theme.base.outline),
-
-                // Server list
-                Expanded(
-                  child: ListView(
-                    controller: _scrollController,
-                    children: [
-                      // Managed section
-                      if (managedServers.isNotEmpty) ...[
-                        _SectionHeader(title: 'MANAGED'),
-                        for (int i = 0; i < managedServers.length; i++)
-                          _McpServerItem(
-                            server: managedServers[i],
-                            isSelected: component.focused &&
-                                _getGlobalIndex(managedServers[i], servers) ==
-                                    _selectedIndex,
-                            showTools: _showTools &&
-                                _getGlobalIndex(managedServers[i], servers) ==
-                                    _selectedIndex,
-                          ),
-                      ],
-                      // External section
-                      if (externalServers.isNotEmpty) ...[
-                        _SectionHeader(title: 'CONFIGURED'),
-                        for (int i = 0; i < externalServers.length; i++)
-                          _McpServerItem(
-                            server: externalServers[i],
-                            isSelected: component.focused &&
-                                _getGlobalIndex(externalServers[i], servers) ==
-                                    _selectedIndex,
-                            showTools: _showTools &&
-                                _getGlobalIndex(externalServers[i], servers) ==
-                                    _selectedIndex,
-                          ),
-                      ],
-                      // Empty state
-                      if (servers.isEmpty)
-                        Padding(
-                          padding: EdgeInsets.all(1),
-                          child: Text(
-                            'No MCP servers',
-                            style: TextStyle(
-                              color: theme.base.onSurface
-                                  .withOpacity(TextOpacity.tertiary),
-                            ),
-                          ),
-                        ),
-                      // Skills section
-                      if (mcpState.skills.isNotEmpty) ...[
-                        _SectionHeader(title: 'SKILLS'),
-                        for (final skill in mcpState.skills)
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 1),
-                            child: Text(
-                              '◆ $skill',
-                              style: TextStyle(
-                                color: theme.base.onSurface
-                                    .withOpacity(TextOpacity.secondary),
-                              ),
-                            ),
-                          ),
-                      ],
-                      // Plugins section
-                      if (mcpState.plugins.isNotEmpty) ...[
-                        _SectionHeader(title: 'PLUGINS'),
-                        for (final plugin in mcpState.plugins)
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 1),
-                            child: Text(
-                              '▸ ${plugin['name'] ?? 'unknown'}',
-                              style: TextStyle(
-                                color: theme.base.onSurface
-                                    .withOpacity(TextOpacity.secondary),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                // Footer with counts
-                Divider(color: theme.base.outline),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 1),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${mcpState.availableTools.length} tools',
-                        style: TextStyle(
-                          color: theme.base.onSurface
-                              .withOpacity(TextOpacity.tertiary),
-                        ),
-                      ),
-                      if (mcpState.model != null)
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 1),
+                    child: Row(
+                      children: [
                         Text(
-                          mcpState.model!,
+                          'MCP Servers',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: theme.base.onSurface,
+                          ),
+                        ),
+                        Spacer(),
+                        Text(
+                          '${mcpStatus?.connectedServers.length ?? 0}/${servers.length}',
                           style: TextStyle(
                             color: theme.base.onSurface
                                 .withOpacity(TextOpacity.tertiary),
                           ),
-                          overflow: TextOverflow.ellipsis,
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Divider(color: theme.base.outline),
+
+                  // Content
+                  Expanded(
+                    child: ListView(
+                      controller: _scrollController,
+                      children: [
+                        // Loading state
+                        if (mcpStatus == null)
+                          Padding(
+                            padding: EdgeInsets.all(1),
+                            child: Text(
+                              'Loading...',
+                              style: TextStyle(
+                                color: theme.base.onSurface
+                                    .withOpacity(TextOpacity.tertiary),
+                              ),
+                            ),
+                          ),
+
+                        // Servers section
+                        if (servers.isNotEmpty) ...[
+                          _SectionHeader(title: 'SERVERS'),
+                          for (int i = 0; i < servers.length; i++)
+                            _McpServerItem(
+                              server: servers[i],
+                              isSelected: component.focused && i == _selectedIndex,
+                              showTools: _showTools && i == _selectedIndex,
+                            ),
+                        ],
+
+                        // Empty state
+                        if (mcpStatus != null && servers.isEmpty)
+                          Padding(
+                            padding: EdgeInsets.all(1),
+                            child: Text(
+                              'No MCP servers',
+                              style: TextStyle(
+                                color: theme.base.onSurface
+                                    .withOpacity(TextOpacity.tertiary),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           ],
         ),
       ),
     );
-  }
-
-  int _getGlobalIndex(McpServerInfo server, List<McpServerInfo> allServers) {
-    return allServers.indexOf(server);
   }
 }
 
@@ -289,7 +231,7 @@ class _SectionHeader extends StatelessComponent {
 }
 
 class _McpServerItem extends StatelessComponent {
-  final McpServerInfo server;
+  final McpServerStatusInfo server;
   final bool isSelected;
   final bool showTools;
 
@@ -306,19 +248,19 @@ class _McpServerItem extends StatelessComponent {
     // Status indicator color
     final statusColor = switch (server.status) {
       McpServerStatus.connected => theme.status.idle,
-      McpServerStatus.error => theme.status.error,
-      McpServerStatus.stopped =>
+      McpServerStatus.failed => theme.status.error,
+      McpServerStatus.connecting =>
+        theme.base.onSurface.withOpacity(TextOpacity.secondary),
+      McpServerStatus.disconnected =>
         theme.base.onSurface.withOpacity(TextOpacity.disabled),
-      McpServerStatus.unknown =>
-        theme.base.onSurface.withOpacity(TextOpacity.tertiary),
     };
 
     // Status indicator symbol
     final statusSymbol = switch (server.status) {
       McpServerStatus.connected => '●',
-      McpServerStatus.error => '✗',
-      McpServerStatus.stopped => '○',
-      McpServerStatus.unknown => '?',
+      McpServerStatus.failed => '✗',
+      McpServerStatus.connecting => '◐',
+      McpServerStatus.disconnected => '○',
     };
 
     return Column(
@@ -348,54 +290,19 @@ class _McpServerItem extends StatelessComponent {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              // Tool count
-              if (server.tools.isNotEmpty)
-                Text(
-                  '${server.tools.length}',
-                  style: TextStyle(
-                    color:
-                        theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                  ),
-                ),
             ],
           ),
         ),
         // Error message
-        if (server.status == McpServerStatus.error &&
-            server.errorMessage != null)
+        if (server.error != null)
           Padding(
             padding: EdgeInsets.only(left: 3),
             child: Text(
-              server.errorMessage!,
+              server.error!,
               style: TextStyle(
                 color: theme.status.error.withOpacity(TextOpacity.secondary),
               ),
               overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        // Tools list (when expanded)
-        if (showTools && server.tools.isNotEmpty)
-          ...server.tools.take(10).map(
-                (tool) => Padding(
-                  padding: EdgeInsets.only(left: 3),
-                  child: Text(
-                    '└ $tool',
-                    style: TextStyle(
-                      color:
-                          theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-        if (showTools && server.tools.length > 10)
-          Padding(
-            padding: EdgeInsets.only(left: 3),
-            child: Text(
-              '  +${server.tools.length - 10} more',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
             ),
           ),
       ],

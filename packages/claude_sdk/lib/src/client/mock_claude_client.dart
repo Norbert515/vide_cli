@@ -5,6 +5,7 @@ import '../models/message.dart';
 import '../models/response.dart';
 import '../models/conversation.dart';
 import '../mcp/server/mcp_server_base.dart';
+import '../control/control_responses.dart';
 import 'claude_client.dart';
 
 class MockClaudeClient implements ClaudeClient {
@@ -20,15 +21,14 @@ class MockClaudeClient implements ClaudeClient {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _queuedMessageController = StreamController<String?>.broadcast();
+  final _initDataController = StreamController<MetaResponse>.broadcast();
   Conversation _currentConversation = Conversation.empty();
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
   String? _queuedMessageText;
+  MetaResponse? _initData;
 
-  bool _isAborting = false;
   Timer? _activeTimer;
-
-  @override
-  bool get isAborting => _isAborting;
+  bool _isAborting = false;
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
@@ -38,6 +38,15 @@ class MockClaudeClient implements ClaudeClient {
 
   @override
   ClaudeStatus get currentStatus => _currentStatus;
+
+  @override
+  Stream<MetaResponse> get initDataStream => _initDataController.stream;
+
+  @override
+  MetaResponse? get initData => _initData;
+
+  @override
+  Future<void> get initialized => Future.value();
 
   @override
   Stream<String?> get queuedMessage => _queuedMessageController.stream;
@@ -378,11 +387,52 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
+  Future<McpStatusResponse> getMcpStatus() async {
+    // Return mock MCP status
+    return McpStatusResponse(
+      servers: mcpServers.map((s) => McpServerStatusInfo(
+        name: s.name,
+        status: s.isRunning ? McpServerStatus.connected : McpServerStatus.disconnected,
+        serverInfo: McpServerInfo(name: s.name, version: '1.0.0'),
+      )).toList(),
+    );
+  }
+
+  @override
+  Future<SetModelResponse> setModel(String model) async {
+    print('[MockClaudeClient] Setting model to: $model');
+    return SetModelResponse(model: model);
+  }
+
+  @override
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+    print('[MockClaudeClient] Setting max thinking tokens to: $maxTokens');
+    return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
+  }
+
+  @override
+  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false}) async {
+    print('[MockClaudeClient] Setting MCP servers: ${servers.map((s) => s.name).join(', ')}');
+  }
+
+  @override
+  Future<void> interrupt() async {
+    print('[MockClaudeClient] Interrupting');
+    await abort();
+  }
+
+  @override
+  Future<void> rewindFiles(String userMessageId) async {
+    print('[MockClaudeClient] Rewinding files to: $userMessageId');
+  }
+
+  @override
   Future<void> close() async {
     _activeTimer?.cancel();
     await _conversationController.close();
     await _turnCompleteController.close();
     await _statusController.close();
+    await _initDataController.close();
     await _queuedMessageController.close();
   }
 

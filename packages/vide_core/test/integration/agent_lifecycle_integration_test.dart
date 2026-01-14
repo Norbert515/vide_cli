@@ -151,12 +151,12 @@ void main() {
         expect(conversations.last.messages.last.role, MessageRole.assistant);
       });
 
-      test('abort sets isAborting flag', () async {
+      test('abort can be called without error', () async {
         final client = clientFactory.getClient('test-agent');
 
-        expect(client.isAborting, isFalse);
+        // Should not throw
         await client.abort();
-        expect(client.isAborting, isTrue);
+        expect(client.isAborted, isTrue);
       });
 
       test('close disposes stream controllers', () async {

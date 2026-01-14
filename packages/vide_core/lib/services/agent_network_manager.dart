@@ -16,6 +16,7 @@ import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
+import 'initial_claude_client.dart';
 import 'posthog_service.dart';
 import '../state/agent_status_manager.dart';
 
@@ -111,10 +112,22 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     String? permissionMode,
   }) async {
     final networkId = const Uuid().v4();
-    final mainAgentId = const Uuid().v4();
 
     // Increment task counter for "Task X" naming
     _taskCounter++;
+
+    // Use generic "Task X" as the display name until agent sets it via setTaskName
+    final taskDisplayName = 'Task $_taskCounter';
+
+    // Use the initial client that was created at app startup
+    final initialClient = _ref.read(initialClaudeClientProvider);
+    final mainAgentId = initialClient.agentId;
+    final mainAgentClaudeClient = initialClient.client;
+
+    // Apply model override if provided
+    if (model != null) {
+      mainAgentClaudeClient.setModel(model);
+    }
 
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
@@ -122,9 +135,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       type: 'main',
       createdAt: DateTime.now(),
     );
-
-    // Use generic "Task X" as the display name until agent sets it via setTaskName
-    final taskDisplayName = 'Task $_taskCounter';
 
     final network = AgentNetwork(
       id: networkId,
@@ -139,23 +149,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Set state IMMEDIATELY so UI can navigate right away
     state = AgentNetworkState(currentNetwork: network);
 
-    // Create and add client SYNCHRONOUSLY so UI has it immediately
-    var mainAgentConfig = MainAgentConfig.create();
-
-    // Apply model/permissionMode overrides if provided
-    if (model != null || permissionMode != null) {
-      mainAgentConfig = mainAgentConfig.copyWith(
-        model: model,
-        permissionMode: permissionMode,
-      );
-    }
-
-    final mainAgentClaudeClient = _clientFactory.createSync(
-      agentId: mainAgentId,
-      config: mainAgentConfig,
-      networkId: networkId,
-      agentType: 'main',
-    );
     _ref
         .read(claudeManagerProvider.notifier)
         .addAgent(mainAgentId, mainAgentClaudeClient);

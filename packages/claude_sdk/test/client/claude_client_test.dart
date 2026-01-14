@@ -61,12 +61,6 @@ void main() {
         );
       });
 
-      test('starts with no active abort state', () {
-        final client = ClaudeClientImpl();
-
-        expect(client.isAborting, isFalse);
-      });
-
       test('initializes with empty MCP servers list when not provided', () {
         final client = ClaudeClientImpl();
 
@@ -251,7 +245,6 @@ void main() {
         await client.abort();
 
         // State should remain unchanged
-        expect(client.isAborting, isFalse);
         expect(
           client.currentConversation.state,
           equals(ConversationState.idle),
@@ -259,33 +252,9 @@ void main() {
       });
 
       test(
-        'kills active process with SIGTERM',
+        'sends interrupt via control protocol',
         () {},
-        skip: 'Requires process injection to verify signal sent',
-      );
-
-      test(
-        'force kills if graceful shutdown times out',
-        () {},
-        skip: 'Requires process injection to test timeout behavior',
-      );
-
-      test(
-        'adds abort message to conversation',
-        () {},
-        skip: 'Requires process injection to complete abort flow',
-      );
-
-      test(
-        'sets isAborting during abort process',
-        () {},
-        skip: 'Requires process injection to observe abort state',
-      );
-
-      test(
-        'clears active process after abort',
-        () {},
-        skip: 'Requires process injection to verify cleanup',
+        skip: 'Requires process injection to verify interrupt sent',
       );
     });
 

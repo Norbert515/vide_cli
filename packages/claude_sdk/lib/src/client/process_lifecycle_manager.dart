@@ -11,23 +11,16 @@ import '../models/config.dart';
 /// This class handles:
 /// - Starting the Claude CLI process with control protocol
 /// - Tracking the active process state
-/// - Aborting/killing the process
 /// - Cleaning up resources
 class ProcessLifecycleManager {
   /// The currently active Claude CLI process
   Process? _activeProcess;
-
-  /// Whether an abort is currently in progress
-  bool _isAborting = false;
 
   /// The control protocol handler for the active process
   ControlProtocol? _controlProtocol;
 
   /// Get the active process, if any
   Process? get activeProcess => _activeProcess;
-
-  /// Whether an abort operation is currently in progress
-  bool get isAborting => _isAborting;
 
   /// The control protocol for the active process
   ControlProtocol? get controlProtocol => _controlProtocol;
@@ -50,7 +43,7 @@ class ProcessLifecycleManager {
     if (_activeProcess != null) {
       throw StateError(
         'Cannot start a new process while one is already running. '
-        'Call abort() or close() first.',
+        'Call close() first.',
       );
     }
 
@@ -101,65 +94,6 @@ class ProcessLifecycleManager {
     return _controlProtocol!;
   }
 
-  /// Start a mock process for testing purposes.
-  ///
-  /// This starts a simple long-running process that can be aborted.
-  /// Used in tests to avoid needing the actual Claude CLI.
-  Future<void> startMockProcess() async {
-    if (_activeProcess != null) {
-      throw StateError(
-        'Cannot start a new process while one is already running. '
-        'Call abort() or close() first.',
-      );
-    }
-
-    // Use sleep command which works on Unix systems
-    // On Windows, we'd need a different approach
-    final process = await Process.start(
-      'sleep',
-      ['3600'], // Sleep for an hour (will be killed before that)
-      runInShell: true,
-    );
-    _activeProcess = process;
-  }
-
-  /// Abort the currently running process.
-  ///
-  /// First attempts graceful termination with SIGTERM, then force kills
-  /// with SIGKILL if the process doesn't exit within [gracefulTimeout].
-  ///
-  /// Returns the exit code of the terminated process, or null if no
-  /// process was running.
-  Future<int?> abort({
-    Duration gracefulTimeout = const Duration(seconds: 2),
-  }) async {
-    if (_activeProcess == null) {
-      return null;
-    }
-
-    _isAborting = true;
-
-    try {
-      // Try graceful termination first (SIGTERM)
-      _activeProcess!.kill(ProcessSignal.sigterm);
-
-      // Wait for graceful shutdown or force kill
-      final exitCode = await _activeProcess!.exitCode.timeout(
-        gracefulTimeout,
-        onTimeout: () {
-          _activeProcess!.kill(ProcessSignal.sigkill);
-          return -1;
-        },
-      );
-
-      return exitCode;
-    } finally {
-      _activeProcess = null;
-      _controlProtocol = null;
-      _isAborting = false;
-    }
-  }
-
   /// Close and clean up all resources.
   ///
   /// Kills the active process if running and cleans up the control protocol.
@@ -175,7 +109,5 @@ class ProcessLifecycleManager {
       _activeProcess!.kill();
       _activeProcess = null;
     }
-
-    _isAborting = false;
   }
 }

@@ -1,30 +1,6 @@
 import 'package:claude_sdk/claude_sdk.dart';
 import '../models/agent_id.dart';
-import '../agents/agent_configuration.dart';
 import 'package:riverpod/riverpod.dart';
-
-class AgentIdAndClaudeConfig {
-  final AgentId agentId;
-  final AgentConfiguration config;
-
-  AgentIdAndClaudeConfig({required this.agentId, required this.config});
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is AgentIdAndClaudeConfig &&
-        other.agentId == agentId &&
-        other.config == config;
-  }
-
-  @override
-  int get hashCode => agentId.hashCode ^ config.hashCode;
-
-  @override
-  String toString() {
-    return 'AgentIdAndClaudeConfig(agentId: $agentId, config: $config)';
-  }
-}
 
 final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, agentId) {
   return ref.watch(claudeManagerProvider)[agentId];

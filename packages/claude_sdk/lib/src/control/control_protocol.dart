@@ -9,6 +9,7 @@ import 'dart:io';
 
 import 'control_types.dart';
 import 'control_messages.dart';
+import 'control_responses.dart';
 
 /// Manages the control protocol for a Claude CLI session
 class ControlProtocol {
@@ -344,6 +345,72 @@ class ControlProtocol {
   /// Register an in-process MCP server
   void registerSdkMcpServer(String name, dynamic server) {
     _sdkMcpServers[name] = server;
+  }
+
+  // ============================================================
+  // PUBLIC CONTROL PROTOCOL METHODS
+  // These allow querying and controlling the Claude CLI session
+  // ============================================================
+
+  /// Get the status of all MCP servers.
+  ///
+  /// This can be called before sending any user messages to get
+  /// information about configured MCP servers.
+  ///
+  /// Returns [McpStatusResponse] containing status of all MCP servers.
+  Future<McpStatusResponse> getMcpStatus() async {
+    final response = await _sendControlRequest('mcp_status', {});
+    return McpStatusResponse.fromJson(response);
+  }
+
+  /// Set the model for subsequent API calls.
+  ///
+  /// [model] - Model identifier (e.g., 'sonnet', 'opus', 'haiku',
+  /// or full model ID like 'claude-sonnet-4-5-20250929')
+  Future<SetModelResponse> setModel(String model) async {
+    final response = await _sendControlRequest('set_model', {'model': model});
+    return SetModelResponse.fromJson(response);
+  }
+
+  /// Set the maximum thinking tokens for extended thinking.
+  ///
+  /// [maxTokens] - Maximum number of thinking tokens (0 to disable)
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+    final response = await _sendControlRequest(
+      'set_max_thinking_tokens',
+      {'max_thinking_tokens': maxTokens},
+    );
+    return SetMaxThinkingTokensResponse.fromJson(response);
+  }
+
+  /// Configure MCP servers dynamically.
+  ///
+  /// [servers] - List of MCP server configurations to add/update
+  /// [replace] - If true, replaces all existing servers. If false, merges.
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  }) async {
+    await _sendControlRequest('mcp_set_servers', {
+      'servers': servers.map((s) => s.toJson()).toList(),
+      'replace': replace,
+    });
+  }
+
+  /// Send a message to a specific MCP server.
+  ///
+  /// [serverName] - Name of the target MCP server
+  /// [message] - JSONRPC message to send
+  ///
+  /// Returns the JSONRPC response from the server.
+  Future<Map<String, dynamic>> sendMcpMessage(
+    String serverName,
+    Map<String, dynamic> message,
+  ) async {
+    return await _sendControlRequest('mcp_message', {
+      'server_name': serverName,
+      'message': message,
+    });
   }
 
   /// Close the protocol handler

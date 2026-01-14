@@ -31,6 +31,13 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
   void initState() {
     super.initState();
     _loadProjectInfo();
+    _initializeClaude();
+  }
+
+  /// Initialize Claude client at startup so it's ready when user submits.
+  void _initializeClaude() {
+    // Reading the provider triggers client creation
+    context.read(initialClaudeClientProvider);
   }
 
   Future<void> _loadProjectInfo() async {

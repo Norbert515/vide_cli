@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "tui-runtime": {
+      "command": "node",
+      "args": ["/Users/norbertkozsir/IdeaProjects/headless_cli/packages/tui_runtime_mcp/dist/bin/tui-runtime-mcp.js"]
+    }
+  }
+}
