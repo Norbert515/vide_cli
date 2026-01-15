@@ -508,6 +508,44 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
+  /// Builds the filtered list of messages (excluding slash commands)
+  List<ConversationMessage> _getFilteredMessages() {
+    return _conversation.messages.reversed
+        .where((message) => !(message.role == MessageRole.user &&
+            message.content.startsWith('/')))
+        .toList();
+  }
+
+  /// Builds the message list using ListView.builder for better performance.
+  /// This avoids rebuilding all messages when unrelated state changes (like spinner).
+  Component _buildMessageList(BuildContext context) {
+    final todos = _getLatestTodos();
+    final hasTodos = todos != null && todos.isNotEmpty;
+    final filteredMessages = _getFilteredMessages();
+
+    // Total items = todos (if any) + filtered messages
+    final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
+
+    return ListView.builder(
+      controller: _scrollController,
+      reverse: true,
+      padding: EdgeInsets.all(1),
+      lazy: true,
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        // First item (index 0) is the todo list if it exists
+        if (hasTodos && index == 0) {
+          return TodoListComponent(todos: todos);
+        }
+
+        // Adjust index for messages (subtract 1 if todos exist)
+        final messageIndex = hasTodos ? index - 1 : index;
+        final message = filteredMessages[messageIndex];
+        return _buildMessage(context, message);
+      },
+    );
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -533,22 +571,7 @@ class _AgentChatState extends State<_AgentChat> {
           children: [
             // Messages area
             Expanded(
-              child: ListView(
-                controller: _scrollController,
-                reverse: true,
-                padding: EdgeInsets.all(1),
-                lazy: true,
-                children: [
-                  // Todo list at the end (first in reversed list)
-                  if (_getLatestTodos() case final todos? when todos.isNotEmpty)
-                    TodoListComponent(todos: todos),
-                  for (final message in _conversation.messages.reversed)
-                    // Skip slash commands - they're handled internally
-                    if (!(message.role == MessageRole.user &&
-                        message.content.startsWith('/')))
-                      _buildMessage(context, message),
-                ],
-              ),
+              child: _buildMessageList(context),
             ),
 
             // Input area - conditionally show permission dialog or text field
