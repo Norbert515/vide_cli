@@ -161,7 +161,9 @@ class _VideAppContentState extends State<_VideAppContent> {
     super.initState();
     final ideModeEnabled = context.read(ideModeEnabledProvider);
     _currentSidebarWidth = ideModeEnabled ? _sidebarWidth : 0.0;
+    _currentMcpPanelWidth = ideModeEnabled ? _mcpPanelWidth : 0.0;
     _wasIdeModeEnabled = ideModeEnabled;
+    _wasMcpPanelVisible = ideModeEnabled;
   }
 
   @override
@@ -292,15 +294,16 @@ class _VideAppContentState extends State<_VideAppContent> {
       ],
     );
 
-    // Show sidebar if width > 0 or IDE mode is on (to keep it in tree during animation)
-    // Only show sidebars when terminal is wide enough
-    final showSidebar = hasEnoughWidth && (_currentSidebarWidth > 0 || ideModeEnabled);
+    // Determine effective sidebar width - 0 when terminal is too narrow
+    final effectiveSidebarWidth = hasEnoughWidth ? _currentSidebarWidth : 0.0;
 
     return Row(
       children: [
-        if (showSidebar)
-          SizedBox(
-            width: _currentSidebarWidth,
+        // Always keep sidebar SizedBox in tree to maintain stable widget structure.
+        // When sidebar is conditionally removed/added, it shifts widget positions
+        // in the Row, causing the Navigator to be recreated and losing the route stack.
+        SizedBox(
+          width: effectiveSidebarWidth,
             child: ClipRect(
               child: OverflowBox(
                 alignment: Alignment.topLeft,
@@ -358,10 +361,9 @@ class _VideAppContentState extends State<_VideAppContent> {
             ],
           ),
         ),
-        // MCP Servers panel on the right (only when terminal is wide enough)
-        if (hasEnoughWidth && (_currentMcpPanelWidth > 0 || showMcpPanel))
-          SizedBox(
-            width: _currentMcpPanelWidth,
+        // MCP Servers panel on the right - always in tree for stable widget structure
+        SizedBox(
+          width: hasEnoughWidth ? _currentMcpPanelWidth : 0.0,
             child: ClipRect(
               child: OverflowBox(
                 alignment: Alignment.topRight,
