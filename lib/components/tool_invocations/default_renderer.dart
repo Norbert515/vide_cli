@@ -30,7 +30,6 @@ class _DefaultRendererState extends State<DefaultRenderer> {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final hasResult = component.invocation.hasResult;
-
     final isError = component.invocation.isError;
 
     // Determine status color and indicator

@@ -299,6 +299,80 @@ spawnAgent(
 
 **Note:** This is for manual verification during development, not automated CI testing.
 
+### TUI Testing with tui-runtime MCP
+
+For testing the vide TUI directly (without the Flutter terminal wrapper), use the **tui-runtime** MCP server. This provides a headless terminal environment for automated TUI testing.
+
+**Available Tools:**
+
+```
+tuiStart(command, cwd?, cols?, rows?)  # Start TUI app in headless terminal
+tuiGetScreen()                          # Get current screen content as array of lines
+tuiWrite(data)                          # Write text to terminal
+tuiSendKey(key)                         # Send special key (ENTER, UP, DOWN, CTRL_C, etc.)
+tuiWaitFor(pattern, timeout?)           # Wait for regex pattern to appear on screen
+tuiStop()                               # Stop the TUI session
+tuiGetCursor()                          # Get cursor position
+tuiResize(cols, rows)                   # Resize terminal
+tuiGetInfo()                            # Get session info
+```
+
+**Example: Testing vide startup**
+
+```dart
+// Start vide in headless terminal
+tuiStart(command: "dart run bin/vide.dart", cwd: "/path/to/vide_cli")
+
+// Wait for UI to load
+tuiWaitFor(pattern: "Agent Network", timeout: 10000)
+
+// Get screen content
+tuiGetScreen()  // Returns array of lines
+
+// Interact with the TUI
+tuiSendKey(key: "DOWN")      // Navigate
+tuiSendKey(key: "ENTER")     // Select
+tuiWrite(data: "hello")      // Type text
+
+// Clean up
+tuiStop()
+```
+
+**Special Keys Available:**
+- Navigation: `UP`, `DOWN`, `LEFT`, `RIGHT`, `HOME`, `END`, `PAGE_UP`, `PAGE_DOWN`
+- Actions: `ENTER`, `TAB`, `ESCAPE`, `BACKSPACE`, `SPACE`, `DELETE`, `INSERT`
+- Control: `CTRL_A` through `CTRL_Z`
+- Function: `F1` through `F12`
+
+### Debugging with nocterm Logs
+
+Since vide uses nocterm (terminal UI framework), `print()` statements inside the app are redirected and won't appear in the normal terminal output. To view logs:
+
+**Use nocterm's log viewer:**
+
+```bash
+# In a separate terminal, run:
+nocterm logs
+
+# Or connect to a specific instance by PID:
+nocterm logs --pid 12345
+```
+
+**How it works:**
+- nocterm starts a WebSocket server on a random port for each running instance
+- Port number is stored in `~/.nocterm/<project-hash>/log_port.<pid>`
+- `nocterm logs` discovers running instances and streams logs via WebSocket
+- Multiple instances are supported with an instance selection UI
+
+**Debugging workflow:**
+1. Add `print()` statements to the code you want to debug
+2. Run vide normally: `dart run bin/vide.dart`
+3. In another terminal: `nocterm logs`
+4. Select the vide instance if multiple nocterm apps are running
+5. Logs from your `print()` statements will stream in real-time
+
+**Note:** Remove debug `print()` statements before committing, as per the testing guidelines.
+
 ## Session Completion Workflow
 
 **When ending a work session**, complete the following steps:
