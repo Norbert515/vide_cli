@@ -86,6 +86,32 @@ sealed class ClaudeResponse {
             rawData: json,
           ),
         );
+      } else if (blockType == 'tool_result') {
+        // Handle tool_result blocks in assistant messages (results from MCP tools)
+        final toolUseId = block['tool_use_id'] as String?;
+        final resultContent = block['content'];
+        String content = '';
+        if (resultContent is String) {
+          content = resultContent;
+        } else if (resultContent is List && resultContent.isNotEmpty) {
+          final firstItem = resultContent.first;
+          if (firstItem is Map && firstItem['text'] != null) {
+            content = firstItem['text'] as String;
+          }
+        }
+
+        if (toolUseId != null) {
+          responses.add(
+            ToolResultResponse(
+              id: blockId,
+              timestamp: DateTime.now(),
+              toolUseId: toolUseId,
+              content: content,
+              isError: block['is_error'] as bool? ?? false,
+              rawData: json,
+            ),
+          );
+        }
       }
     }
 
@@ -110,6 +136,7 @@ sealed class ClaudeResponse {
       // Check for tool results (content is a List with tool_result blocks)
       final message = json['message'] as Map<String, dynamic>;
       final content = message['content'];
+
       if (content is List && content.isNotEmpty) {
         final firstContent = content.first;
         if (firstContent is Map<String, dynamic> &&
@@ -411,13 +438,15 @@ class ToolResultResponse extends ClaudeResponse {
     }
 
     // Extract execution metadata from tool_use_result if present
-    final toolUseResult = json['tool_use_result'] as Map<String, dynamic>?;
-    if (toolUseResult != null) {
-      stdout = toolUseResult['stdout'] as String?;
-      stderr = toolUseResult['stderr'] as String?;
-      interrupted = toolUseResult['interrupted'] as bool?;
-      isImage = toolUseResult['isImage'] as bool?;
+    // Note: tool_use_result can be either a Map (with metadata) or a List (content blocks)
+    final rawToolUseResult = json['tool_use_result'];
+    if (rawToolUseResult is Map<String, dynamic>) {
+      stdout = rawToolUseResult['stdout'] as String?;
+      stderr = rawToolUseResult['stderr'] as String?;
+      interrupted = rawToolUseResult['interrupted'] as bool?;
+      isImage = rawToolUseResult['isImage'] as bool?;
     }
+    // If it's a List, it's just content blocks which we already extracted above
 
     // Decode HTML entities that may come from Claude CLI
     final decodedContent = HtmlEntityDecoder.decode(content);

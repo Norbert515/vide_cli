@@ -518,6 +518,83 @@ void main() {
       final response = ToolResultResponse.fromJson(json);
       expect(response.content, '');
     });
+
+    test('handles tool_use_result as List (MCP format from streaming)', () {
+      // This is the actual format from Claude CLI control protocol for MCP tools
+      // The tool_use_result field is a List, not a Map
+      final json = {
+        'type': 'user',
+        'message': {
+          'role': 'user',
+          'content': [
+            {
+              'tool_use_id': 'toolu_01HfVj812q4r32JvP7feUtZT',
+              'type': 'tool_result',
+              'content': [
+                {
+                  'type': 'text',
+                  'text':
+                      '5590b2d fix: use filtered server count in MCP panel header',
+                },
+              ],
+            },
+          ],
+        },
+        'parent_tool_use_id': null,
+        'session_id': '086c911a-7dc9-4b41-800f-eb54a26e022c',
+        'uuid': 'a40a3dbe-cdd8-47df-bcf3-4b9b02a5b13a',
+        // This is a List, not a Map - the fix handles this case
+        'tool_use_result': [
+          {
+            'type': 'text',
+            'text':
+                '5590b2d fix: use filtered server count in MCP panel header',
+          },
+        ],
+      };
+      final response = ToolResultResponse.fromJson(json);
+      expect(response.toolUseId, 'toolu_01HfVj812q4r32JvP7feUtZT');
+      expect(
+        response.content,
+        '5590b2d fix: use filtered server count in MCP panel header',
+      );
+      expect(response.isError, false);
+      // These should be null when tool_use_result is a List (no metadata)
+      expect(response.stdout, isNull);
+      expect(response.stderr, isNull);
+      expect(response.interrupted, isNull);
+      expect(response.isImage, isNull);
+    });
+
+    test('handles tool_use_result as Map (with metadata)', () {
+      // When tool_use_result is a Map, it contains execution metadata
+      final json = {
+        'type': 'user',
+        'message': {
+          'role': 'user',
+          'content': [
+            {
+              'tool_use_id': 'toolu_123',
+              'type': 'tool_result',
+              'content': 'Command output',
+            },
+          ],
+        },
+        'tool_use_result': {
+          'stdout': 'Standard output',
+          'stderr': 'Standard error',
+          'interrupted': false,
+          'isImage': false,
+        },
+      };
+      final response = ToolResultResponse.fromJson(json);
+      expect(response.toolUseId, 'toolu_123');
+      expect(response.content, 'Command output');
+      expect(response.stdout, 'Standard output');
+      expect(response.stderr, 'Standard error');
+      expect(response.interrupted, false);
+      expect(response.isImage, false);
+    });
   });
 
   group('ErrorResponse', () {
@@ -1095,6 +1172,275 @@ void main() {
       };
       final response = CompactSummaryResponse.fromJson(json);
       expect(response.isVisibleInTranscriptOnly, isTrue);
+    });
+  });
+
+  group('fromJsonMultiple - interleaved content expansion', () {
+    test('expands text blocks into TextResponses', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'First text block'},
+            {'type': 'text', 'text': 'Second text block'},
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(2));
+      expect(responses[0], isA<TextResponse>());
+      expect(responses[1], isA<TextResponse>());
+      expect((responses[0] as TextResponse).content, 'First text block');
+      expect((responses[1] as TextResponse).content, 'Second text block');
+    });
+
+    test('expands tool_use blocks into ToolUseResponses', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'toolu_123',
+              'name': 'Read',
+              'input': {'file_path': '/test.txt'},
+            },
+            {
+              'type': 'tool_use',
+              'id': 'toolu_456',
+              'name': 'Write',
+              'input': {'file_path': '/out.txt', 'content': 'data'},
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(2));
+      expect(responses[0], isA<ToolUseResponse>());
+      expect(responses[1], isA<ToolUseResponse>());
+      expect((responses[0] as ToolUseResponse).toolName, 'Read');
+      expect((responses[0] as ToolUseResponse).toolUseId, 'toolu_123');
+      expect((responses[1] as ToolUseResponse).toolName, 'Write');
+      expect((responses[1] as ToolUseResponse).toolUseId, 'toolu_456');
+    });
+
+    test('expands tool_result blocks into ToolResultResponses', () {
+      // This is the critical test for the fix - tool_result blocks must be parsed
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_123',
+              'content': 'File contents here',
+            },
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_456',
+              'content': [
+                {'type': 'text', 'text': 'MCP result with array content'},
+              ],
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(2));
+      expect(responses[0], isA<ToolResultResponse>());
+      expect(responses[1], isA<ToolResultResponse>());
+      expect((responses[0] as ToolResultResponse).toolUseId, 'toolu_123');
+      expect(
+        (responses[0] as ToolResultResponse).content,
+        'File contents here',
+      );
+      expect((responses[1] as ToolResultResponse).toolUseId, 'toolu_456');
+      expect(
+        (responses[1] as ToolResultResponse).content,
+        'MCP result with array content',
+      );
+    });
+
+    test('preserves interleaving order of text, tool_use, and tool_result', () {
+      // Simulates a compacted message with interleaved content
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'Let me read the file'},
+            {
+              'type': 'tool_use',
+              'id': 'toolu_read',
+              'name': 'Read',
+              'input': {'file_path': '/test.txt'},
+            },
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_read',
+              'content': 'File contents: Hello World',
+            },
+            {'type': 'text', 'text': 'The file contains "Hello World"'},
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(4));
+      expect(responses[0], isA<TextResponse>());
+      expect(responses[1], isA<ToolUseResponse>());
+      expect(responses[2], isA<ToolResultResponse>());
+      expect(responses[3], isA<TextResponse>());
+
+      // Verify content
+      expect((responses[0] as TextResponse).content, 'Let me read the file');
+      expect((responses[1] as ToolUseResponse).toolName, 'Read');
+      expect((responses[1] as ToolUseResponse).toolUseId, 'toolu_read');
+      expect((responses[2] as ToolResultResponse).toolUseId, 'toolu_read');
+      expect(
+        (responses[2] as ToolResultResponse).content,
+        'File contents: Hello World',
+      );
+      expect(
+        (responses[3] as TextResponse).content,
+        'The file contains "Hello World"',
+      );
+    });
+
+    test('handles tool_result with is_error flag', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'Trying to read file...'},
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_123',
+              'content': 'Error: File not found',
+              'is_error': true,
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(2));
+      expect(responses[0], isA<TextResponse>());
+      expect(responses[1], isA<ToolResultResponse>());
+      expect((responses[1] as ToolResultResponse).isError, isTrue);
+      expect(
+        (responses[1] as ToolResultResponse).content,
+        'Error: File not found',
+      );
+    });
+
+    test('falls back to single response for non-assistant messages', () {
+      final json = {
+        'type': 'user',
+        'message': {
+          'role': 'user',
+          'content': [
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_123',
+              'content': 'Result',
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(1));
+      expect(responses[0], isA<ToolResultResponse>());
+    });
+
+    test('falls back to single response for single content block', () {
+      final json = {
+        'type': 'assistant',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': 'Single block'},
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(1));
+      expect(responses[0], isA<TextResponse>());
+    });
+
+    test('skips empty text blocks', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'text', 'text': ''},
+            {'type': 'text', 'text': 'Non-empty'},
+            {'type': 'text', 'text': ''},
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(1));
+      expect((responses[0] as TextResponse).content, 'Non-empty');
+    });
+
+    test('handles complex MCP tool result with multiple text blocks', () {
+      // MCP tools return results as arrays of text blocks
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'tool_use',
+              'id': 'toolu_git',
+              'name': 'mcp__vide-git__gitLog',
+              'input': {'count': 3},
+            },
+            {
+              'type': 'tool_result',
+              'tool_use_id': 'toolu_git',
+              'content': [
+                {'type': 'text', 'text': 'abc123 First commit\n'},
+                {'type': 'text', 'text': 'def456 Second commit\n'},
+                {'type': 'text', 'text': 'ghi789 Third commit'},
+              ],
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(2));
+      expect(responses[0], isA<ToolUseResponse>());
+      expect(responses[1], isA<ToolResultResponse>());
+      expect(
+        (responses[0] as ToolUseResponse).toolName,
+        'mcp__vide-git__gitLog',
+      );
+      expect((responses[1] as ToolResultResponse).toolUseId, 'toolu_git');
+      // Only first text block content is extracted currently
+      expect(
+        (responses[1] as ToolResultResponse).content,
+        'abc123 First commit\n',
+      );
     });
   });
 
