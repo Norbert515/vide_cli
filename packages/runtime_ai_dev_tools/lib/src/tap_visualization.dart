@@ -13,7 +13,53 @@ class TapVisualizationService {
   OverlayEntry? _persistentCursorOverlay;
   OverlayEntry? _scrollPathOverlay;
   OverlayEntry? _scrollEndIndicatorOverlay;
+  OverlayEntry? _inspectionPulseOverlay;
   GlobalKey<OverlayState>? _overlayKey;
+
+  /// Current cursor position in logical pixels (null if no cursor set)
+  Offset? _cursorPosition;
+
+  /// Get the current cursor position
+  Offset? get cursorPosition => _cursorPosition;
+
+  /// Sets the cursor position and shows a persistent cursor overlay (if overlay key is registered)
+  /// This is the preferred method for service extensions as it doesn't require a BuildContext
+  void setCursorPosition(double x, double y) {
+    // Clear any existing cursor overlay
+    _persistentCursorOverlay?.remove();
+    _persistentCursorOverlay = null;
+
+    // Store the cursor position
+    _cursorPosition = Offset(x, y);
+
+    // Try to show the cursor overlay if we have a registered overlay key
+    if (_overlayKey?.currentState != null) {
+      _persistentCursorOverlay = OverlayEntry(
+        builder: (context) => _PersistentCursor(x: x, y: y),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (_persistentCursorOverlay != null &&
+              _overlayKey?.currentState != null) {
+            _overlayKey!.currentState!.insert(_persistentCursorOverlay!);
+            print('✅ [TapVisualization] Cursor set at ($x, $y) with overlay');
+          }
+        } catch (e) {
+          print('⚠️  [TapVisualization] Failed to insert cursor overlay: $e');
+        }
+      });
+    } else {
+      print('✅ [TapVisualization] Cursor position set to ($x, $y) (no overlay key)');
+    }
+  }
+
+  /// Clears just the cursor position and overlay
+  void clearCursorPosition() {
+    _persistentCursorOverlay?.remove();
+    _persistentCursorOverlay = null;
+    _cursorPosition = null;
+  }
 
   /// Register the overlay key from DebugOverlayWrapper
   void setOverlayKey(GlobalKey<OverlayState> key) {
@@ -66,6 +112,9 @@ class TapVisualizationService {
     // Remove any existing persistent cursor
     clearPersistentCursor();
 
+    // Store the cursor position
+    _cursorPosition = Offset(x, y);
+
     // Create new persistent cursor overlay
     _persistentCursorOverlay = OverlayEntry(
       builder: (context) => _PersistentCursor(x: x, y: y),
@@ -85,10 +134,11 @@ class TapVisualizationService {
     });
   }
 
-  /// Clears the persistent cursor overlay
+  /// Clears the persistent cursor overlay and position
   void clearPersistentCursor() {
     _persistentCursorOverlay?.remove();
     _persistentCursorOverlay = null;
+    _cursorPosition = null;
   }
 
   /// Shows an animated scroll path from start to end
@@ -161,6 +211,40 @@ class TapVisualizationService {
   void clearScrollPath() {
     _scrollPathOverlay?.remove();
     _scrollPathOverlay = null;
+  }
+
+  /// Shows an inspection pulse animation at the specified position
+  /// This indicates that widget info is being retrieved at that location
+  void showInspectionPulse(double x, double y) {
+    // Remove any existing inspection pulse
+    _inspectionPulseOverlay?.remove();
+    _inspectionPulseOverlay = null;
+
+    // Try to show the inspection pulse if we have a registered overlay key
+    if (_overlayKey?.currentState != null) {
+      _inspectionPulseOverlay = OverlayEntry(
+        builder: (context) => _InspectionPulse(
+          x: x,
+          y: y,
+          onComplete: () {
+            _inspectionPulseOverlay?.remove();
+            _inspectionPulseOverlay = null;
+          },
+        ),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (_inspectionPulseOverlay != null &&
+              _overlayKey?.currentState != null) {
+            _overlayKey!.currentState!.insert(_inspectionPulseOverlay!);
+            print('✅ [TapVisualization] Inspection pulse shown at ($x, $y)');
+          }
+        } catch (e) {
+          print('⚠️  [TapVisualization] Failed to show inspection pulse: $e');
+        }
+      });
+    }
   }
 }
 
@@ -577,6 +661,125 @@ class _ScrollEndPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ScrollEndPainter oldDelegate) {
     return oldDelegate.start != start || oldDelegate.end != end;
+  }
+}
+
+/// Widget that displays an inspection pulse animation
+/// Shows a purple pulsing effect to indicate widget inspection
+class _InspectionPulse extends StatefulWidget {
+  final double x;
+  final double y;
+  final VoidCallback onComplete;
+
+  const _InspectionPulse({
+    required this.x,
+    required this.y,
+    required this.onComplete,
+  });
+
+  @override
+  State<_InspectionPulse> createState() => _InspectionPulseState();
+}
+
+class _InspectionPulseState extends State<_InspectionPulse>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    // Pulsing scale animation
+    _scaleAnimation = Tween<double>(
+      begin: 20.0,
+      end: 80.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    // Fade out animation
+    _opacityAnimation = Tween<double>(
+      begin: 0.7,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    _controller.forward().then((_) {
+      widget.onComplete();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              // Outer pulsing ring
+              Positioned(
+                left: widget.x - _scaleAnimation.value / 2,
+                top: widget.y - _scaleAnimation.value / 2,
+                child: Container(
+                  width: _scaleAnimation.value,
+                  height: _scaleAnimation.value,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.purple
+                          .withValues(alpha: _opacityAnimation.value),
+                      width: 3,
+                    ),
+                  ),
+                ),
+              ),
+              // Inner static ring (inspection indicator)
+              Positioned(
+                left: widget.x - 15,
+                top: widget.y - 15,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.purple
+                          .withValues(alpha: _opacityAnimation.value * 1.2),
+                      width: 2,
+                    ),
+                    color: Colors.purple
+                        .withValues(alpha: _opacityAnimation.value * 0.2),
+                  ),
+                  child: Icon(
+                    Icons.search,
+                    size: 16,
+                    color: Colors.purple
+                        .withValues(alpha: _opacityAnimation.value * 1.5),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

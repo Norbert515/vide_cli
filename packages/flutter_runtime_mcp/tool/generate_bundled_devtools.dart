@@ -13,6 +13,8 @@ const _sourceFiles = [
   'lib/src/tap_extension.dart',
   'lib/src/type_extension.dart',
   'lib/src/scroll_extension.dart',
+  'lib/src/cursor_extension.dart',
+  'lib/src/widget_info_extension.dart',
   'lib/src/debug_overlay_wrapper.dart',
   'lib/src/debug_binding.dart',
 ];
@@ -24,6 +26,8 @@ const _renames = {
   'registerTapExtension': '_registerTapExtension',
   'registerTypeExtension': '_registerTypeExtension',
   'registerScrollExtension': '_registerScrollExtension',
+  'registerCursorExtension': '_registerCursorExtension',
+  'registerWidgetInfoExtension': '_registerWidgetInfoExtension',
   'DebugOverlayWrapper': '_DebugOverlayWrapper',
   'DebugWidgetsFlutterBinding': '_DebugWidgetsFlutterBinding',
 };

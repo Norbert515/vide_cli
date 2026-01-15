@@ -74,6 +74,8 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterType',
     'flutterScroll',
     'flutterScrollAt',
+    'flutterMoveCursor',
+    'flutterGetWidgetInfo',
   ];
 
   @override
@@ -1771,6 +1773,359 @@ For example:
             content: [
               TextContent(
                 text: 'Error: Failed to perform scroll: $e\n$stackTrace',
+              ),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Move Cursor - Move cursor to a position (using coordinates OR Moondream description)
+    server.tool(
+      'flutterMoveCursor',
+      description:
+          'Move the cursor to a specific position in the Flutter app. You can specify coordinates directly OR use a natural language description to locate an element with vision AI. The cursor position is used by flutterGetWidgetInfo and shown in screenshots.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'x': {
+            'type': 'number',
+            'description':
+                'X coordinate in normalized screen space (0.0 to 1.0). Optional if description is provided.',
+          },
+          'y': {
+            'type': 'number',
+            'description':
+                'Y coordinate in normalized screen space (0.0 to 1.0). Optional if description is provided.',
+          },
+          'description': {
+            'type': 'string',
+            'description':
+                'Natural language description of the UI element to move cursor to (e.g., "login button", "email input field"). Uses vision AI to locate. Optional if x/y are provided.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final normalizedX = (args['x'] as num?)?.toDouble();
+        final normalizedY = (args['y'] as num?)?.toDouble();
+        final description = args['description'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          double logicalX;
+          double logicalY;
+          String locationSource;
+
+          // If coordinates provided, use them directly
+          if (normalizedX != null && normalizedY != null) {
+            if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(
+                    text: 'Error: Coordinates must be normalized (0.0 to 1.0). Got x=$normalizedX, y=$normalizedY',
+                  ),
+                ],
+              );
+            }
+
+            // Take screenshot to get dimensions for coordinate conversion
+            final screenshotBytes = await instance.screenshot();
+            if (screenshotBytes == null) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(
+                    text: 'Error: Failed to capture screenshot for coordinate conversion',
+                  ),
+                ],
+              );
+            }
+
+            // Decode PNG to get dimensions
+            final bytes = Uint8List.fromList(screenshotBytes);
+            if (bytes.length < 24 ||
+                bytes[0] != 0x89 ||
+                bytes[1] != 0x50 ||
+                bytes[2] != 0x4E ||
+                bytes[3] != 0x47) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(text: 'Error: Invalid PNG format from screenshot'),
+                ],
+              );
+            }
+
+            final width =
+                (bytes[16] << 24) |
+                (bytes[17] << 16) |
+                (bytes[18] << 8) |
+                bytes[19];
+            final height =
+                (bytes[20] << 24) |
+                (bytes[21] << 16) |
+                (bytes[22] << 8) |
+                bytes[23];
+
+            final pixelX = (normalizedX * width).round().toDouble();
+            final pixelY = (normalizedY * height).round().toDouble();
+            final devicePixelRatio = instance.devicePixelRatio;
+            logicalX = (pixelX / devicePixelRatio).round().toDouble();
+            logicalY = (pixelY / devicePixelRatio).round().toDouble();
+            locationSource = 'coordinates ($normalizedX, $normalizedY)';
+          }
+          // If description provided, use Moondream to locate
+          else if (description != null && description.isNotEmpty) {
+            if (_moondreamClient == null) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(
+                    text: 'Error: Moondream API not available. Set MOONDREAM_API_KEY environment variable. Use x/y coordinates instead.',
+                  ),
+                ],
+              );
+            }
+
+            // Take screenshot for Moondream
+            final screenshotBytes = await instance.screenshot();
+            if (screenshotBytes == null) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(text: 'Error: Failed to capture screenshot'),
+                ],
+              );
+            }
+
+            // Encode screenshot for Moondream
+            final imageUrl = ImageEncoder.encodeBytes(
+              Uint8List.fromList(screenshotBytes),
+              mimeType: 'image/png',
+            );
+
+            // Query Moondream for element location
+            print('🔍 [FlutterRuntimeServer] Asking Moondream to locate: "$description"');
+            final pointResponse = await _moondreamClient!
+                .point(
+                  imageUrl: imageUrl,
+                  object: description,
+                )
+                .timeout(_moondreamTimeout);
+
+            // Get normalized coordinates (0-1 range)
+            final moondreamX = pointResponse.x;
+            final moondreamY = pointResponse.y;
+
+            print('📍 [FlutterRuntimeServer] Moondream response: x=$moondreamX, y=$moondreamY');
+
+            if (moondreamX == null || moondreamY == null) {
+              return CallToolResult.fromContent(
+                content: [
+                  TextContent(
+                    text: 'Error: Could not locate "$description" in the screenshot. Try a different description or use coordinates.',
+                  ),
+                ],
+              );
+            }
+
+            // Moondream returns normalized coordinates (0-1)
+            final bytes = Uint8List.fromList(screenshotBytes);
+            final width =
+                (bytes[16] << 24) |
+                (bytes[17] << 16) |
+                (bytes[18] << 8) |
+                bytes[19];
+            final height =
+                (bytes[20] << 24) |
+                (bytes[21] << 16) |
+                (bytes[22] << 8) |
+                bytes[23];
+
+            final pixelX = (moondreamX * width).round().toDouble();
+            final pixelY = (moondreamY * height).round().toDouble();
+            final devicePixelRatio = instance.devicePixelRatio;
+            logicalX = (pixelX / devicePixelRatio).round().toDouble();
+            logicalY = (pixelY / devicePixelRatio).round().toDouble();
+            locationSource = 'vision AI for "$description"';
+          } else {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Error: Either x/y coordinates OR description must be provided',
+                ),
+              ],
+            );
+          }
+
+          // Move the cursor
+          await instance.moveCursor(logicalX, logicalY);
+
+          // Take screenshot to show result
+          final resultScreenshot = await instance.screenshot();
+          final content = <Content>[
+            TextContent(
+              text: 'Cursor moved to ($logicalX, $logicalY) using $locationSource.\n\nUse flutterGetWidgetInfo to inspect widgets at this position.',
+            ),
+          ];
+
+          if (resultScreenshot != null) {
+            content.add(_createScreenshotContent(resultScreenshot));
+          }
+
+          return CallToolResult.fromContent(content: content);
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterMoveCursor',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to move cursor: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Widget Info - Get widget information at current cursor position
+    server.tool(
+      'flutterGetWidgetInfo',
+      description:
+          'Get information about widgets at the current cursor position. Returns widget types, bounds, source file locations (if available), and widget-specific properties like text content. Use flutterMoveCursor first to position the cursor, or this will use the last tap/cursor position.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          // Get the current cursor position
+          final cursorPos = await instance.getCursorPosition();
+
+          if (cursorPos == null) {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Error: No cursor position set. Use flutterMoveCursor or flutterTapAt first to position the cursor.',
+                ),
+              ],
+            );
+          }
+
+          print(
+            '🔍 [FlutterRuntimeServer] Getting widget info at cursor position (${cursorPos.x}, ${cursorPos.y})',
+          );
+
+          // Get widget info at the cursor position
+          final widgetInfo = await instance.getWidgetInfo(cursorPos.x, cursorPos.y);
+
+          // Format the response
+          final widgets = widgetInfo['widgets'] as List<dynamic>? ?? [];
+          final buffer = StringBuffer();
+          buffer.writeln('Widget Info at cursor (${cursorPos.x}, ${cursorPos.y}):');
+          buffer.writeln('');
+
+          if (widgets.isEmpty) {
+            buffer.writeln('No widgets found at this position.');
+          } else {
+            buffer.writeln('Found ${widgets.length} widget(s):');
+            buffer.writeln('');
+
+            for (var i = 0; i < widgets.length; i++) {
+              final widget = widgets[i] as Map<String, dynamic>;
+              buffer.writeln('${i + 1}. ${widget['type']}');
+
+              if (widget['key'] != null) {
+                buffer.writeln('   Key: ${widget['key']}');
+              }
+
+              if (widget['text'] != null) {
+                buffer.writeln('   Text: "${widget['text']}"');
+              }
+
+              if (widget['bounds'] != null) {
+                final bounds = widget['bounds'] as Map<String, dynamic>;
+                buffer.writeln(
+                  '   Bounds: (${bounds['x']?.toStringAsFixed(1)}, ${bounds['y']?.toStringAsFixed(1)}) ${bounds['width']?.toStringAsFixed(1)}x${bounds['height']?.toStringAsFixed(1)}',
+                );
+              }
+
+              if (widget['creationLocation'] != null) {
+                final loc = widget['creationLocation'] as Map<String, dynamic>;
+                if (loc['file'] != null) {
+                  buffer.writeln('   Source: ${loc['file']}:${loc['line']}');
+                } else if (loc['debug'] != null) {
+                  buffer.writeln('   Debug: ${loc['debug']}');
+                }
+              }
+
+              if (widget['creatorChain'] != null) {
+                buffer.writeln('   Creator: ${widget['creatorChain']}');
+              }
+
+              buffer.writeln('');
+            }
+          }
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: buffer.toString()),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetWidgetInfo',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Failed to get widget info: $e',
               ),
             ],
           );

@@ -68,6 +68,8 @@ void _initRuntimeAiDevTools() {
   _registerTapExtension();
   _registerTypeExtension();
   _registerScrollExtension();
+  _registerCursorExtension();
+  _registerWidgetInfoExtension();
 }
 
 void main() {

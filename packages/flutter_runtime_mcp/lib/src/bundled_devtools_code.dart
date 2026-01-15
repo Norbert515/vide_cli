@@ -37,13 +37,55 @@ class _TapVisualizationService {
   OverlayEntry? _persistentCursorOverlay;
   OverlayEntry? _scrollPathOverlay;
   OverlayEntry? _scrollEndIndicatorOverlay;
+  OverlayEntry? _inspectionPulseOverlay;
   GlobalKey<OverlayState>? _overlayKey;
+
+  /// Current cursor position in logical pixels (null if no cursor set)
+  Offset? _cursorPosition;
+
+  /// Get the current cursor position
+  Offset? get cursorPosition => _cursorPosition;
+
+  /// Sets the cursor position and shows a persistent cursor overlay (if overlay key is registered)
+  /// This is the preferred method for service extensions as it doesn't require a BuildContext
+  void setCursorPosition(double x, double y) {
+    // Clear any existing cursor overlay
+    _persistentCursorOverlay?.remove();
+    _persistentCursorOverlay = null;
+
+    // Store the cursor position
+    _cursorPosition = Offset(x, y);
+
+    // Try to show the cursor overlay if we have a registered overlay key
+    if (_overlayKey?.currentState != null) {
+      _persistentCursorOverlay = OverlayEntry(
+        builder: (context) => _PersistentCursor(x: x, y: y),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (_persistentCursorOverlay != null &&
+              _overlayKey?.currentState != null) {
+            _overlayKey!.currentState!.insert(_persistentCursorOverlay!);
+                      }
+        } catch (e) {
+                  }
+      });
+    } else {
+          }
+  }
+
+  /// Clears just the cursor position and overlay
+  void clearCursorPosition() {
+    _persistentCursorOverlay?.remove();
+    _persistentCursorOverlay = null;
+    _cursorPosition = null;
+  }
 
   /// Register the overlay key from _DebugOverlayWrapper
   void setOverlayKey(GlobalKey<OverlayState> key) {
     _overlayKey = key;
-    
-  }
+      }
 
   /// Shows a tap visualization at the specified position
   void showTapAt(BuildContext context, double x, double y) {
@@ -70,11 +112,9 @@ class _TapVisualizationService {
           // Use our custom overlay if available, otherwise fall back to context-based lookup
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_currentOverlay!);
-          
-        }
+                  }
       } catch (e) {
-        
-      }
+              }
     });
   }
 
@@ -90,6 +130,9 @@ class _TapVisualizationService {
     // Remove any existing persistent cursor
     clearPersistentCursor();
 
+    // Store the cursor position
+    _cursorPosition = Offset(x, y);
+
     // Create new persistent cursor overlay
     _persistentCursorOverlay = OverlayEntry(
       builder: (context) => _PersistentCursor(x: x, y: y),
@@ -101,22 +144,22 @@ class _TapVisualizationService {
         if (_persistentCursorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_persistentCursorOverlay!);
-          
-        }
+                  }
       } catch (e) {
-        
-      }
+              }
     });
   }
 
-  /// Clears the persistent cursor overlay
+  /// Clears the persistent cursor overlay and position
   void clearPersistentCursor() {
     _persistentCursorOverlay?.remove();
     _persistentCursorOverlay = null;
+    _cursorPosition = null;
   }
 
   /// Shows an animated scroll path from start to end
-  void showScrollPath(BuildContext context, Offset start, Offset end, Duration duration) {
+  void showScrollPath(
+      BuildContext context, Offset start, Offset end, Duration duration) {
     // Remove any existing scroll path overlay
     _scrollPathOverlay?.remove();
     _scrollPathOverlay = null;
@@ -140,11 +183,9 @@ class _TapVisualizationService {
         if (_scrollPathOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollPathOverlay!);
-          
-        }
+                  }
       } catch (e) {
-        
-      }
+              }
     });
   }
 
@@ -163,11 +204,9 @@ class _TapVisualizationService {
         if (_scrollEndIndicatorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollEndIndicatorOverlay!);
-          
-        }
+                  }
       } catch (e) {
-        
-      }
+              }
     });
   }
 
@@ -181,6 +220,38 @@ class _TapVisualizationService {
   void clearScrollPath() {
     _scrollPathOverlay?.remove();
     _scrollPathOverlay = null;
+  }
+
+  /// Shows an inspection pulse animation at the specified position
+  /// This indicates that widget info is being retrieved at that location
+  void showInspectionPulse(double x, double y) {
+    // Remove any existing inspection pulse
+    _inspectionPulseOverlay?.remove();
+    _inspectionPulseOverlay = null;
+
+    // Try to show the inspection pulse if we have a registered overlay key
+    if (_overlayKey?.currentState != null) {
+      _inspectionPulseOverlay = OverlayEntry(
+        builder: (context) => _InspectionPulse(
+          x: x,
+          y: y,
+          onComplete: () {
+            _inspectionPulseOverlay?.remove();
+            _inspectionPulseOverlay = null;
+          },
+        ),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (_inspectionPulseOverlay != null &&
+              _overlayKey?.currentState != null) {
+            _overlayKey!.currentState!.insert(_inspectionPulseOverlay!);
+                      }
+        } catch (e) {
+                  }
+      });
+    }
   }
 }
 
@@ -259,10 +330,12 @@ class _TapVisualizationState extends State<_TapVisualization>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.blue.withValues(alpha: _opacityAnimation.value),
+                      color: Colors.blue
+                          .withValues(alpha: _opacityAnimation.value),
                       width: 2,
                     ),
-                    color: Colors.blue.withValues(alpha: _opacityAnimation.value * 0.3),
+                    color: Colors.blue
+                        .withValues(alpha: _opacityAnimation.value * 0.3),
                   ),
                 ),
               ),
@@ -359,7 +432,8 @@ class _ScrollPathVisualization extends StatefulWidget {
   });
 
   @override
-  State<_ScrollPathVisualization> createState() => _ScrollPathVisualizationState();
+  State<_ScrollPathVisualization> createState() =>
+      _ScrollPathVisualizationState();
 }
 
 class _ScrollPathVisualizationState extends State<_ScrollPathVisualization>
@@ -381,7 +455,8 @@ class _ScrollPathVisualizationState extends State<_ScrollPathVisualization>
     );
 
     // Line drawing happens during the scroll duration
-    final drawEndTime = widget.duration.inMilliseconds / totalDuration.inMilliseconds;
+    final drawEndTime =
+        widget.duration.inMilliseconds / totalDuration.inMilliseconds;
     _progressAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
@@ -596,6 +671,125 @@ class _ScrollEndPainter extends CustomPainter {
   }
 }
 
+/// Widget that displays an inspection pulse animation
+/// Shows a purple pulsing effect to indicate widget inspection
+class _InspectionPulse extends StatefulWidget {
+  final double x;
+  final double y;
+  final VoidCallback onComplete;
+
+  const _InspectionPulse({
+    required this.x,
+    required this.y,
+    required this.onComplete,
+  });
+
+  @override
+  State<_InspectionPulse> createState() => _InspectionPulseState();
+}
+
+class _InspectionPulseState extends State<_InspectionPulse>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    // Pulsing scale animation
+    _scaleAnimation = Tween<double>(
+      begin: 20.0,
+      end: 80.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    // Fade out animation
+    _opacityAnimation = Tween<double>(
+      begin: 0.7,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOut,
+    ));
+
+    _controller.forward().then((_) {
+      widget.onComplete();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              // Outer pulsing ring
+              Positioned(
+                left: widget.x - _scaleAnimation.value / 2,
+                top: widget.y - _scaleAnimation.value / 2,
+                child: Container(
+                  width: _scaleAnimation.value,
+                  height: _scaleAnimation.value,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.purple
+                          .withValues(alpha: _opacityAnimation.value),
+                      width: 3,
+                    ),
+                  ),
+                ),
+              ),
+              // Inner static ring (inspection indicator)
+              Positioned(
+                left: widget.x - 15,
+                top: widget.y - 15,
+                child: Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.purple
+                          .withValues(alpha: _opacityAnimation.value * 1.2),
+                      width: 2,
+                    ),
+                    color: Colors.purple
+                        .withValues(alpha: _opacityAnimation.value * 0.2),
+                  ),
+                  child: Icon(
+                    Icons.search,
+                    size: 16,
+                    color: Colors.purple
+                        .withValues(alpha: _opacityAnimation.value * 1.5),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 // Math functions for arrow drawing
 double _bundledCos(double radians) => _cos(radians);
 double _bundledSin(double radians) => _sin(radians);
@@ -639,7 +833,8 @@ void _registerScreenshotExtension() {
         final base64Image = await _imageToBase64(image);
 
         // Get the device pixel ratio from the Flutter window
-        final devicePixelRatio = WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+        final devicePixelRatio = WidgetsBinding
+            .instance.platformDispatcher.views.first.devicePixelRatio;
 
         return developer.ServiceExtensionResponse.result(
           json.encode({
@@ -772,6 +967,9 @@ void _registerTapExtension() {
 /// Simulates a tap at the specified coordinates
 Future<void> _simulateTap(double x, double y) async {
   
+  // Clear any existing scroll end indicator from previous gestures
+  _TapVisualizationService().clearScrollEndIndicator();
+
   try {
     final binding = WidgetsBinding.instance;
     final offset = Offset(x, y);
@@ -828,17 +1026,19 @@ Future<void> _simulateTap(double x, double y) async {
 /// Pattern to match special key sequences like {enter}, {ctrl+c}, {alt+shift+tab}
 final _specialKeyPattern = RegExp(r'\{([^}]+)\}');
 
+/// Global text input state tracker
+_TextInputTracker? _textInputTracker;
+
 /// Registers the type service extension
 void _registerTypeExtension() {
   
+  // Install the text input tracker to monitor IME state
+  _textInputTracker = _TextInputTracker.install();
 
   developer.registerExtension(
     'ext.runtime_ai_dev_tools.type',
     (String method, Map<String, String> parameters) async {
-      
-      
-      
-
+            
       try {
         final text = parameters['text'];
 
@@ -849,48 +1049,301 @@ void _registerTypeExtension() {
           );
         }
 
-        await _simulateTyping(text);
+        final result = await _simulateTyping(text);
 
         return developer.ServiceExtensionResponse.result(
-          json.encode({'status': 'success', 'text': text}),
+          json.encode({
+            'status': 'success',
+            'text': text,
+            'method': result.name,
+          }),
         );
       } catch (e, stackTrace) {
-        
-        
-        return developer.ServiceExtensionResponse.error(
+                        return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
           'Failed to simulate typing: $e\n$stackTrace',
         );
       }
     },
   );
+
+  // Register status extension
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.type_status',
+    (String method, Map<String, String> parameters) async {
+      final tracker = _textInputTracker;
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'hasActiveClient': tracker?.hasActiveClient ?? false,
+          'clientId': tracker?.currentClientId,
+          'currentText': tracker?.currentValue?.text,
+          'cursorPosition': tracker?.currentValue?.selection.baseOffset,
+        }),
+      );
+    },
+  );
+}
+
+/// Injection method used
+enum _InjectionMethod {
+  imeChannel, // Low-level IME channel (most reliable for TextFields)
+  textInputClient, // Direct TextInputClient.updateEditingValue
+  rawKeyEvent, // Raw keyboard events (for terminals, games)
 }
 
 /// Simulates typing the given text with special key support.
 ///
-/// Strategy:
-/// 1. TextInputClient (covers TextField, xterm, etc.): Uses updateEditingValue()
-/// 2. Fallback for Focus-based widgets: Raw key events
-Future<void> _simulateTyping(String text) async {
+/// Strategy (in order of preference):
+/// 1. IME Channel: If there's an active TextInput client, inject via channel
+/// 2. TextInputClient: Direct widget API if found in tree
+/// 3. Raw Key Events: For terminals, games, and Focus-based widgets
+Future<_InjectionMethod> _simulateTyping(String text) async {
   final tokens = _parseText(text);
-  final textInputClient = _findTextInputClient();
+  final tracker = _textInputTracker;
+  final hasImeClient = tracker?.hasActiveClient ?? false;
+
+  _InjectionMethod methodUsed = _InjectionMethod.rawKeyEvent;
 
   for (final token in tokens) {
     if (token.isSpecialKey) {
-      await _handleSpecialKey(token.value);
-    } else if (textInputClient != null) {
-      await _insertViaTextInputClient(textInputClient, token.value);
+      // Special keys always use raw key events (or IME for some like backspace)
+      await _handleSpecialKey(token.value, tracker: tracker);
+    } else if (hasImeClient && tracker != null) {
+      // Primary: Use low-level IME channel injection
+      await tracker.injectText(token.value);
+      methodUsed = _InjectionMethod.imeChannel;
     } else {
-      // Fallback: raw key events for Focus-based widgets without TextInputClient
-      for (final char in token.value.split('')) {
-        await _simulateCharacterKeyPress(char);
-        await Future.delayed(const Duration(milliseconds: 50));
+      // Try to find TextInputClient in widget tree
+      final textInputClient = _findTextInputClient();
+      if (textInputClient != null) {
+        await _insertViaTextInputClient(textInputClient, token.value);
+        methodUsed = _InjectionMethod.textInputClient;
+      } else {
+        // Fallback: raw key events for Focus-based widgets
+        for (final char in token.value.split('')) {
+          await _simulateCharacterKeyPress(char);
+          await Future.delayed(const Duration(milliseconds: 30));
+        }
+        methodUsed = _InjectionMethod.rawKeyEvent;
       }
     }
   }
+
+    return methodUsed;
 }
 
-/// Find a TextInputClient in the widget tree from the focused element
+// ============================================================================
+// Text Input Tracker - Intercepts IME channel to track client state
+// ============================================================================
+
+/// Tracks TextInput state by intercepting outgoing messages.
+///
+/// Uses `TextInput.setChannel()` to wrap the text input channel and monitor
+/// when TextInput clients are created/destroyed and their current state.
+class _TextInputTracker {
+  _TextInputTracker._();
+
+  int? _currentClientId;
+  TextEditingValue? _currentValue;
+  _InterceptingBinaryMessenger? _messenger;
+
+  bool get hasActiveClient => _currentClientId != null;
+  int? get currentClientId => _currentClientId;
+  TextEditingValue? get currentValue => _currentValue;
+
+  /// Install the tracker by wrapping the TextInput channel
+  static _TextInputTracker install() {
+    final tracker = _TextInputTracker._();
+    tracker._install();
+    return tracker;
+  }
+
+  void _install() {
+    // Wrap the default binary messenger to intercept OUTGOING messages
+    final defaultMessenger = ServicesBinding.instance.defaultBinaryMessenger;
+    _messenger = _InterceptingBinaryMessenger(
+      defaultMessenger,
+      onTextInputMessage: _handleOutgoingMessage,
+    );
+
+    // Replace the TextInput channel with our intercepting version
+    final interceptingChannel = MethodChannel(
+      'flutter/textinput',
+      const JSONMethodCodec(),
+      _messenger,
+    );
+    TextInput.setChannel(interceptingChannel);
+
+      }
+
+  void _handleOutgoingMessage(MethodCall call) {
+    switch (call.method) {
+      case 'TextInput.setClient':
+        final args = call.arguments as List<dynamic>;
+        _currentClientId = args[0] as int;
+        
+      case 'TextInput.setEditingState':
+        final args = call.arguments as Map<dynamic, dynamic>;
+        _currentValue = _decodeEditingValue(args);
+
+      case 'TextInput.clearClient':
+                _currentClientId = null;
+        _currentValue = null;
+    }
+  }
+
+  /// Inject text via the IME channel (simulates platform → framework message)
+  Future<bool> injectText(String text) async {
+    if (_currentClientId == null) return false;
+
+    final current = _currentValue ?? TextEditingValue.empty;
+    final selection = current.selection;
+
+    // Calculate new text
+    String newText;
+    int newCursorPos;
+
+    if (selection.isValid && selection.start >= 0) {
+      newText = current.text.replaceRange(selection.start, selection.end, text);
+      newCursorPos = selection.start + text.length;
+    } else {
+      newText = current.text + text;
+      newCursorPos = newText.length;
+    }
+
+    final newValue = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorPos),
+    );
+
+    return _sendEditingState(newValue);
+  }
+
+  /// Delete characters (backspace)
+  Future<bool> deleteBackward({int count = 1}) async {
+    if (_currentClientId == null || _currentValue == null) return false;
+
+    final current = _currentValue!;
+    final selection = current.selection;
+
+    if (!selection.isValid || selection.start < 0) return false;
+
+    String newText;
+    int newCursorPos;
+
+    if (selection.isCollapsed) {
+      final deleteStart = (selection.start - count).clamp(0, selection.start);
+      newText = current.text.replaceRange(deleteStart, selection.start, '');
+      newCursorPos = deleteStart;
+    } else {
+      newText = current.text.replaceRange(selection.start, selection.end, '');
+      newCursorPos = selection.start;
+    }
+
+    return _sendEditingState(TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newCursorPos),
+    ));
+  }
+
+  /// Send editing state to the framework (simulates platform message)
+  Future<bool> _sendEditingState(TextEditingValue value) async {
+    if (_currentClientId == null) return false;
+
+    _currentValue = value;
+
+    final encoded = const JSONMethodCodec().encodeMethodCall(
+      MethodCall('TextInputClient.updateEditingState', <dynamic>[
+        _currentClientId,
+        _encodeEditingValue(value),
+      ]),
+    );
+
+    try {
+      ServicesBinding.instance.channelBuffers.push(
+        'flutter/textinput',
+        encoded,
+        (ByteData? reply) {},
+      );
+      return true;
+    } catch (e) {
+            return false;
+    }
+  }
+
+  Map<String, dynamic> _encodeEditingValue(TextEditingValue value) {
+    return <String, dynamic>{
+      'text': value.text,
+      'selectionBase': value.selection.baseOffset,
+      'selectionExtent': value.selection.extentOffset,
+      'selectionAffinity': value.selection.affinity.toString().split('.').last,
+      'selectionIsDirectional': value.selection.isDirectional,
+      'composingBase': value.composing.start,
+      'composingExtent': value.composing.end,
+    };
+  }
+
+  TextEditingValue _decodeEditingValue(Map<dynamic, dynamic> encoded) {
+    return TextEditingValue(
+      text: encoded['text'] as String? ?? '',
+      selection: TextSelection(
+        baseOffset: encoded['selectionBase'] as int? ?? -1,
+        extentOffset: encoded['selectionExtent'] as int? ?? -1,
+        isDirectional: encoded['selectionIsDirectional'] as bool? ?? false,
+      ),
+      composing: TextRange(
+        start: encoded['composingBase'] as int? ?? -1,
+        end: encoded['composingExtent'] as int? ?? -1,
+      ),
+    );
+  }
+}
+
+/// BinaryMessenger wrapper that intercepts outgoing messages to flutter/textinput
+class _InterceptingBinaryMessenger implements BinaryMessenger {
+  final BinaryMessenger _delegate;
+  final void Function(MethodCall call) onTextInputMessage;
+
+  static const _textInputChannel = 'flutter/textinput';
+  static const _codec = JSONMethodCodec();
+
+  _InterceptingBinaryMessenger(this._delegate,
+      {required this.onTextInputMessage});
+
+  @override
+  Future<ByteData?>? send(String channel, ByteData? message) {
+    if (channel == _textInputChannel && message != null) {
+      try {
+        final call = _codec.decodeMethodCall(message);
+        onTextInputMessage(call);
+      } catch (e) {
+        // Ignore decode errors
+      }
+    }
+    return _delegate.send(channel, message);
+  }
+
+  @override
+  void setMessageHandler(String channel, MessageHandler? handler) {
+    _delegate.setMessageHandler(channel, handler);
+  }
+
+  @override
+  Future<void> handlePlatformMessage(
+    String channel,
+    ByteData? data,
+    ui.PlatformMessageResponseCallback? callback,
+  ) {
+    return _delegate.handlePlatformMessage(channel, data, callback);
+  }
+}
+
+// ============================================================================
+// Widget Tree TextInputClient Detection (Fallback)
+// ============================================================================
+
+/// Find a TextInputClient in the widget tree from the focused element.
+/// Searches both descendants AND ancestors since EditableTextState is a child.
 TextInputClient? _findTextInputClient() {
   final focusNode = FocusManager.instance.primaryFocus;
   if (focusNode == null) return null;
@@ -898,25 +1351,43 @@ TextInputClient? _findTextInputClient() {
   final context = focusNode.context;
   if (context == null) return null;
 
+  // Check if focused element itself is TextInputClient
+  if (context is StatefulElement && context.state is TextInputClient) {
+    return context.state as TextInputClient;
+  }
+
+  // Search DESCENDANTS (EditableTextState is a child of Focus)
   TextInputClient? client;
+  void visitChildren(Element element) {
+    if (client != null) return;
+    if (element is StatefulElement && element.state is TextInputClient) {
+      client = element.state as TextInputClient;
+      return;
+    }
+    element.visitChildren(visitChildren);
+  }
+
+  (context as Element).visitChildren(visitChildren);
+  if (client != null) return client;
+
+  // Search ANCESTORS as fallback
   context.visitAncestorElements((element) {
     if (element is StatefulElement && element.state is TextInputClient) {
       client = element.state as TextInputClient;
-      return false; // Stop visiting
+      return false;
     }
-    return true; // Continue visiting
+    return true;
   });
 
   return client;
 }
 
-/// Insert text via TextInputClient (simulates platform text input)
-/// This works for TextField, xterm, and any widget implementing TextInputClient.
-Future<void> _insertViaTextInputClient(TextInputClient client, String text) async {
+/// Insert text via TextInputClient (direct widget API)
+Future<void> _insertViaTextInputClient(
+    TextInputClient client, String text) async {
   final current = client.currentTextEditingValue ?? TextEditingValue.empty;
   final selection = current.selection;
 
-  // Insert at cursor position if valid, otherwise append
   final newText = selection.isValid
       ? current.text.replaceRange(selection.start, selection.end, text)
       : current.text + text;
@@ -930,26 +1401,26 @@ Future<void> _insertViaTextInputClient(TextInputClient client, String text) asyn
   );
 
   client.updateEditingValue(newValue);
-  await Future.delayed(const Duration(milliseconds: 50));
+  await Future.delayed(const Duration(milliseconds: 30));
 }
 
-/// Parse text into tokens (regular text and special keys)
-/// Special keys are patterns like {enter}, {ctrl+c}, {alt+shift+tab}, {f1}
+// ============================================================================
+// Token Parsing
+// ============================================================================
+
 List<_TypeToken> _parseText(String text) {
   final tokens = <_TypeToken>[];
   var lastEnd = 0;
 
   for (final match in _specialKeyPattern.allMatches(text)) {
-    // Add any text before this match
     if (match.start > lastEnd) {
-      tokens.add(_TypeToken(text.substring(lastEnd, match.start), isSpecialKey: false));
+      tokens.add(_TypeToken(text.substring(lastEnd, match.start),
+          isSpecialKey: false));
     }
-    // Add the special key (the content inside {})
     tokens.add(_TypeToken(match.group(1)!, isSpecialKey: true));
     lastEnd = match.end;
   }
 
-  // Add any remaining text after the last match
   if (lastEnd < text.length) {
     tokens.add(_TypeToken(text.substring(lastEnd), isSpecialKey: false));
   }
@@ -957,80 +1428,37 @@ List<_TypeToken> _parseText(String text) {
   return tokens;
 }
 
-/// Token representing either normal text or a special key
 class _TypeToken {
   final String value;
   final bool isSpecialKey;
-
   _TypeToken(this.value, {required this.isSpecialKey});
 }
 
-/// Simulate a key press for a single character using raw key events
-Future<void> _simulateCharacterKeyPress(String char) async {
-  final keyInfo = _getKeyInfoForCharacter(char);
-  if (keyInfo == null) return;
+// ============================================================================
+// Special Key Handling
+// ============================================================================
 
-  if (keyInfo.needsShift) {
-    await _sendKeyDown(
-      physicalKey: PhysicalKeyboardKey.shiftLeft,
-      logicalKey: LogicalKeyboardKey.shiftLeft,
-      character: null,
-    );
-    await Future.delayed(const Duration(milliseconds: 5));
-  }
-
-  await _sendKeyDown(
-    physicalKey: keyInfo.physicalKey,
-    logicalKey: keyInfo.logicalKey,
-    character: char,
-  );
-  await Future.delayed(const Duration(milliseconds: 10));
-  await _sendKeyUp(
-    physicalKey: keyInfo.physicalKey,
-    logicalKey: keyInfo.logicalKey,
-  );
-
-  if (keyInfo.needsShift) {
-    await Future.delayed(const Duration(milliseconds: 5));
-    await _sendKeyUp(
-      physicalKey: PhysicalKeyboardKey.shiftLeft,
-      logicalKey: LogicalKeyboardKey.shiftLeft,
-    );
-  }
-}
-
-/// Handle special key actions via raw key events
-/// Supports: {enter}, {ctrl+c}, {alt+shift+tab}, {cmd+s}, {f1}, etc.
-Future<void> _handleSpecialKey(String keySpec) async {
+/// Handle special key actions
+Future<void> _handleSpecialKey(String keySpec,
+    {_TextInputTracker? tracker}) async {
   final parts = keySpec.toLowerCase().split('+');
 
-  // Extract modifiers and the main key
   var ctrl = false;
   var alt = false;
   var shift = false;
-  var meta = false; // cmd on macOS, win on Windows
+  var meta = false;
   String? mainKey;
 
   for (final part in parts) {
     switch (part) {
-      case 'ctrl':
-      case 'control':
+      case 'ctrl' || 'control':
         ctrl = true;
-        break;
-      case 'alt':
-      case 'option':
+      case 'alt' || 'option':
         alt = true;
-        break;
       case 'shift':
         shift = true;
-        break;
-      case 'meta':
-      case 'cmd':
-      case 'command':
-      case 'win':
-      case 'super':
+      case 'meta' || 'cmd' || 'command' || 'win' || 'super':
         meta = true;
-        break;
       default:
         mainKey = part;
     }
@@ -1038,35 +1466,42 @@ Future<void> _handleSpecialKey(String keySpec) async {
 
   if (mainKey == null) return;
 
-  // Get the key info for the main key
+  // For some keys, use IME if available and no modifiers
+  if (tracker != null && tracker.hasActiveClient && !ctrl && !alt && !meta) {
+    switch (mainKey) {
+      case 'backspace':
+        await tracker.deleteBackward();
+        return;
+      case 'enter' || 'return':
+        await tracker.injectText('\n');
+        return;
+      case 'tab':
+        await tracker.injectText('\t');
+        return;
+    }
+  }
+
+  // Fall back to raw key events
   final keyInfo = _getSpecialKeyInfo(mainKey);
   if (keyInfo == null) return;
 
   // Press modifiers
-  if (ctrl) {
+  if (ctrl)
     await _sendKeyDown(
-      physicalKey: PhysicalKeyboardKey.controlLeft,
-      logicalKey: LogicalKeyboardKey.controlLeft,
-    );
-  }
-  if (alt) {
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft);
+  if (alt)
     await _sendKeyDown(
-      physicalKey: PhysicalKeyboardKey.altLeft,
-      logicalKey: LogicalKeyboardKey.altLeft,
-    );
-  }
-  if (shift) {
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft);
+  if (shift)
     await _sendKeyDown(
-      physicalKey: PhysicalKeyboardKey.shiftLeft,
-      logicalKey: LogicalKeyboardKey.shiftLeft,
-    );
-  }
-  if (meta) {
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
+  if (meta)
     await _sendKeyDown(
-      physicalKey: PhysicalKeyboardKey.metaLeft,
-      logicalKey: LogicalKeyboardKey.metaLeft,
-    );
-  }
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft);
 
   if (ctrl || alt || shift || meta) {
     await Future.delayed(const Duration(milliseconds: 5));
@@ -1080,154 +1515,68 @@ Future<void> _handleSpecialKey(String keySpec) async {
   );
   await Future.delayed(const Duration(milliseconds: 10));
   await _sendKeyUp(
-    physicalKey: keyInfo.physicalKey,
-    logicalKey: keyInfo.logicalKey,
-  );
+      physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
 
-  // Release modifiers (in reverse order)
+  // Release modifiers
   if (meta) {
     await Future.delayed(const Duration(milliseconds: 5));
     await _sendKeyUp(
-      physicalKey: PhysicalKeyboardKey.metaLeft,
-      logicalKey: LogicalKeyboardKey.metaLeft,
-    );
+        physicalKey: PhysicalKeyboardKey.metaLeft,
+        logicalKey: LogicalKeyboardKey.metaLeft);
   }
   if (shift) {
     await Future.delayed(const Duration(milliseconds: 5));
     await _sendKeyUp(
-      physicalKey: PhysicalKeyboardKey.shiftLeft,
-      logicalKey: LogicalKeyboardKey.shiftLeft,
-    );
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
   }
   if (alt) {
     await Future.delayed(const Duration(milliseconds: 5));
     await _sendKeyUp(
-      physicalKey: PhysicalKeyboardKey.altLeft,
-      logicalKey: LogicalKeyboardKey.altLeft,
-    );
+        physicalKey: PhysicalKeyboardKey.altLeft,
+        logicalKey: LogicalKeyboardKey.altLeft);
   }
   if (ctrl) {
     await Future.delayed(const Duration(milliseconds: 5));
     await _sendKeyUp(
-      physicalKey: PhysicalKeyboardKey.controlLeft,
-      logicalKey: LogicalKeyboardKey.controlLeft,
-    );
+        physicalKey: PhysicalKeyboardKey.controlLeft,
+        logicalKey: LogicalKeyboardKey.controlLeft);
   }
 
-  await Future.delayed(const Duration(milliseconds: 50));
+  await Future.delayed(const Duration(milliseconds: 30));
 }
 
-/// Special key info including physical/logical keys and optional character
-class _SpecialKeyInfo {
-  final PhysicalKeyboardKey physicalKey;
-  final LogicalKeyboardKey logicalKey;
-  final String? character;
+// ============================================================================
+// Raw Key Event Simulation
+// ============================================================================
 
-  const _SpecialKeyInfo(this.physicalKey, this.logicalKey, [this.character]);
-}
+Future<void> _simulateCharacterKeyPress(String char) async {
+  final keyInfo = _getKeyInfoForCharacter(char);
+  if (keyInfo == null) return;
 
-/// Get key info for a special key name
-_SpecialKeyInfo? _getSpecialKeyInfo(String key) {
-  // Navigation keys
-  switch (key) {
-    case 'enter':
-    case 'return':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.enter, LogicalKeyboardKey.enter, '\n');
-    case 'tab':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.tab, LogicalKeyboardKey.tab, '\t');
-    case 'backspace':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.backspace, LogicalKeyboardKey.backspace);
-    case 'delete':
-    case 'del':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.delete, LogicalKeyboardKey.delete);
-    case 'escape':
-    case 'esc':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.escape, LogicalKeyboardKey.escape);
-    case 'space':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.space, LogicalKeyboardKey.space, ' ');
-
-    // Arrow keys
-    case 'left':
-    case 'arrowleft':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowLeft);
-    case 'right':
-    case 'arrowright':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowRight);
-    case 'up':
-    case 'arrowup':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowUp);
-    case 'down':
-    case 'arrowdown':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown);
-
-    // Navigation
-    case 'home':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.home, LogicalKeyboardKey.home);
-    case 'end':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.end, LogicalKeyboardKey.end);
-    case 'pageup':
-    case 'pgup':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.pageUp, LogicalKeyboardKey.pageUp);
-    case 'pagedown':
-    case 'pgdn':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.pageDown, LogicalKeyboardKey.pageDown);
-    case 'insert':
-    case 'ins':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.insert, LogicalKeyboardKey.insert);
-
-    // Function keys
-    case 'f1':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f1, LogicalKeyboardKey.f1);
-    case 'f2':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f2, LogicalKeyboardKey.f2);
-    case 'f3':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f3, LogicalKeyboardKey.f3);
-    case 'f4':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f4, LogicalKeyboardKey.f4);
-    case 'f5':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f5, LogicalKeyboardKey.f5);
-    case 'f6':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f6, LogicalKeyboardKey.f6);
-    case 'f7':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f7, LogicalKeyboardKey.f7);
-    case 'f8':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f8, LogicalKeyboardKey.f8);
-    case 'f9':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f9, LogicalKeyboardKey.f9);
-    case 'f10':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f10, LogicalKeyboardKey.f10);
-    case 'f11':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f11, LogicalKeyboardKey.f11);
-    case 'f12':
-      return _SpecialKeyInfo(PhysicalKeyboardKey.f12, LogicalKeyboardKey.f12);
+  if (keyInfo.needsShift) {
+    await _sendKeyDown(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
+    await Future.delayed(const Duration(milliseconds: 5));
   }
 
-  // Single letter/digit keys (for combos like ctrl+c, ctrl+z)
-  if (key.length == 1) {
-    final char = key;
-    final code = char.codeUnitAt(0);
+  await _sendKeyDown(
+      physicalKey: keyInfo.physicalKey,
+      logicalKey: keyInfo.logicalKey,
+      character: char);
+  await Future.delayed(const Duration(milliseconds: 10));
+  await _sendKeyUp(
+      physicalKey: keyInfo.physicalKey, logicalKey: keyInfo.logicalKey);
 
-    // Letters a-z
-    if (code >= 'a'.codeUnitAt(0) && code <= 'z'.codeUnitAt(0)) {
-      final keyInfo = _getLowercaseLetterKey(char);
-      if (keyInfo != null) {
-        return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
-      }
-    }
-
-    // Digits 0-9
-    if (code >= '0'.codeUnitAt(0) && code <= '9'.codeUnitAt(0)) {
-      final keyInfo = _getDigitKey(char);
-      if (keyInfo != null) {
-        return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
-      }
-    }
+  if (keyInfo.needsShift) {
+    await Future.delayed(const Duration(milliseconds: 5));
+    await _sendKeyUp(
+        physicalKey: PhysicalKeyboardKey.shiftLeft,
+        logicalKey: LogicalKeyboardKey.shiftLeft);
   }
-
-  return null;
 }
 
-/// Send a key down event by directly dispatching to the Focus tree
 Future<bool> _sendKeyDown({
   required PhysicalKeyboardKey physicalKey,
   required LogicalKeyboardKey logicalKey,
@@ -1246,15 +1595,14 @@ Future<bool> _sendKeyDown({
   final onKeyEvent = primaryFocus.onKeyEvent;
   if (onKeyEvent != null) {
     final result = onKeyEvent(primaryFocus, keyEvent);
-    // For widgets like xterm's CustomKeyboardListener, character insertion
-    // happens in the onKeyEvent callback even if it returns ignored
+    // For xterm-style widgets, character insertion happens in onKeyEvent
     if (keyEvent.character != null && keyEvent.character!.isNotEmpty) {
       return true;
     }
     return result == KeyEventResult.handled;
   }
 
-  // Fallback: send through HardwareKeyboard API
+  // Fallback: HardwareKeyboard API
   return ServicesBinding.instance.keyEventManager.handleKeyData(
     ui.KeyData(
       type: ui.KeyEventType.down,
@@ -1267,7 +1615,6 @@ Future<bool> _sendKeyDown({
   );
 }
 
-/// Send a key up event by directly dispatching to the Focus tree
 Future<bool> _sendKeyUp({
   required PhysicalKeyboardKey physicalKey,
   required LogicalKeyboardKey logicalKey,
@@ -1287,7 +1634,6 @@ Future<bool> _sendKeyUp({
     return result == KeyEventResult.handled;
   }
 
-  // Fallback: send through HardwareKeyboard API
   return ServicesBinding.instance.keyEventManager.handleKeyData(
     ui.KeyData(
       type: ui.KeyEventType.up,
@@ -1300,275 +1646,266 @@ Future<bool> _sendKeyUp({
   );
 }
 
-/// Information about a key for a character
+// ============================================================================
+// Key Info Structures and Mappings
+// ============================================================================
+
+class _SpecialKeyInfo {
+  final PhysicalKeyboardKey physicalKey;
+  final LogicalKeyboardKey logicalKey;
+  final String? character;
+  const _SpecialKeyInfo(this.physicalKey, this.logicalKey, [this.character]);
+}
+
+_SpecialKeyInfo? _getSpecialKeyInfo(String key) {
+  return switch (key) {
+    'enter' || 'return' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.enter, LogicalKeyboardKey.enter, '\n'),
+    'tab' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.tab, LogicalKeyboardKey.tab, '\t'),
+    'backspace' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.backspace, LogicalKeyboardKey.backspace),
+    'delete' || 'del' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.delete, LogicalKeyboardKey.delete),
+    'escape' || 'esc' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.escape, LogicalKeyboardKey.escape),
+    'space' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.space, LogicalKeyboardKey.space, ' '),
+    'left' || 'arrowleft' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowLeft, LogicalKeyboardKey.arrowLeft),
+    'right' || 'arrowright' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowRight, LogicalKeyboardKey.arrowRight),
+    'up' || 'arrowup' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowUp, LogicalKeyboardKey.arrowUp),
+    'down' || 'arrowdown' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.arrowDown, LogicalKeyboardKey.arrowDown),
+    'home' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.home, LogicalKeyboardKey.home),
+    'end' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.end, LogicalKeyboardKey.end),
+    'pageup' || 'pgup' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.pageUp, LogicalKeyboardKey.pageUp),
+    'pagedown' || 'pgdn' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.pageDown, LogicalKeyboardKey.pageDown),
+    'insert' || 'ins' => const _SpecialKeyInfo(
+        PhysicalKeyboardKey.insert, LogicalKeyboardKey.insert),
+    'f1' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f1, LogicalKeyboardKey.f1),
+    'f2' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f2, LogicalKeyboardKey.f2),
+    'f3' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f3, LogicalKeyboardKey.f3),
+    'f4' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f4, LogicalKeyboardKey.f4),
+    'f5' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f5, LogicalKeyboardKey.f5),
+    'f6' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f6, LogicalKeyboardKey.f6),
+    'f7' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f7, LogicalKeyboardKey.f7),
+    'f8' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f8, LogicalKeyboardKey.f8),
+    'f9' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f9, LogicalKeyboardKey.f9),
+    'f10' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f10, LogicalKeyboardKey.f10),
+    'f11' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f11, LogicalKeyboardKey.f11),
+    'f12' =>
+      const _SpecialKeyInfo(PhysicalKeyboardKey.f12, LogicalKeyboardKey.f12),
+    _ when key.length == 1 => _getSingleCharSpecialKey(key),
+    _ => null,
+  };
+}
+
+_SpecialKeyInfo? _getSingleCharSpecialKey(String char) {
+  final code = char.codeUnitAt(0);
+  if (code >= 97 && code <= 122) {
+    // a-z
+    final keyInfo = _getLowercaseLetterKey(char);
+    if (keyInfo != null)
+      return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
+  }
+  if (code >= 48 && code <= 57) {
+    // 0-9
+    final keyInfo = _getDigitKey(char);
+    if (keyInfo != null)
+      return _SpecialKeyInfo(keyInfo.physicalKey, keyInfo.logicalKey, char);
+  }
+  return null;
+}
+
 class _KeyInfo {
   final PhysicalKeyboardKey physicalKey;
   final LogicalKeyboardKey logicalKey;
   final bool needsShift;
-
-  const _KeyInfo({
-    required this.physicalKey,
-    required this.logicalKey,
-    this.needsShift = false,
-  });
+  const _KeyInfo(
+      {required this.physicalKey,
+      required this.logicalKey,
+      this.needsShift = false});
 }
 
-/// Get key information for a character
 _KeyInfo? _getKeyInfoForCharacter(String char) {
-  // Lowercase letters
-  if (char.codeUnitAt(0) >= 'a'.codeUnitAt(0) &&
-      char.codeUnitAt(0) <= 'z'.codeUnitAt(0)) {
-    return _getLowercaseLetterKey(char);
-  }
+  final code = char.codeUnitAt(0);
 
-  // Uppercase letters
-  if (char.codeUnitAt(0) >= 'A'.codeUnitAt(0) &&
-      char.codeUnitAt(0) <= 'Z'.codeUnitAt(0)) {
-    return _getUppercaseLetterKey(char);
-  }
-
-  // Digits
-  if (char.codeUnitAt(0) >= '0'.codeUnitAt(0) &&
-      char.codeUnitAt(0) <= '9'.codeUnitAt(0)) {
-    return _getDigitKey(char);
-  }
-
-  // Space
-  if (char == ' ') {
+  if (code >= 97 && code <= 122) return _getLowercaseLetterKey(char);
+  if (code >= 65 && code <= 90) return _getUppercaseLetterKey(char);
+  if (code >= 48 && code <= 57) return _getDigitKey(char);
+  if (char == ' ')
     return const _KeyInfo(
-      physicalKey: PhysicalKeyboardKey.space,
-      logicalKey: LogicalKeyboardKey.space,
-    );
-  }
+        physicalKey: PhysicalKeyboardKey.space,
+        logicalKey: LogicalKeyboardKey.space);
 
-  // Common punctuation and symbols
   return _getSymbolKey(char);
 }
 
-/// Get key info for lowercase letter
 _KeyInfo? _getLowercaseLetterKey(String char) {
-  final offset = char.codeUnitAt(0) - 'a'.codeUnitAt(0);
+  final offset = char.codeUnitAt(0) - 97;
   final physical = _letterPhysicalKeys[offset];
   final logical = _letterLogicalKeys[offset];
   if (physical == null || logical == null) return null;
   return _KeyInfo(physicalKey: physical, logicalKey: logical);
 }
 
-/// Get key info for uppercase letter (needs shift)
 _KeyInfo? _getUppercaseLetterKey(String char) {
-  final lower = char.toLowerCase();
-  final offset = lower.codeUnitAt(0) - 'a'.codeUnitAt(0);
+  final offset = char.toLowerCase().codeUnitAt(0) - 97;
   final physical = _letterPhysicalKeys[offset];
   final logical = _letterLogicalKeys[offset];
   if (physical == null || logical == null) return null;
-  return _KeyInfo(
-    physicalKey: physical,
-    logicalKey: logical,
-    needsShift: true,
-  );
+  return _KeyInfo(physicalKey: physical, logicalKey: logical, needsShift: true);
 }
 
-/// Get key info for digit
 _KeyInfo? _getDigitKey(String char) {
-  final offset = char.codeUnitAt(0) - '0'.codeUnitAt(0);
+  final offset = char.codeUnitAt(0) - 48;
   final physical = _digitPhysicalKeys[offset];
   final logical = _digitLogicalKeys[offset];
   if (physical == null || logical == null) return null;
   return _KeyInfo(physicalKey: physical, logicalKey: logical);
 }
 
-/// Get key info for symbol
 _KeyInfo? _getSymbolKey(String char) {
-  // Unshifted symbols on US keyboard
-  switch (char) {
-    case '-':
-      return const _KeyInfo(
+  return switch (char) {
+    '-' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.minus,
-        logicalKey: LogicalKeyboardKey.minus,
-      );
-    case '=':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.minus),
+    '=' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.equal,
-        logicalKey: LogicalKeyboardKey.equal,
-      );
-    case '[':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.equal),
+    '[' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.bracketLeft,
-        logicalKey: LogicalKeyboardKey.bracketLeft,
-      );
-    case ']':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.bracketLeft),
+    ']' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.bracketRight,
-        logicalKey: LogicalKeyboardKey.bracketRight,
-      );
-    case '\\':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.bracketRight),
+    '\\' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.backslash,
-        logicalKey: LogicalKeyboardKey.backslash,
-      );
-    case ';':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.backslash),
+    ';' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.semicolon,
-        logicalKey: LogicalKeyboardKey.semicolon,
-      );
-    case "'":
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.semicolon),
+    "'" => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.quote,
-        logicalKey: LogicalKeyboardKey.quoteSingle,
-      );
-    case '`':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.quoteSingle),
+    '`' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.backquote,
-        logicalKey: LogicalKeyboardKey.backquote,
-      );
-    case ',':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.backquote),
+    ',' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.comma,
-        logicalKey: LogicalKeyboardKey.comma,
-      );
-    case '.':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.comma),
+    '.' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.period,
-        logicalKey: LogicalKeyboardKey.period,
-      );
-    case '/':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.period),
+    '/' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.slash,
-        logicalKey: LogicalKeyboardKey.slash,
-      );
-    // Shifted symbols
-    case '!':
-      return const _KeyInfo(
+        logicalKey: LogicalKeyboardKey.slash),
+    '!' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit1,
         logicalKey: LogicalKeyboardKey.exclamation,
-        needsShift: true,
-      );
-    case '@':
-      return const _KeyInfo(
+        needsShift: true),
+    '@' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit2,
         logicalKey: LogicalKeyboardKey.at,
-        needsShift: true,
-      );
-    case '#':
-      return const _KeyInfo(
+        needsShift: true),
+    '#' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit3,
         logicalKey: LogicalKeyboardKey.numberSign,
-        needsShift: true,
-      );
-    case '\$':
-      return const _KeyInfo(
+        needsShift: true),
+    '\$' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit4,
         logicalKey: LogicalKeyboardKey.dollar,
-        needsShift: true,
-      );
-    case '%':
-      return const _KeyInfo(
+        needsShift: true),
+    '%' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit5,
         logicalKey: LogicalKeyboardKey.percent,
-        needsShift: true,
-      );
-    case '^':
-      return const _KeyInfo(
+        needsShift: true),
+    '^' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit6,
         logicalKey: LogicalKeyboardKey.caret,
-        needsShift: true,
-      );
-    case '&':
-      return const _KeyInfo(
+        needsShift: true),
+    '&' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit7,
         logicalKey: LogicalKeyboardKey.ampersand,
-        needsShift: true,
-      );
-    case '*':
-      return const _KeyInfo(
+        needsShift: true),
+    '*' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit8,
         logicalKey: LogicalKeyboardKey.asterisk,
-        needsShift: true,
-      );
-    case '(':
-      return const _KeyInfo(
+        needsShift: true),
+    '(' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit9,
         logicalKey: LogicalKeyboardKey.parenthesisLeft,
-        needsShift: true,
-      );
-    case ')':
-      return const _KeyInfo(
+        needsShift: true),
+    ')' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.digit0,
         logicalKey: LogicalKeyboardKey.parenthesisRight,
-        needsShift: true,
-      );
-    case '_':
-      return const _KeyInfo(
+        needsShift: true),
+    '_' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.minus,
         logicalKey: LogicalKeyboardKey.underscore,
-        needsShift: true,
-      );
-    case '+':
-      return const _KeyInfo(
+        needsShift: true),
+    '+' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.equal,
         logicalKey: LogicalKeyboardKey.add,
-        needsShift: true,
-      );
-    case '{':
-      return const _KeyInfo(
+        needsShift: true),
+    '{' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.bracketLeft,
         logicalKey: LogicalKeyboardKey.braceLeft,
-        needsShift: true,
-      );
-    case '}':
-      return const _KeyInfo(
+        needsShift: true),
+    '}' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.bracketRight,
         logicalKey: LogicalKeyboardKey.braceRight,
-        needsShift: true,
-      );
-    case '|':
-      return const _KeyInfo(
+        needsShift: true),
+    '|' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.backslash,
         logicalKey: LogicalKeyboardKey.bar,
-        needsShift: true,
-      );
-    case ':':
-      return const _KeyInfo(
+        needsShift: true),
+    ':' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.semicolon,
         logicalKey: LogicalKeyboardKey.colon,
-        needsShift: true,
-      );
-    case '"':
-      return const _KeyInfo(
+        needsShift: true),
+    '"' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.quote,
         logicalKey: LogicalKeyboardKey.quote,
-        needsShift: true,
-      );
-    case '~':
-      return const _KeyInfo(
+        needsShift: true),
+    '~' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.backquote,
         logicalKey: LogicalKeyboardKey.tilde,
-        needsShift: true,
-      );
-    case '<':
-      return const _KeyInfo(
+        needsShift: true),
+    '<' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.comma,
         logicalKey: LogicalKeyboardKey.less,
-        needsShift: true,
-      );
-    case '>':
-      return const _KeyInfo(
+        needsShift: true),
+    '>' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.period,
         logicalKey: LogicalKeyboardKey.greater,
-        needsShift: true,
-      );
-    case '?':
-      return const _KeyInfo(
+        needsShift: true),
+    '?' => const _KeyInfo(
         physicalKey: PhysicalKeyboardKey.slash,
         logicalKey: LogicalKeyboardKey.question,
-        needsShift: true,
-      );
-    default:
-      return null;
-  }
+        needsShift: true),
+    _ => null,
+  };
 }
 
-/// Physical keys for letters a-z
 const _letterPhysicalKeys = <int, PhysicalKeyboardKey>{
   0: PhysicalKeyboardKey.keyA,
   1: PhysicalKeyboardKey.keyB,
@@ -1598,7 +1935,6 @@ const _letterPhysicalKeys = <int, PhysicalKeyboardKey>{
   25: PhysicalKeyboardKey.keyZ,
 };
 
-/// Logical keys for letters a-z
 const _letterLogicalKeys = <int, LogicalKeyboardKey>{
   0: LogicalKeyboardKey.keyA,
   1: LogicalKeyboardKey.keyB,
@@ -1628,7 +1964,6 @@ const _letterLogicalKeys = <int, LogicalKeyboardKey>{
   25: LogicalKeyboardKey.keyZ,
 };
 
-/// Physical keys for digits 0-9
 const _digitPhysicalKeys = <int, PhysicalKeyboardKey>{
   0: PhysicalKeyboardKey.digit0,
   1: PhysicalKeyboardKey.digit1,
@@ -1642,7 +1977,6 @@ const _digitPhysicalKeys = <int, PhysicalKeyboardKey>{
   9: PhysicalKeyboardKey.digit9,
 };
 
-/// Logical keys for digits 0-9
 const _digitLogicalKeys = <int, LogicalKeyboardKey>{
   0: LogicalKeyboardKey.digit0,
   1: LogicalKeyboardKey.digit1,
@@ -1710,7 +2044,8 @@ void _registerScrollExtension() {
           );
         }
 
-        final durationMs = durationMsStr != null ? int.tryParse(durationMsStr) : 300;
+        final durationMs =
+            durationMsStr != null ? int.tryParse(durationMsStr) : 300;
         final duration = Duration(milliseconds: durationMs ?? 300);
 
         await _simulateScroll(
@@ -1827,6 +2162,360 @@ Future<void> _simulateScroll({
   }
 
   }
+
+// ============================================================================
+// cursor_extension.dart
+// ============================================================================
+
+/// Registers cursor-related service extensions
+///
+/// - ext.runtime_ai_dev_tools.moveCursor - Move the cursor to a position
+/// - ext.runtime_ai_dev_tools.getCursorPosition - Get current cursor position
+void _registerCursorExtension() {
+  
+  // Move cursor extension
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.moveCursor',
+    (String method, Map<String, String> parameters) async {
+            
+      try {
+        final xStr = parameters['x'];
+        final yStr = parameters['y'];
+
+        if (xStr == null || yStr == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameters: x and y',
+          );
+        }
+
+        final x = double.tryParse(xStr);
+        final y = double.tryParse(yStr);
+
+        if (x == null || y == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Invalid x or y coordinate',
+          );
+        }
+
+        // Set the cursor position (without requiring BuildContext for overlay)
+        _TapVisualizationService().setCursorPosition(x, y);
+
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'x': x,
+            'y': y,
+          }),
+        );
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to move cursor: $e',
+        );
+      }
+    },
+  );
+
+  // Get cursor position extension
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getCursorPosition',
+    (String method, Map<String, String> parameters) async {
+      
+      try {
+        final position = _TapVisualizationService().cursorPosition;
+
+        if (position == null) {
+          return developer.ServiceExtensionResponse.result(
+            json.encode({
+              'status': 'success',
+              'hasPosition': false,
+              'message': 'No cursor position set. Use moveCursor or tap first.',
+            }),
+          );
+        }
+
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'hasPosition': true,
+            'x': position.dx,
+            'y': position.dy,
+          }),
+        );
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to get cursor position: $e',
+        );
+      }
+    },
+  );
+
+  }
+
+// ============================================================================
+// widget_info_extension.dart
+// ============================================================================
+
+/// Registers the widget info service extension
+///
+/// This extension provides widget information at screen coordinates,
+/// including source file location when available (debug mode with
+/// --track-widget-creation enabled).
+void _registerWidgetInfoExtension() {
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getWidgetInfo',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final xStr = parameters['x'];
+        final yStr = parameters['y'];
+
+        if (xStr == null || yStr == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameters: x and y',
+          );
+        }
+
+        final x = double.tryParse(xStr);
+        final y = double.tryParse(yStr);
+
+        if (x == null || y == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Invalid x or y coordinate',
+          );
+        }
+
+        final result = _getWidgetInfoAtPosition(x, y);
+
+        return developer.ServiceExtensionResponse.result(json.encode(result));
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to get widget info: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+}
+
+/// Get widget information at the specified screen coordinates
+Map<String, dynamic> _getWidgetInfoAtPosition(double x, double y) {
+  
+  // Show inspection pulse animation
+  _TapVisualizationService().showInspectionPulse(x, y);
+
+  final binding = WidgetsBinding.instance;
+  final renderView = binding.renderViews.firstOrNull;
+
+  if (renderView == null) {
+        return {
+      'status': 'error',
+      'error': 'No render view available',
+    };
+  }
+
+  // Perform hit test at the position
+  final position = Offset(x, y);
+  final result = HitTestResult();
+  renderView.hitTest(result, position: position);
+
+  if (result.path.isEmpty) {
+        return {
+      'status': 'success',
+      'widgets': <Map<String, dynamic>>[],
+      'message': 'No widgets found at position ($x, $y)',
+    };
+  }
+
+  
+  // Collect widget information from hit test results
+  final widgets = <Map<String, dynamic>>[];
+  final seenElements = <Element>{};
+
+  for (final entry in result.path) {
+    final target = entry.target;
+    if (target is! RenderObject) continue;
+
+    // Find the Element that owns this RenderObject
+    final element = _findElementForRenderObject(target);
+    if (element == null) continue;
+
+    // Skip if we've already processed this element
+    if (seenElements.contains(element)) continue;
+    seenElements.add(element);
+
+    final widget = element.widget;
+    final widgetInfo = _extractWidgetInfo(widget, element, target);
+    if (widgetInfo != null) {
+      widgets.add(widgetInfo);
+    }
+  }
+
+  
+  return {
+    'status': 'success',
+    'position': {'x': x, 'y': y},
+    'widgets': widgets,
+  };
+}
+
+/// Find the Element that owns a RenderObject
+Element? _findElementForRenderObject(RenderObject renderObject) {
+  Element? result;
+
+  void visitor(Element element) {
+    if (element.renderObject == renderObject) {
+      result = element;
+      return;
+    }
+    if (result == null) {
+      element.visitChildren(visitor);
+    }
+  }
+
+  final binding = WidgetsBinding.instance;
+  binding.rootElement?.visitChildren(visitor);
+
+  return result;
+}
+
+/// Extract widget information including source location
+Map<String, dynamic>? _extractWidgetInfo(
+  Widget widget,
+  Element element,
+  RenderObject renderObject,
+) {
+  final widgetType = widget.runtimeType.toString();
+
+  // Get the render box bounds if available
+  Map<String, dynamic>? bounds;
+  if (renderObject is RenderBox && renderObject.hasSize) {
+    try {
+      final transform = renderObject.getTransformTo(null);
+      final topLeft = MatrixUtils.transformPoint(transform, Offset.zero);
+      final size = renderObject.size;
+
+      bounds = {
+        'x': topLeft.dx,
+        'y': topLeft.dy,
+        'width': size.width,
+        'height': size.height,
+      };
+    } catch (e) {
+      // Ignore bounds extraction errors
+    }
+  }
+
+  // Try to get creation location (requires --track-widget-creation)
+  final creationLocation = _getCreationLocation(element);
+
+  // Build the widget info map
+  final info = <String, dynamic>{
+    'type': widgetType,
+    'key': widget.key?.toString(),
+  };
+
+  if (bounds != null) {
+    info['bounds'] = bounds;
+  }
+
+  if (creationLocation != null) {
+    info['creationLocation'] = creationLocation;
+  }
+
+  // Add the debug creator chain (useful for finding source)
+  try {
+    info['creatorChain'] = element.debugGetCreatorChain(5);
+  } catch (e) {
+    // Ignore if not available
+  }
+
+  // Add some useful widget-specific properties
+  _addWidgetSpecificInfo(widget, info);
+
+  return info;
+}
+
+/// Try to get the creation location from an Element
+///
+/// This works when Flutter is run with --track-widget-creation (default in debug)
+/// Uses WidgetInspectorService to access location data.
+Map<String, dynamic>? _getCreationLocation(Element element) {
+  try {
+    // WidgetInspectorService provides access to creation locations
+    // when --track-widget-creation is enabled (default in debug mode)
+    if (!WidgetInspectorService.instance.isWidgetCreationTracked()) {
+      return null;
+    }
+
+    // The inspector service can select and inspect widgets
+    // We use it to get the creation location data
+    final widget = element.widget;
+
+    // Try to get location via the debug representation
+    // The widget's toString in debug mode includes location info
+    final debugString = widget.toStringShort();
+
+    // Parse location from debug string if present (format: "WidgetName(file.dart:line)")
+    final match = RegExp(r'\(([^:]+):(\d+)\)$').firstMatch(debugString);
+    if (match != null) {
+      return {
+        'file': match.group(1),
+        'line': int.tryParse(match.group(2) ?? ''),
+      };
+    }
+
+    // Alternative: use toDiagnosticsNode to get structured info
+    final diagnostics = widget.toDiagnosticsNode();
+    for (final property in diagnostics.getProperties()) {
+      final name = property.name?.toLowerCase() ?? '';
+      if (name.contains('location') || name.contains('source')) {
+        final value = property.value;
+        if (value != null) {
+          return {'debug': value.toString()};
+        }
+      }
+    }
+  } catch (e) {
+    // Location tracking not available or failed
+      }
+  return null;
+}
+
+/// Add widget-specific properties that might be useful for understanding the widget
+void _addWidgetSpecificInfo(Widget widget, Map<String, dynamic> info) {
+  // Add text content for Text widgets
+  if (widget is Text) {
+    info['text'] = widget.data ?? widget.textSpan?.toPlainText();
+  }
+
+  // Add label/hint for input widgets
+  if (widget is EditableText) {
+    info['text'] = widget.controller.text;
+  }
+
+  // Add semantics label if available
+  if (widget is Semantics) {
+    info['semanticsLabel'] = widget.properties.label;
+  }
+
+  // Add icon data for Icon widgets
+  if (widget is Icon) {
+    info['icon'] = widget.icon?.codePoint;
+  }
+
+  // Add image info
+  if (widget is Image) {
+    final imageProvider = widget.image;
+    info['imageType'] = imageProvider.runtimeType.toString();
+  }
+}
 
 // ============================================================================
 // debug_overlay_wrapper.dart

@@ -21,26 +21,79 @@ class VmServiceEvaluator {
   /// Create an evaluator from a VM Service connection
   ///
   /// This discovers the isolate and root library automatically.
+  /// After hot reload/restart, a new isolate is created and the old one is
+  /// marked for collection. This method finds a runnable isolate that isn't
+  /// in a terminating state.
   static Future<VmServiceEvaluator?> create(vms.VmService vmService) async {
     try {
       final vm = await vmService.getVM();
       if (vm.isolates == null || vm.isolates!.isEmpty) {
+        print('❌ [VmServiceEvaluator] No isolates found');
         return null;
       }
 
-      final isolateId = vm.isolates!.first.id!;
+      // Find a runnable isolate - prefer one that's not in a terminating state
+      vms.IsolateRef? targetIsolateRef;
+      for (final isolateRef in vm.isolates!) {
+        if (isolateRef.id == null) continue;
+
+        try {
+          final isolate = await vmService.getIsolate(isolateRef.id!);
+
+          // Skip isolates that are exiting/paused at exit
+          final pauseEvent = isolate.pauseEvent;
+          if (pauseEvent != null) {
+            final kind = pauseEvent.kind;
+            if (kind == vms.EventKind.kPauseExit ||
+                kind == vms.EventKind.kPausePostRequest ||
+                kind == vms.EventKind.kIsolateExit) {
+              print(
+                '⚠️  [VmServiceEvaluator] Skipping isolate ${isolateRef.id} - pause event: $kind',
+              );
+              continue;
+            }
+          }
+
+          // This isolate looks good - it has a root library and isn't exiting
+          if (isolate.rootLib != null) {
+            targetIsolateRef = isolateRef;
+            print(
+              '✅ [VmServiceEvaluator] Found runnable isolate: ${isolateRef.id}',
+            );
+            break;
+          }
+        } catch (e) {
+          // This isolate might already be collected, skip it
+          print(
+            '⚠️  [VmServiceEvaluator] Error checking isolate ${isolateRef.id}: $e',
+          );
+          continue;
+        }
+      }
+
+      if (targetIsolateRef == null) {
+        print('❌ [VmServiceEvaluator] No runnable isolate found');
+        return null;
+      }
+
+      final isolateId = targetIsolateRef.id!;
       final isolate = await vmService.getIsolate(isolateId);
 
       if (isolate.rootLib == null) {
+        print('❌ [VmServiceEvaluator] Isolate $isolateId has no root library');
         return null;
       }
 
+      print(
+        '✅ [VmServiceEvaluator] Created evaluator with isolate: $isolateId, rootLib: ${isolate.rootLib!.id}',
+      );
       return VmServiceEvaluator(
         vmService: vmService,
         isolateId: isolateId,
         rootLibraryId: isolate.rootLib!.id!,
       );
     } catch (e) {
+      print('❌ [VmServiceEvaluator] Failed to create evaluator: $e');
       return null;
     }
   }

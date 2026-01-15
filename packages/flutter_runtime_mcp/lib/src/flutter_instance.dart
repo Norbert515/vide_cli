@@ -537,93 +537,294 @@ class FlutterInstance {
     throw Exception('Scroll failed: ${json?['status']}');
   }
 
-  /// Perform hot reload
+  /// Get widget information at the specified screen coordinates
   ///
-  /// Hot reload works by sending 'r' to stdin and waiting for the completion
-  /// message in stdout. The VM Service's `reloadSources` method is only available
-  /// when Flutter tools is the launcher (it registers it as a service extension).
-  /// Since we connect directly to the VM Service URI, we use stdin approach.
+  /// Returns a map containing:
+  /// - widgets: List of widgets at the position (innermost first)
+  /// - Each widget has: type, key, bounds, creationLocation (if available), text (for Text widgets)
+  ///
+  /// Coordinates should be in logical pixels (not physical/device pixels).
+  Future<Map<String, dynamic>> getWidgetInfo(double x, double y) async {
+    print('🔍 [FlutterInstance] Getting widget info at ($x, $y)');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    // Get isolate ID (required for service extension calls)
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      print('❌ [FlutterInstance] No isolate ID available');
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getWidgetInfo',
+    );
+    print('   Parameters: x=$x, y=$y, isolateId=$isolateId');
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getWidgetInfo',
+          isolateId: isolateId,
+          args: {'x': x.toString(), 'y': y.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getWidgetInfo timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.getWidgetInfo',
+    );
+    print('   Response type: ${response.type}');
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getWidgetInfo returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] getWidgetInfo successful');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getWidgetInfo failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Move the cursor to the specified screen coordinates
+  ///
+  /// Coordinates should be in logical pixels (not physical/device pixels).
+  /// Returns true if successful.
+  Future<bool> moveCursor(double x, double y) async {
+    print('🎯 [FlutterInstance] Moving cursor to ($x, $y)');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.moveCursor',
+          isolateId: isolateId,
+          args: {'x': x.toString(), 'y': y.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'moveCursor timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Cursor moved to ($x, $y)');
+      return true;
+    }
+
+    throw Exception('moveCursor failed: ${json?['status']}');
+  }
+
+  /// Get the current cursor position
+  ///
+  /// Returns the position in logical pixels, or null if no cursor is set.
+  Future<({double x, double y})?> getCursorPosition() async {
+    print('🔍 [FlutterInstance] Getting cursor position');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getCursorPosition',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getCursorPosition timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getCursorPosition returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      if (json['hasPosition'] == true) {
+        final x = (json['x'] as num).toDouble();
+        final y = (json['y'] as num).toDouble();
+        print('✅ [FlutterInstance] Cursor position: ($x, $y)');
+        return (x: x, y: y);
+      } else {
+        print('ℹ️  [FlutterInstance] No cursor position set');
+        return null;
+      }
+    }
+
+    throw Exception('getCursorPosition failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Perform hot reload using the VM Service
+  ///
+  /// Calls the 'reloadSources' service registered by Flutter Tools.
+  /// This is more reliable than sending 'r' to stdin and parsing output.
   Future<String> hotReload() async {
     if (!_isRunning) {
       throw StateError('Instance is not running');
     }
 
-    // Create a completer that will be resolved when we detect reload completion
-    final reloadCompleter = Completer<String>();
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
 
-    // Listen for reload completion messages in stdout
-    StreamSubscription<String>? subscription;
-    Timer? timeoutTimer;
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available');
+    }
 
-    subscription = output.listen((line) {
-      // Flutter outputs messages like:
-      // "Reloaded 1 of 537 libraries in 234ms."
-      // "Reloaded 5 of 537 libraries in 1,234ms (compile: 500 ms, reload: 234 ms)."
-      // Or on failure: "Hot reload was rejected"
-      if (line.contains('Reloaded') && line.contains('libraries')) {
-        if (!reloadCompleter.isCompleted) {
-          reloadCompleter.complete(line.trim());
-        }
-      } else if (line.contains('Hot reload was rejected')) {
-        if (!reloadCompleter.isCompleted) {
-          reloadCompleter.completeError(StateError('Hot reload was rejected'));
-        }
-      } else if (line.contains('Hot reload failed')) {
-        if (!reloadCompleter.isCompleted) {
-          reloadCompleter.completeError(StateError(line.trim()));
-        }
-      }
-    });
-
-    // Set up timeout
-    timeoutTimer = Timer(const Duration(seconds: 30), () {
-      if (!reloadCompleter.isCompleted) {
-        reloadCompleter.completeError(
-          TimeoutException('Hot reload timed out after 30 seconds'),
-        );
-      }
-    });
+    print('🔄 [FlutterInstance] Hot reload via VM Service...');
 
     try {
-      // Send 'r' to trigger hot reload
+      // Call the reloadSources service registered by Flutter Tools
+      // The service name format is 's<number>.reloadSources' where number is the client ID
+      // We need to find the registered service first
+      final vm = await _vmService!.getVM();
+
+      // Look for the reloadSources service in registered services
+      String? reloadServiceName;
+      if (vm.json != null && vm.json!['_registeredServices'] != null) {
+        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        if (services != null) {
+          for (final entry in services.entries) {
+            if (entry.key == 'reloadSources') {
+              reloadServiceName = entry.value as String?;
+              break;
+            }
+          }
+        }
+      }
+
+      if (reloadServiceName != null) {
+        // Call the Flutter Tools reloadSources service
+        print('🔄 [FlutterInstance] Calling $reloadServiceName service...');
+        final result = await _vmService!.callMethod(
+          reloadServiceName,
+          args: {'isolateId': isolateId},
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException('Hot reload timed out'),
+        );
+        print('✅ [FlutterInstance] Hot reload completed via service: ${result.json}');
+        return 'Hot reload completed';
+      }
+
+      // Fallback: Use stdin (works for all platforms including web)
+      print('⚠️  [FlutterInstance] reloadSources service not found, using stdin fallback');
       process.stdin.writeln('r');
       await process.stdin.flush();
 
-      // Wait for completion
-      final result = await reloadCompleter.future;
+      // Wait a bit for the reload to complete
+      await Future.delayed(const Duration(milliseconds: 1500));
 
-      // Refresh evaluator AFTER reload completes
-      await _refreshEvaluator();
+      // Try to trigger reassemble to ensure widgets rebuild
+      try {
+        await _vmService!.callServiceExtension(
+          'ext.flutter.reassemble',
+          isolateId: isolateId,
+        );
+      } catch (e) {
+        // Reassemble might not be available, that's ok
+        print('⚠️  [FlutterInstance] Reassemble extension not available: $e');
+      }
 
-      return result;
-    } finally {
-      // Clean up
-      timeoutTimer.cancel();
-      await subscription.cancel();
+      print('✅ [FlutterInstance] Hot reload triggered via stdin');
+      return 'Hot reload completed';
+    } catch (e) {
+      print('❌ [FlutterInstance] Hot reload failed: $e');
+      rethrow;
     }
   }
 
-  /// Perform hot restart (full restart)
+  /// Perform hot restart (full restart) using the VM Service
+  ///
+  /// Calls the 'hotRestart' service registered by Flutter Tools.
   Future<String> hotRestart() async {
     if (!_isRunning) {
       throw StateError('Instance is not running');
     }
 
-    // Send 'R' to trigger hot restart
-    process.stdin.writeln('R');
-    await process.stdin.flush();
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
 
-    // Hot restart creates a new isolate, so we MUST refresh the evaluator
-    // to get the new isolate ID. Wait a bit for Flutter to restart.
-    await Future.delayed(const Duration(milliseconds: 1500));
-    await _refreshEvaluator();
+    print('🔄 [FlutterInstance] Hot restart via VM Service...');
 
-    return 'Hot restart triggered';
+    try {
+      // Look for the hotRestart service registered by Flutter Tools
+      final vm = await _vmService!.getVM();
+
+      String? restartServiceName;
+      if (vm.json != null && vm.json!['_registeredServices'] != null) {
+        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        if (services != null) {
+          for (final entry in services.entries) {
+            if (entry.key == 'hotRestart') {
+              restartServiceName = entry.value as String?;
+              break;
+            }
+          }
+        }
+      }
+
+      if (restartServiceName != null) {
+        // Call the Flutter Tools hotRestart service
+        print('🔄 [FlutterInstance] Calling $restartServiceName service...');
+        await _vmService!.callMethod(
+          restartServiceName,
+          args: {},
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException('Hot restart timed out'),
+        );
+        print('✅ [FlutterInstance] Hot restart completed via service');
+      } else {
+        // Fallback: send 'R' to stdin (less reliable but works)
+        print('⚠️  [FlutterInstance] hotRestart service not found, using stdin fallback');
+        process.stdin.writeln('R');
+        await process.stdin.flush();
+        // Wait for restart to complete
+        await Future.delayed(const Duration(milliseconds: 1500));
+      }
+
+      // Hot restart creates a new isolate, refresh the evaluator
+      await _refreshEvaluator();
+
+      return 'Hot restart completed';
+    } catch (e) {
+      print('❌ [FlutterInstance] Hot restart failed: $e');
+      rethrow;
+    }
   }
 
   /// Refresh the evaluator to get a fresh isolate ID
   ///
   /// This is needed after hot reload/restart because the isolate may change.
+  /// After creating the evaluator, we verify it works by fetching the isolate.
   Future<void> _refreshEvaluator() async {
     if (_vmService == null) return;
 
@@ -635,11 +836,25 @@ class FlutterInstance {
       try {
         _evaluator = await VmServiceEvaluator.create(_vmService!);
         if (_evaluator != null) {
-          print('✅ [FlutterInstance] Evaluator refreshed with new isolate ID: ${_evaluator!.isolateId}');
-          return;
+          // Verify the evaluator works by fetching the isolate
+          try {
+            await _vmService!.getIsolate(_evaluator!.isolateId);
+            print(
+              '✅ [FlutterInstance] Evaluator refreshed and verified with isolate: ${_evaluator!.isolateId}',
+            );
+            return;
+          } catch (e) {
+            print(
+              '⚠️  [FlutterInstance] Evaluator verification failed on attempt ${attempt + 1}: $e',
+            );
+            _evaluator = null;
+            // Continue retrying
+          }
         }
       } catch (e) {
-        print('⚠️  [FlutterInstance] Evaluator refresh attempt ${attempt + 1} failed: $e');
+        print(
+          '⚠️  [FlutterInstance] Evaluator refresh attempt ${attempt + 1} failed: $e',
+        );
       }
 
       // Wait before retrying
