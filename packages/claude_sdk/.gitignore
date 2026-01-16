@@ -12,6 +12,3 @@ pubspec.lock
 *.iml
 .vscode/
 
-# Generated files
-*.g.dart
-*.freezed.dart
