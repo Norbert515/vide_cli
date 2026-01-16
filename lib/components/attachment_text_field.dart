@@ -39,6 +39,10 @@ class AttachmentTextField extends StatefulComponent {
   /// Used to enable focus navigation to a sidebar.
   final void Function()? onLeftEdge;
 
+  /// Called when the right arrow key is pressed and the cursor is at the end of text.
+  /// Used to enable focus navigation to a sidebar.
+  final void Function()? onRightEdge;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -50,6 +54,7 @@ class AttachmentTextField extends StatefulComponent {
     this.onCommand,
     this.commandSuggestions,
     this.onLeftEdge,
+    this.onRightEdge,
     super.key,
   });
 
@@ -367,6 +372,17 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                           _controller.selection.baseOffset == 0 &&
                           _controller.selection.extentOffset == 0) {
                         component.onLeftEdge!();
+                        return true;
+                      }
+
+                      // Right arrow at end of text: trigger onRightEdge callback
+                      if (event.logicalKey == LogicalKey.arrowRight &&
+                          component.onRightEdge != null &&
+                          _controller.selection.baseOffset ==
+                              _controller.text.length &&
+                          _controller.selection.extentOffset ==
+                              _controller.text.length) {
+                        component.onRightEdge!();
                         return true;
                       }
 

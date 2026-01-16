@@ -138,30 +138,17 @@ class _McpServersPanelState extends State<McpServersPanel> {
                 children: [
                   // Top padding to align with main content
                   SizedBox(height: 1),
+
                   // Header
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 1),
-                    child: Row(
-                      children: [
-                        Text(
-                          'MCP Servers',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: theme.base.onSurface,
-                          ),
-                        ),
-                        Spacer(),
-                        Text(
-                          '${servers.where((s) => s.status == McpServerStatus.connected).length}/${servers.length}',
-                          style: TextStyle(
-                            color: theme.base.onSurface
-                                .withOpacity(TextOpacity.tertiary),
-                          ),
-                        ),
-                      ],
+                    padding: EdgeInsets.only(left: 1),
+                    child: Text(
+                      'MCP Servers',
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                      ),
                     ),
                   ),
-                  Divider(color: theme.base.outline),
 
                   // Content
                   Expanded(
@@ -181,9 +168,8 @@ class _McpServersPanelState extends State<McpServersPanel> {
                             ),
                           ),
 
-                        // Servers section
+                        // Servers
                         if (servers.isNotEmpty) ...[
-                          _SectionHeader(title: 'SERVERS'),
                           for (int i = 0; i < servers.length; i++)
                             _McpServerItem(
                               server: servers[i],
@@ -207,30 +193,22 @@ class _McpServersPanelState extends State<McpServersPanel> {
                       ],
                     ),
                   ),
+
+                  // Navigation hint at bottom (matching left sidebar)
+                  if (component.focused)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 1),
+                      child: Text(
+                        '← to exit',
+                        style: TextStyle(
+                          color: theme.base.onSurface.withOpacity(TextOpacity.disabled),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessComponent {
-  final String title;
-
-  const _SectionHeader({required this.title});
-
-  @override
-  Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(left: 1, top: 1),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
         ),
       ),
     );
@@ -274,30 +252,32 @@ class _McpServerItem extends StatelessComponent {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            color: isSelected ? theme.base.surface : null,
-          ),
-          child: Row(
-            children: [
-              // Status indicator
-              Text(statusSymbol, style: TextStyle(color: statusColor)),
-              SizedBox(width: 1),
-              // Server name
-              Expanded(
-                child: Text(
-                  server.name,
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      server.status == McpServerStatus.connected
-                          ? TextOpacity.primary
-                          : TextOpacity.secondary,
+          decoration: isSelected
+              ? BoxDecoration(color: theme.base.primary.withOpacity(0.3))
+              : null,
+          child: Padding(
+            padding: EdgeInsets.only(left: 1),
+            child: Row(
+              children: [
+                // Status indicator
+                Text(statusSymbol, style: TextStyle(color: statusColor)),
+                SizedBox(width: 1),
+                // Server name
+                Expanded(
+                  child: Text(
+                    server.name,
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        server.status == McpServerStatus.connected
+                            ? TextOpacity.primary
+                            : TextOpacity.secondary,
+                      ),
                     ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         // Error message

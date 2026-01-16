@@ -387,13 +387,28 @@ class ControlProtocol {
   ///
   /// [servers] - List of MCP server configurations to add/update
   /// [replace] - If true, replaces all existing servers. If false, merges.
+  ///
+  /// Note: Dynamic MCP server addition is not fully supported by Claude CLI.
+  /// This method is kept for potential future use but may not work reliably.
+  /// For now, MCP servers should be configured in .mcp.json and approved
+  /// in settings.local.json before starting a session.
   Future<void> setMcpServers(
     List<McpServerConfig> servers, {
     bool replace = false,
   }) async {
+    // CLI expects servers as an object with server names as keys:
+    // { "server-name": { "type": "stdio", "command": "...", "args": [...] } }
+    final serversMap = <String, dynamic>{};
+    for (final server in servers) {
+      serversMap[server.name] = {
+        'type': 'stdio',
+        'command': server.command,
+        'args': server.args,
+        if (server.env != null) 'env': server.env,
+      };
+    }
     await _sendControlRequest('mcp_set_servers', {
-      'servers': servers.map((s) => s.toJson()).toList(),
-      'replace': replace,
+      'servers': serversMap,
     });
   }
 

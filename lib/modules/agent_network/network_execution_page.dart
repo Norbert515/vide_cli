@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -419,9 +418,8 @@ class _AgentChatState extends State<_AgentChat> {
         permissionService.addSessionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
-        final settingsManager = LocalSettingsManager(
+        final settingsManager = ClaudeSettingsManager(
           projectRoot: request.cwd,
-          parrottRoot: Platform.script.resolve('.').toFilePath(),
         );
 
         final pattern =
@@ -719,6 +717,8 @@ class _AgentChatState extends State<_AgentChat> {
                   )
                 else
                   AttachmentTextField(
+                    focused: !context.watch(sidebarFocusProvider) &&
+                        !context.watch(mcpPanelFocusProvider),
                     enabled:
                         true, // Always enabled - messages queue during processing
                     placeholder: 'Type a message...',
@@ -729,6 +729,13 @@ class _AgentChatState extends State<_AgentChat> {
                         ? () =>
                               context
                                       .read(sidebarFocusProvider.notifier)
+                                      .state =
+                                  true
+                        : null,
+                    onRightEdge: component.ideModeEnabled
+                        ? () =>
+                              context
+                                      .read(mcpPanelFocusProvider.notifier)
                                       .state =
                                   true
                         : null,
