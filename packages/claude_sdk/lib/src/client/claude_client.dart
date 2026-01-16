@@ -144,18 +144,23 @@ abstract class ClaudeClient {
   /// Creates a client that initializes in the background.
   /// Returns immediately - the client will be usable but messages sent before
   /// init completes will be queued and sent once initialization finishes.
+  ///
+  /// [initialConversation] - Optional pre-loaded conversation for forked agents.
+  /// When set, the client starts with this conversation instead of loading from disk.
   static ClaudeClient createNonBlocking({
     ClaudeConfig? config,
     List<McpServerBase>? mcpServers,
     Map<HookEvent, List<HookMatcher>>? hooks,
     CanUseToolCallback? canUseTool,
     void Function(MetaResponse response)? onMetaResponseReceived,
+    Conversation? initialConversation,
   }) {
     final client = ClaudeClientImpl(
       config: config ?? ClaudeConfig.defaults(),
       mcpServers: mcpServers,
       hooks: hooks,
       canUseTool: canUseTool,
+      initialConversation: initialConversation,
     );
     // Set callback BEFORE init so it's available when init message arrives
     client.onMetaResponseReceived = onMetaResponseReceived;
@@ -169,7 +174,7 @@ class ClaudeClientImpl implements ClaudeClient {
   ClaudeConfig config;
   final List<McpServerBase> mcpServers;
   @override
-  final String sessionId;
+  String get sessionId => config.sessionId!;
   final JsonDecoder _decoder = JsonDecoder();
 
   /// Hook configuration for control protocol
@@ -209,7 +214,7 @@ class ClaudeClientImpl implements ClaudeClient {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _initDataController = StreamController<MetaResponse>.broadcast();
-  Conversation _currentConversation = Conversation.empty();
+  Conversation _currentConversation; // Initialized in constructor (may be pre-loaded for forks)
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
   MetaResponse? _initData;
 
@@ -250,17 +255,23 @@ class ClaudeClientImpl implements ClaudeClient {
     List<McpServerBase>? mcpServers,
     this.hooks,
     this.canUseTool,
+    Conversation? initialConversation,
   }) : config = config ?? ClaudeConfig.defaults(),
        mcpServers = mcpServers ?? [],
-       sessionId = config?.sessionId ?? const Uuid().v4() {
-    // Update config with session ID if not already set
+       _currentConversation = initialConversation ?? Conversation.empty() {
+    // Ensure config has a session ID
     if (this.config.sessionId == null) {
-      this.config = this.config.copyWith(sessionId: sessionId);
+      this.config = this.config.copyWith(sessionId: const Uuid().v4());
     }
     if (this.config.workingDirectory == null) {
       this.config = this.config.copyWith(
         workingDirectory: Directory.current.path,
       );
+    }
+
+    // If we have an initial conversation (e.g., from forking), emit it immediately
+    if (initialConversation != null) {
+      _conversationController.add(_currentConversation);
     }
 
     // Auto-flush queued messages when turn completes
@@ -383,6 +394,15 @@ class ClaudeClientImpl implements ClaudeClient {
       // After successful start, subsequent messages should use --resume
       _isFirstMessage = false;
 
+      // If this was a fork operation, clear fork settings so subsequent messages
+      // use the new session ID instead of trying to fork again
+      if (config.forkSession && config.resumeSessionId != null) {
+        config = config.copyWith(
+          resumeSessionId: null,
+          forkSession: false,
+        );
+      }
+
       completer.complete();
     } catch (e) {
       completer.completeError(e);
@@ -394,8 +414,10 @@ class ClaudeClientImpl implements ClaudeClient {
 
   /// Handle messages from the control protocol
   void _handleControlProtocolMessage(Map<String, dynamic> json) {
+    final jsonStr = jsonEncode(json);
+
     // Use decodeMultiple to handle interleaved assistant content
-    final responses = _decoder.decodeMultiple(jsonEncode(json));
+    final responses = _decoder.decodeMultiple(jsonStr);
     if (responses.isEmpty) return;
 
     // Process each response (usually just one, but can be multiple for interleaved content)
@@ -412,6 +434,13 @@ class ClaudeClientImpl implements ClaudeClient {
       if (response is MetaResponse) {
         _initData = response;
         _initDataController.add(response);
+
+        // If we forked a session, Claude returns the new session ID in the response
+        // Update our config to use that session ID for subsequent messages
+        if (response.sessionId != null && response.sessionId != config.sessionId) {
+          config = config.copyWith(sessionId: response.sessionId);
+        }
+
         // Also call legacy callback for backwards compatibility
         // ignore: deprecated_member_use_from_same_package
         onMetaResponseReceived?.call(response);
@@ -566,7 +595,9 @@ class ClaudeClientImpl implements ClaudeClient {
   }
 
   void _flushQueuedMessage() {
-    if (_queuedMessageText == null) return;
+    if (_queuedMessageText == null) {
+      return;
+    }
 
     final text = _queuedMessageText!;
     final attachments = _queuedAttachments;
@@ -663,6 +694,26 @@ class ClaudeClientImpl implements ClaudeClient {
       return;
     }
     await controlProtocol.interrupt();
+
+    // Mark the last assistant message as complete (not streaming) so that
+    // subsequent responses create a new message instead of appending to it
+    final messages = _currentConversation.messages;
+    if (messages.isNotEmpty) {
+      final lastMessage = messages.last;
+      if (lastMessage.role == MessageRole.assistant && lastMessage.isStreaming) {
+        final updatedMessage = lastMessage.copyWith(
+          isStreaming: false,
+          isComplete: true,
+        );
+        final updatedMessages = [...messages];
+        updatedMessages[updatedMessages.length - 1] = updatedMessage;
+        _updateConversation(
+          _currentConversation
+              .copyWith(messages: updatedMessages)
+              .withState(ConversationState.idle),
+        );
+      }
+    }
   }
 
   @override

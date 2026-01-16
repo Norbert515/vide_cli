@@ -14,6 +14,7 @@ class AgentMetadata {
     required this.createdAt,
     this.status = AgentStatus.idle,
     this.taskName,
+    this.sessionId,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -23,6 +24,13 @@ class AgentMetadata {
 
   /// The unique identifier for this agent
   final AgentId id;
+
+  /// The Claude session ID for this agent.
+  ///
+  /// This may differ from [id] for forked agents, where Claude assigns
+  /// a new session ID during the fork operation. Used to properly resume
+  /// conversations after session restore.
+  final String? sessionId;
 
   /// A short, human-readable name for this agent (e.g., "Auth Fix", "DB Research")
   final String name;
@@ -72,6 +80,7 @@ class AgentMetadata {
     DateTime? createdAt,
     AgentStatus? status,
     String? taskName,
+    String? sessionId,
     int? totalInputTokens,
     int? totalOutputTokens,
     int? totalCacheReadInputTokens,
@@ -86,6 +95,7 @@ class AgentMetadata {
       createdAt: createdAt ?? this.createdAt,
       status: status ?? this.status,
       taskName: taskName ?? this.taskName,
+      sessionId: sessionId ?? this.sessionId,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
       totalCacheReadInputTokens:
@@ -105,6 +115,7 @@ class AgentMetadata {
       'createdAt': createdAt.toIso8601String(),
       'status': status.toStringValue(),
       'taskName': taskName,
+      'sessionId': sessionId,
       'totalInputTokens': totalInputTokens,
       'totalOutputTokens': totalOutputTokens,
       'totalCacheReadInputTokens': totalCacheReadInputTokens,
@@ -122,6 +133,7 @@ class AgentMetadata {
       createdAt: DateTime.parse(json['createdAt'] as String),
       status: _parseStatus(json['status'] as String?),
       taskName: json['taskName'] as String?,
+      sessionId: json['sessionId'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
       totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
       totalCacheReadInputTokens:

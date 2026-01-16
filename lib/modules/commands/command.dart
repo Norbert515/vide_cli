@@ -33,6 +33,9 @@ class CommandContext {
     this.clearConversation,
     this.exitApp,
     this.toggleIdeMode,
+    this.forkAgent,
+    this.killAgent,
+    this.isLastAgent = false,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -56,6 +59,19 @@ class CommandContext {
   /// Callback to toggle IDE mode (show/hide git sidebar).
   /// Used by /ide command.
   final void Function()? toggleIdeMode;
+
+  /// Callback to fork the current agent, creating a new agent with the same context.
+  /// Returns the ID of the forked agent.
+  /// Used by /fork command.
+  final Future<String> Function(String? name)? forkAgent;
+
+  /// Callback to kill/terminate the current agent.
+  /// Will fail if this is the last agent in the network.
+  /// Used by /kill command.
+  final Future<void> Function()? killAgent;
+
+  /// Whether this is the last agent in the network (cannot be killed).
+  final bool isLastAgent;
 }
 
 /// Base interface for all slash commands.

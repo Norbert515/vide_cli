@@ -34,6 +34,26 @@ abstract class ClaudeClientFactory {
     String? networkId,
     String? agentType,
   });
+
+  /// Creates a ClaudeClient by forking an existing session.
+  ///
+  /// Uses Claude Code's native --fork-session capability to branch the conversation.
+  /// The new client will have the full conversation history from the source session.
+  ///
+  /// [agentId] - The ID for the new forked agent
+  /// [config] - Agent configuration for the new agent
+  /// [networkId] - The ID of the agent network
+  /// [agentType] - The type of agent (e.g., 'main', 'implementation')
+  /// [resumeSessionId] - The session ID to fork from
+  /// [sourceConversation] - The conversation from the source agent (for immediate UI display)
+  Future<ClaudeClient> createForked({
+    required AgentId agentId,
+    required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
+    required String resumeSessionId,
+    Conversation? sourceConversation,
+  });
 }
 
 /// Default implementation of ClaudeClientFactory.
@@ -136,6 +156,63 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
+    );
+
+    return client;
+  }
+
+  @override
+  Future<ClaudeClient> createForked({
+    required AgentId agentId,
+    required AgentConfiguration config,
+    String? networkId,
+    String? agentType,
+    required String resumeSessionId,
+    Conversation? sourceConversation,
+  }) async {
+    final cwd = _getWorkingDirectory();
+
+    // Create config with fork settings
+    final baseConfig = config.toClaudeConfig(
+      workingDirectory: cwd,
+      sessionId: agentId.toString(),
+      enableStreaming: _enableStreaming,
+    );
+
+    // Apply fork settings
+    final claudeConfig = baseConfig.copyWith(
+      resumeSessionId: resumeSessionId,
+      forkSession: true,
+    );
+
+    final mcpServers = config.mcpServers
+            ?.map((server) => _ref.watch(genericMcpServerProvider(
+                  AgentIdAndMcpServerType(
+                    agentId: agentId,
+                    mcpServerType: server,
+                    projectPath: cwd,
+                  ),
+                )))
+            .toList() ??
+        [];
+
+    final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
+    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
+    ));
+
+    // Use createNonBlocking to avoid hanging on init
+    // Pass sourceConversation so the forked agent shows the same history immediately
+    final client = ClaudeClient.createNonBlocking(
+      config: claudeConfig,
+      mcpServers: mcpServers,
+      canUseTool: canUseTool,
+      initialConversation: sourceConversation,
     );
 
     return client;

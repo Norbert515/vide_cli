@@ -186,8 +186,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Use sync version to avoid blocking on init (same as startNew)
     for (final agentMetadata in updatedNetwork.agents) {
       final config = _getConfigurationForType(agentMetadata.type);
+      // Use sessionId if available (for forked agents), otherwise use agent id
+      final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
       final client = _clientFactory.createSync(
-        agentId: agentMetadata.id,
+        agentId: sessionIdToUse,
         config: config,
         networkId: updatedNetwork.id,
         agentType: agentMetadata.type,
@@ -216,6 +218,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         return FlutterTesterAgentConfig.create();
       case 'planning':
         return PlanningAgentConfig.create();
+      case 'fork':
+        // Forked agents use the main agent config
+        return MainAgentConfig.create();
       default:
         // Fallback to main agent config for unknown types
         print(
@@ -311,6 +316,33 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final updatedAgents = network.agents.map((agent) {
       if (agent.id == agentId) {
         return agent.copyWith(taskName: taskName);
+      }
+      return agent;
+    }).toList();
+
+    final updatedNetwork = network.copyWith(
+      agents: updatedAgents,
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
+
+    state = AgentNetworkState(currentNetwork: updatedNetwork);
+  }
+
+  /// Update the session ID of an agent in the current network.
+  ///
+  /// This is called when Claude assigns a new session ID (e.g., during fork).
+  /// The session ID may differ from the agent's id and is needed to properly
+  /// resume conversations.
+  Future<void> updateAgentSessionId(AgentId agentId, String sessionId) async {
+    final network = state.currentNetwork;
+    if (network == null) return;
+
+    final updatedAgents = network.agents.map((agent) {
+      if (agent.id == agentId) {
+        return agent.copyWith(sessionId: sessionId);
       }
       return agent;
     }).toList();
@@ -512,9 +544,9 @@ $initialPrompt''';
       throw Exception('Agent not found in network: $targetAgentId');
     }
 
-    // Prevent terminating the main agent
-    if (targetAgent.type == 'main') {
-      throw Exception('Cannot terminate the main agent');
+    // Prevent terminating if this is the last agent
+    if (network.agents.length <= 1) {
+      throw Exception('Cannot terminate the last agent');
     }
 
     // Get and abort the ClaudeClient
@@ -590,5 +622,87 @@ $message''';
     print(
       '[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId',
     );
+  }
+
+  /// Fork an existing agent, creating a new agent with the same conversation context.
+  ///
+  /// Uses Claude Code's native --fork-session capability to branch the conversation.
+  /// The new agent will start with the full conversation history from the source.
+  ///
+  /// [sourceAgentId] - The agent to fork from
+  /// [name] - Optional name for the forked agent (defaults to "Fork of {original}")
+  ///
+  /// Returns the ID of the newly forked agent.
+  Future<AgentId> forkAgent({
+    required AgentId sourceAgentId,
+    String? name,
+  }) async {
+    final network = state.currentNetwork;
+    if (network == null) {
+      throw StateError('No active network to fork agent in');
+    }
+
+    // Find source agent metadata
+    final sourceAgent =
+        network.agents.where((a) => a.id == sourceAgentId).firstOrNull;
+    if (sourceAgent == null) {
+      throw Exception('Agent not found: $sourceAgentId');
+    }
+
+    // Get source agent's Claude client to get the session ID
+    final sourceClient = _ref.read(claudeManagerProvider)[sourceAgentId];
+    if (sourceClient == null) {
+      throw Exception('No Claude client found for agent: $sourceAgentId');
+    }
+
+    // Generate new agent ID (which will also be the new session ID)
+    final newAgentId = const Uuid().v4();
+    final forkName = name ?? '[Fork] ${sourceAgent.name}';
+
+    // Get the configuration for this agent type
+    final config = _getConfigurationForType(sourceAgent.type);
+
+    // Create metadata for the forked agent
+    final metadata = AgentMetadata(
+      id: newAgentId,
+      name: forkName,
+      type: 'fork',
+      spawnedBy: sourceAgentId, // Track that this was forked from source
+      createdAt: DateTime.now(),
+    );
+
+    // Create the Claude client with fork configuration
+    // Pass the source conversation so the forked agent shows the same history immediately
+    final client = await _clientFactory.createForked(
+      agentId: newAgentId,
+      config: config,
+      networkId: network.id,
+      agentType: metadata.type,
+      resumeSessionId: sourceClient.sessionId,
+      sourceConversation: sourceClient.currentConversation,
+    );
+
+    _ref.read(claudeManagerProvider.notifier).addAgent(newAgentId, client);
+
+    // Listen for MetaResponse to capture the actual session ID from Claude
+    // When forking, Claude assigns a new session ID which we need to persist
+    client.initDataStream.first.then((metaResponse) {
+      if (metaResponse.sessionId != null) {
+        updateAgentSessionId(newAgentId, metaResponse.sessionId!);
+      }
+    });
+
+    // Update network with new agent metadata
+    final updatedNetwork = network.copyWith(
+      agents: [...network.agents, metadata],
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
+
+    state = AgentNetworkState(currentNetwork: updatedNetwork);
+
+    return newAgentId;
   }
 }

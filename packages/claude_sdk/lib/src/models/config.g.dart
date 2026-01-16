@@ -36,6 +36,8 @@ ClaudeConfig _$ClaudeConfigFromJson(Map<String, dynamic> json) => ClaudeConfig(
       ?.map((e) => e as String)
       .toList(),
   enableStreaming: json['enableStreaming'] as bool? ?? true,
+  resumeSessionId: json['resumeSessionId'] as String?,
+  forkSession: json['forkSession'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
@@ -57,4 +59,6 @@ Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
       'maxTurns': instance.maxTurns,
       'settingSources': instance.settingSources,
       'enableStreaming': instance.enableStreaming,
+      'resumeSessionId': instance.resumeSessionId,
+      'forkSession': instance.forkSession,
     };

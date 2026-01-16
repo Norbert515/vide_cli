@@ -27,6 +27,16 @@ class ClaudeConfig {
   /// Defaults to true.
   final bool enableStreaming;
 
+  /// Session ID to resume/fork from.
+  /// When set with [forkSession] = true, creates a new session branched from this one.
+  /// Different from [sessionId] which is the ID for the new session.
+  final String? resumeSessionId;
+
+  /// Whether to fork the session when resuming.
+  /// When true, adds --fork-session flag along with --resume [resumeSessionId].
+  /// The new session will start with the full conversation history from the source.
+  final bool forkSession;
+
   const ClaudeConfig({
     this.model,
     this.timeout = const Duration(seconds: 120),
@@ -45,6 +55,8 @@ class ClaudeConfig {
     this.maxTurns,
     this.settingSources,
     this.enableStreaming = true,
+    this.resumeSessionId,
+    this.forkSession = false,
   });
 
   factory ClaudeConfig.defaults() => const ClaudeConfig();
@@ -61,8 +73,15 @@ class ClaudeConfig {
     final args = <String>[];
 
     // Session management
-    // Use --session-id for new sessions, --resume for existing sessions
-    if (sessionId != null) {
+    // Handle forking from another session (takes priority over normal session handling)
+    if (resumeSessionId != null && forkSession) {
+      // Fork: resume from source session but with --fork-session to branch
+      // Note: --session-id cannot be used with --resume, so Claude auto-generates
+      // the new session ID. We capture it from the response and update config.
+      args.addAll(['--resume', resumeSessionId!]);
+      args.add('--fork-session');
+    } else if (sessionId != null) {
+      // Normal session handling: Use --session-id for new sessions, --resume for existing sessions
       if (isFirstMessage) {
         args.addAll(['--session-id=$sessionId']);
       } else {
@@ -148,6 +167,8 @@ class ClaudeConfig {
     int? maxTurns,
     List<String>? settingSources,
     bool? enableStreaming,
+    String? resumeSessionId,
+    bool? forkSession,
   }) {
     return ClaudeConfig(
       model: model ?? this.model,
@@ -167,6 +188,8 @@ class ClaudeConfig {
       maxTurns: maxTurns ?? this.maxTurns,
       settingSources: settingSources ?? this.settingSources,
       enableStreaming: enableStreaming ?? this.enableStreaming,
+      resumeSessionId: resumeSessionId ?? this.resumeSessionId,
+      forkSession: forkSession ?? this.forkSession,
     );
   }
 }

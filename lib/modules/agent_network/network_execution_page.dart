@@ -292,11 +292,18 @@ class _AgentChatState extends State<_AgentChat> {
     component.client.sendMessage(message);
   }
 
+  bool _isLastAgent() {
+    final network = context.read(agentNetworkManagerProvider).currentNetwork;
+    if (network == null) return true; // If no network, treat as last agent (safe default)
+    return network.agents.length <= 1;
+  }
+
   Future<void> _handleCommand(String commandInput) async {
     final dispatcher = context.read(commandDispatcherProvider);
     final commandContext = CommandContext(
-      agentId: component.client.sessionId,
+      agentId: component.agentId,
       workingDirectory: component.client.workingDirectory,
+      isLastAgent: _isLastAgent(),
       sendMessage: (message) {
         component.client.sendMessage(Message(text: message));
       },
@@ -318,6 +325,23 @@ class _AgentChatState extends State<_AgentChat> {
         configManager.writeGlobalSettings(
           settings.copyWith(ideModeEnabled: !current),
         );
+      },
+      forkAgent: (name) async {
+        final manager = context.read(agentNetworkManagerProvider.notifier);
+        final newAgentId = await manager.forkAgent(
+          sourceAgentId: component.agentId,
+          name: name,
+        );
+        return newAgentId;
+      },
+      killAgent: () async {
+        final manager = context.read(agentNetworkManagerProvider.notifier);
+        await manager.terminateAgent(
+          targetAgentId: component.agentId,
+          terminatedBy: component.agentId, // Self-termination
+          reason: 'User invoked /kill command',
+        );
+        // Navigation will be handled by the network state update since the agent is removed
       },
     );
 
