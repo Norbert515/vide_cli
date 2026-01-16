@@ -38,6 +38,7 @@ class _TapVisualizationService {
   OverlayEntry? _scrollPathOverlay;
   OverlayEntry? _scrollEndIndicatorOverlay;
   OverlayEntry? _inspectionPulseOverlay;
+  OverlayEntry? _screenshotFlashOverlay;
   GlobalKey<OverlayState>? _overlayKey;
 
   /// Current cursor position in logical pixels (null if no cursor set)
@@ -247,6 +248,36 @@ class _TapVisualizationService {
           if (_inspectionPulseOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_inspectionPulseOverlay!);
+                      }
+        } catch (e) {
+                  }
+      });
+    }
+  }
+
+  /// Shows a screenshot flash animation (white flash like a camera)
+  /// This provides visual feedback when a screenshot is being taken
+  void showScreenshotFlash() {
+    // Remove any existing screenshot flash
+    _screenshotFlashOverlay?.remove();
+    _screenshotFlashOverlay = null;
+
+    // Try to show the screenshot flash if we have a registered overlay key
+    if (_overlayKey?.currentState != null) {
+      _screenshotFlashOverlay = OverlayEntry(
+        builder: (context) => _ScreenshotFlash(
+          onComplete: () {
+            _screenshotFlashOverlay?.remove();
+            _screenshotFlashOverlay = null;
+          },
+        ),
+      );
+
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          if (_screenshotFlashOverlay != null &&
+              _overlayKey?.currentState != null) {
+            _overlayKey!.currentState!.insert(_screenshotFlashOverlay!);
                       }
         } catch (e) {
                   }
@@ -790,6 +821,71 @@ class _InspectionPulseState extends State<_InspectionPulse>
   }
 }
 
+/// Widget that displays a screenshot flash animation
+/// Shows a brief white flash like a camera shutter
+class _ScreenshotFlash extends StatefulWidget {
+  final VoidCallback onComplete;
+
+  const _ScreenshotFlash({required this.onComplete});
+
+  @override
+  State<_ScreenshotFlash> createState() => _ScreenshotFlashState();
+}
+
+class _ScreenshotFlashState extends State<_ScreenshotFlash>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacityAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+
+    // Quick flash: fade in fast, fade out
+    _opacityAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.0, end: 0.7)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 30,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.7, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeIn)),
+        weight: 70,
+      ),
+    ]).animate(_controller);
+
+    _controller.forward().then((_) {
+      widget.onComplete();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Container(
+            color: Colors.white.withValues(alpha: _opacityAnimation.value),
+          );
+        },
+      ),
+    );
+  }
+}
+
 // Math functions for arrow drawing
 double _bundledCos(double radians) => _cos(radians);
 double _bundledSin(double radians) => _sin(radians);
@@ -829,8 +925,12 @@ void _registerScreenshotExtension() {
     'ext.runtime_ai_dev_tools.screenshot',
     (String method, Map<String, String> parameters) async {
                         try {
+        // Capture screenshot first (before showing flash)
         final image = await _captureScreenshot();
         final base64Image = await _imageToBase64(image);
+
+        // Show screenshot flash animation after capture
+        _TapVisualizationService().showScreenshotFlash();
 
         // Get the device pixel ratio from the Flutter window
         final devicePixelRatio = WidgetsBinding

@@ -3,6 +3,7 @@ import 'dart:developer' as developer;
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'tap_visualization.dart';
 
 /// Registers the screenshot service extension
 void registerScreenshotExtension() {
@@ -16,8 +17,12 @@ void registerScreenshotExtension() {
       print('   Method: $method');
       print('   Parameters: $parameters');
       try {
+        // Capture screenshot first (before showing flash)
         final image = await _captureScreenshot();
         final base64Image = await _imageToBase64(image);
+
+        // Show screenshot flash animation after capture
+        TapVisualizationService().showScreenshotFlash();
 
         // Get the device pixel ratio from the Flutter window
         final devicePixelRatio = WidgetsBinding
