@@ -14,6 +14,7 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_cli/modules/commands/command.dart';
+import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 
 class NetworksOverviewPage extends StatefulComponent {
   const NetworksOverviewPage({super.key});
@@ -209,17 +210,26 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
               ),
               const SizedBox(height: 1),
               Container(
-                child: AttachmentTextField(
-                  focused: !sidebarFocused,
-                  placeholder: 'Describe your goal (you can attach images)',
-                  onSubmit: _handleSubmit,
-                  onCommand: _handleCommand,
-                  commandSuggestions: _getCommandSuggestions,
-                  onLeftEdge: ideModeEnabled
-                      ? () =>
-                            context.read(sidebarFocusProvider.notifier).state =
-                                true
-                      : null,
+                child: Builder(
+                  builder: (context) {
+                    final promptHistory = context.watch(promptHistoryProvider);
+                    return AttachmentTextField(
+                      focused: !sidebarFocused,
+                      placeholder: 'Describe your goal (you can attach images)',
+                      onSubmit: _handleSubmit,
+                      onCommand: _handleCommand,
+                      commandSuggestions: _getCommandSuggestions,
+                      promptHistory: promptHistory,
+                      onPromptSubmitted: (prompt) => context
+                          .read(promptHistoryProvider.notifier)
+                          .addPrompt(prompt),
+                      onLeftEdge: ideModeEnabled
+                          ? () => context
+                              .read(sidebarFocusProvider.notifier)
+                              .state = true
+                          : null,
+                    );
+                  },
                 ),
                 padding: EdgeInsets.all(1),
               ),

@@ -16,6 +16,7 @@ import 'package:vide_cli/theme/theme.dart';
 /// - Clean output (strips placeholders from final message text)
 /// - Command detection (routes /commands to onCommand callback)
 /// - Command autocomplete (shows suggestions when typing /)
+/// - Prompt history (arrow up/down to navigate previous prompts)
 class AttachmentTextField extends StatefulComponent {
   final bool enabled;
   final bool focused;
@@ -43,6 +44,20 @@ class AttachmentTextField extends StatefulComponent {
   /// Used to enable focus navigation to a sidebar.
   final void Function()? onRightEdge;
 
+  /// List of previous prompts for history navigation (newest first).
+  /// When provided, arrow up/down navigates through history.
+  final List<String>? promptHistory;
+
+  /// Called when a prompt is submitted, to add it to history.
+  final void Function(String prompt)? onPromptSubmitted;
+
+  /// Initial text to populate the field with.
+  /// Useful for restoring state after remount.
+  final String? initialText;
+
+  /// Called when the text changes, useful for persisting state externally.
+  final void Function(String text)? onTextChanged;
+
   const AttachmentTextField({
     this.enabled = true,
     this.focused = true,
@@ -55,6 +70,10 @@ class AttachmentTextField extends StatefulComponent {
     this.commandSuggestions,
     this.onLeftEdge,
     this.onRightEdge,
+    this.promptHistory,
+    this.onPromptSubmitted,
+    this.initialText,
+    this.onTextChanged,
     super.key,
   });
 
@@ -74,6 +93,12 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
   late final _AttachmentTextEditingController _controller;
   int _selectedSuggestionIndex = 0;
 
+  /// Current position in history. -1 means not browsing history (showing current input).
+  int _historyIndex = -1;
+
+  /// Stores the current input when user starts browsing history.
+  String _savedCurrentInput = '';
+
   @override
   void initState() {
     super.initState();
@@ -83,6 +108,14 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       component.onAttachmentsChanged?.call(attachments);
     };
     _controller.addListener(_onTextChanged);
+
+    // Restore initial text if provided
+    if (component.initialText != null && component.initialText!.isNotEmpty) {
+      _controller.text = component.initialText!;
+      _controller.selection = TextSelection.collapsed(
+        offset: component.initialText!.length,
+      );
+    }
   }
 
   void _onTextChanged() {
@@ -90,6 +123,57 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     setState(() {
       _selectedSuggestionIndex = 0;
     });
+    // Reset history browsing when user types (unless we're programmatically setting text)
+    if (!_isBrowsingHistory) {
+      _historyIndex = -1;
+    }
+    // Notify parent of text changes for external persistence
+    component.onTextChanged?.call(_controller.text);
+  }
+
+  bool _isBrowsingHistory = false;
+
+  void _navigateHistory(int direction) {
+    final history = component.promptHistory;
+    if (history == null || history.isEmpty) return;
+
+    final newIndex = _historyIndex + direction;
+
+    // Going up (older): increase index
+    // Going down (newer): decrease index
+    if (direction > 0) {
+      // Up arrow - go to older entry
+      if (_historyIndex == -1) {
+        // Save current input before browsing history
+        _savedCurrentInput = _controller.text;
+      }
+      if (newIndex < history.length) {
+        _setHistoryEntry(newIndex, history[newIndex]);
+      }
+    } else {
+      // Down arrow - go to newer entry
+      if (newIndex < 0) {
+        // Back to current input
+        _setHistoryEntry(-1, _savedCurrentInput);
+      } else {
+        _setHistoryEntry(newIndex, history[newIndex]);
+      }
+    }
+  }
+
+  void _setHistoryEntry(int index, String text) {
+    _isBrowsingHistory = true;
+    setState(() {
+      _historyIndex = index;
+      _controller.text = text;
+      _controller.selection = TextSelection.collapsed(offset: text.length);
+    });
+    _isBrowsingHistory = false;
+  }
+
+  void _resetHistoryState() {
+    _historyIndex = -1;
+    _savedCurrentInput = '';
   }
 
   List<CommandSuggestion> _getSuggestions() {
@@ -171,6 +255,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
             '/${suggestions[_selectedSuggestionIndex].name}';
         component.onCommand!(selectedCommand);
         _controller.clear();
+        _resetHistoryState();
         setState(() {
           _selectedSuggestionIndex = 0;
         });
@@ -180,6 +265,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       if (text.length > 1) {
         component.onCommand!(text);
         _controller.clear();
+        _resetHistoryState();
         return;
       }
     }
@@ -214,11 +300,17 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       attachments: imageAttachments.isEmpty ? null : imageAttachments,
     );
 
+    // Add to prompt history (only non-command text prompts)
+    if (text.isNotEmpty && !text.startsWith('/')) {
+      component.onPromptSubmitted?.call(text);
+    }
+
     component.onSubmit?.call(message);
 
-    // Clear
+    // Clear and reset history state
     _controller.clearAttachments();
     _controller.clear();
+    _resetHistoryState();
   }
 
   @override
@@ -344,7 +436,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                     ),
                     onPaste: _controller.handlePaste,
                     onKeyEvent: (event) {
-                      // Arrow keys: Navigate suggestion selection only (don't modify text field)
+                      // Arrow keys: Navigate suggestion selection if visible
                       if (suggestions.isNotEmpty) {
                         if (event.logicalKey == LogicalKey.arrowUp) {
                           setState(() {
@@ -362,6 +454,19 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                                 (_selectedSuggestionIndex + 1) %
                                 suggestions.length;
                           });
+                          return true;
+                        }
+                      } else if (component.promptHistory != null &&
+                          component.promptHistory!.isNotEmpty) {
+                        // Arrow up/down for history navigation (only when no suggestions)
+                        if (event.logicalKey == LogicalKey.arrowUp) {
+                          _navigateHistory(1); // Go to older entry
+                          return true;
+                        }
+                        if (event.logicalKey == LogicalKey.arrowDown &&
+                            _historyIndex >= 0) {
+                          // Only handle down if we're browsing history
+                          _navigateHistory(-1); // Go to newer entry
                           return true;
                         }
                       }

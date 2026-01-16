@@ -20,6 +20,7 @@ import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
 
@@ -641,7 +642,7 @@ class _AgentChatState extends State<_AgentChat> {
                     ),
                   ),
 
-                // Show AskUserQuestion dialog, permission dialog, or text field (priority order)
+                // Show AskUserQuestion dialog above text field (if active)
                 if (currentAskUserQuestionRequest != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,6 +675,7 @@ class _AgentChatState extends State<_AgentChat> {
                       ),
                     ],
                   )
+                // Show permission dialog above text field (if active)
                 else if (currentPermissionRequest != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -714,39 +716,67 @@ class _AgentChatState extends State<_AgentChat> {
                         ),
                       ),
                     ],
-                  )
-                else
-                  AttachmentTextField(
-                    focused: !context.watch(sidebarFocusProvider) &&
-                        !context.watch(mcpPanelFocusProvider),
-                    enabled:
-                        true, // Always enabled - messages queue during processing
-                    placeholder: 'Type a message...',
-                    onSubmit: _sendMessage,
-                    onCommand: _handleCommand,
-                    commandSuggestions: _getCommandSuggestions,
-                    onLeftEdge: component.ideModeEnabled
-                        ? () =>
-                              context
-                                      .read(sidebarFocusProvider.notifier)
-                                      .state =
-                                  true
-                        : null,
-                    onRightEdge: component.ideModeEnabled
-                        ? () =>
-                              context
-                                      .read(mcpPanelFocusProvider.notifier)
-                                      .state =
-                                  true
-                        : null,
-                    onEscape: () {
-                      // If there's a queued message, clear it first
-                      if (_queuedMessage != null) {
-                        component.client.clearQueuedMessage();
-                      } else {
-                        // Otherwise abort the current processing
-                        component.client.abort();
-                      }
+                  ),
+
+                // Text field - rendered when no dialogs are active
+                // Text persists through pendingInputTextProvider when dialogs appear
+                if (currentAskUserQuestionRequest == null &&
+                    currentPermissionRequest == null)
+                  Builder(
+                    builder: (context) {
+                      final promptHistory =
+                          context.watch(promptHistoryProvider);
+                      final pendingText =
+                          context.watch(pendingInputTextProvider);
+                      return AttachmentTextField(
+                        focused: !context.watch(sidebarFocusProvider) &&
+                            !context.watch(mcpPanelFocusProvider),
+                        enabled:
+                            true, // Always enabled - messages queue during processing
+                        placeholder: 'Type a message...',
+                        initialText: pendingText,
+                        onTextChanged: (text) => context
+                            .read(pendingInputTextProvider.notifier)
+                            .state = text,
+                        onSubmit: (message) {
+                          // Clear pending text on submit
+                          context
+                              .read(pendingInputTextProvider.notifier)
+                              .state = '';
+                          _sendMessage(message);
+                        },
+                        onCommand: (cmd) {
+                          // Clear pending text on command
+                          context
+                              .read(pendingInputTextProvider.notifier)
+                              .state = '';
+                          _handleCommand(cmd);
+                        },
+                        commandSuggestions: _getCommandSuggestions,
+                        promptHistory: promptHistory,
+                        onPromptSubmitted: (prompt) => context
+                            .read(promptHistoryProvider.notifier)
+                            .addPrompt(prompt),
+                        onLeftEdge: component.ideModeEnabled
+                            ? () => context
+                                .read(sidebarFocusProvider.notifier)
+                                .state = true
+                            : null,
+                        onRightEdge: component.ideModeEnabled
+                            ? () => context
+                                .read(mcpPanelFocusProvider.notifier)
+                                .state = true
+                            : null,
+                        onEscape: () {
+                          // If there's a queued message, clear it first
+                          if (_queuedMessage != null) {
+                            component.client.clearQueuedMessage();
+                          } else {
+                            // Otherwise abort the current processing
+                            component.client.abort();
+                          }
+                        },
+                      );
                     },
                   ),
 
