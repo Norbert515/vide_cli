@@ -83,3 +83,4 @@ export 'api/vide_event.dart';
 export 'api/vide_agent.dart';
 export 'api/vide_config.dart';
 export 'api/embedded_server.dart' show VideEmbeddedServer;
+export 'api/conversation_state.dart';

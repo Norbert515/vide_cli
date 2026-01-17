@@ -133,6 +133,15 @@ class VideSession {
   /// The main agent (first agent in the network).
   VideAgent? get mainAgent => agents.isNotEmpty ? agents.first : null;
 
+  /// The effective working directory for this session.
+  ///
+  /// This may be different from the configured working directory if a
+  /// worktree has been set.
+  String get workingDirectory {
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    return manager.effectiveWorkingDirectory;
+  }
+
   /// Send a message to an agent.
   ///
   /// If [agentId] is not specified, the message is sent to the main agent.
@@ -183,6 +192,71 @@ class VideSession {
         await client.abort();
       }
     }
+  }
+
+  /// Abort a specific agent.
+  ///
+  /// This cancels any in-progress work for the specified agent.
+  Future<void> abortAgent(String agentId) async {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    if (client != null) {
+      await client.abort();
+    }
+  }
+
+  /// Terminate an agent and remove it from the network.
+  ///
+  /// [agentId] is the agent to terminate.
+  /// [terminatedBy] is the ID of the agent requesting termination (typically main agent).
+  ///
+  /// Once terminated, the agent cannot be resumed. Use [abort] to pause
+  /// an agent temporarily.
+  Future<void> terminateAgent(
+    String agentId, {
+    required String terminatedBy,
+    String? reason,
+  }) async {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    await manager.terminateAgent(
+      targetAgentId: agentId,
+      terminatedBy: terminatedBy,
+      reason: reason,
+    );
+  }
+
+  /// Fork an agent to create a new conversation branch.
+  ///
+  /// Returns the ID of the newly created agent.
+  Future<String> forkAgent(String agentId, {String? name}) async {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    return await manager.forkAgent(sourceAgentId: agentId, name: name);
+  }
+
+  /// Get the queued message for an agent, if any.
+  ///
+  /// A queued message is a message that will be sent when the agent
+  /// completes its current turn.
+  String? getQueuedMessage(String agentId) {
+    final client = _container.read(claudeProvider(agentId));
+    return client?.currentQueuedMessage;
+  }
+
+  /// Stream of queued message changes for an agent.
+  ///
+  /// Emits whenever the queued message changes (set or cleared).
+  Stream<String?> queuedMessageStream(String agentId) {
+    final client = _container.read(claudeProvider(agentId));
+    return client?.queuedMessage ?? const Stream.empty();
+  }
+
+  /// Clear the queued message for an agent.
+  void clearQueuedMessage(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    client?.clearQueuedMessage();
   }
 
   /// Dispose the session and release resources.
