@@ -15,40 +15,8 @@ import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/api.dart' as api;
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
-
-/// Provider for the VideCore instance (new public API).
-///
-/// This is created from the existing ProviderContainer using [api.VideCore.fromContainer].
-/// It allows gradual migration to the new API while keeping existing provider setup.
-final videoCoreProvider = Provider<api.VideCore>((ref) {
-  throw UnimplementedError('videoCoreProvider must be overridden');
-});
-
-/// Provider for the current VideSession (new public API).
-///
-/// This wraps the current agent network as a VideSession for use with the new API.
-/// Returns null if no network is currently active.
-///
-/// Usage:
-/// ```dart
-/// final session = context.watch(currentVideSessionProvider);
-/// if (session != null) {
-///   session.events.listen((event) { ... });
-///   session.sendMessage('Hello');
-/// }
-/// ```
-final currentVideSessionProvider = Provider<api.VideSession?>((ref) {
-  final core = ref.watch(videoCoreProvider);
-  final networkState = ref.watch(agentNetworkManagerProvider);
-  final currentNetwork = networkState.currentNetwork;
-
-  if (currentNetwork == null) return null;
-
-  return core.getSessionForNetwork(currentNetwork.id);
-});
 
 /// Provider for sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
@@ -114,9 +82,6 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
     overrides: [_canUseToolCallbackFactoryOverride, ...overrides],
   );
 
-  // Create VideCore from the existing container (enables gradual migration to new API)
-  final videCore = api.VideCore.fromContainer(container);
-
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);
   await PostHogService.init(configManager);
@@ -131,10 +96,6 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   await runApp(
     ProviderScope(
       parent: container,
-      overrides: [
-        // Override videoCoreProvider with our instance
-        videoCoreProvider.overrideWithValue(videCore),
-      ],
       child: VideApp(container: container),
     ),
   );
