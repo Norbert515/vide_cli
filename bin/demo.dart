@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 

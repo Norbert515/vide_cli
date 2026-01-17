@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_cli/utils/diff_utils.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/diff_utils.dart';
 
 void main() {
   group('DiffUtils', () {

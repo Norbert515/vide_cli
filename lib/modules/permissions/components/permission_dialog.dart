@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import '../modules/permissions/permission_service.dart';
+import 'package:vide_cli/modules/permissions/permission_service.dart';
 
 class PermissionDialog extends StatefulComponent {
   final String toolName;

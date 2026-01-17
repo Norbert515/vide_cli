@@ -5,11 +5,11 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:vide_core/api.dart'
     show GitClient, GitStatus, GitBranch, GitWorktree, GitRepository, gitStatusStreamProvider;
-import 'package:vide_cli/components/git_branch_indicator.dart';
-import 'package:vide_cli/components/git_sidebar_models.dart';
-import 'package:vide_cli/components/git_sidebar_item_rows.dart';
 import 'package:vide_cli/main.dart';
-import 'package:vide_cli/services/toast_service.dart';
+import 'package:vide_cli/modules/git_sidebar/git_branch_indicator.dart';
+import 'package:vide_cli/modules/git_sidebar/models/git_sidebar_models.dart';
+import 'package:vide_cli/modules/git_sidebar/components/git_sidebar_item_rows.dart';
+import 'package:vide_cli/modules/toast/toast_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 

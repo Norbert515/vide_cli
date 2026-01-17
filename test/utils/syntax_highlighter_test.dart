@@ -1,7 +1,7 @@
 import 'package:nocterm/nocterm.dart' hide isEmpty;
 import 'package:test/test.dart';
 import 'package:vide_cli/theme/colors/syntax_colors.dart';
-import 'package:vide_cli/utils/syntax_highlighter.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/syntax_highlighter.dart';
 
 void main() {
   group('SyntaxHighlighter.highlightCode', () {

@@ -1,9 +1,9 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 
-import '../models/toast_data.dart';
-import '../services/toast_service.dart';
-import '../theme/theme.dart';
+import 'package:vide_cli/modules/toast/models/toast_data.dart';
+import 'package:vide_cli/modules/toast/toast_service.dart';
+import 'package:vide_cli/theme/theme.dart';
 
 /// Overlay component that displays toast notifications.
 ///

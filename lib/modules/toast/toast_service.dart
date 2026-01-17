@@ -1,6 +1,6 @@
 import 'package:riverpod/riverpod.dart';
 
-import '../models/toast_data.dart';
+import 'package:vide_cli/modules/toast/models/toast_data.dart';
 
 /// State holding the current list of active toasts.
 class ToastState {

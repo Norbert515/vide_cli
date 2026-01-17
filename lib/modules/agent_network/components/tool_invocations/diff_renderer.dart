@@ -3,9 +3,9 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_core/api.dart' show AgentId;
 import 'package:path/path.dart' as p;
 import 'shared/code_diff.dart';
+import 'shared/syntax_highlighter.dart';
 import 'default_renderer.dart';
-import '../../utils/syntax_highlighter.dart';
-import '../../theme/theme.dart';
+import 'package:vide_cli/theme/theme.dart';
 
 /// Renderer for Write/Edit/MultiEdit tool invocations with successful results.
 /// Shows code diffs with syntax highlighting.

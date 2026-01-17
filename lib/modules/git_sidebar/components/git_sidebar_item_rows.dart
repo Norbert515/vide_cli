@@ -1,7 +1,7 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:path/path.dart' as p;
 import 'package:vide_core/api.dart' show GitBranch, GitStatus;
-import 'package:vide_cli/components/git_sidebar_models.dart';
+import 'package:vide_cli/modules/git_sidebar/models/git_sidebar_models.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
