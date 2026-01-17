@@ -85,8 +85,10 @@ final class ToolContent extends ConversationContent {
   }
 }
 
-/// A message in the conversation.
-final class ConversationMessage {
+/// A message in the conversation (for VideCore API use).
+///
+/// Note: This is named `VideMessage` to avoid collision with claude_sdk's `ConversationMessage`.
+final class VideMessage {
   /// Role of the message sender: 'user' or 'assistant'.
   final String role;
 
@@ -113,16 +115,16 @@ final class ConversationMessage {
     return buffer.toString();
   }
 
-  const ConversationMessage({
+  const VideMessage({
     required this.role,
     required this.content,
   });
 
-  ConversationMessage copyWith({
+  VideMessage copyWith({
     String? role,
     List<ConversationContent>? content,
   }) {
-    return ConversationMessage(
+    return VideMessage(
       role: role ?? this.role,
       content: content ?? this.content,
     );
@@ -149,7 +151,7 @@ class AgentConversationState {
   String? taskName;
 
   /// Messages in the conversation.
-  final List<ConversationMessage> messages;
+  final List<VideMessage> messages;
 
   /// Whether the agent is currently processing (has streaming content).
   bool get isProcessing {
@@ -163,7 +165,7 @@ class AgentConversationState {
     required this.agentType,
     this.status = VideAgentStatus.idle,
     this.taskName,
-    List<ConversationMessage>? messages,
+    List<VideMessage>? messages,
   }) : messages = messages ?? [];
 
   /// Internal: current message event ID being streamed.
@@ -258,7 +260,7 @@ class ConversationStateManager {
       state._currentMessageEventId = event.eventId;
 
       // Start new message
-      state.messages.add(ConversationMessage(
+      state.messages.add(VideMessage(
         role: event.role,
         content: [
           TextContent(
@@ -303,7 +305,7 @@ class ConversationStateManager {
 
     // Ensure we have an assistant message to add the tool to
     if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
-      state.messages.add(const ConversationMessage(
+      state.messages.add(const VideMessage(
         role: 'assistant',
         content: [],
       ));

@@ -55,12 +55,14 @@ import 'vide_session.dart';
 /// ```
 class VideCore {
   final ProviderContainer _container;
+  final bool _ownsContainer;
   bool _disposed = false;
 
   /// Active sessions by ID.
   final Map<String, VideSession> _activeSessions = {};
 
-  VideCore._(this._container);
+  VideCore._(this._container, {bool ownsContainer = true})
+      : _ownsContainer = ownsContainer;
 
   /// Create a new VideCore instance.
   ///
@@ -82,7 +84,27 @@ class VideCore {
       ],
     );
 
-    return VideCore._(container);
+    return VideCore._(container, ownsContainer: true);
+  }
+
+  /// Create a VideCore instance from an existing ProviderContainer.
+  ///
+  /// This is useful for integrating with existing applications that already
+  /// have a ProviderContainer with their own overrides (e.g., for permissions).
+  ///
+  /// The container will NOT be disposed when VideCore is disposed. The caller
+  /// is responsible for managing the container lifecycle.
+  ///
+  /// Example:
+  /// ```dart
+  /// final container = ProviderContainer(overrides: [...]);
+  /// final core = VideCore.fromContainer(container);
+  /// // ... use core
+  /// core.dispose(); // Does NOT dispose container
+  /// container.dispose(); // Caller disposes container
+  /// ```
+  factory VideCore.fromContainer(ProviderContainer container) {
+    return VideCore._(container, ownsContainer: false);
   }
 
   /// Start a new session with the given configuration.
@@ -277,6 +299,8 @@ class VideCore {
   /// Dispose the VideCore instance and all active sessions.
   ///
   /// After calling dispose, the instance can no longer be used.
+  /// If the VideCore was created with [fromContainer], the container
+  /// is NOT disposed (caller is responsible for container lifecycle).
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -287,8 +311,10 @@ class VideCore {
     }
     _activeSessions.clear();
 
-    // Dispose the container
-    _container.dispose();
+    // Only dispose the container if we own it
+    if (_ownsContainer) {
+      _container.dispose();
+    }
   }
 
   void _checkNotDisposed() {
