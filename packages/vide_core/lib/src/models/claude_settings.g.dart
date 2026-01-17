@@ -22,12 +22,15 @@ Map<String, dynamic> _$ClaudeSettingsToJson(ClaudeSettings instance) =>
       'hooks': instance.hooks?.toJson(),
     };
 
-PermissionsConfig _$PermissionsConfigFromJson(Map<String, dynamic> json) =>
-    PermissionsConfig(
-      allow: (json['allow'] as List<dynamic>).map((e) => e as String).toList(),
-      deny: (json['deny'] as List<dynamic>).map((e) => e as String).toList(),
-      ask: (json['ask'] as List<dynamic>).map((e) => e as String).toList(),
-    );
+PermissionsConfig _$PermissionsConfigFromJson(
+  Map<String, dynamic> json,
+) => PermissionsConfig(
+  allow:
+      (json['allow'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+  deny:
+      (json['deny'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+  ask: (json['ask'] as List<dynamic>?)?.map((e) => e as String).toList() ?? [],
+);
 
 Map<String, dynamic> _$PermissionsConfigToJson(PermissionsConfig instance) =>
     <String, dynamic>{
@@ -37,9 +40,11 @@ Map<String, dynamic> _$PermissionsConfigToJson(PermissionsConfig instance) =>
     };
 
 HooksConfig _$HooksConfigFromJson(Map<String, dynamic> json) => HooksConfig(
-  preToolUse: (json['PreToolUse'] as List<dynamic>)
-      .map((e) => PreToolUseHook.fromJson(e as Map<String, dynamic>))
-      .toList(),
+  preToolUse:
+      (json['PreToolUse'] as List<dynamic>?)
+          ?.map((e) => PreToolUseHook.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      [],
 );
 
 Map<String, dynamic> _$HooksConfigToJson(HooksConfig instance) =>

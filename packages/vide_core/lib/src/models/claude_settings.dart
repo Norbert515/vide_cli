@@ -39,8 +39,11 @@ class ClaudeSettings {
 
 @JsonSerializable(explicitToJson: true)
 class PermissionsConfig {
+  @JsonKey(defaultValue: [])
   final List<String> allow;
+  @JsonKey(defaultValue: [])
   final List<String> deny;
+  @JsonKey(defaultValue: [])
   final List<String> ask;
 
   const PermissionsConfig({
@@ -72,7 +75,7 @@ class PermissionsConfig {
 
 @JsonSerializable(explicitToJson: true)
 class HooksConfig {
-  @JsonKey(name: 'PreToolUse')
+  @JsonKey(name: 'PreToolUse', defaultValue: [])
   final List<PreToolUseHook> preToolUse;
 
   const HooksConfig({required this.preToolUse});
