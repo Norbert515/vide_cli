@@ -4,9 +4,8 @@ import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:vide_core/mcp/git/git_client.dart';
-import 'package:vide_core/mcp/git/git_models.dart';
-import 'package:vide_core/mcp/git/git_providers.dart';
+import 'package:vide_core/api.dart'
+    show GitClient, GitStatus, GitBranch, GitWorktree, GitRepository, gitStatusStreamProvider;
 import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/services/toast_service.dart';
@@ -1768,6 +1767,8 @@ class _GitSidebarState extends State<GitSidebar> {
       });
     } catch (e) {
       setState(() {
+        _cachedBranches = []; // Prevent infinite retry loop
+        _cachedWorktrees = [];
         _branchesLoading = false;
       });
     }
