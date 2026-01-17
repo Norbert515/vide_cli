@@ -400,12 +400,22 @@ class VideSession {
         state.currentMessageEventId = null;
       }
 
+      // Get token/cost data from current conversation
+      final conversation = client.currentConversation;
       _eventController.add(TurnCompleteEvent(
         agentId: agent.id,
         agentType: agent.type,
         agentName: agent.name,
         taskName: state?.taskName,
         reason: 'end_turn',
+        totalInputTokens: conversation.totalInputTokens,
+        totalOutputTokens: conversation.totalOutputTokens,
+        totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+        totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
+        totalCostUsd: conversation.totalCostUsd,
+        currentContextInputTokens: conversation.currentContextInputTokens,
+        currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
+        currentContextCacheCreationTokens: conversation.currentContextCacheCreationTokens,
       ));
     });
     _subscriptions.add(turnCompleteSub);

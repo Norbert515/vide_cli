@@ -160,6 +160,32 @@ final class TurnCompleteEvent extends VideEvent {
   /// Reason for completion (e.g., "end_turn", "max_tokens").
   final String reason;
 
+  // Token usage (accumulated totals across all turns)
+  /// Total input tokens used across all turns.
+  final int totalInputTokens;
+
+  /// Total output tokens used across all turns.
+  final int totalOutputTokens;
+
+  /// Total cache read tokens used across all turns.
+  final int totalCacheReadInputTokens;
+
+  /// Total cache creation tokens used across all turns.
+  final int totalCacheCreationInputTokens;
+
+  /// Total cost in USD across all turns.
+  final double totalCostUsd;
+
+  // Current context window usage (from latest turn, for context % display)
+  /// Input tokens in current context window.
+  final int currentContextInputTokens;
+
+  /// Cache read tokens in current context window.
+  final int currentContextCacheReadTokens;
+
+  /// Cache creation tokens in current context window.
+  final int currentContextCacheCreationTokens;
+
   TurnCompleteEvent({
     required super.agentId,
     required super.agentType,
@@ -167,7 +193,27 @@ final class TurnCompleteEvent extends VideEvent {
     super.taskName,
     super.timestamp,
     required this.reason,
+    this.totalInputTokens = 0,
+    this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
+    this.currentContextInputTokens = 0,
+    this.currentContextCacheReadTokens = 0,
+    this.currentContextCacheCreationTokens = 0,
   });
+
+  /// Total context tokens used across all turns.
+  int get totalContextTokens =>
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
+
+  /// Current context window usage (for percentage display).
+  int get currentContextWindowTokens =>
+      currentContextInputTokens +
+      currentContextCacheReadTokens +
+      currentContextCacheCreationTokens;
 
   @override
   String toString() => 'TurnCompleteEvent($reason)';

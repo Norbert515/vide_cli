@@ -163,7 +163,12 @@ class EventRenderer {
     _finishStreamingForAgent(e.agentId);
     final color = _getAgentColor(e.agentId);
     final prefix = _agentPrefix(e);
-    stdout.writeln('${_color(color)}${_color(_Colors.dim)}$prefix--- ${e.reason} ---${_color(_Colors.reset)}');
+
+    // Show token usage if available
+    final tokenInfo = e.totalCostUsd > 0
+        ? ' (${e.currentContextWindowTokens} ctx, \$${e.totalCostUsd.toStringAsFixed(4)})'
+        : '';
+    stdout.writeln('${_color(color)}${_color(_Colors.dim)}$prefix--- ${e.reason}$tokenInfo ---${_color(_Colors.reset)}');
     stdout.writeln();
 
     // Clear active agent if this was it

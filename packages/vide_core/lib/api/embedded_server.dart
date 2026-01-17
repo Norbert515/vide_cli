@@ -372,6 +372,14 @@ class VideEmbeddedServer {
           ...base,
           'type': 'turn_complete',
           'reason': e.reason,
+          'total_input_tokens': e.totalInputTokens,
+          'total_output_tokens': e.totalOutputTokens,
+          'total_cache_read_input_tokens': e.totalCacheReadInputTokens,
+          'total_cache_creation_input_tokens': e.totalCacheCreationInputTokens,
+          'total_cost_usd': e.totalCostUsd,
+          'current_context_input_tokens': e.currentContextInputTokens,
+          'current_context_cache_read_tokens': e.currentContextCacheReadTokens,
+          'current_context_cache_creation_tokens': e.currentContextCacheCreationTokens,
         };
 
       case AgentSpawnedEvent e:

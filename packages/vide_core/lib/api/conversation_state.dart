@@ -153,11 +153,49 @@ class AgentConversationState {
   /// Messages in the conversation.
   final List<VideMessage> messages;
 
+  // Token usage (accumulated totals across all turns)
+  /// Total input tokens used across all turns.
+  int totalInputTokens;
+
+  /// Total output tokens used across all turns.
+  int totalOutputTokens;
+
+  /// Total cache read tokens used across all turns.
+  int totalCacheReadInputTokens;
+
+  /// Total cache creation tokens used across all turns.
+  int totalCacheCreationInputTokens;
+
+  /// Total cost in USD across all turns.
+  double totalCostUsd;
+
+  // Current context window usage (from latest turn, for context % display)
+  /// Input tokens in current context window.
+  int currentContextInputTokens;
+
+  /// Cache read tokens in current context window.
+  int currentContextCacheReadTokens;
+
+  /// Cache creation tokens in current context window.
+  int currentContextCacheCreationTokens;
+
   /// Whether the agent is currently processing (has streaming content).
   bool get isProcessing {
     if (messages.isEmpty) return false;
     return messages.last.isStreaming;
   }
+
+  /// Total context tokens used across all turns.
+  int get totalContextTokens =>
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
+
+  /// Current context window usage (for percentage display).
+  int get currentContextWindowTokens =>
+      currentContextInputTokens +
+      currentContextCacheReadTokens +
+      currentContextCacheCreationTokens;
 
   AgentConversationState({
     required this.agentId,
@@ -166,6 +204,14 @@ class AgentConversationState {
     this.status = VideAgentStatus.idle,
     this.taskName,
     List<VideMessage>? messages,
+    this.totalInputTokens = 0,
+    this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
+    this.currentContextInputTokens = 0,
+    this.currentContextCacheReadTokens = 0,
+    this.currentContextCacheCreationTokens = 0,
   }) : messages = messages ?? [];
 
   /// Internal: current message event ID being streamed.
@@ -383,6 +429,16 @@ class ConversationStateManager {
     if (state == null) return;
 
     state._currentMessageEventId = null;
+
+    // Update token/cost tracking
+    state.totalInputTokens = event.totalInputTokens;
+    state.totalOutputTokens = event.totalOutputTokens;
+    state.totalCacheReadInputTokens = event.totalCacheReadInputTokens;
+    state.totalCacheCreationInputTokens = event.totalCacheCreationInputTokens;
+    state.totalCostUsd = event.totalCostUsd;
+    state.currentContextInputTokens = event.currentContextInputTokens;
+    state.currentContextCacheReadTokens = event.currentContextCacheReadTokens;
+    state.currentContextCacheCreationTokens = event.currentContextCacheCreationTokens;
 
     // Mark any streaming content as complete
     if (state.messages.isNotEmpty) {
