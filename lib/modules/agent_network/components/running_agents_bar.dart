@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:claude_sdk/claude_sdk.dart' show ClaudeStatus;
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -39,7 +38,8 @@ class _RunningAgentBarItem extends StatefulComponent {
   State<_RunningAgentBarItem> createState() => _RunningAgentBarItemState();
 }
 
-class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
+class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
+    with SingleTickerProviderStateMixin {
   static const _spinnerFrames = [
     '⠋',
     '⠙',
@@ -53,22 +53,21 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     '⠏',
   ];
 
-  Timer? _spinnerTimer;
-  int _spinnerIndex = 0;
+  late AnimationController _spinnerController;
   AgentStatus? _lastInferredStatus;
 
-  void _startSpinner() {
-    if (_spinnerTimer != null) return; // Already running
-    _spinnerTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      setState(() {
-        _spinnerIndex = (_spinnerIndex + 1) % _spinnerFrames.length;
-      });
-    });
-  }
+  /// Derive spinner index from animation controller value (0.0-1.0)
+  int get _spinnerIndex =>
+      (_spinnerController.value * _spinnerFrames.length).floor() %
+      _spinnerFrames.length;
 
-  void _stopSpinner() {
-    _spinnerTimer?.cancel();
-    _spinnerTimer = null;
+  @override
+  void initState() {
+    super.initState();
+    _spinnerController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..addListener(() => setState(() {}));
   }
 
   void _updateSpinnerForStatus(AgentStatus status) {
@@ -76,12 +75,14 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
     final isWorking = status == AgentStatus.working;
 
     if (isWorking && !wasWorking) {
-      _startSpinner();
+      _spinnerController.repeat();
     } else if (!isWorking && wasWorking) {
-      _stopSpinner();
-    } else if (isWorking && _spinnerTimer == null) {
+      _spinnerController
+        ..stop()
+        ..reset();
+    } else if (isWorking && !_spinnerController.isAnimating) {
       // Handle initial mount with working status
-      _startSpinner();
+      _spinnerController.repeat();
     }
 
     _lastInferredStatus = status;
@@ -89,7 +90,7 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem> {
 
   @override
   void dispose() {
-    _stopSpinner();
+    _spinnerController.dispose();
     super.dispose();
   }
 

@@ -19,7 +19,8 @@ class EnhancedLoadingIndicator extends StatefulComponent {
       _EnhancedLoadingIndicatorState();
 }
 
-class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
+class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
+    with SingleTickerProviderStateMixin {
   static final _activities = [
     'Calibrating quantum flux capacitors',
     'Teaching neurons to dance',
@@ -94,40 +95,46 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator> {
   ];
 
   final _random = Random();
-  Timer? _animationTimer;
+  late AnimationController _controller;
   Timer? _activityTimer;
-  int _frameIndex = 0;
   int _activityIndex = 0;
-  int _shimmerPosition = 0;
+
+  /// Derive braille frame index from animation controller value (0.0-1.0)
+  int get _frameIndex =>
+      (_controller.value * _brailleFrames.length).floor() % _brailleFrames.length;
+
+  /// Derive shimmer position from animation controller, cycling through activity text
+  int get _shimmerPosition {
+    final textLength = _activities[_activityIndex].length + 10; // +10 for padding
+    final pos = (_controller.value * textLength).floor() - 5;
+    return pos;
+  }
 
   @override
   void initState() {
     super.initState();
     _activityIndex = _random.nextInt(_activities.length);
 
-    // Animation timer for braille and shimmer
-    _animationTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      setState(() {
-        _frameIndex = (_frameIndex + 1) % _brailleFrames.length;
-        _shimmerPosition = (_shimmerPosition + 1);
-        if (_shimmerPosition >= _activities[_activityIndex].length + 5) {
-          _shimmerPosition = -5;
-        }
-      });
-    });
+    // Animation controller for braille spinner and shimmer effect
+    // Duration of 1 second gives smooth animation through all frames
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )
+      ..addListener(() => setState(() {}))
+      ..repeat();
 
-    // Activity change timer
-    _activityTimer = Timer.periodic(Duration(seconds: 4), (_) {
+    // Activity change timer - cycles through fun messages
+    _activityTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       setState(() {
         _activityIndex = _random.nextInt(_activities.length);
-        _shimmerPosition = -5;
       });
     });
   }
 
   @override
   void dispose() {
-    _animationTimer?.cancel();
+    _controller.dispose();
     _activityTimer?.cancel();
     super.dispose();
   }
