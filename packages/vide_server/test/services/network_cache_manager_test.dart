@@ -1,6 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_core/models/agent_network.dart';
-import 'package:vide_core/services/agent_network_persistence_manager.dart';
+import 'package:vide_core/src.dart';
 import 'package:vide_server/services/network_cache_manager.dart';
 
 /// Mock persistence manager for testing

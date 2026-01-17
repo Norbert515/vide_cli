@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 /// Verify the expected outcomes from the requirements
 void main() {

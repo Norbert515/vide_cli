@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:test/test.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 void main() {
   group('PermissionChecker', () {

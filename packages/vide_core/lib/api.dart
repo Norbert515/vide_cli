@@ -77,37 +77,41 @@
 /// - [ErrorEvent] - An error occurred.
 library vide_core.api;
 
-export 'api/vide_core.dart' show VideCore;
-export 'api/vide_session.dart' show VideSession;
-export 'api/vide_event.dart';
-export 'api/vide_agent.dart';
-export 'api/vide_config.dart';
-export 'api/embedded_server.dart' show VideEmbeddedServer;
-export 'api/conversation_state.dart';
+// Version
+export 'version.dart';
+
+// Main entry point
+export 'vide_core_api.dart' show VideCore;
+export 'src/api/vide_session.dart' show VideSession;
+export 'src/api/vide_event.dart';
+export 'src/api/vide_agent.dart';
+export 'src/api/vide_config.dart';
+export 'src/api/embedded_server.dart' show VideEmbeddedServer;
+export 'src/api/conversation_state.dart';
 
 // Common type aliases
-export 'models/agent_id.dart' show AgentId;
+export 'src/models/agent_id.dart' show AgentId;
 
 // Initial client for pre-warming and MCP status
-export 'services/initial_claude_client.dart' show InitialClaudeClient;
+export 'src/services/initial_claude_client.dart' show InitialClaudeClient;
 
 // Network types
-export 'models/agent_network.dart' show AgentNetwork;
-export 'models/agent_id.dart' show AgentNetworkId;
-export 'services/agent_network_manager.dart'
+export 'src/models/agent_network.dart' show AgentNetwork;
+export 'src/models/agent_id.dart' show AgentNetworkId;
+export 'src/services/agent_network_manager.dart'
     show AgentNetworkState, agentNetworkManagerProvider, AgentNetworkManager;
 
 // Agent metadata (for running agents bar)
-export 'models/agent_metadata.dart' show AgentMetadata;
+export 'src/models/agent_metadata.dart' show AgentMetadata;
 
 // Config manager
-export 'services/vide_config_manager.dart'
+export 'src/services/vide_config_manager.dart'
     show VideConfigManager, videConfigManagerProvider;
-export 'models/vide_global_settings.dart' show VideGlobalSettings;
+export 'src/models/vide_global_settings.dart' show VideGlobalSettings;
 
 // Permission utilities (for TUI permission dialog)
-export 'services/permissions/pattern_inference.dart' show PatternInference;
-export 'services/permissions/tool_input.dart'
+export 'src/services/permissions/pattern_inference.dart' show PatternInference;
+export 'src/services/permissions/tool_input.dart'
     show
         ToolInput,
         BashToolInput,
@@ -123,9 +127,9 @@ export 'services/permissions/tool_input.dart'
         UnknownToolInput;
 
 // Ask user question MCP
-export 'mcp/ask_user_question/ask_user_question_service.dart'
+export 'src/mcp/ask_user_question/ask_user_question_service.dart'
     show AskUserQuestionService, askUserQuestionServiceProvider;
-export 'mcp/ask_user_question/ask_user_question_types.dart'
+export 'src/mcp/ask_user_question/ask_user_question_types.dart'
     show
         AskUserQuestion,
         AskUserQuestionOption,
@@ -133,33 +137,33 @@ export 'mcp/ask_user_question/ask_user_question_types.dart'
         AskUserQuestionResponse;
 
 // Project detection
-export 'utils/project_detector.dart'
+export 'src/utils/project_detector.dart'
     show ProjectDetector, ProjectType, projecTypeProvider;
 
 // Permission callback infrastructure
-export 'services/permission_provider.dart'
+export 'src/services/permission_provider.dart'
     show
         PermissionCallbackContext,
         CanUseToolCallbackFactory,
         canUseToolCallbackFactoryProvider;
 
 // Analytics
-export 'services/posthog_service.dart' show PostHogService;
+export 'src/services/posthog_service.dart' show PostHogService;
 
 // Agent status
-export 'models/agent_status.dart' show AgentStatus, AgentStatusExtension;
-export 'state/agent_status_manager.dart'
+export 'src/models/agent_status.dart' show AgentStatus, AgentStatusExtension;
+export 'src/state/agent_status_manager.dart'
     show agentStatusProvider, AgentStatusNotifier;
 
 // Claude status (from ClaudeManager)
-export 'services/claude_manager.dart' show claudeStatusProvider;
+export 'src/services/claude_manager.dart' show claudeStatusProvider;
 
 // Network persistence
-export 'services/agent_network_persistence_manager.dart'
+export 'src/services/agent_network_persistence_manager.dart'
     show AgentNetworkPersistenceManager, agentNetworkPersistenceManagerProvider;
 
 // Permission checker (for TUI permission service)
-export 'services/permissions/permission_checker.dart'
+export 'src/services/permissions/permission_checker.dart'
     show
         PermissionChecker,
         PermissionCheckerConfig,
@@ -192,14 +196,14 @@ export 'package:claude_sdk/claude_sdk.dart'
         ClaudeSettingsManager;
 
 // Working directory provider
-export 'utils/working_dir_provider.dart' show workingDirProvider;
+export 'src/utils/working_dir_provider.dart' show workingDirProvider;
 
 // Auto-update service
-export 'services/auto_update_service.dart'
+export 'src/services/auto_update_service.dart'
     show autoUpdateServiceProvider, AutoUpdateService, UpdateStatus, UpdateState, UpdateInfo;
 
 // Git providers, client, and models
-export 'mcp/git/git_providers.dart' show gitStatusStreamProvider;
-export 'mcp/git/git_client.dart' show GitClient;
-export 'mcp/git/git_models.dart'
+export 'src/mcp/git/git_providers.dart' show gitStatusStreamProvider;
+export 'src/mcp/git/git_client.dart' show GitClient;
+export 'src/mcp/git/git_models.dart'
     show GitStatus, GitBranch, GitWorktree, GitCommit, GitRepository;

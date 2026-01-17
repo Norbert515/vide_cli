@@ -1,5 +1,5 @@
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 import 'session_permission_manager.dart';
 

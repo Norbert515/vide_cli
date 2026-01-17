@@ -1,5 +1,4 @@
-import 'package:vide_core/models/agent_network.dart';
-import 'package:vide_core/services/agent_network_persistence_manager.dart';
+import 'package:vide_core/src.dart';
 
 /// Hybrid caching strategy for agent networks
 ///

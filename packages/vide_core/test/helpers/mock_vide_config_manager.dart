@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 /// A test-friendly VideConfigManager that uses a temporary directory.
 class MockVideConfigManager extends VideConfigManager {

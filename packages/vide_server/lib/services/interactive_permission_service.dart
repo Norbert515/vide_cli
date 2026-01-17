@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 import '../dto/session_dto.dart';
 import 'server_config.dart';

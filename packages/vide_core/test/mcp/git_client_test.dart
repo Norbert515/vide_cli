@@ -3,7 +3,7 @@ library;
 
 import 'dart:io';
 import 'package:test/test.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src.dart';
 
 /// Check if git commit signing is enabled (which may fail in some environments)
 Future<bool> canCommit(String workingDir) async {
