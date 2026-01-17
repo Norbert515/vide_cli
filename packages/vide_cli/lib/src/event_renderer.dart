@@ -13,14 +13,6 @@ class _Colors {
   static const green = '\x1B[32m';
   static const magenta = '\x1B[35m';
   static const blue = '\x1B[34m';
-  static const white = '\x1B[37m';
-
-  // Background colors for agent distinction
-  static const bgBlue = '\x1B[44m';
-  static const bgGreen = '\x1B[42m';
-  static const bgYellow = '\x1B[43m';
-  static const bgMagenta = '\x1B[45m';
-  static const bgCyan = '\x1B[46m';
 }
 
 /// Per-agent streaming state.
@@ -161,21 +153,10 @@ class EventRenderer {
     // Don't print successful tool results by default - too verbose
   }
 
+  // ignore: unused_element
   void _renderStatus(StatusEvent e) {
-    // Optionally show status changes for non-main agents
-    if (e.agentType != 'main') {
-      final color = _getAgentColor(e.agentId);
-      final name = e.agentName ?? e.agentType;
-      final statusIcon = switch (e.status) {
-        VideAgentStatus.working => '⚙',
-        VideAgentStatus.waitingForAgent => '⏳',
-        VideAgentStatus.waitingForUser => '?',
-        VideAgentStatus.idle => '✓',
-      };
-      // Only show if we're verbose or it's a significant change
-      // For now, keep it quiet
-      // stdout.writeln('${_color(color)}${_color(_Colors.dim)}[$name $statusIcon]${_color(_Colors.reset)}');
-    }
+    // Status events are typically too verbose for CLI output.
+    // Keep method for potential future use but don't render anything.
   }
 
   void _renderTurnComplete(TurnCompleteEvent e) {
