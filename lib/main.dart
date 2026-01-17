@@ -80,12 +80,19 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   await SentryService.init();
 
   // Create provider container with overrides from entry point and permission callback
+  // Note: videoCoreProvider is overridden using Late pattern since it needs the container
+  late final api.VideCore videCore;
   final container = ProviderContainer(
-    overrides: [_canUseToolCallbackFactoryOverride, ...overrides],
+    overrides: [
+      _canUseToolCallbackFactoryOverride,
+      // Override videoCoreProvider - uses late initialization since it needs container
+      videoCoreProvider.overrideWith((ref) => videCore),
+      ...overrides,
+    ],
   );
 
   // Create VideCore from the existing container (enables public API usage)
-  final videCore = api.VideCore.fromContainer(container);
+  videCore = api.VideCore.fromContainer(container);
 
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);
@@ -101,10 +108,6 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   await runApp(
     ProviderScope(
       parent: container,
-      overrides: [
-        // Override videoCoreProvider with our instance
-        videoCoreProvider.overrideWithValue(videCore),
-      ],
       child: VideApp(container: container),
     ),
   );

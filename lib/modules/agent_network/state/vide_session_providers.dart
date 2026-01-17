@@ -3,8 +3,6 @@
 /// These providers bridge the public vide_core API with the TUI state management.
 library;
 
-import 'dart:async';
-
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/api.dart' as api;
 import 'package:vide_core/vide_core.dart';
@@ -31,40 +29,16 @@ final currentVideSessionProvider = Provider<api.VideSession?>((ref) {
 
 /// Provider for ConversationStateManager tied to the current session.
 ///
-/// This manages state accumulation from VideSession events.
-/// Returns null if no session is active.
+/// The ConversationStateManager is owned by the VideSession and accumulates
+/// all events from the session's creation. This avoids missing events that
+/// would occur with late subscription to a broadcast stream.
 final conversationStateManagerProvider =
     Provider<api.ConversationStateManager?>((ref) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return null;
 
-  // Get or create state manager for this session
-  return ref.watch(_sessionStateManagerProvider(session.id));
-});
-
-/// Internal: Creates and manages a ConversationStateManager per session.
-final _sessionStateManagerProvider =
-    Provider.family<api.ConversationStateManager, String>((ref, sessionId) {
-  final session = ref.watch(currentVideSessionProvider);
-  if (session == null || session.id != sessionId) {
-    // Session changed or doesn't match - return empty manager
-    return api.ConversationStateManager();
-  }
-
-  final manager = api.ConversationStateManager();
-
-  // Subscribe to session events
-  final subscription = session.events.listen((event) {
-    manager.handleEvent(event);
-  });
-
-  // Clean up on dispose
-  ref.onDispose(() {
-    subscription.cancel();
-    manager.dispose();
-  });
-
-  return manager;
+  // Use the session's built-in conversation state manager
+  return session.conversationState;
 });
 
 /// Provider for a specific agent's conversation state.

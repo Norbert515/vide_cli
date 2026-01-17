@@ -15,6 +15,7 @@ import '../models/agent_status.dart' as internal;
 import '../services/agent_network_manager.dart';
 import '../services/claude_manager.dart';
 import '../state/agent_status_manager.dart';
+import 'conversation_state.dart';
 import 'vide_agent.dart';
 import 'vide_event.dart';
 
@@ -64,6 +65,11 @@ class VideSession {
   /// Pending permission completers by request ID.
   final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
 
+  /// Conversation state manager that accumulates events from the start.
+  ///
+  /// This is created immediately when the session is created, so no events are missed.
+  late final ConversationStateManager _conversationStateManager;
+
   /// Whether the session has been disposed.
   bool _disposed = false;
 
@@ -72,7 +78,13 @@ class VideSession {
     required ProviderContainer container,
   })  : _networkId = networkId,
         _container = container,
-        _eventController = StreamController<VideEvent>.broadcast();
+        _eventController = StreamController<VideEvent>.broadcast() {
+    // Create conversation state manager immediately and subscribe to events
+    _conversationStateManager = ConversationStateManager();
+    _eventController.stream.listen((event) {
+      _conversationStateManager.handleEvent(event);
+    });
+  }
 
   /// Creates a new VideSession for an existing network.
   ///
@@ -104,6 +116,12 @@ class VideSession {
 
   /// Unique identifier for this session.
   String get id => _networkId;
+
+  /// Get the conversation state manager for this session.
+  ///
+  /// This accumulates all events into a renderable conversation structure.
+  /// The manager is created when the session is created, so all events are captured.
+  ConversationStateManager get conversationState => _conversationStateManager;
 
   /// Stream of all events from all agents in the session.
   ///
@@ -292,6 +310,9 @@ class VideSession {
     // Clear agent states
     _agentStates.clear();
 
+    // Dispose conversation state manager
+    _conversationStateManager.dispose();
+
     // Close the event stream
     await _eventController.close();
   }
@@ -367,6 +388,13 @@ class VideSession {
       agentType: agent.type,
       agentName: agent.name,
     );
+
+    // IMPORTANT: First replay the current conversation state
+    // This catches up on any messages that were sent before we subscribed
+    final currentConversation = client.currentConversation;
+    if (currentConversation.messages.isNotEmpty) {
+      _handleConversation(agent, currentConversation);
+    }
 
     // Subscribe to conversation updates
     final conversationSub = client.conversation.listen(
