@@ -3,7 +3,9 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/vide_core.dart';
+// Use public API for AgentId type
+import 'package:vide_core/api.dart' show AgentId;
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'default_renderer.dart';
 
@@ -65,9 +67,9 @@ class _FlutterOutputRendererState extends State<FlutterOutputRenderer> {
       return;
     }
 
-    final manager = context.read(claudeManagerProvider);
-    final client = manager[component.agentId];
-    final flutterServer = client?.getMcpServer<FlutterRuntimeServer>(
+    final session = context.read(currentVideSessionProvider);
+    final flutterServer = session?.getMcpServer<FlutterRuntimeServer>(
+      component.agentId,
       'flutter-runtime',
     );
 

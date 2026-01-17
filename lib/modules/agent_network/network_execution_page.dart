@@ -17,7 +17,8 @@ import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart
 import 'package:vide_cli/components/git_branch_indicator.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
@@ -66,9 +67,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       });
     }
     final agentId = networkState.agentIds[safeIndex];
-    final client = context.watch(claudeProvider(agentId));
-    if (client == null) {
-      // Client still being created - show optimistic loading state
+    final session = context.watch(currentVideSessionProvider);
+    if (session == null) {
+      // Session still being created - show optimistic loading state
       // This looks the same as when we're waiting for a response
       final theme = VideTheme.of(context);
       return Expanded(
@@ -102,7 +103,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: _AgentChat(
         key: ValueKey(agentId),
         agentId: agentId,
-        client: client,
         networkId: component.networkId,
         showQuitWarning: _showQuitWarning,
         ideModeEnabled: ideModeEnabled,
@@ -216,14 +216,12 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
 class _AgentChat extends StatefulComponent {
   final String agentId;
-  final ClaudeClient client;
   final String networkId;
   final bool showQuitWarning;
   final bool ideModeEnabled;
 
   const _AgentChat({
     required this.agentId,
-    required this.client,
     required this.networkId,
     this.showQuitWarning = false,
     this.ideModeEnabled = false,
@@ -247,8 +245,11 @@ class _AgentChatState extends State<_AgentChat> {
   void initState() {
     super.initState();
 
+    final session = context.read(currentVideSessionProvider);
+    if (session == null) return;
+
     // Listen to conversation updates
-    _conversationSubscription = component.client.conversation.listen((
+    _conversationSubscription = session.conversationStream(component.agentId).listen((
       conversation,
     ) {
       setState(() {
@@ -256,29 +257,27 @@ class _AgentChatState extends State<_AgentChat> {
       });
 
       // Sync token stats to AgentMetadata for persistence and network-wide tracking
-      _syncTokenStats(conversation);
+      _syncTokenStats(conversation, session);
     });
-    _conversation = component.client.currentConversation;
+    _conversation = session.getConversation(component.agentId) ?? Conversation.empty();
 
     // Listen to queued message updates
-    _queueSubscription = component.client.queuedMessage.listen((text) {
+    _queueSubscription = session.queuedMessageStream(component.agentId).listen((text) {
       setState(() => _queuedMessage = text);
     });
-    _queuedMessage = component.client.currentQueuedMessage;
+    _queuedMessage = session.getQueuedMessage(component.agentId);
   }
 
-  void _syncTokenStats(Conversation conversation) {
-    context
-        .read(agentNetworkManagerProvider.notifier)
-        .updateAgentTokenStats(
-          component.client.sessionId,
-          totalInputTokens: conversation.totalInputTokens,
-          totalOutputTokens: conversation.totalOutputTokens,
-          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-          totalCacheCreationInputTokens:
-              conversation.totalCacheCreationInputTokens,
-          totalCostUsd: conversation.totalCostUsd,
-        );
+  void _syncTokenStats(Conversation conversation, VideSession session) {
+    session.updateAgentTokenStats(
+      component.agentId,
+      totalInputTokens: conversation.totalInputTokens,
+      totalOutputTokens: conversation.totalOutputTokens,
+      totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+      totalCacheCreationInputTokens:
+          conversation.totalCacheCreationInputTokens,
+      totalCostUsd: conversation.totalCostUsd,
+    );
   }
 
   @override
@@ -289,7 +288,10 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(Message message) {
-    component.client.sendMessage(message);
+    final session = context.read(currentVideSessionProvider);
+    // Note: session.sendMessage only takes String, not Message with attachments
+    // For now, send text only. Attachment support can be added to the API later.
+    session?.sendMessage(message.text, agentId: component.agentId);
   }
 
   bool _isLastAgent() {
@@ -299,16 +301,17 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   Future<void> _handleCommand(String commandInput) async {
+    final session = context.read(currentVideSessionProvider);
     final dispatcher = context.read(commandDispatcherProvider);
     final commandContext = CommandContext(
       agentId: component.agentId,
-      workingDirectory: component.client.workingDirectory,
+      workingDirectory: session?.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        component.client.sendMessage(Message(text: message));
+        session?.sendMessage(message, agentId: component.agentId);
       },
       clearConversation: () async {
-        await component.client.clearConversation();
+        await session?.clearConversation(agentId: component.agentId);
         setState(() {
           _conversation = Conversation.empty();
         });
@@ -327,17 +330,12 @@ class _AgentChatState extends State<_AgentChat> {
         );
       },
       forkAgent: (name) async {
-        final manager = context.read(agentNetworkManagerProvider.notifier);
-        final newAgentId = await manager.forkAgent(
-          sourceAgentId: component.agentId,
-          name: name,
-        );
-        return newAgentId;
+        final newAgentId = await session?.forkAgent(component.agentId, name: name);
+        return newAgentId ?? '';
       },
       killAgent: () async {
-        final manager = context.read(agentNetworkManagerProvider.notifier);
-        await manager.terminateAgent(
-          targetAgentId: component.agentId,
+        await session?.terminateAgent(
+          component.agentId,
           terminatedBy: component.agentId, // Self-termination
           reason: 'User invoked /kill command',
         );
@@ -470,13 +468,16 @@ class _AgentChatState extends State<_AgentChat> {
 
   bool _handleKeyEvent(KeyboardEvent event) {
     if (event.logicalKey == LogicalKey.escape) {
+      final session = context.read(currentVideSessionProvider);
+      if (session == null) return false;
+
       // If there's a queued message, clear it first
       if (_queuedMessage != null) {
-        component.client.clearQueuedMessage();
+        session.clearQueuedMessage(component.agentId);
         return true;
       }
       // Otherwise abort the current processing
-      component.client.abort();
+      session.abortAgent(component.agentId);
       return true;
     }
     return false;
@@ -606,7 +607,10 @@ class _AgentChatState extends State<_AgentChat> {
                 if (_queuedMessage != null)
                   QueueIndicator(
                     queuedText: _queuedMessage!,
-                    onClear: () => component.client.clearQueuedMessage(),
+                    onClear: () {
+                      final session = context.read(currentVideSessionProvider);
+                      session?.clearQueuedMessage(component.agentId);
+                    },
                   ),
 
                 // Loading indicator row - always 1 cell height to prevent layout jumps
@@ -768,12 +772,14 @@ class _AgentChatState extends State<_AgentChat> {
                                 .state = true
                             : null,
                         onEscape: () {
+                          final session = context.read(currentVideSessionProvider);
+                          if (session == null) return;
                           // If there's a queued message, clear it first
                           if (_queuedMessage != null) {
-                            component.client.clearQueuedMessage();
+                            session.clearQueuedMessage(component.agentId);
                           } else {
                             // Otherwise abort the current processing
-                            component.client.abort();
+                            session.abortAgent(component.agentId);
                           }
                         },
                       );
@@ -980,13 +986,14 @@ class _AgentChatState extends State<_AgentChat> {
             result,
           );
 
+          final session = context.read(currentVideSessionProvider);
           widgets.add(
             ToolInvocationRouter(
               key: ValueKey(response.toolUseId ?? response.id),
               invocation: invocation,
-              workingDirectory: component.client.workingDirectory,
+              workingDirectory: session?.workingDirectory ?? '',
               executionId: component.networkId,
-              agentId: component.client.sessionId,
+              agentId: component.agentId,
             ),
           );
           if (result != null && response.toolUseId != null) {

@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'package:claude_sdk/src/control/control_types.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 
 // =============================================================================
 // Data Classes

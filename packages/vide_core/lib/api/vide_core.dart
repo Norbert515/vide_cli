@@ -188,6 +188,91 @@ class VideCore {
     return session;
   }
 
+  /// Start a new session with a Message object.
+  ///
+  /// This is similar to [startSession] but accepts a [Message] object
+  /// instead of a plain string. This allows TUI to include attachments
+  /// with the initial message.
+  ///
+  /// Example:
+  /// ```dart
+  /// final session = await core.startSessionWithMessage(
+  ///   Message(text: 'Fix the bug', attachments: [Attachment.file('error.log')]),
+  ///   workingDirectory: '/path/to/project',
+  /// );
+  /// ```
+  Future<VideSession> startSessionWithMessage(
+    Message message, {
+    required String workingDirectory,
+    String? model,
+    String? permissionMode,
+  }) async {
+    _checkNotDisposed();
+
+    // Create the initial client (this mirrors what initialClaudeClientProvider does)
+    final agentId = const Uuid().v4();
+    final mainAgentConfig = MainAgentConfig.create();
+
+    // We need to create the container first, then create the client using
+    // a factory that uses that container's ref
+    final sessionContainer = ProviderContainer(
+      parent: _container,
+      overrides: [
+        workingDirProvider.overrideWithValue(workingDirectory),
+      ],
+    );
+
+    final factory = ClaudeClientFactoryImpl(
+      getWorkingDirectory: () => workingDirectory,
+      ref: sessionContainer.read(_providerContainerRefProvider),
+    );
+
+    final client = factory.createSync(
+      agentId: agentId,
+      config: mainAgentConfig,
+      networkId: null, // Will be set after network is created
+      agentType: 'main',
+    );
+
+    // Create InitialClaudeClient wrapper and override the provider
+    final initialClient = InitialClaudeClient(
+      client: client,
+      agentId: agentId,
+      workingDirectory: workingDirectory,
+    );
+
+    // Create a new container with the initialClaudeClientProvider override
+    final finalContainer = ProviderContainer(
+      parent: _container,
+      overrides: [
+        workingDirProvider.overrideWithValue(workingDirectory),
+        initialClaudeClientProvider.overrideWithValue(initialClient),
+      ],
+    );
+
+    // Create network via AgentNetworkManager
+    // This will use our overridden initialClaudeClientProvider
+    final manager = finalContainer.read(agentNetworkManagerProvider.notifier);
+    final network = await manager.startNew(
+      message,
+      workingDirectory: workingDirectory,
+      model: model,
+      permissionMode: permissionMode,
+    );
+
+    // Create and return the session
+    final session = VideSession.create(
+      networkId: network.id,
+      container: finalContainer,
+    );
+
+    // Dispose the intermediate container (not the final one)
+    sessionContainer.dispose();
+
+    _activeSessions[session.id] = session;
+    return session;
+  }
+
   /// Resume an existing session by its ID.
   ///
   /// This loads the session from persistent storage and recreates
@@ -369,6 +454,28 @@ class VideCore {
     final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
     return '$home/.vide';
   }
+
+  /// The initial Claude client for pre-warming and MCP status.
+  ///
+  /// This is created lazily on first access. Useful for:
+  /// - Pre-warming Claude CLI before user submits first message
+  /// - Displaying MCP server status in UI
+  ///
+  /// Note: The client is reused across sessions when using [fromContainer].
+  InitialClaudeClient get initialClient {
+    _checkNotDisposed();
+    return _container.read(initialClaudeClientProvider);
+  }
+
+  /// Current MCP server status, or null if not yet fetched.
+  ///
+  /// This is a convenience getter that returns [initialClient.mcpStatus].
+  McpStatusResponse? get mcpStatus => initialClient.mcpStatus;
+
+  /// Stream of MCP status updates.
+  ///
+  /// This is a convenience getter that returns [initialClient.mcpStatusStream].
+  Stream<McpStatusResponse> get mcpStatusStream => initialClient.mcpStatusStream;
 }
 
 /// Internal provider to get a Ref from the container.

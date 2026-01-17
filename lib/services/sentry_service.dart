@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 import 'package:sentry/sentry.dart';
 
 class SentryService {

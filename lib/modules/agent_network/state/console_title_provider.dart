@@ -5,7 +5,9 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 import '../../permissions/permission_scope.dart';
-import 'package:vide_core/vide_core.dart';
+// Use public API types where possible
+import 'package:vide_core/api.dart' as api;
+import 'vide_session_providers.dart';
 
 /// Provides the project name from the current working directory.
 final projectNameProvider = Provider<String>((ref) {
@@ -78,8 +80,8 @@ enum _AggregatedStatus {
 
 /// Infer actual status based on explicit status and conversation state.
 /// This provides safeguards against agents forgetting to call setAgentStatus.
-AgentStatus _inferActualStatus(
-  AgentStatus explicitStatus,
+api.VideAgentStatus _inferActualStatus(
+  api.VideAgentStatus explicitStatus,
   Conversation? conversation,
 ) {
   if (conversation == null) {
@@ -88,14 +90,14 @@ AgentStatus _inferActualStatus(
 
   // If conversation is processing, agent is definitely working
   if (conversation.isProcessing) {
-    return AgentStatus.working;
+    return api.VideAgentStatus.working;
   }
 
   // If conversation is idle but agent claims to be working, override to idle
   // This handles cases where agent forgot to call setAgentStatus("idle")
   if (conversation.state == ConversationState.idle &&
-      explicitStatus == AgentStatus.working) {
-    return AgentStatus.idle;
+      explicitStatus == api.VideAgentStatus.working) {
+    return api.VideAgentStatus.idle;
   }
 
   return explicitStatus;
@@ -103,42 +105,42 @@ AgentStatus _inferActualStatus(
 
 /// Determines the aggregated status across all agents and permission state
 _AggregatedStatus _getAggregatedStatus(Ref ref) {
-  final networkState = ref.watch(agentNetworkManagerProvider);
-  final agentIds = networkState.agentIds;
+  final session = ref.watch(currentVideSessionProvider);
   final permissionState = ref.watch(permissionStateProvider);
   final askUserQuestionState = ref.watch(askUserQuestionStateProvider);
-  final claudeClients = ref.watch(claudeManagerProvider);
 
   // Check if there's a pending permission request or askUserQuestion
   if (permissionState.current != null || askUserQuestionState.current != null) {
     return _AggregatedStatus.needsAttention;
   }
 
-  // No agents = Idle
-  if (agentIds.isEmpty) {
+  // No session or no agents = Idle
+  if (session == null) {
+    return _AggregatedStatus.idle;
+  }
+
+  final agents = session.agents;
+  if (agents.isEmpty) {
     return _AggregatedStatus.idle;
   }
 
   bool hasWorking = false;
 
-  for (final agentId in agentIds) {
-    final explicitStatus = ref.watch(agentStatusProvider(agentId));
-
+  for (final agent in agents) {
     // Get conversation state for this agent
-    final client = claudeClients[agentId];
-    final conversation = client?.currentConversation;
+    final conversation = session.getConversation(agent.id);
 
     // Infer actual status
-    final status = _inferActualStatus(explicitStatus, conversation);
+    final status = _inferActualStatus(agent.status, conversation);
 
     switch (status) {
-      case AgentStatus.waitingForUser:
+      case api.VideAgentStatus.waitingForUser:
         return _AggregatedStatus.needsAttention;
-      case AgentStatus.working:
-      case AgentStatus.waitingForAgent:
+      case api.VideAgentStatus.working:
+      case api.VideAgentStatus.waitingForAgent:
         hasWorking = true;
         break;
-      case AgentStatus.idle:
+      case api.VideAgentStatus.idle:
         // Keep checking other agents
         break;
     }

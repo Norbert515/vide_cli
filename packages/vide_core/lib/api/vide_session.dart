@@ -151,6 +151,30 @@ class VideSession {
   /// The main agent (first agent in the network).
   VideAgent? get mainAgent => agents.isNotEmpty ? agents.first : null;
 
+  /// List of agent IDs in the session.
+  ///
+  /// This is useful when you need quick access to IDs without
+  /// mapping the full [VideAgent] objects.
+  List<String> get agentIds {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    if (network == null || network.id != _networkId) return [];
+    return network.agentIds;
+  }
+
+  /// Whether any agent in the session is currently processing.
+  ///
+  /// This checks all agents in the network and returns true if any
+  /// of them have an active conversation that is processing.
+  bool get isProcessing {
+    for (final agentId in _agentStates.keys) {
+      final client = _container.read(claudeProvider(agentId));
+      if (client?.currentConversation.isProcessing ?? false) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /// The effective working directory for this session.
   ///
   /// This may be different from the configured working directory if a
@@ -221,6 +245,87 @@ class VideSession {
     if (client != null) {
       await client.abort();
     }
+  }
+
+  /// Clear the conversation for an agent (resets context).
+  ///
+  /// If [agentId] is not specified, clears the main agent's conversation.
+  /// This is useful for implementing a `/clear` command or resetting context.
+  Future<void> clearConversation({String? agentId}) async {
+    _checkNotDisposed();
+    final targetId = agentId ?? mainAgent?.id;
+    if (targetId == null) return;
+
+    final client = _container.read(claudeProvider(targetId));
+    await client?.clearConversation();
+  }
+
+  /// Get an MCP server instance for an agent.
+  ///
+  /// Returns null if the server is not found or agent doesn't exist.
+  /// This is useful for accessing MCP servers directly, such as
+  /// the flutter runtime MCP for UI rendering.
+  T? getMcpServer<T extends McpServerBase>(String agentId, String serverName) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    return client?.getMcpServer<T>(serverName);
+  }
+
+  /// Set the working directory (worktree path) for this session.
+  ///
+  /// This affects all new operations in the session. Pass null or
+  /// an empty string to clear the worktree and return to the original directory.
+  ///
+  /// Note: Agent conversation history may be cleared since Claude CLI
+  /// cannot change its working directory mid-session.
+  Future<void> setWorktreePath(String? path) async {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    await manager.setWorktreePath(path);
+  }
+
+  /// Get the current conversation for an agent.
+  ///
+  /// Returns null if the agent doesn't exist. This provides direct
+  /// access to the conversation for rendering messages and token counts.
+  Conversation? getConversation(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    return client?.currentConversation;
+  }
+
+  /// Stream of conversation updates for an agent.
+  ///
+  /// Returns an empty stream if the agent doesn't exist.
+  /// This allows subscribing to conversation changes for real-time updates.
+  Stream<Conversation> conversationStream(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    return client?.conversation ?? const Stream.empty();
+  }
+
+  /// Update token/cost statistics for an agent.
+  ///
+  /// This is called by UI when conversation updates to persist stats.
+  /// Token stats will be persisted on the next network save.
+  void updateAgentTokenStats(
+    String agentId, {
+    required int totalInputTokens,
+    required int totalOutputTokens,
+    required int totalCacheReadInputTokens,
+    required int totalCacheCreationInputTokens,
+    required double totalCostUsd,
+  }) {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    manager.updateAgentTokenStats(
+      agentId,
+      totalInputTokens: totalInputTokens,
+      totalOutputTokens: totalOutputTokens,
+      totalCacheReadInputTokens: totalCacheReadInputTokens,
+      totalCacheCreationInputTokens: totalCacheCreationInputTokens,
+      totalCostUsd: totalCostUsd,
+    );
   }
 
   /// Terminate an agent and remove it from the network.

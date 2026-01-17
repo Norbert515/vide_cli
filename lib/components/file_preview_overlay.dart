@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/mcp/git/git_client.dart';
+import 'package:vide_core/api.dart' show GitClient;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/utils/syntax_highlighter.dart';
 import 'package:vide_cli/constants/text_opacity.dart';

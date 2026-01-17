@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -14,8 +13,7 @@ import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/api.dart' as api;
+import 'package:vide_core/api.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/services/sentry_service.dart';
@@ -65,12 +63,7 @@ final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider.ove
   final permissionService = ref.read(permissionServiceProvider);
   return (PermissionCallbackContext ctx) {
     return (toolName, input, context) async {
-      return permissionService.checkToolPermission(
-        toolName,
-        input,
-        context,
-        cwd: ctx.cwd,
-      );
+      return permissionService.checkToolPermission(toolName, input, context, cwd: ctx.cwd);
     };
   };
 });
@@ -81,7 +74,7 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
 
   // Create provider container with overrides from entry point and permission callback
   // Note: videoCoreProvider is overridden using Late pattern since it needs the container
-  late final api.VideCore videCore;
+  late final VideCore videCore;
   final container = ProviderContainer(
     overrides: [
       _canUseToolCallbackFactoryOverride,
@@ -92,7 +85,7 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   );
 
   // Create VideCore from the existing container (enables public API usage)
-  videCore = api.VideCore.fromContainer(container);
+  videCore = VideCore.fromContainer(container);
 
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);
@@ -129,10 +122,7 @@ class VideApp extends StatelessComponent {
       theme: explicitTheme,
       child: explicitTheme != null
           // If we have an explicit theme, wrap with matching VideTheme
-          ? VideTheme(
-              data: VideThemeData.fromBrightness(explicitTheme),
-              child: _VideAppContent(),
-            )
+          ? VideTheme(data: VideThemeData.fromBrightness(explicitTheme), child: _VideAppContent())
           // Otherwise, use auto-detection
           : VideTheme.auto(child: _VideAppContent()),
     );
@@ -235,7 +225,7 @@ class _VideAppContentState extends State<_VideAppContent> {
     final filePreviewPath = context.watch(filePreviewPathProvider);
 
     // Watch MCP panel state - use initial client, show panel from start in IDE mode
-    final initialClient = context.watch(initialClaudeClientProvider);
+    final initialClient = context.watch(videoCoreProvider).initialClient;
     final mcpPanelFocused = context.watch(mcpPanelFocusProvider);
     final showMcpPanel = ideModeEnabled;
 
@@ -316,43 +306,37 @@ class _VideAppContentState extends State<_VideAppContent> {
         // in the Row, causing the Navigator to be recreated and losing the route stack.
         SizedBox(
           width: effectiveSidebarWidth,
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topLeft,
-                minWidth: _sidebarWidth,
-                maxWidth: _sidebarWidth,
-                child: GitSidebar(
-                  width: _sidebarWidth.toInt(),
-                  focused: sidebarFocused,
-                  expanded: true, // Sidebar is always expanded in IDE mode
-                  repoPath: context.watch(currentRepoPathProvider),
-                  onExitRight: () {
-                    context.read(sidebarFocusProvider.notifier).state = false;
-                  },
-                  onSendMessage: (message) {
-                    // Send message to the main agent in the current network
-                    final networkState =
-                        context.read(agentNetworkManagerProvider);
-                    final mainAgentId =
-                        networkState.currentNetwork?.agentIds.firstOrNull;
-                    if (mainAgentId != null) {
-                      context
-                          .read(agentNetworkManagerProvider.notifier)
-                          .sendMessage(mainAgentId, Message(text: message));
-                    }
-                  },
-                  onSwitchWorktree: (path) {
-                    // Switch to the selected worktree directory
-                    context.read(repoPathOverrideProvider.notifier).state = path;
-                    // Also update the agent network's working directory
-                    context
-                        .read(agentNetworkManagerProvider.notifier)
-                        .setWorktreePath(path);
-                  },
-                ),
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: _sidebarWidth,
+              maxWidth: _sidebarWidth,
+              child: GitSidebar(
+                width: _sidebarWidth.toInt(),
+                focused: sidebarFocused,
+                expanded: true, // Sidebar is always expanded in IDE mode
+                repoPath: context.watch(currentRepoPathProvider),
+                onExitRight: () {
+                  context.read(sidebarFocusProvider.notifier).state = false;
+                },
+                onSendMessage: (message) {
+                  // Send message to the main agent in the current network
+                  final networkState = context.read(agentNetworkManagerProvider);
+                  final mainAgentId = networkState.currentNetwork?.agentIds.firstOrNull;
+                  if (mainAgentId != null) {
+                    context.read(agentNetworkManagerProvider.notifier).sendMessage(mainAgentId, Message(text: message));
+                  }
+                },
+                onSwitchWorktree: (path) {
+                  // Switch to the selected worktree directory
+                  context.read(repoPathOverrideProvider.notifier).state = path;
+                  // Also update the agent network's working directory
+                  context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+                },
               ),
             ),
           ),
+        ),
         // Main content: navigator is always in tree, file preview overlays it
         // This prevents Navigator from being recreated when file preview closes
         Expanded(
@@ -376,23 +360,23 @@ class _VideAppContentState extends State<_VideAppContent> {
         // MCP Servers panel on the right - always in tree for stable widget structure
         SizedBox(
           width: hasEnoughWidth ? _currentMcpPanelWidth : 0.0,
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.topRight,
-                minWidth: _mcpPanelWidth,
-                maxWidth: _mcpPanelWidth,
-                child: McpServersPanel(
-                  initialClient: initialClient,
-                  width: _mcpPanelWidth,
-                  focused: mcpPanelFocused,
-                  expanded: true,
-                  onExitLeft: () {
-                    context.read(mcpPanelFocusProvider.notifier).state = false;
-                  },
-                ),
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topRight,
+              minWidth: _mcpPanelWidth,
+              maxWidth: _mcpPanelWidth,
+              child: McpServersPanel(
+                initialClient: initialClient,
+                width: _mcpPanelWidth,
+                focused: mcpPanelFocused,
+                expanded: true,
+                onExitLeft: () {
+                  context.read(mcpPanelFocusProvider.notifier).state = false;
+                },
               ),
             ),
           ),
+        ),
       ],
     );
   }

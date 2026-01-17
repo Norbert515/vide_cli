@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 import 'permission_service.dart';
 
 /// State for permission requests - includes queue and current request

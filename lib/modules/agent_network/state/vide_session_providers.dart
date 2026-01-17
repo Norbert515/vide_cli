@@ -4,20 +4,19 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/api.dart' as api;
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 
 /// Provider for the VideCore instance.
 ///
-/// This is created from the existing ProviderContainer using [api.VideCore.fromContainer].
-final videoCoreProvider = Provider<api.VideCore>((ref) {
+/// This is created from the existing ProviderContainer using [VideCore.fromContainer].
+final videoCoreProvider = Provider<VideCore>((ref) {
   throw UnimplementedError('videoCoreProvider must be overridden in main.dart');
 });
 
 /// Provider for the current VideSession based on the active network.
 ///
 /// Returns null if no network is currently active.
-final currentVideSessionProvider = Provider<api.VideSession?>((ref) {
+final currentVideSessionProvider = Provider<VideSession?>((ref) {
   final core = ref.watch(videoCoreProvider);
   final networkState = ref.watch(agentNetworkManagerProvider);
   final currentNetwork = networkState.currentNetwork;
@@ -33,7 +32,7 @@ final currentVideSessionProvider = Provider<api.VideSession?>((ref) {
 /// all events from the session's creation. This avoids missing events that
 /// would occur with late subscription to a broadcast stream.
 final conversationStateManagerProvider =
-    Provider<api.ConversationStateManager?>((ref) {
+    Provider<ConversationStateManager?>((ref) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return null;
 
@@ -48,7 +47,7 @@ final conversationStateManagerProvider =
 /// final agentState = context.watch(agentConversationStateProvider(agentId));
 /// ```
 final agentConversationStateProvider =
-    Provider.family<api.AgentConversationState?, String>((ref, agentId) {
+    Provider.family<AgentConversationState?, String>((ref, agentId) {
   final manager = ref.watch(conversationStateManagerProvider);
   if (manager == null) return null;
 

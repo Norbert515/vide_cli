@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/components/network_summary_component.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/memory/memories_viewer_page.dart';
 import 'package:vide_cli/modules/setup/theme_settings_page.dart';
 import 'package:vide_cli/theme/theme.dart';
@@ -224,8 +225,8 @@ class _NetworksListContentState extends State<_NetworksListContent> {
           final network = component.networks[selectedIndex];
           // Await resume to complete before navigating to prevent flash of empty state
           context
-              .read(agentNetworkManagerProvider.notifier)
-              .resume(network)
+              .read(videoCoreProvider)
+              .resumeSession(network.id)
               .then((_) {
                 NetworkExecutionPage.push(context, network.id);
               });

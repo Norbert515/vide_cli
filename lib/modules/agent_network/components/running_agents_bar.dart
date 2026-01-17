@@ -1,8 +1,7 @@
-import 'package:claude_sdk/claude_sdk.dart' show ClaudeStatus;
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 
 class RunningAgentsBar extends StatelessComponent {
   const RunningAgentsBar({

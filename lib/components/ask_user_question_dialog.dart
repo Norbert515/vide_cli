@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 
 /// Dialog for displaying structured multiple-choice questions to the user
 /// Styled to match Claude Code's native askUserQuestion UI

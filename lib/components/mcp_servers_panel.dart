@@ -3,7 +3,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart' hide McpServerStatus, McpServerInfo;
+import 'package:vide_core/api.dart';
 
 /// Panel displaying MCP servers and their status.
 class McpServersPanel extends StatefulComponent {

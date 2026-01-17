@@ -3,7 +3,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/setup/theme_selector.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart';
 
 /// Page for changing theme settings with live preview.
 class ThemeSettingsPage extends StatefulComponent {

@@ -87,3 +87,123 @@ export 'api/conversation_state.dart';
 
 // Common type aliases
 export 'models/agent_id.dart' show AgentId;
+
+// Initial client for pre-warming and MCP status
+export 'services/initial_claude_client.dart' show InitialClaudeClient;
+
+// Network types
+export 'models/agent_network.dart' show AgentNetwork;
+export 'models/agent_id.dart' show AgentNetworkId;
+export 'services/agent_network_manager.dart'
+    show AgentNetworkState, agentNetworkManagerProvider, AgentNetworkManager;
+
+// Agent metadata (for running agents bar)
+export 'models/agent_metadata.dart' show AgentMetadata;
+
+// Config manager
+export 'services/vide_config_manager.dart'
+    show VideConfigManager, videConfigManagerProvider;
+export 'models/vide_global_settings.dart' show VideGlobalSettings;
+
+// Memory service
+export 'services/memory_service.dart' show MemoryService, memoryServiceProvider;
+export 'models/memory_entry.dart' show MemoryEntry;
+
+// Permission utilities (for TUI permission dialog)
+export 'services/permissions/pattern_inference.dart' show PatternInference;
+export 'services/permissions/tool_input.dart'
+    show
+        ToolInput,
+        BashToolInput,
+        ReadToolInput,
+        WriteToolInput,
+        EditToolInput,
+        MultiEditToolInput,
+        EditOperation,
+        WebFetchToolInput,
+        WebSearchToolInput,
+        GrepToolInput,
+        GlobToolInput,
+        UnknownToolInput;
+
+// Ask user question MCP
+export 'mcp/ask_user_question/ask_user_question_service.dart'
+    show AskUserQuestionService, askUserQuestionServiceProvider;
+export 'mcp/ask_user_question/ask_user_question_types.dart'
+    show
+        AskUserQuestion,
+        AskUserQuestionOption,
+        AskUserQuestionRequest,
+        AskUserQuestionResponse;
+
+// Project detection
+export 'utils/project_detector.dart'
+    show ProjectDetector, ProjectType, projecTypeProvider;
+
+// Permission callback infrastructure
+export 'services/permission_provider.dart'
+    show
+        PermissionCallbackContext,
+        CanUseToolCallbackFactory,
+        canUseToolCallbackFactoryProvider;
+
+// Analytics
+export 'services/posthog_service.dart' show PostHogService;
+
+// Agent status
+export 'models/agent_status.dart' show AgentStatus, AgentStatusExtension;
+export 'state/agent_status_manager.dart'
+    show agentStatusProvider, AgentStatusNotifier;
+
+// Claude status (from ClaudeManager)
+export 'services/claude_manager.dart' show claudeStatusProvider;
+
+// Network persistence
+export 'services/agent_network_persistence_manager.dart'
+    show AgentNetworkPersistenceManager, agentNetworkPersistenceManagerProvider;
+
+// Permission checker (for TUI permission service)
+export 'services/permissions/permission_checker.dart'
+    show
+        PermissionChecker,
+        PermissionCheckerConfig,
+        AskUserBehavior,
+        PermissionCheckResult,
+        PermissionAllow,
+        PermissionDeny,
+        PermissionAskUser;
+
+// Claude SDK types for permission service and general use
+// (Consolidated from multiple export statements)
+export 'package:claude_sdk/claude_sdk.dart'
+    show
+        // Core types
+        Conversation,
+        ConversationMessage,
+        MessageRole,
+        McpServerBase,
+        McpStatusResponse,
+        McpServerStatusInfo,
+        Message,
+        Attachment,
+        // Status
+        ClaudeStatus,
+        // Permission types
+        ToolPermissionContext,
+        PermissionResult,
+        PermissionResultAllow,
+        PermissionResultDeny,
+        ClaudeSettingsManager;
+
+// Working directory provider
+export 'utils/working_dir_provider.dart' show workingDirProvider;
+
+// Auto-update service
+export 'services/auto_update_service.dart'
+    show autoUpdateServiceProvider, AutoUpdateService, UpdateStatus, UpdateState, UpdateInfo;
+
+// Git providers, client, and models
+export 'mcp/git/git_providers.dart' show gitStatusStreamProvider;
+export 'mcp/git/git_client.dart' show GitClient;
+export 'mcp/git/git_models.dart'
+    show GitStatus, GitBranch, GitWorktree, GitCommit, GitRepository;
