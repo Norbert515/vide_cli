@@ -84,3 +84,6 @@ export 'api/vide_agent.dart';
 export 'api/vide_config.dart';
 export 'api/embedded_server.dart' show VideEmbeddedServer;
 export 'api/conversation_state.dart';
+
+// Common type aliases
+export 'models/agent_id.dart' show AgentId;
