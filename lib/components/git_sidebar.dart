@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
@@ -7,79 +6,12 @@ import 'package:path/path.dart' as p;
 import 'package:vide_core/api.dart'
     show GitClient, GitStatus, GitBranch, GitWorktree, GitRepository, gitStatusStreamProvider;
 import 'package:vide_cli/components/git_branch_indicator.dart';
+import 'package:vide_cli/components/git_sidebar_models.dart';
+import 'package:vide_cli/components/git_sidebar_item_rows.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/services/toast_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-
-/// Represents a changed file with its status.
-class ChangedFile {
-  final String path;
-  final String status; // 'staged', 'modified', 'untracked'
-
-  const ChangedFile({required this.path, required this.status});
-}
-
-/// Type of navigable item for unified keyboard navigation.
-enum NavigableItemType {
-  newBranchAction, // "+ New branch from..." quick action
-  newWorktreeAction, // "+ New worktree from..." quick action
-  baseBranchOption, // Branch option when selecting base branch
-  worktreeHeader, // Collapsible worktree header with branch name
-  changesSectionLabel, // "Changes" label (not collapsible)
-  file,
-  actionsHeader, // Expandable "Actions" header
-  commitPushAction, // "Commit & push" action for branches with changes
-  syncAction, // "Sync" action for branches ahead/behind remote
-  mergeToMainAction, // "Merge to main" action for clean branches ahead of main
-  pullAction, // "Pull" action - pull from remote
-  pushAction, // "Push" action - push to remote
-  fetchAction, // "Fetch" action - fetch from remote
-  switchWorktreeAction, // "Switch to worktree" action for non-current worktrees
-  worktreeCopyPathAction, // "Copy path" action for worktrees
-  worktreeRemoveAction, // "Remove worktree" action for worktrees
-  worktreeActionsHeader, // Expandable "Actions" header for non-current worktrees
-  noChangesPlaceholder, // "No changes" placeholder when worktree is clean
-  divider, // Visual separator line
-  branchSectionLabel, // "Other Branches"
-  branch, // Expandable branch item
-  branchCheckoutAction, // "Checkout" action under expanded branch
-  branchWorktreeAction, // "Create worktree" action under expanded branch
-  showMoreBranches,
-  repoHeader, // Collapsible repository header for multi-repo mode
-}
-
-/// State of the quick action flow
-enum QuickActionState {
-  collapsed, // Just showing the action label
-  selectingBaseBranch, // Expanded to show branch options
-  enteringName, // Typing the new branch/worktree name
-}
-
-/// Unified navigable item for keyboard navigation across all sections.
-class NavigableItem {
-  final NavigableItemType type;
-  final String name;
-  final String? fullPath;
-  final String? status;
-  final int fileCount;
-  final bool isExpanded;
-  final bool isLastInSection;
-  final String? worktreePath; // For associating items with their worktree
-  final bool isWorktree; // True if this is a worktree (not the main repo)
-
-  const NavigableItem({
-    required this.type,
-    required this.name,
-    this.fullPath,
-    this.status,
-    this.fileCount = 0,
-    this.isExpanded = false,
-    this.isLastInSection = false,
-    this.worktreePath,
-    this.isWorktree = false,
-  });
-}
 
 /// A sidebar component that displays git status information as a flat file list.
 ///
@@ -113,14 +45,17 @@ class GitSidebar extends StatefulComponent {
   State<GitSidebar> createState() => _GitSidebarState();
 }
 
-class _GitSidebarState extends State<GitSidebar> {
+class _GitSidebarState extends State<GitSidebar>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   int? _hoveredIndex;
   final _scrollController = ScrollController();
 
   // Animation state
+  static const Duration _animationDuration = Duration(milliseconds: 160);
+  late AnimationController _animationController;
+  late Animation<double> _widthAnimation;
   double _currentWidth = 5.0;
-  Timer? _animationTimer;
 
   // Worktree expansion state (per-worktree collapse/expand)
   Map<String, bool> _worktreeExpansionState = {};
@@ -257,13 +192,28 @@ class _GitSidebarState extends State<GitSidebar> {
 
   static const double _collapsedWidth = 5.0;
   static const double _expandedWidth = 30.0;
-  static const int _animationSteps = 8;
-  static const Duration _animationStepDuration = Duration(milliseconds: 20);
 
   @override
   void initState() {
     super.initState();
     _currentWidth = component.expanded ? _expandedWidth : _collapsedWidth;
+
+    // Initialize animation controller
+    _animationController = AnimationController(
+      duration: _animationDuration,
+      vsync: this,
+    );
+    // Initialize animation (will be updated when animating)
+    _widthAnimation = Tween<double>(
+      begin: _currentWidth,
+      end: _currentWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_animationController);
+    _animationController.addListener(() {
+      setState(() {
+        _currentWidth = _widthAnimation.value;
+      });
+    });
+
     // Detect repo mode and load branches/worktrees
     _detectRepoMode();
   }
@@ -346,26 +296,16 @@ class _GitSidebarState extends State<GitSidebar> {
   }
 
   void _animateToWidth(double targetWidth) {
-    _animationTimer?.cancel();
-
-    final startWidth = _currentWidth;
-    final delta = (targetWidth - startWidth) / _animationSteps;
-    var step = 0;
-
-    _animationTimer = Timer.periodic(_animationStepDuration, (timer) {
-      step++;
-      if (step >= _animationSteps) {
-        timer.cancel();
-        setState(() => _currentWidth = targetWidth);
-      } else {
-        setState(() => _currentWidth = startWidth + (delta * step));
-      }
-    });
+    _widthAnimation = Tween<double>(
+      begin: _currentWidth,
+      end: targetWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_animationController);
+    _animationController.forward(from: 0);
   }
 
   @override
   void dispose() {
-    _animationTimer?.cancel();
+    _animationController.dispose();
     super.dispose();
   }
 
@@ -1955,1248 +1895,225 @@ class _GitSidebarState extends State<GitSidebar> {
     switch (item.type) {
       case NavigableItemType.newBranchAction:
       case NavigableItemType.newWorktreeAction:
-        return _buildQuickActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildQuickActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          branchActionState: _branchActionState,
+          worktreeActionState: _worktreeActionState,
+          activeInputType: _activeInputType,
+          inputBuffer: _inputBuffer,
+          repoBranchActionState: _repoBranchActionState,
+          repoWorktreeActionState: _repoWorktreeActionState,
+          repoActiveInputType: _repoActiveInputType,
         );
       case NavigableItemType.baseBranchOption:
-        return _buildBaseBranchOptionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildBaseBranchOptionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.worktreeHeader:
-        return _buildWorktreeHeaderRow(
-          context,
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
-          gitStatus,
+        // Resolve actual worktree path - CWD might be a subdirectory
+        final resolvedCurrentPath = _findCurrentWorktreePath() ?? component.repoPath;
+        return buildWorktreeHeaderRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          gitStatus: gitStatus as GitStatus?,
+          isCurrentWorktree: item.worktreePath == resolvedCurrentPath,
         );
       case NavigableItemType.changesSectionLabel:
-        return _buildChangesSectionLabelRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildChangesSectionLabelRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.file:
-        return _buildFileRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildFileRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.actionsHeader:
-        return _buildActionsHeaderRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildActionsHeaderRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          actionsExpanded: _actionsExpanded,
+          isMultiRepoMode: _isMultiRepoMode == true,
+          repoActionsExpanded: _repoActionsExpanded,
         );
       case NavigableItemType.commitPushAction:
-        return _buildCommitPushActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildCommitPushActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.syncAction:
-        return _buildSyncActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildSyncActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.mergeToMainAction:
-        return _buildMergeToMainActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildMergeToMainActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.pullAction:
-        return _buildPullActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildPullActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.pushAction:
-        return _buildPushActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildPushActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.fetchAction:
-        return _buildFetchActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildFetchActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.switchWorktreeAction:
-        return _buildSwitchWorktreeActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildSwitchWorktreeActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.worktreeCopyPathAction:
-        return _buildWorktreeCopyPathActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildWorktreeCopyPathActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.worktreeRemoveAction:
-        return _buildWorktreeRemoveActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildWorktreeRemoveActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          loadingAction: _loadingAction,
         );
       case NavigableItemType.worktreeActionsHeader:
-        return _buildWorktreeActionsHeaderRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildWorktreeActionsHeaderRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.noChangesPlaceholder:
-        return _buildNoChangesPlaceholderRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildNoChangesPlaceholderRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.divider:
-        return _buildDividerRow(theme, availableWidth);
+        return buildDividerRow(
+          theme: theme,
+          availableWidth: availableWidth,
+        );
       case NavigableItemType.branchSectionLabel:
-        return _buildBranchSectionLabelRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildBranchSectionLabelRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.branch:
-        return _buildBranchRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildBranchRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          cachedBranches: _cachedBranches,
+          isWorktreeBranch: _isWorktreeBranch,
         );
       case NavigableItemType.branchCheckoutAction:
-        return _buildBranchActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildBranchActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
           icon: '→',
         );
       case NavigableItemType.branchWorktreeAction:
-        return _buildBranchActionRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildBranchActionRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
           icon: '⎇',
         );
       case NavigableItemType.showMoreBranches:
-        return _buildShowMoreBranchesRow(
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        return buildShowMoreBranchesRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
         );
       case NavigableItemType.repoHeader:
-        return _buildRepoHeaderRow(
-          context,
-          item,
-          isSelected,
-          isHovered,
-          theme,
-          availableWidth,
+        // Watch status for repo header
+        GitStatus? status;
+        if (item.fullPath != null) {
+          final statusAsync = context.watch(gitStatusStreamProvider(item.fullPath!));
+          status = statusAsync.valueOrNull;
+        }
+        return buildRepoHeaderRow(
+          item: item,
+          isSelected: isSelected,
+          isHovered: isHovered,
+          theme: theme,
+          availableWidth: availableWidth,
+          status: status,
         );
-    }
-  }
-
-  /// Builds a quick action row (+ New branch..., + New worktree...).
-  Component _buildQuickActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final repoPath = item.worktreePath;
-    final isBranchAction = item.type == NavigableItemType.newBranchAction;
-
-    // Determine action state based on single-repo or multi-repo mode
-    QuickActionState actionState;
-    bool isEnteringName;
-    bool isExpanded;
-
-    if (repoPath != null) {
-      // Multi-repo mode
-      actionState = isBranchAction
-          ? (_repoBranchActionState[repoPath] ?? QuickActionState.collapsed)
-          : (_repoWorktreeActionState[repoPath] ?? QuickActionState.collapsed);
-      isEnteringName = actionState == QuickActionState.enteringName &&
-          _repoActiveInputType[repoPath] == item.type;
-      isExpanded = actionState != QuickActionState.collapsed;
-    } else {
-      // Single-repo mode
-      actionState = isBranchAction ? _branchActionState : _worktreeActionState;
-      isEnteringName = actionState == QuickActionState.enteringName &&
-          _activeInputType == item.type;
-      isExpanded = actionState != QuickActionState.collapsed;
-    }
-
-    // Determine display text based on state
-    String displayText;
-    if (isEnteringName) {
-      // Show input mode with selected base branch
-      final actionName = isBranchAction ? 'branch' : 'worktree';
-      displayText = '  $actionName: $_inputBuffer│'; // │ is cursor
-    } else if (isExpanded) {
-      // Show expanded state with collapse indicator
-      final actionName = isBranchAction ? 'New branch' : 'New worktree';
-      displayText = '▾ $actionName from...';
-    } else {
-      // Show collapsed state
-      final actionName = isBranchAction ? 'New branch' : 'New worktree';
-      displayText = '▸ $actionName...';
-    }
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 1),
-        child: Text(
-          displayText,
-          style: TextStyle(
-            color: isEnteringName
-                ? theme.base.primary
-                : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-          ),
-          overflow: TextOverflow.ellipsis,
-          maxLines: 1,
-        ),
-      ),
-    );
-  }
-
-  /// Builds a base branch option row (shown when selecting which branch to base from).
-  Component _buildBaseBranchOptionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isOther = item.name == 'Other...';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 3), // Indent under parent action
-        child: Row(
-          children: [
-            Text(
-              isOther ? '…' : '',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-            SizedBox(width: isOther ? 1 : 2),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: isOther
-                      ? theme.base.onSurface.withOpacity(TextOpacity.tertiary)
-                      : theme.base.onSurface,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a worktree header row (collapsible section for each worktree).
-  Component _buildWorktreeHeaderRow(
-    BuildContext context,
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-    dynamic gitStatus,
-  ) {
-    final isExpanded = item.isExpanded;
-    final expandIcon = isExpanded ? '▾' : '▸';
-    final highlight = isSelected || isHovered;
-    // Resolve actual worktree path - CWD might be a subdirectory
-    final resolvedCurrentPath = _findCurrentWorktreePath() ?? component.repoPath;
-    final isCurrentWorktree = item.worktreePath == resolvedCurrentPath;
-    final isWorktree = item.isWorktree;
-
-    // gitStatus is passed in from parent - only watched for current/expanded worktrees
-
-    // Count total changes
-    final changeCount = gitStatus != null
-        ? gitStatus.modifiedFiles.length +
-            gitStatus.stagedFiles.length +
-            gitStatus.untrackedFiles.length
-        : 0;
-
-    // Current worktree uses primary color, others use default
-    final branchColor =
-        isCurrentWorktree ? theme.base.primary : theme.base.onSurface;
-
-    // Show branch icon: ⎇ for worktrees,  for main repo
-    final branchIcon = isWorktree ? '⎇' : '';
-
-    return Column(
-      children: [
-        SizedBox(height: 1), // Top padding outside selection
-        Container(
-          decoration: highlight
-              ? BoxDecoration(
-                  color:
-                      theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-                )
-              : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 1),
-            child: Row(
-              children: [
-                Text(expandIcon, style: TextStyle(color: branchColor)),
-                SizedBox(width: 1),
-                Text(branchIcon,
-                    style: TextStyle(
-                        color: isCurrentWorktree
-                            ? theme.base.primary
-                            : _vsCodeAccentColor)),
-                SizedBox(width: 1),
-                Expanded(
-                  child: Text(
-                    item.name,
-                    style: TextStyle(
-                      color: branchColor,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                // Show change count when collapsed (and has changes)
-                if (!isExpanded && changeCount > 0)
-                  Text(
-                    ' $changeCount',
-                    style: TextStyle(
-                      color: _vsCodeModifiedColor,
-                    ),
-                  ),
-                // Ahead/behind indicators
-                if (gitStatus != null) ...[
-                  if (gitStatus.ahead > 0)
-                    Text(
-                      ' ↑${gitStatus.ahead}',
-                      style: TextStyle(color: theme.base.success),
-                    ),
-                  if (gitStatus.behind > 0)
-                    Text(
-                      ' ↓${gitStatus.behind}',
-                      style: TextStyle(color: _vsCodeModifiedColor),
-                    ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Builds the "Actions" header row (expandable).
-  Component _buildActionsHeaderRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    // Use per-repo expansion state in multi-repo mode
-    final repoPath = item.worktreePath;
-    final isExpanded = (repoPath != null && _isMultiRepoMode == true)
-        ? (_repoActionsExpanded[repoPath] ?? false)
-        : _actionsExpanded;
-    final arrow = isExpanded ? '▾' : '▸';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text(
-              '$arrow Actions',
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds the "Actions" header row for non-current worktrees (expandable).
-  Component _buildWorktreeActionsHeaderRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isExpanded = item.isExpanded;
-    final arrow = isExpanded ? '▾' : '▸';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text(
-              '$arrow Actions',
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds the "Changes (5)" label row.
-  Component _buildChangesSectionLabelRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final countDisplay = item.fileCount > 0 ? ' (${item.fileCount})' : '';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Text(
-          '${item.name}$countDisplay',
-          style: TextStyle(
-            color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Builds a repository header row for multi-repo mode.
-  Component _buildRepoHeaderRow(
-    BuildContext context,
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final isExpanded = item.isExpanded;
-    final expandIcon = isExpanded ? '▾' : '▸';
-    final highlight = isSelected || isHovered;
-
-    // Always watch status for repo header (need branch info even when collapsed)
-    GitStatus? status;
-    if (item.fullPath != null) {
-      final statusAsync =
-          context.watch(gitStatusStreamProvider(item.fullPath!));
-      status = statusAsync.valueOrNull;
-    }
-
-    // Use fileCount from NavigableItem for collapsed count (calculated in _buildRepoSection)
-    // Fall back to live count if expanded
-    final changeCount = isExpanded && status != null
-        ? status.modifiedFiles.length +
-            status.stagedFiles.length +
-            status.untrackedFiles.length
-        : item.fileCount;
-
-    return Column(
-      children: [
-        SizedBox(height: 1), // Top padding outside selection
-        Container(
-          decoration: highlight
-              ? BoxDecoration(
-                  color:
-                      theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-                )
-              : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 1),
-            child: Row(
-              children: [
-                Text(expandIcon,
-                    style: TextStyle(color: theme.base.onSurface)),
-                SizedBox(width: 1),
-                Text('',
-                    style: TextStyle(color: _vsCodeAccentColor)),
-                SizedBox(width: 1),
-                Flexible(
-                  flex: 2,
-                  child: Text(
-                    item.name,
-                    style: TextStyle(
-                      color: theme.base.onSurface,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  ),
-                ),
-                // Show branch info
-                if (status != null) ...[
-                  Flexible(
-                    flex: 1,
-                    child: Text(
-                      ' ${status.branch}',
-                      style: TextStyle(
-                        color: theme.base.onSurface
-                            .withOpacity(TextOpacity.secondary),
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-                // Ahead/behind indicators
-                if (status != null &&
-                    (status.ahead > 0 || status.behind > 0)) ...[
-                  if (status.behind > 0)
-                    Text(' ↓${status.behind}',
-                        style: TextStyle(color: _vsCodeModifiedColor)),
-                  if (status.ahead > 0)
-                    Text(' ↑${status.ahead}',
-                        style: TextStyle(color: theme.base.success)),
-                ],
-                // Show change count when collapsed (and has changes)
-                if (!isExpanded && changeCount > 0)
-                  Text(
-                    ' $changeCount',
-                    style: TextStyle(
-                      color: _vsCodeModifiedColor,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Builds a visual divider row.
-  Component _buildDividerRow(VideThemeData theme, int availableWidth) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Text(
-        '─' * (availableWidth - 2),
-        style: TextStyle(color: theme.base.outline.withOpacity(0.5)),
-      ),
-    );
-  }
-
-  /// Builds a file row with filename prominently displayed and path below.
-  Component _buildFileRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final statusDot = _getStatusDot(item.status);
-    final dotColor = _getStatusColor(item.status, theme);
-    final fileName = p.basename(item.name);
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text(statusDot, style: TextStyle(color: dotColor)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                fileName,
-                style: TextStyle(color: theme.base.onSurface),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Commit & push" action row.
-  Component _buildCommitPushActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text('↑', style: TextStyle(color: theme.base.success)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: theme.base.success,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Sync" action row.
-  Component _buildSyncActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'sync';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text('⟳', style: TextStyle(color: theme.base.primary)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                isLoading ? 'Syncing...' : item.name,
-                style: TextStyle(
-                  color: theme.base.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Merge to main" action row.
-  Component _buildMergeToMainActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'merge';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text(
-              isLoading ? '⟳' : '⤵',
-              style: TextStyle(color: theme.base.primary),
-            ),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                isLoading ? 'Merging...' : item.name,
-                style: TextStyle(
-                  color: theme.base.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Pull" action row.
-  Component _buildPullActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'pull';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text(
-              isLoading ? '⟳ ' : '↓ ',
-              style: TextStyle(color: theme.base.primary),
-            ),
-            Text(
-              isLoading ? 'Pulling...' : 'Pull',
-              style: TextStyle(color: theme.base.onSurface),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Push" action row.
-  Component _buildPushActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'push';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text(
-              isLoading ? '⟳ ' : '↑ ',
-              style: TextStyle(color: theme.base.primary),
-            ),
-            Text(
-              isLoading ? 'Pushing...' : 'Push',
-              style: TextStyle(color: theme.base.onSurface),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Fetch" action row.
-  Component _buildFetchActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'fetch';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4),
-        child: Row(
-          children: [
-            Text(
-              isLoading ? '⟳ ' : '⚡ ',
-              style: TextStyle(color: theme.base.primary),
-            ),
-            Text(
-              isLoading ? 'Fetching...' : 'Fetch',
-              style: TextStyle(color: theme.base.onSurface),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Switch to worktree" action row.
-  Component _buildSwitchWorktreeActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text('→', style: TextStyle(color: theme.base.primary)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: theme.base.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Copy path" action row for worktrees.
-  Component _buildWorktreeCopyPathActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text('⎘', style: TextStyle(color: theme.base.primary)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: theme.base.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "Remove worktree" action row.
-  Component _buildWorktreeRemoveActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    final isLoading = _loadingAction == 'remove';
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text(
-              isLoading ? '⟳' : '✕',
-              style: TextStyle(color: theme.base.error),
-            ),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                isLoading ? 'Removing...' : item.name,
-                style: TextStyle(
-                  color: theme.base.error,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a "No changes" placeholder row.
-  Component _buildNoChangesPlaceholderRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Text(
-          item.name,
-          style: TextStyle(
-            color: theme.base.onSurface.withOpacity(TextOpacity.disabled),
-            fontStyle: FontStyle.italic,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Builds a branch section label row ("Recent", "Other").
-  Component _buildBranchSectionLabelRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Text(
-          item.name,
-          style: TextStyle(
-            color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// Builds a branch row with worktree indicator prefix.
-  Component _buildBranchRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final branch = _cachedBranches?.firstWhere(
-      (b) => b.name == item.name,
-      orElse: () => GitBranch(
-        name: item.name,
-        isCurrent: false,
-        isRemote: false,
-        lastCommit: '',
-      ),
-    );
-    final isWorktree = _isWorktreeBranch(item.name);
-    final isCurrent = branch?.isCurrent == true;
-    final isMainBranch = item.name == 'main' || item.name == 'master';
-    final highlight = isSelected || isHovered;
-    final isExpanded = item.isExpanded;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            // Expand/collapse indicator
-            Text(
-              isExpanded ? '▾' : '▸',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-              ),
-            ),
-            // Worktree indicator
-            if (isWorktree)
-              Text(
-                '⎇ ',
-                style: TextStyle(color: theme.base.primary),
-              )
-            else if (isCurrent)
-              Text(
-                '● ',
-                style: TextStyle(color: theme.base.success),
-              )
-            else
-              Text(
-                '  ',
-                style: TextStyle(color: theme.base.outline),
-              ),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: isCurrent
-                      ? theme.base.primary
-                      : isMainBranch
-                          ? theme.base.onSurface
-                          : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                  fontWeight: (isCurrent || isMainBranch) ? FontWeight.bold : FontWeight.normal,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds a branch action row (Checkout, Create worktree).
-  Component _buildBranchActionRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth, {
-    required String icon,
-  }) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 4), // Extra indent for action items
-        child: Row(
-          children: [
-            Text(icon, style: TextStyle(color: theme.base.primary)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: theme.base.primary,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Builds the "Show more branches" row.
-  Component _buildShowMoreBranchesRow(
-    NavigableItem item,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final highlight = isSelected || isHovered;
-
-    return Container(
-      decoration: highlight
-          ? BoxDecoration(
-              color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
-            )
-          : null,
-      child: Padding(
-        padding: EdgeInsets.only(left: 2),
-        child: Row(
-          children: [
-            Text('…', style: TextStyle(color: theme.base.primary)),
-            SizedBox(width: 1),
-            Expanded(
-              child: Text(
-                item.name,
-                style: TextStyle(
-                  color: theme.base.primary.withOpacity(TextOpacity.secondary),
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Returns a colored dot indicator for file status.
-  /// ● (filled) for staged/modified, ○ (hollow) for untracked.
-  String _getStatusDot(String? status) {
-    switch (status) {
-      case 'staged':
-      case 'modified':
-        return '●';
-      case 'untracked':
-        return '○';
-      default:
-        return ' ';
-    }
-  }
-
-  /// VS Code-style colors for git status (matching mockup aesthetic).
-  static const _vsCodeStagedColor = Color(0xFF4EC9B0); // Teal/cyan
-  static const _vsCodeModifiedColor = Color(0xFFDCDCAA); // Soft yellow
-  static const _vsCodeAccentColor = Color(0xFFC586C0); // Purple/magenta for git icon
-
-  Color _getStatusColor(String? status, VideThemeData theme) {
-    switch (status) {
-      case 'staged':
-        return _vsCodeStagedColor;
-      case 'modified':
-        return _vsCodeModifiedColor;
-      case 'untracked':
-        return theme.base.onSurface.withOpacity(TextOpacity.secondary);
-      default:
-        return theme.base.onSurface;
     }
   }
 }

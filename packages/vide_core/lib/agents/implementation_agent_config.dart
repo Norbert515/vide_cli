@@ -27,11 +27,10 @@ class ImplementationAgentConfig {
       description: 'Implements features and fixes based on clear requirements',
       systemPrompt: _buildSystemPrompt(projectType),
       permissionMode: 'acceptEdits',
-      // Implementation agent needs Git, Memory, TaskManagement, Dart, and Flutter Runtime
+      // Implementation agent needs Git, TaskManagement, Dart, and Flutter Runtime
       // but NOT SubAgent (should not spawn more agents)
       mcpServers: [
         McpServerType.git,
-        McpServerType.memory,
         McpServerType.taskManagement,
         McpServerType.flutterRuntime,
         McpServerType.agent,

@@ -105,10 +105,6 @@ export 'services/vide_config_manager.dart'
     show VideConfigManager, videConfigManagerProvider;
 export 'models/vide_global_settings.dart' show VideGlobalSettings;
 
-// Memory service
-export 'services/memory_service.dart' show MemoryService, memoryServiceProvider;
-export 'models/memory_entry.dart' show MemoryEntry;
-
 // Permission utilities (for TUI permission dialog)
 export 'services/permissions/pattern_inference.dart' show PatternInference;
 export 'services/permissions/tool_input.dart'

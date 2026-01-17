@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
@@ -26,14 +25,15 @@ enum _VerificationStep {
   error,
 }
 
-class _WelcomePageState extends State<WelcomePage> {
+class _WelcomePageState extends State<WelcomePage>
+    with TickerProviderStateMixin {
   _VerificationStep _step = _VerificationStep.selectTheme;
   String? _errorMessage;
   String _claudeResponse = '';
   String _displayedResponse = '';
   int _typingIndex = 0;
-  Timer? _typingTimer;
-  Timer? _shimmerTimer;
+  late AnimationController _typingController;
+  late AnimationController _shimmerController;
   int _shimmerPosition = 0;
   bool _responseComplete = false;
   bool _claudeFound = false;
@@ -57,14 +57,53 @@ class _WelcomePageState extends State<WelcomePage> {
   @override
   void initState() {
     super.initState();
+    // Initialize typing animation controller
+    _typingController = AnimationController(
+      duration: const Duration(milliseconds: 1000), // Will be updated dynamically
+      vsync: this,
+    );
+    _typingController.addListener(_onTypingTick);
+
+    // Initialize shimmer animation controller (22 chars for "Confirming connection")
+    _shimmerController = AnimationController(
+      duration: const Duration(milliseconds: 2200), // 100ms per position
+      vsync: this,
+    );
+    _shimmerController.addListener(() {
+      setState(() {
+        _shimmerPosition =
+            (_shimmerController.value * 22).floor() % 22;
+      });
+    });
     // Start with theme selection, verification happens after
   }
 
   @override
   void dispose() {
-    _typingTimer?.cancel();
-    _shimmerTimer?.cancel();
+    _typingController.dispose();
+    _shimmerController.dispose();
     super.dispose();
+  }
+
+  void _onTypingTick() {
+    // Calculate how many characters should be shown based on animation progress
+    final targetIndex =
+        (_typingController.value * _claudeResponse.length).ceil().clamp(0, _claudeResponse.length);
+
+    if (targetIndex != _typingIndex) {
+      setState(() {
+        _typingIndex = targetIndex;
+        _displayedResponse = _claudeResponse.substring(0, _typingIndex);
+      });
+    }
+
+    // Ensure final text is fully displayed and mark complete when animation finishes
+    if (_typingController.isCompleted) {
+      setState(() {
+        _displayedResponse = _claudeResponse;
+        _responseComplete = true;
+      });
+    }
   }
 
   Future<void> _startVerification() async {
@@ -118,7 +157,8 @@ class _WelcomePageState extends State<WelcomePage> {
       });
 
       // Stop shimmer, start typing
-      _shimmerTimer?.cancel();
+      _shimmerController.stop();
+      _shimmerController.reset();
       _startTypingAnimation();
     } catch (e) {
       setState(() {
@@ -129,32 +169,29 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   void _startTypingAnimation() {
-    _typingTimer = Timer.periodic(Duration(milliseconds: 25), (timer) {
-      if (_typingIndex < _claudeResponse.length) {
-        setState(() {
-          _typingIndex++;
-          _displayedResponse = _claudeResponse.substring(0, _typingIndex);
-        });
-      } else {
-        timer.cancel();
-        setState(() {
-          _responseComplete = true;
-        });
-      }
-    });
+    // Reset state
+    _typingIndex = 0;
+    _displayedResponse = '';
+    _responseComplete = false;
+
+    // Update duration based on text length (25ms per character)
+    _typingController.duration = Duration(
+      milliseconds: 25 * _claudeResponse.length.clamp(1, 1000),
+    );
+
+    // Start the animation
+    _typingController.forward(from: 0);
   }
 
   void _startShimmerAnimation() {
-    _shimmerTimer = Timer.periodic(Duration(milliseconds: 100), (timer) {
-      setState(() {
-        _shimmerPosition =
-            (_shimmerPosition + 1) % 22; // Length of "Confirming connection"
-      });
-    });
+    _shimmerController.repeat();
   }
 
   void _retry() {
-    _shimmerTimer?.cancel();
+    _shimmerController.stop();
+    _shimmerController.reset();
+    _typingController.stop();
+    _typingController.reset();
     setState(() {
       _step = _VerificationStep.findingClaude;
       _errorMessage = null;

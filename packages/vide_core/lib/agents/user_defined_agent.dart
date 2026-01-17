@@ -180,8 +180,6 @@ class UserDefinedAgent {
         switch (serverName) {
           case 'vide-git':
             return McpServerType.git;
-          case 'vide-memory':
-            return McpServerType.memory;
           case 'vide-task-management':
             return McpServerType.taskManagement;
           case 'flutter-runtime':

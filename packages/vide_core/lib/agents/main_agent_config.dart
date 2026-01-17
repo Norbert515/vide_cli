@@ -41,7 +41,6 @@ class MainAgentConfig {
       mcpServers: [
         McpServerType.git,
         McpServerType.agent,
-        McpServerType.memory,
         McpServerType.taskManagement,
         McpServerType.askUserQuestion,
         //McpServerType.dart,

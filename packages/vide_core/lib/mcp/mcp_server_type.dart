@@ -13,9 +13,6 @@ sealed class McpServerType {
   /// Provides tools for spawning agents and inter-agent communication
   static const agent = _BuiltInMcpServer._('vide-agent');
 
-  /// Memory/context storage MCP server (vide-memory)
-  static const memory = _BuiltInMcpServer._('vide-memory');
-
   /// Task management MCP server (vide-task-management)
   static const taskManagement = _BuiltInMcpServer._('vide-task-management');
 

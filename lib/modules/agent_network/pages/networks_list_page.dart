@@ -6,7 +6,6 @@ import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/components/network_summary_component.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
-import 'package:vide_cli/modules/memory/memories_viewer_page.dart';
 import 'package:vide_cli/modules/setup/theme_settings_page.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -29,28 +28,6 @@ class NetworksListPage extends StatefulComponent {
 }
 
 class _NetworksListPageState extends State<NetworksListPage> {
-  int totalMemories = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadMemoryCount();
-  }
-
-  Future<void> _loadMemoryCount() async {
-    final memoryService = context.read(memoryServiceProvider);
-    final allEntries = await memoryService.getAllEntries();
-    int count = 0;
-    for (final entries in allEntries.values) {
-      count += entries.length;
-    }
-    if (mounted) {
-      setState(() {
-        totalMemories = count;
-      });
-    }
-  }
-
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -76,14 +53,10 @@ class _NetworksListPageState extends State<NetworksListPage> {
             ),
           ),
           SizedBox(height: 1),
-          // Memory, Theme, and Streaming row
+          // Theme and Streaming row
           Focusable(
             focused: true,
             onKeyEvent: (event) {
-              if (event.logicalKey == LogicalKey.keyV) {
-                MemoriesViewerPage.push(context);
-                return true;
-              }
               if (event.logicalKey == LogicalKey.keyT) {
                 ThemeSettingsPage.push(context);
                 return true;
@@ -105,8 +78,6 @@ class _NetworksListPageState extends State<NetworksListPage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _MemoryBadge(count: totalMemories),
-                SizedBox(width: 2),
                 _ThemeBadge(),
                 SizedBox(width: 2),
                 _StreamingBadge(),
@@ -116,7 +87,7 @@ class _NetworksListPageState extends State<NetworksListPage> {
           SizedBox(height: 1),
           // Help text
           Text(
-            'Esc: home | Backspace×2: delete | V: memories | T: theme | S: streaming',
+            'Esc: home | Backspace×2: delete | T: theme | S: streaming',
             style: TextStyle(
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
@@ -248,42 +219,6 @@ class _NetworksListContentState extends State<_NetworksListContent> {
           ],
         ],
       ),
-    );
-  }
-}
-
-/// Memory badge showing count of stored memories
-class _MemoryBadge extends StatelessComponent {
-  const _MemoryBadge({required this.count});
-
-  final int count;
-
-  @override
-  Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: theme.base.outline),
-          child: Text('Memory', style: TextStyle(color: theme.base.onSurface)),
-        ),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            color: count > 0 ? theme.base.success : theme.base.surface,
-          ),
-          child: Text(
-            count.toString(),
-            style: TextStyle(
-              color: theme.base.onSurface,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

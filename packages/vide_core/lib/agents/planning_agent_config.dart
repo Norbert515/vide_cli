@@ -29,9 +29,8 @@ class PlanningAgentConfig {
       description: 'Creates detailed implementation plans for complex tasks',
       systemPrompt: _buildSystemPrompt(projectType),
       permissionMode: 'plan', // Planning agent should not execute code
-      // Planning agent needs read access + memory, but no Git/Flutter Runtime
+      // Planning agent needs read access, but no Git/Flutter Runtime
       mcpServers: [
-        McpServerType.memory,
         McpServerType.taskManagement,
         McpServerType.agent,
       ],

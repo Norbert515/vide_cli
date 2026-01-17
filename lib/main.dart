@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -136,11 +134,11 @@ class _VideAppContent extends StatefulComponent {
   State<_VideAppContent> createState() => _VideAppContentState();
 }
 
-class _VideAppContentState extends State<_VideAppContent> {
+class _VideAppContentState extends State<_VideAppContent>
+    with TickerProviderStateMixin {
   // Sidebar animation constants
   static const double _sidebarWidth = 30.0;
-  static const int _animationSteps = 8;
-  static const Duration _animationStepDuration = Duration(milliseconds: 20);
+  static const Duration _animationDuration = Duration(milliseconds: 160);
 
   // MCP panel constants
   static const double _mcpPanelWidth = 32.0;
@@ -148,65 +146,88 @@ class _VideAppContentState extends State<_VideAppContent> {
   // Minimum terminal width to show sidebars (main content needs ~80 chars)
   static const double _minWidthForSidebars = 120.0;
 
-  // Animation state
-  double _currentSidebarWidth = 0.0;
-  Timer? _animationTimer;
-  bool _wasIdeModeEnabled = false;
+  // GlobalKey to keep Navigator stable when sidebars are added/removed
+  final _navigatorKey = GlobalKey();
 
-  // MCP panel animation state
-  double _currentMcpPanelWidth = 0.0;
-  Timer? _mcpPanelAnimationTimer;
+  // Animation controllers
+  late AnimationController _sidebarController;
+  late AnimationController _mcpPanelController;
+  late Animation<double> _sidebarAnimation;
+  late Animation<double> _mcpPanelAnimation;
+
+  // Track previous state
+  bool _wasIdeModeEnabled = false;
   bool _wasMcpPanelVisible = false;
+
+  // Current animated width values
+  double _currentSidebarWidth = 0.0;
+  double _currentMcpPanelWidth = 0.0;
 
   @override
   void initState() {
     super.initState();
     final ideModeEnabled = context.read(ideModeEnabledProvider);
+
+    // Set initial values
     _currentSidebarWidth = ideModeEnabled ? _sidebarWidth : 0.0;
     _currentMcpPanelWidth = ideModeEnabled ? _mcpPanelWidth : 0.0;
     _wasIdeModeEnabled = ideModeEnabled;
     _wasMcpPanelVisible = ideModeEnabled;
+
+    // Initialize sidebar animation controller
+    _sidebarController = AnimationController(
+      duration: _animationDuration,
+      vsync: this,
+    );
+    // Initialize sidebar animation (will be updated when animating)
+    _sidebarAnimation = Tween<double>(
+      begin: _currentSidebarWidth,
+      end: _currentSidebarWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_sidebarController);
+    _sidebarController.addListener(() {
+      setState(() {
+        _currentSidebarWidth = _sidebarAnimation.value;
+      });
+    });
+
+    // Initialize MCP panel animation controller
+    _mcpPanelController = AnimationController(
+      duration: _animationDuration,
+      vsync: this,
+    );
+    // Initialize MCP panel animation (will be updated when animating)
+    _mcpPanelAnimation = Tween<double>(
+      begin: _currentMcpPanelWidth,
+      end: _currentMcpPanelWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_mcpPanelController);
+    _mcpPanelController.addListener(() {
+      setState(() {
+        _currentMcpPanelWidth = _mcpPanelAnimation.value;
+      });
+    });
   }
 
   @override
   void dispose() {
-    _animationTimer?.cancel();
-    _mcpPanelAnimationTimer?.cancel();
+    _sidebarController.dispose();
+    _mcpPanelController.dispose();
     super.dispose();
   }
 
   void _animateSidebarWidth(double targetWidth) {
-    _animationTimer?.cancel();
-    final startWidth = _currentSidebarWidth;
-    final delta = (targetWidth - startWidth) / _animationSteps;
-    var step = 0;
-
-    _animationTimer = Timer.periodic(_animationStepDuration, (timer) {
-      step++;
-      if (step >= _animationSteps) {
-        timer.cancel();
-        setState(() => _currentSidebarWidth = targetWidth);
-      } else {
-        setState(() => _currentSidebarWidth = startWidth + (delta * step));
-      }
-    });
+    _sidebarAnimation = Tween<double>(
+      begin: _currentSidebarWidth,
+      end: targetWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_sidebarController);
+    _sidebarController.forward(from: 0);
   }
 
   void _animateMcpPanelWidth(double targetWidth) {
-    _mcpPanelAnimationTimer?.cancel();
-    final startWidth = _currentMcpPanelWidth;
-    final delta = (targetWidth - startWidth) / _animationSteps;
-    var step = 0;
-
-    _mcpPanelAnimationTimer = Timer.periodic(_animationStepDuration, (timer) {
-      step++;
-      if (step >= _animationSteps) {
-        timer.cancel();
-        setState(() => _currentMcpPanelWidth = targetWidth);
-      } else {
-        setState(() => _currentMcpPanelWidth = startWidth + (delta * step));
-      }
-    });
+    _mcpPanelAnimation = Tween<double>(
+      begin: _currentMcpPanelWidth,
+      end: targetWidth,
+    ).chain(CurveTween(curve: Curves.easeOut)).animate(_mcpPanelController);
+    _mcpPanelController.forward(from: 0);
   }
 
   @override
@@ -214,10 +235,17 @@ class _VideAppContentState extends State<_VideAppContent> {
     // Check if IDE mode is enabled (reactive to /ide command)
     final ideModeEnabled = context.watch(ideModeEnabledProvider);
 
-    // Animate sidebar when IDE mode changes
+    // Handle IDE mode changes
     if (ideModeEnabled != _wasIdeModeEnabled) {
       _wasIdeModeEnabled = ideModeEnabled;
-      _animateSidebarWidth(ideModeEnabled ? _sidebarWidth : 0.0);
+      if (ideModeEnabled) {
+        // Animate in when enabling IDE mode
+        _animateSidebarWidth(_sidebarWidth);
+      } else {
+        // Stop animations and reset when disabling - panels will be removed from tree
+        _sidebarController.stop();
+        _currentSidebarWidth = 0.0;
+      }
     }
 
     // Watch sidebar focus state and file preview path
@@ -229,10 +257,17 @@ class _VideAppContentState extends State<_VideAppContent> {
     final mcpPanelFocused = context.watch(mcpPanelFocusProvider);
     final showMcpPanel = ideModeEnabled;
 
-    // Animate MCP panel when visibility changes
+    // Handle MCP panel visibility changes
     if (showMcpPanel != _wasMcpPanelVisible) {
       _wasMcpPanelVisible = showMcpPanel;
-      _animateMcpPanelWidth(showMcpPanel ? _mcpPanelWidth : 0.0);
+      if (showMcpPanel) {
+        // Animate in when enabling
+        _animateMcpPanelWidth(_mcpPanelWidth);
+      } else {
+        // Stop animations and reset when disabling - panel will be removed from tree
+        _mcpPanelController.stop();
+        _currentMcpPanelWidth = 0.0;
+      }
     }
 
     return LayoutBuilder(
@@ -265,7 +300,7 @@ class _VideAppContentState extends State<_VideAppContent> {
     required bool showMcpPanel,
     required bool hasEnoughWidth,
   }) {
-    // Main navigator content
+    // Main navigator content - uses GlobalKey to stay stable when sidebars are added/removed
     final navigatorContent = Column(
       children: [
         Expanded(
@@ -274,6 +309,7 @@ class _VideAppContentState extends State<_VideAppContent> {
             child: WelcomeScope(
               child: SetupScope(
                 child: Navigator(
+                  key: _navigatorKey,
                   home: NetworksOverviewPage(),
                   // Always disable Navigator's ESC handling to prevent race conditions
                   // with GitSidebar's ESC handling when file preview is open
@@ -301,44 +337,42 @@ class _VideAppContentState extends State<_VideAppContent> {
 
     return Row(
       children: [
-        // Always keep sidebar SizedBox in tree to maintain stable widget structure.
-        // When sidebar is conditionally removed/added, it shifts widget positions
-        // in the Row, causing the Navigator to be recreated and losing the route stack.
-        SizedBox(
-          width: effectiveSidebarWidth,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topLeft,
-              minWidth: _sidebarWidth,
-              maxWidth: _sidebarWidth,
-              child: GitSidebar(
-                width: _sidebarWidth.toInt(),
-                focused: sidebarFocused,
-                expanded: true, // Sidebar is always expanded in IDE mode
-                repoPath: context.watch(currentRepoPathProvider),
-                onExitRight: () {
-                  context.read(sidebarFocusProvider.notifier).state = false;
-                },
-                onSendMessage: (message) {
-                  // Send message to the main agent in the current network
-                  final networkState = context.read(agentNetworkManagerProvider);
-                  final mainAgentId = networkState.currentNetwork?.agentIds.firstOrNull;
-                  if (mainAgentId != null) {
-                    context.read(agentNetworkManagerProvider.notifier).sendMessage(mainAgentId, Message(text: message));
-                  }
-                },
-                onSwitchWorktree: (path) {
-                  // Switch to the selected worktree directory
-                  context.read(repoPathOverrideProvider.notifier).state = path;
-                  // Also update the agent network's working directory
-                  context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
-                },
+        // Git sidebar - only in widget tree when IDE mode is enabled
+        if (ideModeEnabled)
+          SizedBox(
+            width: effectiveSidebarWidth,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: _sidebarWidth,
+                maxWidth: _sidebarWidth,
+                child: GitSidebar(
+                  width: _sidebarWidth.toInt(),
+                  focused: sidebarFocused,
+                  expanded: true, // Sidebar is always expanded in IDE mode
+                  repoPath: context.watch(currentRepoPathProvider),
+                  onExitRight: () {
+                    context.read(sidebarFocusProvider.notifier).state = false;
+                  },
+                  onSendMessage: (message) {
+                    // Send message to the main agent in the current network
+                    final networkState = context.read(agentNetworkManagerProvider);
+                    final mainAgentId = networkState.currentNetwork?.agentIds.firstOrNull;
+                    if (mainAgentId != null) {
+                      context.read(agentNetworkManagerProvider.notifier).sendMessage(mainAgentId, Message(text: message));
+                    }
+                  },
+                  onSwitchWorktree: (path) {
+                    // Switch to the selected worktree directory
+                    context.read(repoPathOverrideProvider.notifier).state = path;
+                    // Also update the agent network's working directory
+                    context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+                  },
+                ),
               ),
             ),
           ),
-        ),
-        // Main content: navigator is always in tree, file preview overlays it
-        // This prevents Navigator from being recreated when file preview closes
+        // Main content: navigator uses GlobalKey for stability when sidebars change
         Expanded(
           child: Stack(
             children: [
@@ -357,26 +391,27 @@ class _VideAppContentState extends State<_VideAppContent> {
             ],
           ),
         ),
-        // MCP Servers panel on the right - always in tree for stable widget structure
-        SizedBox(
-          width: hasEnoughWidth ? _currentMcpPanelWidth : 0.0,
-          child: ClipRect(
-            child: OverflowBox(
-              alignment: Alignment.topRight,
-              minWidth: _mcpPanelWidth,
-              maxWidth: _mcpPanelWidth,
-              child: McpServersPanel(
-                initialClient: initialClient,
-                width: _mcpPanelWidth,
-                focused: mcpPanelFocused,
-                expanded: true,
-                onExitLeft: () {
-                  context.read(mcpPanelFocusProvider.notifier).state = false;
-                },
+        // MCP Servers panel - only in widget tree when IDE mode is enabled
+        if (ideModeEnabled)
+          SizedBox(
+            width: hasEnoughWidth ? _currentMcpPanelWidth : 0.0,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topRight,
+                minWidth: _mcpPanelWidth,
+                maxWidth: _mcpPanelWidth,
+                child: McpServersPanel(
+                  initialClient: initialClient,
+                  width: _mcpPanelWidth,
+                  focused: mcpPanelFocused,
+                  expanded: true,
+                  onExitLeft: () {
+                    context.read(mcpPanelFocusProvider.notifier).state = false;
+                  },
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm/src/framework/terminal_canvas.dart';
@@ -53,61 +52,57 @@ class Shimmer extends StatefulComponent {
   State<Shimmer> createState() => _ShimmerState();
 }
 
-class _ShimmerState extends State<Shimmer> {
-  Timer? _timer;
-  double _progress = 0.0;
+class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
   bool _isAnimating = false;
 
   @override
   void initState() {
     super.initState();
+    _controller = AnimationController(
+      duration: component.duration,
+      vsync: this,
+    );
+
+    // Use ease-in curve for the animation
+    _animation = CurveTween(curve: Curves.easeIn).animate(_controller);
+
+    _controller.addListener(() => setState(() {}));
+    _controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _isAnimating = false;
+        _scheduleNextShimmer();
+      }
+    });
+
     _scheduleNextShimmer();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
   void _scheduleNextShimmer() {
-    _timer?.cancel();
-    _timer = Timer(component.delay, _startShimmer);
-  }
-
-  void _startShimmer() {
-    _isAnimating = true;
-    _progress = 0.0;
-
-    final totalSteps = 30; // Number of animation frames
-    final stepDuration = component.duration.inMilliseconds ~/ totalSteps;
-    var step = 0;
-
-    _timer = Timer.periodic(Duration(milliseconds: stepDuration), (timer) {
-      step++;
-      setState(() {
-        // Ease-in curve: slow start, fast finish
-        final t = step / totalSteps;
-        _progress = _easeIn(t);
-      });
-
-      if (step >= totalSteps) {
-        timer.cancel();
-        _isAnimating = false;
-        _scheduleNextShimmer();
+    // Use Future.delayed for the delay between shimmer animations
+    Future.delayed(component.delay, () {
+      if (mounted) {
+        _startShimmer();
       }
     });
   }
 
-  /// Cubic ease-in curve
-  double _easeIn(double t) {
-    return t * t * t;
+  void _startShimmer() {
+    _isAnimating = true;
+    _controller.forward(from: 0);
   }
 
   @override
   Component build(BuildContext context) {
     return _ShimmerRenderWidget(
-      progress: _isAnimating ? _progress : -1,
+      progress: _isAnimating ? _animation.value : -1,
       baseColor: component.baseColor,
       highlightColor: component.highlightColor,
       angle: component.angle,

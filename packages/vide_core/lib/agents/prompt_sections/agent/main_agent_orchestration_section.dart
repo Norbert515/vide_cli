@@ -230,7 +230,7 @@ setAgentStatus("waitingForAgent")
 // DON'T DO THIS - Too prescriptive about HOW
 spawnAgent(
   agentType: "flutterTester",
-  initialPrompt: "First run memoryRetrieve to get build_command, then call flutterStart
+  initialPrompt: "First check for .fvm directory, then call flutterStart
   with that command, then wait 5 seconds, then call flutterScreenshot, then
   call flutterAct to tap at coordinates..."  // Too detailed!
 )
@@ -425,7 +425,7 @@ setAgentStatus("waitingForAgent")
 // WRONG - Over-specifying the testing process
 spawnAgent(
   agentType: "flutterTester",
-  initialPrompt: "Check memory for build_command, then run flutterStart,
+  initialPrompt: "Check for .fvm directory, then run flutterStart,
   wait for output, take a screenshot at coordinates 100,200..."
 )
 ```

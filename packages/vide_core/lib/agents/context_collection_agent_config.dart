@@ -30,7 +30,6 @@ class ContextCollectionAgentConfig {
       // Context collection agent only needs read-only tools + web search
       // No Git, no SubAgent, no Flutter Runtime
       mcpServers: [
-        McpServerType.memory,
         McpServerType.taskManagement,
         McpServerType.agent,
       ],

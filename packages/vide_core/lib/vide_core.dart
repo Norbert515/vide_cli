@@ -32,12 +32,10 @@ export 'models/agent_network.dart';
 export 'models/agent_metadata.dart';
 export 'models/agent_id.dart';
 export 'models/agent_status.dart';
-export 'models/memory_entry.dart';
 export 'models/mcp_server_info.dart';
 export 'models/vide_global_settings.dart';
 
 // Services
-export 'services/memory_service.dart';
 export 'services/vide_config_manager.dart';
 export 'services/posthog_service.dart';
 export 'services/auto_update_service.dart';
@@ -61,7 +59,6 @@ export 'agents/flutter_tester_agent_config.dart';
 // MCP Servers
 export 'mcp/mcp_server_type.dart';
 export 'mcp/mcp_provider.dart';
-export 'mcp/memory_mcp_server.dart';
 export 'mcp/git/git_client.dart';
 export 'mcp/git/git_models.dart';
 export 'mcp/git/git_exception.dart';

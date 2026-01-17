@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 
 /// A text component that animates by "typing" new text character by character
@@ -18,10 +17,11 @@ class TypingText extends StatefulComponent {
   State<TypingText> createState() => _TypingTextState();
 }
 
-class _TypingTextState extends State<TypingText> {
+class _TypingTextState extends State<TypingText>
+    with SingleTickerProviderStateMixin {
   String _displayedText = '';
   String _previousText = '';
-  Timer? _typingTimer;
+  late AnimationController _controller;
   int _currentIndex = 0;
 
   @override
@@ -29,18 +29,46 @@ class _TypingTextState extends State<TypingText> {
     super.initState();
     _previousText = component.text;
     _displayedText = component.text;
+
+    // Initialize animation controller
+    // Duration will be set dynamically based on text length
+    _controller = AnimationController(
+      duration: Duration(
+        milliseconds: component.characterDelay.inMilliseconds *
+            component.text.length.clamp(1, 1000),
+      ),
+      vsync: this,
+    );
+    _controller.addListener(_onAnimationTick);
   }
 
   @override
   void dispose() {
-    _typingTimer?.cancel();
+    _controller.dispose();
     super.dispose();
   }
 
-  void _startTypingAnimation() {
-    // Cancel any existing animation
-    _typingTimer?.cancel();
+  void _onAnimationTick() {
+    // Calculate how many characters should be shown based on animation progress
+    final targetIndex =
+        (_controller.value * component.text.length).ceil().clamp(0, component.text.length);
 
+    if (targetIndex != _currentIndex) {
+      setState(() {
+        _currentIndex = targetIndex;
+        _displayedText = component.text.substring(0, _currentIndex);
+      });
+    }
+
+    // Ensure final text is fully displayed when animation completes
+    if (_controller.isCompleted && _displayedText != component.text) {
+      setState(() {
+        _displayedText = component.text;
+      });
+    }
+  }
+
+  void _startTypingAnimation() {
     // Reset state
     _currentIndex = 0;
     _previousText = component.text;
@@ -50,21 +78,14 @@ class _TypingTextState extends State<TypingText> {
       _displayedText = '';
     });
 
-    // Create timer that adds one character at a time
-    _typingTimer = Timer.periodic(component.characterDelay, (timer) {
-      if (_currentIndex < component.text.length) {
-        setState(() {
-          _displayedText = component.text.substring(0, _currentIndex + 1);
-          _currentIndex++;
-        });
-      } else {
-        // Animation complete
-        timer.cancel();
-        setState(() {
-          _displayedText = component.text;
-        });
-      }
-    });
+    // Update duration based on new text length
+    _controller.duration = Duration(
+      milliseconds: component.characterDelay.inMilliseconds *
+          component.text.length.clamp(1, 1000),
+    );
+
+    // Start the animation
+    _controller.forward(from: 0);
   }
 
   @override

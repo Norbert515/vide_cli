@@ -5,7 +5,6 @@ import 'ask_user_question/ask_user_question_server.dart';
 import 'git/git_server.dart';
 import 'mcp_server_type.dart';
 import 'task_management/task_management_server.dart';
-import 'memory_mcp_server.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
@@ -56,10 +55,6 @@ final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpSer
   return switch (params.mcpServerType) {
     McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
     McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
-    McpServerType.memory => ref.watch(memoryServerProvider((
-          agentId: params.agentId,
-          projectPath: params.projectPath,
-        ))),
     McpServerType.taskManagement => ref.watch(taskManagementServerProvider(params.agentId)),
     McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(params.agentId)),
     McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(params.agentId)),

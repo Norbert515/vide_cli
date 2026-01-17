@@ -42,21 +42,6 @@ class TestFixtures {
     );
   }
 
-  /// Create a test MemoryEntry
-  static MemoryEntry memoryEntry({
-    String key = 'test_key',
-    String value = 'test_value',
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return MemoryEntry(
-      key: key,
-      value: value,
-      createdAt: createdAt ?? DateTime.now(),
-      updatedAt: updatedAt,
-    );
-  }
-
   /// Create a test ClaudeSettings
   static ClaudeSettings claudeSettings({
     List<String>? allow,

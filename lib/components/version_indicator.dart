@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/api.dart';
@@ -19,7 +18,8 @@ class VersionIndicator extends StatefulComponent {
   State<VersionIndicator> createState() => _VersionIndicatorState();
 }
 
-class _VersionIndicatorState extends State<VersionIndicator> {
+class _VersionIndicatorState extends State<VersionIndicator>
+    with SingleTickerProviderStateMixin {
   static const _spinnerFrames = [
     '⠋',
     '⠙',
@@ -32,13 +32,24 @@ class _VersionIndicatorState extends State<VersionIndicator> {
     '⠇',
     '⠏',
   ];
-  Timer? _spinnerTimer;
-  int _spinnerIndex = 0;
+  late AnimationController _spinnerController;
   UpdateStatus? _lastStatus;
+
+  /// Derive spinner frame index from animation controller value (0.0-1.0)
+  int get _spinnerIndex =>
+      (_spinnerController.value * _spinnerFrames.length).floor() %
+      _spinnerFrames.length;
 
   @override
   void initState() {
     super.initState();
+    // Animation controller for spinner (cycles through all frames in 1 second)
+    _spinnerController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    );
+    _spinnerController.addListener(() => setState(() {}));
+
     // Trigger initial update check after a short delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
@@ -48,17 +59,13 @@ class _VersionIndicatorState extends State<VersionIndicator> {
   }
 
   void _startSpinner() {
-    if (_spinnerTimer != null) return; // Already running
-    _spinnerTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      setState(() {
-        _spinnerIndex = (_spinnerIndex + 1) % _spinnerFrames.length;
-      });
-    });
+    if (_spinnerController.isAnimating) return; // Already running
+    _spinnerController.repeat();
   }
 
   void _stopSpinner() {
-    _spinnerTimer?.cancel();
-    _spinnerTimer = null;
+    _spinnerController.stop();
+    _spinnerController.reset();
   }
 
   void _updateSpinnerForStatus(UpdateStatus status) {
@@ -69,7 +76,7 @@ class _VersionIndicatorState extends State<VersionIndicator> {
       _startSpinner();
     } else if (!isDownloading && wasDownloading) {
       _stopSpinner();
-    } else if (isDownloading && _spinnerTimer == null) {
+    } else if (isDownloading && !_spinnerController.isAnimating) {
       // Handle initial mount with downloading status
       _startSpinner();
     }
@@ -79,7 +86,7 @@ class _VersionIndicatorState extends State<VersionIndicator> {
 
   @override
   void dispose() {
-    _stopSpinner();
+    _spinnerController.dispose();
     super.dispose();
   }
 

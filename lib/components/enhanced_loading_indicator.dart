@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -19,7 +18,7 @@ class EnhancedLoadingIndicator extends StatefulComponent {
 }
 
 class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   static final _activities = [
     'Calibrating quantum flux capacitors',
     'Teaching neurons to dance',
@@ -94,18 +93,19 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
   ];
 
   final _random = Random();
-  late AnimationController _controller;
-  Timer? _activityTimer;
+  late AnimationController _spinnerController;
+  late AnimationController _activityController;
   int _activityIndex = 0;
 
   /// Derive braille frame index from animation controller value (0.0-1.0)
   int get _frameIndex =>
-      (_controller.value * _brailleFrames.length).floor() % _brailleFrames.length;
+      (_spinnerController.value * _brailleFrames.length).floor() %
+      _brailleFrames.length;
 
   /// Derive shimmer position from animation controller, cycling through activity text
   int get _shimmerPosition {
     final textLength = _activities[_activityIndex].length + 10; // +10 for padding
-    final pos = (_controller.value * textLength).floor() - 5;
+    final pos = (_spinnerController.value * textLength).floor() - 5;
     return pos;
   }
 
@@ -116,25 +116,33 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
 
     // Animation controller for braille spinner and shimmer effect
     // Duration of 1 second gives smooth animation through all frames
-    _controller = AnimationController(
+    _spinnerController = AnimationController(
       duration: const Duration(seconds: 1),
       vsync: this,
     )
       ..addListener(() => setState(() {}))
       ..repeat();
 
-    // Activity change timer - cycles through fun messages
-    _activityTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      setState(() {
-        _activityIndex = _random.nextInt(_activities.length);
-      });
+    // Activity change controller - cycles through fun messages every 4 seconds
+    _activityController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    );
+    _activityController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _activityIndex = _random.nextInt(_activities.length);
+        });
+        _activityController.forward(from: 0);
+      }
     });
+    _activityController.forward();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _activityTimer?.cancel();
+    _spinnerController.dispose();
+    _activityController.dispose();
     super.dispose();
   }
 
