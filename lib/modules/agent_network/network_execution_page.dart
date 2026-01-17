@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:claude_sdk/claude_sdk.dart';
+import 'package:vide_core/api.dart' as api;
 import 'package:vide_cli/components/attachment_text_field.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/permission_dialog.dart';
 import 'package:vide_cli/components/ask_user_question_dialog.dart';
 import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/tool_invocations/tool_invocation_router.dart';
+import 'package:vide_cli/components/tool_invocations/tool_content_adapter.dart';
 import 'package:vide_cli/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
@@ -21,6 +23,7 @@ import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import '../permissions/permission_scope.dart';
 import '../../components/typing_text.dart';
 
@@ -235,9 +238,7 @@ class _AgentChat extends StatefulComponent {
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  StreamSubscription<Conversation>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
-  Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
@@ -247,43 +248,15 @@ class _AgentChatState extends State<_AgentChat> {
   void initState() {
     super.initState();
 
-    // Listen to conversation updates
-    _conversationSubscription = component.client.conversation.listen((
-      conversation,
-    ) {
-      setState(() {
-        _conversation = conversation;
-      });
-
-      // Sync token stats to AgentMetadata for persistence and network-wide tracking
-      _syncTokenStats(conversation);
-    });
-    _conversation = component.client.currentConversation;
-
-    // Listen to queued message updates
+    // Listen to queued message updates (queue feature not in public API yet)
     _queueSubscription = component.client.queuedMessage.listen((text) {
       setState(() => _queuedMessage = text);
     });
     _queuedMessage = component.client.currentQueuedMessage;
   }
 
-  void _syncTokenStats(Conversation conversation) {
-    context
-        .read(agentNetworkManagerProvider.notifier)
-        .updateAgentTokenStats(
-          component.client.sessionId,
-          totalInputTokens: conversation.totalInputTokens,
-          totalOutputTokens: conversation.totalOutputTokens,
-          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-          totalCacheCreationInputTokens:
-              conversation.totalCacheCreationInputTokens,
-          totalCostUsd: conversation.totalCostUsd,
-        );
-  }
-
   @override
   void dispose() {
-    _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
     super.dispose();
   }
@@ -309,9 +282,8 @@ class _AgentChatState extends State<_AgentChat> {
       },
       clearConversation: () async {
         await component.client.clearConversation();
-        setState(() {
-          _conversation = Conversation.empty();
-        });
+        // Note: Conversation state is now managed by ConversationStateManager
+        // The UI will update automatically via the provider
       },
       exitApp: shutdownApp,
       toggleIdeMode: () {
@@ -377,11 +349,12 @@ class _AgentChatState extends State<_AgentChat> {
     }).toList();
   }
 
-  List<Map<String, dynamic>>? _getLatestTodos() {
-    for (final message in _conversation.messages.reversed) {
-      for (final response in message.responses.reversed) {
-        if (response is ToolUseResponse && response.toolName == 'TodoWrite') {
-          final todos = response.parameters['todos'];
+  List<Map<String, dynamic>>? _getLatestTodos(api.AgentConversationState? agentState) {
+    if (agentState == null) return null;
+    for (final message in agentState.messages.reversed) {
+      for (final content in message.content.reversed) {
+        if (content is api.ToolContent && content.toolName == 'TodoWrite') {
+          final todos = content.toolInput['todos'];
           if (todos is List) {
             return todos.cast<Map<String, dynamic>>();
           }
@@ -482,12 +455,13 @@ class _AgentChatState extends State<_AgentChat> {
     return false;
   }
 
-  Component _buildContextUsageSection(VideThemeData theme) {
+  Component _buildContextUsageSection(VideThemeData theme, api.AgentConversationState? agentState) {
     // Use currentContextWindowTokens for context window percentage.
     // This is the CURRENT context size (from latest turn), which includes:
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens = _conversation.currentContextWindowTokens;
+    final usedTokens = agentState?.currentContextWindowTokens ?? 0;
+    final totalCostUsd = agentState?.totalCostUsd ?? 0.0;
     final percentage = kClaudeContextWindowSize > 0
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;
@@ -498,7 +472,7 @@ class _AgentChatState extends State<_AgentChat> {
     final showContextUsage = isCautionZone;
 
     // If nothing to show, return empty
-    if (!showContextUsage && _conversation.totalCostUsd <= 0) {
+    if (!showContextUsage && totalCostUsd <= 0) {
       return SizedBox();
     }
 
@@ -532,19 +506,20 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   /// Builds the filtered list of messages (excluding slash commands)
-  List<ConversationMessage> _getFilteredMessages() {
-    return _conversation.messages.reversed
-        .where((message) => !(message.role == MessageRole.user &&
-            message.content.startsWith('/')))
+  List<api.VideMessage> _getFilteredMessages(api.AgentConversationState? agentState) {
+    if (agentState == null) return [];
+    return agentState.messages.reversed
+        .where((message) => !(message.role == 'user' &&
+            message.text.startsWith('/')))
         .toList();
   }
 
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
-  Component _buildMessageList(BuildContext context) {
-    final todos = _getLatestTodos();
+  Component _buildMessageList(BuildContext context, api.AgentConversationState? agentState) {
+    final todos = _getLatestTodos(agentState);
     final hasTodos = todos != null && todos.isNotEmpty;
-    final filteredMessages = _getFilteredMessages();
+    final filteredMessages = _getFilteredMessages(agentState);
 
     // Total items = todos (if any) + filtered messages
     final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
@@ -564,7 +539,7 @@ class _AgentChatState extends State<_AgentChat> {
         // Adjust index for messages (subtract 1 if todos exist)
         final messageIndex = hasTodos ? index - 1 : index;
         final message = filteredMessages[messageIndex];
-        return _buildMessage(context, message);
+        return _buildVideMessage(context, message);
       },
     );
   }
@@ -572,6 +547,13 @@ class _AgentChatState extends State<_AgentChat> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
+
+    // Watch conversation state changes to trigger rebuilds
+    context.watch(conversationStateChangedProvider);
+
+    // Get agent state from the public API
+    final agentState = context.watch(agentConversationStateProvider(component.agentId));
+    final isProcessing = agentState?.isProcessing ?? false;
 
     // Get the current permission queue state from the provider
     final permissionQueueState = context.watch(permissionStateProvider);
@@ -594,7 +576,7 @@ class _AgentChatState extends State<_AgentChat> {
           children: [
             // Messages area
             Expanded(
-              child: _buildMessageList(context),
+              child: _buildMessageList(context, agentState),
             ),
 
             // Input area - conditionally show permission dialog or text field
@@ -610,7 +592,7 @@ class _AgentChatState extends State<_AgentChat> {
                   ),
 
                 // Loading indicator row - always 1 cell height to prevent layout jumps
-                if (_conversation.isProcessing &&
+                if (isProcessing &&
                     currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)
                   Row(
@@ -797,7 +779,7 @@ class _AgentChatState extends State<_AgentChat> {
                   ),
 
                 // Context usage bar with compact button
-                _buildContextUsageSection(theme),
+                _buildContextUsageSection(theme, agentState),
               ],
             ),
           ],
@@ -806,243 +788,88 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
-  Component _buildMessage(BuildContext context, ConversationMessage message) {
+  /// Builds a message component from the public API VideMessage type.
+  Component _buildVideMessage(BuildContext context, api.VideMessage message) {
     final theme = VideTheme.of(context);
 
-    // Check for compact boundary message using messageType
-    if (message.messageType == MessageType.compactBoundary) {
-      // Extract compact metadata for display
-      final compactResponse =
-          message.responses.firstWhere((r) => r is CompactBoundaryResponse)
-              as CompactBoundaryResponse;
-      final trigger = compactResponse.trigger;
-      final preTokens = compactResponse.preTokens;
-
-      return Container(
-        padding: EdgeInsets.symmetric(vertical: 1),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '────────────── Conversation Compacted ($trigger) ──────────────',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (preTokens > 0)
-              Text(
-                'Previous context: ${(preTokens / 1000).toStringAsFixed(0)}k tokens',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    // Check for compact summary user message
-    if (message.messageType == MessageType.compactSummary) {
-      // Show compact summary as collapsed/truncated
-      final summaryPreview = message.content.length > 100
-          ? '${message.content.substring(0, 100)}...'
-          : message.content;
+    // User messages - show with '> ' prefix
+    if (message.role == 'user') {
       return Container(
         padding: EdgeInsets.only(bottom: 1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '📋 Continuation Summary',
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              summaryPreview,
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (message.role == MessageRole.user) {
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '> ${message.content}',
+              '> ${message.text}',
               style: TextStyle(color: theme.base.onSurface),
             ),
-            if (message.attachments != null && message.attachments!.isNotEmpty)
-              for (var attachment in message.attachments!)
-                Text(
-                  '  📎 ${attachment.path ?? "image"}',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
+            // Note: Attachments not yet supported in public API
           ],
         ),
       );
-    } else {
-      // Build tool results lookup for pairing with tool calls
-      final toolResultsById = <String, ToolResultResponse>{};
-      for (final response in message.responses) {
-        if (response is ToolResultResponse) {
-          toolResultsById[response.toolUseId] = response;
-        }
-      }
+    }
 
-      // Process responses in order, preserving interleaving of text and tool calls.
-      // Text segments are accumulated between tool calls to handle streaming deltas.
-      final widgets = <Component>[];
-      final renderedToolResults = <String>{};
+    // Assistant messages - process content blocks in order
+    final widgets = <Component>[];
 
-      // Track text accumulation for the current segment
-      final textBuffer = StringBuffer();
-      bool hasPartialInSegment = false;
+    for (final content in message.content) {
+      switch (content) {
+        case api.TextContent():
+          final text = content.text;
+          if (text.isNotEmpty) {
+            // Check for context-full errors and add helpful hint
+            final isContextFullError =
+                text.toLowerCase().contains('prompt is too long') ||
+                text.toLowerCase().contains('context window') ||
+                text.toLowerCase().contains('token limit');
 
-      // Helper to flush accumulated text as a widget
-      void flushTextSegment() {
-        final text = textBuffer.toString();
-        if (text.isNotEmpty) {
-          // Check for context-full errors and add helpful hint
-          final isContextFullError =
-              text.toLowerCase().contains('prompt is too long') ||
-              text.toLowerCase().contains('context window') ||
-              text.toLowerCase().contains('token limit');
+            widgets.add(MarkdownText(text));
 
-          widgets.add(MarkdownText(text));
-
-          if (isContextFullError) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(top: 1),
-                child: Text(
-                  '💡 Tip: Type /compact to free up context space',
-                  style: TextStyle(color: theme.base.primary),
+            if (isContextFullError) {
+              widgets.add(
+                Container(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    '💡 Tip: Type /compact to free up context space',
+                    style: TextStyle(color: theme.base.primary),
+                  ),
                 ),
-              ),
-            );
-          }
-        }
-        textBuffer.clear();
-        hasPartialInSegment = false;
-      }
-
-      for (final response in message.responses) {
-        if (response is TextResponse) {
-          // Accumulate text for the current segment, handling streaming deduplication.
-          // When we have partial (delta) responses, only use those.
-          // When we have cumulative responses, use only the last one (clear before writing).
-          if (response.isPartial) {
-            hasPartialInSegment = true;
-            textBuffer.write(response.content);
-          } else if (response.isCumulative) {
-            // Cumulative contains full text up to this point - only use if no partials
-            if (!hasPartialInSegment) {
-              textBuffer.clear();
-              textBuffer.write(response.content);
+              );
             }
-            // If we have partials, ignore cumulative to avoid duplicates
-          } else {
-            // Sequential non-partial, non-cumulative - concatenate
-            textBuffer.write(response.content);
           }
-        } else if (response is ToolUseResponse) {
-          // Flush any accumulated text before this tool call
-          flushTextSegment();
 
-          // Check if we have a result for this tool call
-          final result = response.toolUseId != null
-              ? toolResultsById[response.toolUseId]
-              : null;
-
-          // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(
-            response,
-            result,
-          );
+        case api.ToolContent():
+          // Convert ToolContent to ToolInvocation using the adapter
+          final invocation = toolContentToInvocation(content);
 
           widgets.add(
             ToolInvocationRouter(
-              key: ValueKey(response.toolUseId ?? response.id),
+              key: ValueKey(content.toolUseId),
               invocation: invocation,
               workingDirectory: component.client.workingDirectory,
               executionId: component.networkId,
               agentId: component.client.sessionId,
             ),
           );
-          if (result != null && response.toolUseId != null) {
-            renderedToolResults.add(response.toolUseId!);
-          }
-        } else if (response is ToolResultResponse) {
-          // Tool results are paired with their calls above, so we skip them here
-          // unless they're orphaned (which shouldn't normally happen)
-          if (!renderedToolResults.contains(response.toolUseId)) {
-            flushTextSegment();
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[orphaned result: ${response.content}]',
-                  style: TextStyle(color: theme.base.error),
-                ),
-              ),
-            );
-          }
-        }
       }
-
-      // Flush any remaining text after the last tool call
-      flushTextSegment();
-
-      // Show loading indicator if streaming with no content yet
-      if (widgets.isEmpty && message.isStreaming) {
-        widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
-      }
-
-      return Container(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...widgets,
-
-            // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming)
-              EnhancedLoadingIndicator(agentId: component.agentId),
-
-            if (message.error != null)
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[error: ${message.error}]',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      );
     }
+
+    // Show loading indicator if streaming with no content yet
+    if (widgets.isEmpty && message.isStreaming) {
+      widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
+    }
+
+    return Container(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...widgets,
+
+          // If no content yet but streaming, show loading
+          if (message.content.isEmpty && message.isStreaming)
+            EnhancedLoadingIndicator(agentId: component.agentId),
+        ],
+      ),
+    );
   }
 }
