@@ -15,7 +15,9 @@ import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/api.dart' as api;
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
 /// Provider for sidebar focus state, shared across the app.
@@ -82,6 +84,9 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
     overrides: [_canUseToolCallbackFactoryOverride, ...overrides],
   );
 
+  // Create VideCore from the existing container (enables public API usage)
+  final videCore = api.VideCore.fromContainer(container);
+
   // Initialize PostHog analytics
   final configManager = container.read(videConfigManagerProvider);
   await PostHogService.init(configManager);
@@ -96,6 +101,10 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   await runApp(
     ProviderScope(
       parent: container,
+      overrides: [
+        // Override videoCoreProvider with our instance
+        videoCoreProvider.overrideWithValue(videCore),
+      ],
       child: VideApp(container: container),
     ),
   );
