@@ -27,6 +27,29 @@ final videoCoreProvider = Provider<api.VideCore>((ref) {
   throw UnimplementedError('videoCoreProvider must be overridden');
 });
 
+/// Provider for the current VideSession (new public API).
+///
+/// This wraps the current agent network as a VideSession for use with the new API.
+/// Returns null if no network is currently active.
+///
+/// Usage:
+/// ```dart
+/// final session = context.watch(currentVideSessionProvider);
+/// if (session != null) {
+///   session.events.listen((event) { ... });
+///   session.sendMessage('Hello');
+/// }
+/// ```
+final currentVideSessionProvider = Provider<api.VideSession?>((ref) {
+  final core = ref.watch(videoCoreProvider);
+  final networkState = ref.watch(agentNetworkManagerProvider);
+  final currentNetwork = networkState.currentNetwork;
+
+  if (currentNetwork == null) return null;
+
+  return core.getSessionForNetwork(currentNetwork.id);
+});
+
 /// Provider for sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
 /// When focused, the sidebar expands; when unfocused, it collapses.

@@ -278,6 +278,48 @@ class VideCore {
     }).toList();
   }
 
+  /// Get or create a VideSession for an existing network.
+  ///
+  /// This is useful when using [fromContainer] with an existing application
+  /// that manages networks via the internal [AgentNetworkManager]. It wraps
+  /// the current network as a [VideSession] for use with the public API.
+  ///
+  /// Returns null if no network with [networkId] is currently active.
+  ///
+  /// Example:
+  /// ```dart
+  /// // In an app using fromContainer()
+  /// final networkState = container.read(agentNetworkManagerProvider);
+  /// final currentNetwork = networkState.currentNetwork;
+  /// if (currentNetwork != null) {
+  ///   final session = core.getSessionForNetwork(currentNetwork.id);
+  ///   // Use session.events, session.sendMessage(), etc.
+  /// }
+  /// ```
+  VideSession? getSessionForNetwork(String networkId) {
+    _checkNotDisposed();
+
+    // Return existing session if already created
+    if (_activeSessions.containsKey(networkId)) {
+      return _activeSessions[networkId];
+    }
+
+    // Check if network exists in the manager
+    final networkState = _container.read(agentNetworkManagerProvider);
+    if (networkState.currentNetwork?.id != networkId) {
+      return null;
+    }
+
+    // Create a session wrapper for this network
+    final session = VideSession.create(
+      networkId: networkId,
+      container: _container,
+    );
+
+    _activeSessions[networkId] = session;
+    return session;
+  }
+
   /// Delete a session by its ID.
   ///
   /// This removes the session from persistent storage. If the session
