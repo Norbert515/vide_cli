@@ -2,7 +2,27 @@
 ///
 /// This library provides the core business logic shared between the TUI
 /// and REST API implementations of Vide.
+///
+/// ## Public API (Recommended for new consumers)
+///
+/// For new consumers, use the simplified public API:
+///
+/// ```dart
+/// import 'package:vide_core/api.dart';
+///
+/// final core = VideCore(VideCoreConfig());
+/// final session = await core.startSession(VideSessionConfig(
+///   workingDirectory: '/path/to/project',
+///   initialMessage: 'Help me fix the bug',
+/// ));
+/// session.events.listen((event) { /* handle events */ });
+/// ```
+///
+/// See [api.dart] for complete documentation.
 library vide_core;
+
+// Public API (recommended for new consumers)
+export 'api.dart';
 
 // Version
 export 'version.dart';

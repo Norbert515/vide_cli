@@ -503,7 +503,7 @@ packages:
       path: "../nocterm"
       relative: true
     source: path
-    version: "0.3.5"
+    version: "0.4.1"
   nocterm_riverpod:
     dependency: "direct main"
     description:

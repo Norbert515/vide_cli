@@ -15,6 +15,7 @@ workspace:
   - packages/moondream_api
   - packages/vide_core
   - packages/vide_server
+  - packages/vide_cli
 
 dependencies:
   nocterm:
