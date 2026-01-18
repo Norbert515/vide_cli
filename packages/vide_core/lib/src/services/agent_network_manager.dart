@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -87,9 +89,39 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final Ref _ref;
   late final ClaudeClientFactory _clientFactory;
 
-  /// Get the effective working directory (worktree if set, else original).
-  String get effectiveWorkingDirectory =>
-      state.currentNetwork?.worktreePath ?? workingDirectory;
+  /// Get the effective working directory (worktree if set and exists, else original).
+  ///
+  /// If a worktreePath is set but the directory no longer exists (e.g., worktree was deleted),
+  /// automatically clears it and falls back to the original working directory.
+  String get effectiveWorkingDirectory {
+    final worktreePath = state.currentNetwork?.worktreePath;
+    if (worktreePath != null && Directory(worktreePath).existsSync()) {
+      return worktreePath;
+    }
+
+    // Worktree path is set but no longer exists - clear it and fall back to original
+    if (worktreePath != null) {
+      // Schedule async cleanup without blocking
+      Future.microtask(() => _clearStaleWorktreePath(worktreePath));
+    }
+
+    return workingDirectory;
+  }
+
+  /// Clear a stale worktree path from the current network
+  Future<void> _clearStaleWorktreePath(String stalePath) async {
+    final network = state.currentNetwork;
+    if (network != null && network.worktreePath == stalePath) {
+      final updated = network.copyWith(
+        worktreePath: null,
+        clearWorktreePath: true,
+      );
+      state = AgentNetworkState(currentNetwork: updated);
+      await _ref
+          .read(agentNetworkPersistenceManagerProvider)
+          .saveNetwork(updated);
+    }
+  }
 
   /// Counter for generating "Task X" names
   static int _taskCounter = 0;
