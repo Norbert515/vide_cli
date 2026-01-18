@@ -6,6 +6,7 @@ import 'commands/compact_command.dart';
 import 'commands/clear_command.dart';
 import 'commands/exit_command.dart';
 import 'commands/fork_command.dart';
+import 'commands/git_command.dart';
 import 'commands/ide_command.dart';
 import 'commands/kill_command.dart';
 
@@ -19,6 +20,7 @@ final commandRegistryProvider = Provider<CommandRegistry>((ref) {
     CompactCommand(),
     ExitCommand(),
     ForkCommand(),
+    GitCommand(),
     IdeCommand(),
     KillCommand(),
   ]);

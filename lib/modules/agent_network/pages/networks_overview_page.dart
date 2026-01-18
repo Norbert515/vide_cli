@@ -8,13 +8,14 @@ import 'package:vide_core/api.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
-import 'package:vide_cli/modules/git_sidebar/git_branch_indicator.dart';
+import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/shimmer.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
+import 'package:vide_cli/modules/git/git_popup.dart';
 
 class NetworksOverviewPage extends StatefulComponent {
   const NetworksOverviewPage({super.key});
@@ -98,6 +99,13 @@ class _NetworksOverviewPageState extends State<NetworksOverviewPage> {
         final settings = configManager.readGlobalSettings();
         configManager.writeGlobalSettings(
           settings.copyWith(ideModeEnabled: !current),
+        );
+      },
+      showGitPopup: () async {
+        final repoPath = context.read(currentRepoPathProvider);
+        await GitPopup.show(
+          context,
+          repoPath: repoPath,
         );
       },
     );

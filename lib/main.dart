@@ -3,7 +3,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/mcp_servers_panel.dart';
-import 'package:vide_cli/modules/git_sidebar/git_sidebar.dart';
+import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';

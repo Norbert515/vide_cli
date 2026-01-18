@@ -36,6 +36,7 @@ class CommandContext {
     this.forkAgent,
     this.killAgent,
     this.isLastAgent = false,
+    this.showGitPopup,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -72,6 +73,11 @@ class CommandContext {
 
   /// Whether this is the last agent in the network (cannot be killed).
   final bool isLastAgent;
+
+  /// Callback to show the git operations popup.
+  /// Returns a Future that completes when the popup is closed.
+  /// Used by /git command.
+  final Future<void> Function()? showGitPopup;
 }
 
 /// Base interface for all slash commands.

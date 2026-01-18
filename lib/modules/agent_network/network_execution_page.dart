@@ -15,7 +15,8 @@ import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
-import 'package:vide_cli/modules/git_sidebar/git_branch_indicator.dart';
+import 'package:vide_cli/modules/git/git_branch_indicator.dart';
+import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog.dart';
 import 'package:vide_cli/modules/permissions/components/permission_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
@@ -340,6 +341,21 @@ class _AgentChatState extends State<_AgentChat> {
           reason: 'User invoked /kill command',
         );
         // Navigation will be handled by the network state update since the agent is removed
+      },
+      showGitPopup: () async {
+        final repoPath = context.read(currentRepoPathProvider);
+        await GitPopup.show(
+          context,
+          repoPath: repoPath,
+          onSendMessage: (message) {
+            session?.sendMessage(message, agentId: component.agentId);
+          },
+          onSwitchWorktree: (path) {
+            final container = ProviderScope.containerOf(context);
+            container.read(repoPathOverrideProvider.notifier).state = path;
+            container.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+          },
+        );
       },
     );
 
