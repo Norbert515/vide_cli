@@ -10,7 +10,7 @@ void main() {
         final metadata = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: 'parent-456',
           createdAt: testDate,
           status: AgentStatus.working,
@@ -21,7 +21,7 @@ void main() {
 
         expect(json['id'], 'agent-123');
         expect(json['name'], 'Test Agent');
-        expect(json['type'], 'implementation');
+        expect(json['type'], 'implementer');
         expect(json['spawnedBy'], 'parent-456');
         expect(json['createdAt'], testDate.toIso8601String());
         expect(json['status'], 'working');
@@ -49,7 +49,7 @@ void main() {
         final json = {
           'id': 'agent-123',
           'name': 'Test Agent',
-          'type': 'implementation',
+          'type': 'implementer',
           'spawnedBy': 'parent-456',
           'createdAt': testDate.toIso8601String(),
           'status': 'working',
@@ -60,7 +60,7 @@ void main() {
 
         expect(metadata.id, 'agent-123');
         expect(metadata.name, 'Test Agent');
-        expect(metadata.type, 'implementation');
+        expect(metadata.type, 'implementer');
         expect(metadata.spawnedBy, 'parent-456');
         expect(metadata.createdAt, testDate);
         expect(metadata.status, AgentStatus.working);
@@ -116,7 +116,7 @@ void main() {
         final original = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: 'parent-456',
           createdAt: testDate,
           status: AgentStatus.working,
@@ -138,7 +138,7 @@ void main() {
         final original = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           createdAt: testDate,
         );
 

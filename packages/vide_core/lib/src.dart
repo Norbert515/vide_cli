@@ -94,7 +94,6 @@ export 'src/mcp/ask_user_question/ask_user_question_server.dart';
 // Utilities
 // =============================================================================
 export 'src/utils/project_detector.dart';
-export 'src/utils/system_prompt_builder.dart';
 export 'src/utils/working_dir_provider.dart';
 
 // =============================================================================

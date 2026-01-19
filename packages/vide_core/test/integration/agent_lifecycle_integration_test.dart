@@ -185,14 +185,14 @@ void main() {
       test('agent metadata tracks creation and type', () {
         final metadata = AgentMetadata(
           id: 'agent-123',
-          name: 'Implementation',
-          type: 'implementation',
+          name: 'Implementer',
+          type: 'implementer',
           createdAt: DateTime.now(),
         );
 
         expect(metadata.id, 'agent-123');
-        expect(metadata.name, 'Implementation');
-        expect(metadata.type, 'implementation');
+        expect(metadata.name, 'Implementer');
+        expect(metadata.type, 'implementer');
         expect(metadata.spawnedBy, isNull);
       });
 
@@ -207,7 +207,7 @@ void main() {
         final spawnedAgent = AgentMetadata(
           id: 'spawned-agent',
           name: 'Worker',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: mainAgent.id,
           createdAt: DateTime.now(),
         );
@@ -228,8 +228,8 @@ void main() {
             ),
             AgentMetadata(
               id: 'impl',
-              name: 'Implementation',
-              type: 'implementation',
+              name: 'Implementer',
+              type: 'implementer',
               createdAt: DateTime.now(),
             ),
           ],

@@ -21,7 +21,7 @@ void main() {
           goal: 'Implement feature X',
           agents: [
             createAgent(id: 'main-1', name: 'Main', type: 'main'),
-            createAgent(id: 'impl-1', name: 'Worker', type: 'implementation'),
+            createAgent(id: 'impl-1', name: 'Worker', type: 'implementer'),
           ],
           createdAt: testDate,
           lastActiveAt: lastActiveDate,
@@ -81,7 +81,7 @@ void main() {
             {
               'id': 'impl-1',
               'name': 'Worker',
-              'type': 'implementation',
+              'type': 'implementer',
               'createdAt': testDate.toIso8601String(),
             },
           ],
@@ -166,7 +166,7 @@ void main() {
         );
 
         final newAgents = [
-          createAgent(id: 'new-1', name: 'New Agent', type: 'implementation'),
+          createAgent(id: 'new-1', name: 'New Agent', type: 'implementer'),
         ];
 
         final copied = original.copyWith(
@@ -222,11 +222,11 @@ void main() {
           goal: 'Test goal',
           agents: [
             createAgent(id: 'agent-1', name: 'Agent 1', type: 'main'),
-            createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementation'),
+            createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementer'),
             createAgent(
               id: 'agent-3',
               name: 'Agent 3',
-              type: 'contextCollection',
+              type: 'researcher',
             ),
           ],
           createdAt: testDate,
@@ -256,7 +256,7 @@ void main() {
           AgentMetadata(
             id: 'impl-1',
             name: 'Worker',
-            type: 'implementation',
+            type: 'implementer',
             spawnedBy: 'main-1',
             createdAt: testDate,
             status: AgentStatus.working,
