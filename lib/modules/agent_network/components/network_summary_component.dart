@@ -73,25 +73,19 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
                           Text(
                             '$agentCount agent${agentCount != 1 ? 's' : ''}',
                             style: TextStyle(
-                              color: theme.base.onSurface.withOpacity(
-                                TextOpacity.tertiary,
-                              ),
+                              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                             ),
                           ),
                           Text(
                             ' • ',
                             style: TextStyle(
-                              color: theme.base.onSurface.withOpacity(
-                                TextOpacity.tertiary,
-                              ),
+                              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                             ),
                           ),
                           Text(
                             timeAgo,
                             style: TextStyle(
-                              color: theme.base.onSurface.withOpacity(
-                                TextOpacity.tertiary,
-                              ),
+                              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                             ),
                           ),
                         ],

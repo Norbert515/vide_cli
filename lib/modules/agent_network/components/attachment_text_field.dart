@@ -44,6 +44,14 @@ class AttachmentTextField extends StatefulComponent {
   /// Used to enable focus navigation to a sidebar.
   final void Function()? onRightEdge;
 
+  /// Called when the down arrow key is pressed and we're not browsing history.
+  /// Used to enable focus navigation to a list below the text field.
+  final void Function()? onDownEdge;
+
+  /// Called when the up arrow key is pressed and we're not browsing history.
+  /// Used to open a selector above the text field (e.g., team selector).
+  final void Function()? onUpEdge;
+
   /// List of previous prompts for history navigation (newest first).
   /// When provided, arrow up/down navigates through history.
   final List<String>? promptHistory;
@@ -70,6 +78,8 @@ class AttachmentTextField extends StatefulComponent {
     this.commandSuggestions,
     this.onLeftEdge,
     this.onRightEdge,
+    this.onDownEdge,
+    this.onUpEdge,
     this.promptHistory,
     this.onPromptSubmitted,
     this.initialText,
@@ -469,6 +479,22 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                           _navigateHistory(-1); // Go to newer entry
                           return true;
                         }
+                      }
+
+                      // Down arrow when not browsing history/suggestions: trigger onDownEdge
+                      if (event.logicalKey == LogicalKey.arrowDown &&
+                          component.onDownEdge != null &&
+                          _historyIndex < 0) {
+                        component.onDownEdge!();
+                        return true;
+                      }
+
+                      // Up arrow when not browsing history/suggestions: trigger onUpEdge
+                      if (event.logicalKey == LogicalKey.arrowUp &&
+                          component.onUpEdge != null &&
+                          _historyIndex < 0) {
+                        component.onUpEdge!();
+                        return true;
                       }
 
                       // Left arrow at position 0: trigger onLeftEdge callback

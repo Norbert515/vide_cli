@@ -9,8 +9,8 @@ import 'package:vide_cli/components/typing_text.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
-import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
+import 'package:vide_cli/modules/settings/settings_dialog.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
@@ -49,25 +49,24 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   bool _showQuitWarning = false;
   static const _quitTimeWindow = Duration(seconds: 2);
 
-  int selectedAgentIndex = 0;
-
   Component _buildAgentChat(
     BuildContext context,
     AgentNetworkState networkState, {
     bool ideModeEnabled = false,
   }) {
-    // Clamp selectedAgentIndex to valid bounds after agents may have been removed
-    final safeIndex = selectedAgentIndex.clamp(
-      0,
-      networkState.agentIds.length - 1,
-    );
-    if (safeIndex != selectedAgentIndex) {
-      // Schedule index update for next frame to avoid setState during build
-      Future.microtask(() {
-        if (mounted) setState(() => selectedAgentIndex = safeIndex);
-      });
+    // Get selected agent ID from provider, or use the first agent
+    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
+    final selectedAgentId = context.watch(selectedAgentIdProvider);
+
+    // Find the selected agent, or default to the first agent
+    String agentId = selectedAgentId ?? (networkState.agentIds.isNotEmpty ? networkState.agentIds[0] : '');
+
+    // Ensure selected agent is still valid
+    if (!networkState.agentIds.contains(agentId) && networkState.agentIds.isNotEmpty) {
+      agentId = networkState.agentIds[0];
+      selectedAgentIdNotifier.state = agentId;
     }
-    final agentId = networkState.agentIds[safeIndex];
+
     final session = context.watch(currentVideSessionProvider);
     if (session == null) {
       // Session still being created - show optimistic loading state
@@ -171,10 +170,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             ],
           ),
           Divider(),
-          RunningAgentsBar(
-            agents: networkState.agents,
-            selectedIndex: selectedAgentIndex,
-          ),
           if (networkState.agentIds.isEmpty)
             Center(child: Text('No agents'))
           else
@@ -191,16 +186,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: Focusable(
         focused: true,
         onKeyEvent: (event) {
-          // Tab: Cycle through agents
-          if (event.logicalKey == LogicalKey.tab &&
-              networkState.agentIds.isNotEmpty) {
-            setState(() {
-              selectedAgentIndex =
-                  (selectedAgentIndex + 1) % networkState.agentIds.length;
-            });
-            return true;
-          }
-
           // Ctrl+C: Show quit warning (double press to quit)
           if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
             _handleCtrlC();
@@ -246,6 +231,9 @@ class _AgentChatState extends State<_AgentChat> {
   void initState() {
     super.initState();
 
+    // We're not on the home page anymore
+    context.read(isOnHomePageProvider.notifier).state = false;
+
     final session = context.read(currentVideSessionProvider);
     if (session == null) return;
 
@@ -285,6 +273,8 @@ class _AgentChatState extends State<_AgentChat> {
   void dispose() {
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
+    // Back to home page
+    context.read(isOnHomePageProvider.notifier).state = true;
     super.dispose();
   }
 
@@ -356,6 +346,9 @@ class _AgentChatState extends State<_AgentChat> {
             container.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
           },
         );
+      },
+      showSettingsDialog: () async {
+        await SettingsPopup.show(context);
       },
     );
 
@@ -749,8 +742,7 @@ class _AgentChatState extends State<_AgentChat> {
                       final pendingText =
                           context.watch(pendingInputTextProvider);
                       return AttachmentTextField(
-                        focused: !context.watch(sidebarFocusProvider) &&
-                            !context.watch(mcpPanelFocusProvider),
+                        focused: !context.watch(sidebarFocusProvider),
                         enabled:
                             true, // Always enabled - messages queue during processing
                         placeholder: 'Type a message...',
@@ -780,11 +772,6 @@ class _AgentChatState extends State<_AgentChat> {
                         onLeftEdge: component.ideModeEnabled
                             ? () => context
                                 .read(sidebarFocusProvider.notifier)
-                                .state = true
-                            : null,
-                        onRightEdge: component.ideModeEnabled
-                            ? () => context
-                                .read(mcpPanelFocusProvider.notifier)
                                 .state = true
                             : null,
                         onEscape: () {

@@ -358,6 +358,30 @@ class VideSession {
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
 
+  /// Spawn a new agent of a specific type.
+  ///
+  /// [agentType] is the type of agent to spawn (e.g., 'implementation', 'contextCollection').
+  /// [name] is the display name for the agent.
+  /// [initialPrompt] is the initial message to send to the agent.
+  /// [spawnedBy] is the ID of the agent requesting the spawn (typically main agent).
+  ///
+  /// Returns the ID of the newly created agent.
+  Future<String> spawnAgent({
+    required SpawnableAgentType agentType,
+    required String name,
+    required String initialPrompt,
+    required String spawnedBy,
+  }) async {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    return await manager.spawnAgent(
+      agentType: agentType,
+      name: name,
+      initialPrompt: initialPrompt,
+      spawnedBy: spawnedBy,
+    );
+  }
+
   /// Get the queued message for an agent, if any.
   ///
   /// A queued message is a message that will be sent when the agent

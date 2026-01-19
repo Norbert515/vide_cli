@@ -37,6 +37,7 @@ class CommandContext {
     this.killAgent,
     this.isLastAgent = false,
     this.showGitPopup,
+    this.showSettingsDialog,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -78,6 +79,11 @@ class CommandContext {
   /// Returns a Future that completes when the popup is closed.
   /// Used by /git command.
   final Future<void> Function()? showGitPopup;
+
+  /// Callback to show the settings dialog.
+  /// Returns a Future that completes when the dialog is closed.
+  /// Used by /settings command.
+  final Future<void> Function()? showSettingsDialog;
 }
 
 /// Base interface for all slash commands.
