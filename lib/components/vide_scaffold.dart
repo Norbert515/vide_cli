@@ -3,10 +3,14 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/main.dart'
     show
         sidebarFocusProvider,
+        gitSidebarFocusProvider,
         filePreviewPathProvider,
-        isOnHomePageProvider;
+        isOnHomePageProvider,
+        repoPathOverrideProvider,
+        currentRepoPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
+import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
@@ -20,6 +24,7 @@ final sidebarWidthProvider = StateProvider<double>((ref) => 0.0);
 /// A scaffold that provides the standard Vide layout with:
 /// - Optional left sidebar (agent list)
 /// - Main content area
+/// - Optional right sidebar (git status)
 /// - Proper layering so dialogs overlay sidebars
 ///
 /// The key insight: wrap ALL content (sidebars + main) inside the Navigator's
@@ -40,12 +45,16 @@ class VideScaffold extends StatefulComponent {
   /// Width of the left sidebar when expanded.
   final double sidebarWidth;
 
+  /// Width of the right (git) sidebar when shown.
+  final double gitSidebarWidth;
+
   /// Minimum terminal width required to show sidebar.
   final double minWidthForSidebar;
 
   const VideScaffold({
     required this.child,
     this.sidebarWidth = 28,
+    this.gitSidebarWidth = 30,
     this.minWidthForSidebar = 100,
     super.key,
   });
@@ -58,31 +67,34 @@ class _VideScaffoldState extends State<VideScaffold> {
   @override
   Component build(BuildContext context) {
     final sidebarFocused = context.watch(sidebarFocusProvider);
+    final gitSidebarFocused = context.watch(gitSidebarFocusProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
     final isOnHomePage = context.watch(isOnHomePageProvider);
+    final repoPath = context.watch(currentRepoPathProvider);
 
-    // Show sidebar on execution page (always), hide on home page
-    final showSidebar = !isOnHomePage;
+    // Show sidebars on execution page (always), hide on home page
+    final showSidebars = !isOnHomePage;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final terminalWidth = constraints.maxWidth;
         final hasEnoughWidth = terminalWidth >= component.minWidthForSidebar;
-        final effectiveSidebarWidth = (showSidebar && hasEnoughWidth) ? component.sidebarWidth : 0.0;
+        final effectiveSidebarWidth = (showSidebars && hasEnoughWidth) ? component.sidebarWidth : 0.0;
+        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth) ? component.gitSidebarWidth : 0.0;
 
         // Update the provider so pages can know the sidebar width
         context.read(sidebarWidthProvider.notifier).state = effectiveSidebarWidth;
 
-        // Standard Row layout - sidebar + main content
+        // Standard Row layout - left sidebar + main content + right sidebar
         // This component should be used INSIDE the Navigator, so dialogs
         // rendered by Navigator.showDialog will overlay everything.
         return Stack(
           children: [
-            // Main layout: sidebar + content
+            // Main layout: sidebar + content + git sidebar
             Row(
               children: [
                 // Left sidebar (hidden on home page)
-                if (showSidebar)
+                if (showSidebars)
                   _buildLeftSidebar(context, effectiveSidebarWidth, sidebarFocused),
 
                 // Main content area
@@ -109,6 +121,10 @@ class _VideScaffoldState extends State<VideScaffold> {
                     ],
                   ),
                 ),
+
+                // Right sidebar - Git status (hidden on home page)
+                if (showSidebars)
+                  _buildRightSidebar(context, effectiveGitSidebarWidth, gitSidebarFocused, repoPath),
               ],
             ),
 
@@ -184,6 +200,42 @@ class _VideScaffoldState extends State<VideScaffold> {
 
               context.read(selectedAgentIdProvider.notifier).state = newAgentId;
               context.read(sidebarFocusProvider.notifier).state = false;
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Component _buildRightSidebar(BuildContext context, double width, bool focused, String repoPath) {
+    final session = context.read(currentVideSessionProvider);
+    return SizedBox(
+      width: width,
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topRight,
+          minWidth: component.gitSidebarWidth,
+          maxWidth: component.gitSidebarWidth,
+          child: GitSidebar(
+            width: component.gitSidebarWidth.toInt(),
+            focused: focused,
+            expanded: true,
+            repoPath: repoPath,
+            onExitLeft: () {
+              // Left arrow from git sidebar - unfocus (go back to main content)
+              context.read(gitSidebarFocusProvider.notifier).state = false;
+            },
+            onSendMessage: (message) {
+              // Send message to current agent's chat
+              final selectedAgentId = context.read(selectedAgentIdProvider);
+              if (selectedAgentId != null) {
+                session?.sendMessage(message, agentId: selectedAgentId);
+              }
+            },
+            onSwitchWorktree: (path) {
+              // Update the repo path override and agent network's worktree path
+              context.read(repoPathOverrideProvider.notifier).state = path;
+              context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
             },
           ),
         ),

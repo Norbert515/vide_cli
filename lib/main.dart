@@ -11,10 +11,14 @@ import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
-/// Provider for sidebar focus state, shared across the app.
+/// Provider for left sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
 /// When focused, the sidebar expands; when unfocused, it collapses.
 final sidebarFocusProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for right sidebar (git) focus state.
+/// When true, the git sidebar is focused and receives keyboard input.
+final gitSidebarFocusProvider = StateProvider<bool>((ref) => false);
 
 /// Provider for IDE mode state. When true, the team sidebar is shown.
 /// Initialized from global settings and can be toggled via /ide command.
