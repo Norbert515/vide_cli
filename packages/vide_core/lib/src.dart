@@ -7,9 +7,6 @@
 /// For stable public API, use `package:vide_core/api.dart` instead.
 library vide_core.src;
 
-// Re-export all public API
-export 'api.dart';
-
 // Version
 export 'version.dart';
 
@@ -100,3 +97,23 @@ export 'src/utils/working_dir_provider.dart';
 // State Management
 // =============================================================================
 export 'src/state/agent_status_manager.dart';
+
+// =============================================================================
+// Claude SDK Re-exports (for internal use)
+// =============================================================================
+export 'package:claude_sdk/claude_sdk.dart'
+    show
+        Conversation,
+        ConversationMessage,
+        MessageRole,
+        McpServerBase,
+        McpStatusResponse,
+        McpServerStatusInfo,
+        Message,
+        Attachment,
+        ClaudeStatus,
+        ToolPermissionContext,
+        PermissionResult,
+        PermissionResultAllow,
+        PermissionResultDeny,
+        ClaudeSettingsManager;

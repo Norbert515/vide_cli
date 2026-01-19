@@ -1,7 +1,7 @@
 import 'package:test/test.dart';
 import 'package:vide_core/src/services/team_framework_loader.dart';
 import 'package:vide_core/src/mcp/mcp_server_type.dart';
-import 'package:vide_core/models/team_framework/team_framework.dart';
+import 'package:vide_core/src/models/team_framework/team_framework.dart';
 
 void main() {
   group('TeamFrameworkLoader - Unit Tests', () {

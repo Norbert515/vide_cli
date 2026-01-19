@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
-import '../../models/team_framework/team_framework.dart';
+import '../models/team_framework/team_framework.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
 import '../utils/working_dir_provider.dart';

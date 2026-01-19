@@ -211,5 +211,7 @@ export 'src/mcp/git/git_models.dart'
 // Team framework
 export 'src/services/team_framework_loader.dart'
     show TeamFrameworkLoader, teamFrameworkLoaderProvider;
-export 'models/team_framework/team_definition.dart'
+export 'src/services/team_framework_asset_initializer.dart'
+    show TeamFrameworkAssetInitializer;
+export 'src/models/team_framework/team_definition.dart'
     show TeamDefinition, ProcessConfig, ProcessLevel, CommunicationConfig;

@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/src.dart' show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
+import 'package:vide_core/api.dart'
+    show TeamFrameworkLoader, TeamFrameworkAssetInitializer, videConfigManagerProvider;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart' show ideModeEnabledProvider;
-import 'package:vide_core/api.dart' show videConfigManagerProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/settings/components/section_header.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
