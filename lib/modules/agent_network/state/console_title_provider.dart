@@ -6,7 +6,7 @@ import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 import '../../permissions/permission_scope.dart';
 // Use public API types where possible
-import 'package:vide_core/api.dart' as api;
+import 'package:vide_core/vide_core.dart' as api;
 import 'vide_session_providers.dart';
 
 /// Provides the project name from the current working directory.

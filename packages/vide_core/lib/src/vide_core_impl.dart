@@ -9,14 +9,14 @@ import 'dart:io';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 
-import 'src/services/agent_network_manager.dart';
-import 'src/services/agent_network_persistence_manager.dart';
-import 'src/services/initial_claude_client.dart';
-import 'src/services/vide_config_manager.dart';
-import 'src/utils/working_dir_provider.dart';
-import 'src/api/vide_agent.dart';
-import 'src/api/vide_config.dart';
-import 'src/api/vide_session.dart';
+import 'services/agent_network_manager.dart';
+import 'services/agent_network_persistence_manager.dart';
+import 'services/initial_claude_client.dart';
+import 'services/vide_config_manager.dart';
+import 'utils/working_dir_provider.dart';
+import 'api/vide_agent.dart';
+import 'api/vide_config.dart';
+import 'api/vide_session.dart';
 
 /// The main entry point for the vide_core API.
 ///

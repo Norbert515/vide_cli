@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 import '../helpers/mock_vide_config_manager.dart';
 import '../helpers/test_fixtures.dart';
 

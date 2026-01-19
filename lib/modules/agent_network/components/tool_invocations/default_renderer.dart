@@ -2,7 +2,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/api.dart' show AgentId;
+import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:path/path.dart' as p;
 
 /// Default renderer for tool invocations.

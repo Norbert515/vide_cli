@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 import '../lib/src/repl.dart';
 import '../lib/src/event_renderer.dart';

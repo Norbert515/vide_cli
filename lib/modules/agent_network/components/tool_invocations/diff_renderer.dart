@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/api.dart' show AgentId;
+import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:path/path.dart' as p;
 import 'shared/code_diff.dart';
 import 'shared/syntax_highlighter.dart';

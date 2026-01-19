@@ -4,7 +4,7 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Provider for the VideCore instance.
 ///

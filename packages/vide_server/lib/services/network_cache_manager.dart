@@ -1,4 +1,4 @@
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Hybrid caching strategy for agent networks
 ///
