@@ -406,6 +406,25 @@ class VideSession {
     client?.clearQueuedMessage();
   }
 
+  /// Get the model name for an agent (e.g., "claude-sonnet-4-5-20250929").
+  ///
+  /// Returns null if the agent doesn't exist or hasn't initialized yet.
+  String? getModel(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    return client?.initData?.model;
+  }
+
+  /// Stream of model changes for an agent.
+  ///
+  /// Emits when the agent's init data is received (which contains the model).
+  Stream<String?> modelStream(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(claudeProvider(agentId));
+    if (client == null) return Stream.value(null);
+    return client.initDataStream.map((meta) => meta.model);
+  }
+
   /// Dispose the session and release resources.
   ///
   /// After calling dispose, the session can no longer be used.
