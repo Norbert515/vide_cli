@@ -6,7 +6,7 @@ role: tester
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-task-management, vide-agent
 
-model: sonnet
+model: opus
 permissionMode: acceptEdits
 
 traits:
@@ -77,7 +77,7 @@ You can spawn implementation agents to fix issues:
 
 ```
 spawnAgent(
-  agentType: "implementation",
+  role: "implementer",
   name: "Fix Validation Bug",
   initialPrompt: "Fix email validation at lib/forms/login.dart:45.
 

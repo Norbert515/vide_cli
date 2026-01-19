@@ -69,23 +69,6 @@ export 'src/agents/agent_configuration.dart';
 export 'src/agents/user_defined_agent.dart';
 export 'src/agents/agent_loader.dart';
 
-// Prompt sections
-export 'src/agents/prompt_sections/communication_style_section.dart';
-export 'src/agents/prompt_sections/tool_usage_section.dart';
-export 'src/agents/prompt_sections/task_management_section.dart';
-export 'src/agents/prompt_sections/git_workflow_section.dart';
-export 'src/agents/prompt_sections/agent_conversation_etiquette_section.dart';
-export 'src/agents/prompt_sections/agent/core_identity_section.dart';
-export 'src/agents/prompt_sections/agent/context_collection_agent_section.dart';
-export 'src/agents/prompt_sections/agent/planning_agent_section.dart';
-export 'src/agents/prompt_sections/agent/implementation_agent_section.dart';
-export 'src/agents/prompt_sections/agent/flutter_tester_agent_section.dart';
-export 'src/agents/prompt_sections/agent/main_agent_orchestration_section.dart';
-export 'src/agents/prompt_sections/agent/runtime_dev_tools_setup_section.dart';
-export 'src/agents/prompt_sections/framework/dart_section.dart';
-export 'src/agents/prompt_sections/framework/flutter_section.dart';
-export 'src/agents/prompt_sections/framework/nocterm_section.dart';
-
 // =============================================================================
 // MCP Servers
 // =============================================================================

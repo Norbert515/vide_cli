@@ -7,7 +7,7 @@ archetype: flash-fixer
 tools: Read, Write, Edit, Grep, Glob, Bash
 mcpServers: vide-git, vide-task-management, flutter-runtime
 
-model: sonnet
+model: opus
 
 traits:
   - ships-fast

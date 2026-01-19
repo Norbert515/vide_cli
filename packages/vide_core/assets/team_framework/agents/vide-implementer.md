@@ -6,7 +6,7 @@ role: implementer
 tools: Read, Write, Edit, Grep, Glob, Bash
 mcpServers: vide-git, vide-task-management, flutter-runtime, vide-agent
 
-model: sonnet
+model: opus
 permissionMode: acceptEdits
 
 traits:

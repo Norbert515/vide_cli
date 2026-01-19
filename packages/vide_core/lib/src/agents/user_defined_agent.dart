@@ -65,9 +65,7 @@ class UserDefinedAgent {
     // Extract frontmatter and body
     final parts = _extractFrontmatter(content);
     if (parts == null) {
-      throw FormatException(
-        'Invalid agent definition: missing YAML frontmatter in $filePath',
-      );
+      throw FormatException('Invalid agent definition: missing YAML frontmatter in $filePath');
     }
 
     final (frontmatterText, body) = parts;
@@ -88,9 +86,7 @@ class UserDefinedAgent {
       throw FormatException('Missing required field "name" in $filePath');
     }
     if (description == null || description.isEmpty) {
-      throw FormatException(
-        'Missing required field "description" in $filePath',
-      );
+      throw FormatException('Missing required field "description" in $filePath');
     }
 
     // Extract optional MCP servers field
@@ -99,11 +95,7 @@ class UserDefinedAgent {
     if (mcpServersField != null) {
       if (mcpServersField is String) {
         // Parse comma-separated list: "vide-git, vide-memory"
-        mcpServers = mcpServersField
-            .split(',')
-            .map((s) => s.trim())
-            .where((s) => s.isNotEmpty)
-            .toList();
+        mcpServers = mcpServersField.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
       } else if (mcpServersField is YamlList) {
         // Parse YAML list: [vide-git, vide-memory]
         mcpServers = mcpServersField.cast<String>().toList();
@@ -116,11 +108,7 @@ class UserDefinedAgent {
     if (toolsField != null) {
       if (toolsField is String) {
         // Parse comma-separated list: "Read, Grep, Glob"
-        tools = toolsField
-            .split(',')
-            .map((t) => t.trim())
-            .where((t) => t.isNotEmpty)
-            .toList();
+        tools = toolsField.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
       } else if (toolsField is YamlList) {
         // Parse YAML list: [Read, Grep, Glob]
         tools = toolsField.cast<String>().toList();
@@ -132,9 +120,7 @@ class UserDefinedAgent {
     // Trim system prompt
     final systemPrompt = body.trim();
     if (systemPrompt.isEmpty) {
-      throw FormatException(
-        'Missing system prompt (markdown body) in $filePath',
-      );
+      throw FormatException('Missing system prompt (markdown body) in $filePath');
     }
 
     return UserDefinedAgent(
@@ -153,11 +139,7 @@ class UserDefinedAgent {
   /// Returns (frontmatter, body) or null if no frontmatter found.
   static (String, String)? _extractFrontmatter(String content) {
     // Match YAML frontmatter: ---\n...\n---\n
-    final pattern = RegExp(
-      r'^---\s*\n(.*?)\n---\s*\n(.*)$',
-      dotAll: true,
-      multiLine: true,
-    );
+    final pattern = RegExp(r'^---\s*\n(.*?)\n---\s*\n(.*)$', dotAll: true, multiLine: true);
 
     final match = pattern.firstMatch(content);
     if (match == null) {
@@ -208,6 +190,6 @@ class UserDefinedAgent {
     return 'UserDefinedAgent(name: $name, description: $description, '
         'mcpServers: ${mcpServers ?? "inherited"}, '
         'tools: ${tools ?? "inherited"}, '
-        'model: ${model ?? "sonnet"})';
+        'model: $model)';
   }
 }

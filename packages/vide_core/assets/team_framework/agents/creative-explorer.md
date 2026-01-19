@@ -7,7 +7,7 @@ archetype: creative
 tools: Read, Grep, Glob
 mcpServers: vide-git
 
-model: sonnet
+model: opus
 
 traits:
   - wild-ideas

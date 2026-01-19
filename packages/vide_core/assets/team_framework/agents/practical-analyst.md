@@ -7,7 +7,7 @@ archetype: pragmatist
 tools: Read, Grep, Glob, Bash
 mcpServers: vide-git
 
-model: sonnet
+model: opus
 
 traits:
   - feasibility-focus

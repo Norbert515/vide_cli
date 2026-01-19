@@ -6,7 +6,7 @@ role: researcher
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-task-management, vide-agent
 
-model: sonnet
+model: opus
 
 traits:
   - thorough-exploration
