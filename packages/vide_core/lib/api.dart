@@ -99,7 +99,7 @@ export 'src/services/initial_claude_client.dart' show InitialClaudeClient;
 export 'src/models/agent_network.dart' show AgentNetwork;
 export 'src/models/agent_id.dart' show AgentNetworkId;
 export 'src/services/agent_network_manager.dart'
-    show AgentNetworkState, agentNetworkManagerProvider, AgentNetworkManager;
+    show AgentNetworkState, agentNetworkManagerProvider, AgentNetworkManager, SpawnableAgentType, SpawnableAgentTypeExtension;
 
 // Agent metadata (for running agents bar)
 export 'src/models/agent_metadata.dart' show AgentMetadata;

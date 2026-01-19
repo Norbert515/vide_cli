@@ -1,6 +1,7 @@
 #!/bin/bash
-# videdev - Development version of vide with VM services enabled
-# Runs the local bin/vide.dart with --enable-vm-service
+# videdev - Development version of vide
+# Runs the local bin/vide.dart
+# Use -d to enable VM services for debugging
 
 # Resolve symlinks to get the real script location
 SOURCE="${BASH_SOURCE[0]}"
@@ -11,4 +12,21 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
-exec dart run "$SCRIPT_DIR/bin/vide.dart" "$@"
+# Parse arguments
+DART_ARGS=()
+VIDE_ARGS=()
+ENABLE_VM_SERVICE=false
+
+for arg in "$@"; do
+  if [[ "$arg" == "-d" ]]; then
+    ENABLE_VM_SERVICE=true
+  else
+    VIDE_ARGS+=("$arg")
+  fi
+done
+
+if [[ "$ENABLE_VM_SERVICE" == true ]]; then
+  DART_ARGS+=("--enable-vm-service")
+fi
+
+exec dart run "${DART_ARGS[@]}" "$SCRIPT_DIR/bin/vide.dart" "${VIDE_ARGS[@]}"

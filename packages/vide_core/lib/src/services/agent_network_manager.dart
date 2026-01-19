@@ -35,6 +35,18 @@ extension SpawnableAgentTypeExtension on SpawnableAgentType {
       SpawnableAgentType.planning => 'planner',
     };
   }
+
+  /// Create SpawnableAgentType from team role name.
+  /// Returns null for unknown roles or 'lead' (main agent cannot be spawned).
+  static SpawnableAgentType? fromTeamRole(String role) {
+    return switch (role) {
+      'implementer' => SpawnableAgentType.implementation,
+      'researcher' => SpawnableAgentType.contextCollection,
+      'tester' => SpawnableAgentType.flutterTester,
+      'planner' => SpawnableAgentType.planning,
+      _ => null, // 'lead' or unknown roles return null
+    };
+  }
 }
 
 /// The state of the agent network manager - just tracks the current network

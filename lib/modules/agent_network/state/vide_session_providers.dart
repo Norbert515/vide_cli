@@ -31,8 +31,9 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
 /// The ConversationStateManager is owned by the VideSession and accumulates
 /// all events from the session's creation. This avoids missing events that
 /// would occur with late subscription to a broadcast stream.
-final conversationStateManagerProvider =
-    Provider<ConversationStateManager?>((ref) {
+final conversationStateManagerProvider = Provider<ConversationStateManager?>((
+  ref,
+) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return null;
 
@@ -48,11 +49,11 @@ final conversationStateManagerProvider =
 /// ```
 final agentConversationStateProvider =
     Provider.family<AgentConversationState?, String>((ref, agentId) {
-  final manager = ref.watch(conversationStateManagerProvider);
-  if (manager == null) return null;
+      final manager = ref.watch(conversationStateManagerProvider);
+      if (manager == null) return null;
 
-  return manager.getAgentState(agentId);
-});
+      return manager.getAgentState(agentId);
+    });
 
 /// Provider that triggers rebuilds when conversation state changes.
 ///
@@ -64,3 +65,17 @@ final conversationStateChangedProvider = StreamProvider<void>((ref) {
 
   return manager.onStateChanged;
 });
+
+/// Provider for the current team name.
+///
+/// Defaults to 'vide-classic' if not set.
+/// This should be persisted to settings when changed.
+final currentTeamProvider = StateProvider<String>((ref) {
+  return 'vide-classic';
+});
+
+/// Provider for the selected agent ID in the sidebar.
+///
+/// When null, no agent is selected.
+/// Used by AgentSidebar for keyboard navigation and selection.
+final selectedAgentIdProvider = StateProvider<String?>((ref) => null);
