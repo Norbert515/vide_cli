@@ -46,6 +46,8 @@ export 'src/services/agent_network_manager.dart';
 export 'src/services/claude_client_factory.dart';
 export 'src/services/claude_manager.dart';
 export 'src/services/initial_claude_client.dart';
+export 'src/services/team_framework_loader.dart';
+export 'src/services/team_framework_asset_initializer.dart';
 
 // Permissions
 export 'src/services/permissions/permission_matcher.dart';
@@ -66,11 +68,6 @@ export 'src/services/settings/local_settings_manager.dart';
 export 'src/agents/agent_configuration.dart';
 export 'src/agents/user_defined_agent.dart';
 export 'src/agents/agent_loader.dart';
-export 'src/agents/main_agent_config.dart';
-export 'src/agents/implementation_agent_config.dart';
-export 'src/agents/context_collection_agent_config.dart';
-export 'src/agents/planning_agent_config.dart';
-export 'src/agents/flutter_tester_agent_config.dart';
 
 // Prompt sections
 export 'src/agents/prompt_sections/communication_style_section.dart';

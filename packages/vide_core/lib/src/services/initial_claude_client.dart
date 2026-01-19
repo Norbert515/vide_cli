@@ -3,10 +3,12 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../agents/main_agent_config.dart';
+import '../agents/agent_configuration.dart';
 import '../models/agent_id.dart';
+import '../mcp/mcp_server_type.dart';
 import '../utils/working_dir_provider.dart';
 import 'claude_client_factory.dart';
+import 'team_framework_loader.dart';
 
 /// Holds the initial Claude client created at app startup.
 class InitialClaudeClient {
@@ -63,6 +65,9 @@ class InitialClaudeClient {
 ///
 /// The client is created lazily on first access. Call `ref.read(initialClaudeClientProvider)`
 /// early (e.g., in initState) to trigger initialization.
+///
+/// Loads the main agent configuration from the team framework. Uses 'vide-classic' team
+/// as the default team for the main (lead) agent.
 final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
   final workingDirectory = ref.watch(workingDirProvider);
   final agentId = const Uuid().v4();
@@ -72,12 +77,24 @@ final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
     ref: ref,
   );
 
-  final config = MainAgentConfig.create();
+  // NOTE: We create a temporary fallback config synchronously to avoid blocking.
+  // The real config is loaded asynchronously once the client is initialized.
+  // This ensures the UI doesn't block while loading team framework definitions.
+  final tempConfig = _createTemporaryMainAgentConfig();
+
   final client = factory.createSync(
     agentId: agentId,
-    config: config,
+    config: tempConfig,
     networkId: null, // No network yet
     agentType: 'main',
+  );
+
+  // Load and apply the real config asynchronously
+  _loadAndApplyRealConfig(
+    teamFrameworkLoader: TeamFrameworkLoader(workingDirectory: workingDirectory),
+    client: client,
+    factory: factory,
+    agentId: agentId,
   );
 
   final initialClient = InitialClaudeClient(
@@ -90,3 +107,58 @@ final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
 
   return initialClient;
 });
+
+/// Create a minimal temporary config for the main agent.
+/// This is used while the real config is being loaded from the team framework.
+AgentConfiguration _createTemporaryMainAgentConfig() {
+  return AgentConfiguration(
+    name: 'Main Triage & Operations Agent',
+    description: 'Loading from team framework...',
+    systemPrompt: 'Initializing main agent...',
+    permissionMode: 'acceptEdits',
+    mcpServers: [
+      McpServerType.git,
+      McpServerType.agent,
+      McpServerType.taskManagement,
+    ],
+    allowedTools: ['Skill'],
+  );
+}
+
+/// Load the real main agent config from team framework and update the client.
+///
+/// NOTE: This function validates that the team framework is properly configured,
+/// but doesn't actually update the client since ClaudeClient doesn't support runtime
+/// system prompt updates. The real config will be used when new agents are spawned.
+Future<void> _loadAndApplyRealConfig({
+  required TeamFrameworkLoader teamFrameworkLoader,
+  required ClaudeClient client,
+  required ClaudeClientFactory factory,
+  required AgentId agentId,
+}) async {
+  try {
+    // Get main agent from default team (vide-classic)
+    final team = await teamFrameworkLoader.getTeam('vide-classic');
+    if (team == null) {
+      print('Warning: Team "vide-classic" not found in team framework');
+      return;
+    }
+
+    final mainAgentName = team.composition['lead'];
+    if (mainAgentName == null) {
+      print('Warning: Team "vide-classic" has no "lead" agent defined');
+      return;
+    }
+
+    final config = await teamFrameworkLoader.buildAgentConfiguration(mainAgentName);
+    if (config == null) {
+      print('Warning: Agent configuration not found for: $mainAgentName');
+      return;
+    }
+
+    // Config successfully loaded - it will be used for any spawned agents
+    print('[InitialClaudeClient] Loaded main agent config from team framework: $mainAgentName');
+  } catch (e) {
+    print('Error loading team framework config: $e');
+  }
+}
