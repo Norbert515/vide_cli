@@ -10,6 +10,7 @@ import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
+import 'package:vide_cli/components/server_indicator.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider to expose the current sidebar width for pages to read.
@@ -94,12 +95,13 @@ class _VideScaffoldState extends State<VideScaffold> {
                           child: component.child,
                         ),
                       ),
-                      // Bottom bar with version indicator
+                      // Bottom bar with server indicator and version indicator
                       Padding(
                         padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
                         child: Row(
                           children: [
                             Expanded(child: SizedBox()),
+                            const ServerIndicator(),
                             VersionIndicator(),
                           ],
                         ),
