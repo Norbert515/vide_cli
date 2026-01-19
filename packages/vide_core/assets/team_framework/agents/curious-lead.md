@@ -8,7 +8,7 @@ archetype: explorer
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-task-management, vide-git, vide-ask-user-question
 
-model: sonnet
+model: opus
 
 traits:
   - deep-curiosity

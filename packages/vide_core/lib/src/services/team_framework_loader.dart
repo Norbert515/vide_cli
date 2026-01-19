@@ -168,8 +168,14 @@ class TeamFrameworkLoader {
   /// This loads the agent definition, builds the complete prompt with includes,
   /// parses MCP servers and tools, and returns a ready-to-use AgentConfiguration.
   ///
+  /// [agentName] - The name of the agent personality to load
+  /// [teamName] - Optional team name to inject available roles context
+  ///
   /// Returns null if the agent is not found, with a warning logged.
-  Future<AgentConfiguration?> buildAgentConfiguration(String agentName) async {
+  Future<AgentConfiguration?> buildAgentConfiguration(
+    String agentName, {
+    String? teamName,
+  }) async {
     final agent = await getAgent(agentName);
     if (agent == null) {
       print('Warning: Agent "$agentName" not found in team framework');
@@ -177,7 +183,19 @@ class TeamFrameworkLoader {
     }
 
     // Build the complete system prompt with includes
-    final systemPrompt = await buildAgentPrompt(agent);
+    var systemPrompt = await buildAgentPrompt(agent);
+
+    // If team is specified and agent has vide-agent MCP, inject available roles
+    if (teamName != null && agent.mcpServers.any((s) =>
+        s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent')) {
+      final team = await getTeam(teamName);
+      if (team != null) {
+        final availableRoles = _buildAvailableRolesSection(team);
+        if (availableRoles.isNotEmpty) {
+          systemPrompt = '$availableRoles\n\n$systemPrompt';
+        }
+      }
+    }
 
     // Parse MCP servers from the agent personality
     final mcpServers = _parseMcpServers(agent.mcpServers);
@@ -224,6 +242,31 @@ class TeamFrameworkLoader {
     }
 
     return servers;
+  }
+
+  /// Build the available roles section for injection into agent prompts.
+  ///
+  /// This tells the agent what roles they can spawn in their team.
+  String _buildAvailableRolesSection(TeamDefinition team) {
+    // Get spawnable roles (exclude 'lead' since that's the main agent)
+    final spawnableRoles = team.composition.entries
+        .where((e) => e.value != null && e.key != 'lead')
+        .map((e) => e.key)
+        .toList();
+
+    if (spawnableRoles.isEmpty) {
+      return '';
+    }
+
+    final rolesList = spawnableRoles.map((r) => '- `$r`').join('\n');
+
+    return '''## Available Roles in This Team
+
+When using \`spawnAgent\`, you MUST use one of these role names from the "${team.name}" team:
+
+$rolesList
+
+**IMPORTANT**: Only use the exact role names listed above. Other role names will fail.''';
   }
 
   /// Resolve an include path to content.

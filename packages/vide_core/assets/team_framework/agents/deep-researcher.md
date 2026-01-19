@@ -7,7 +7,7 @@ archetype: explorer
 tools: Read, Grep, Glob, Bash
 mcpServers: vide-git
 
-model: sonnet
+model: opus
 
 traits:
   - thorough-exploration

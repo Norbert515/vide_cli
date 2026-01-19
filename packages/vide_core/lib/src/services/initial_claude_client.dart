@@ -125,11 +125,10 @@ AgentConfiguration _createTemporaryMainAgentConfig() {
   );
 }
 
-/// Load the real main agent config from team framework and update the client.
+/// Load the real main agent config from team framework and apply the model setting.
 ///
-/// NOTE: This function validates that the team framework is properly configured,
-/// but doesn't actually update the client since ClaudeClient doesn't support runtime
-/// system prompt updates. The real config will be used when new agents are spawned.
+/// NOTE: System prompts can't be updated at runtime, but the model CAN be changed.
+/// The real config will also be used for any spawned agents.
 Future<void> _loadAndApplyRealConfig({
   required TeamFrameworkLoader teamFrameworkLoader,
   required ClaudeClient client,
@@ -150,13 +149,22 @@ Future<void> _loadAndApplyRealConfig({
       return;
     }
 
-    final config = await teamFrameworkLoader.buildAgentConfiguration(mainAgentName);
+    final config = await teamFrameworkLoader.buildAgentConfiguration(
+      mainAgentName,
+      teamName: 'vide-classic',
+    );
     if (config == null) {
       print('Warning: Agent configuration not found for: $mainAgentName');
       return;
     }
 
-    // Config successfully loaded - it will be used for any spawned agents
+    // Apply the model from the config if specified
+    if (config.model != null) {
+      await client.initialized;
+      await client.setModel(config.model!);
+      print('[InitialClaudeClient] Set model to: ${config.model}');
+    }
+
     print('[InitialClaudeClient] Loaded main agent config from team framework: $mainAgentName');
   } catch (e) {
     print('Error loading team framework config: $e');

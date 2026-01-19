@@ -223,7 +223,10 @@ class _HomePageState extends State<HomePage> {
         _selectedNetworkIndex++;
         _selectedNetworkIndex = _selectedNetworkIndex.clamp(0, networks.length - 1);
         _pendingDeleteIndex = null;
-        _scrollController.ensureIndexVisible(index: _selectedNetworkIndex);
+      });
+      // Ensure visible after render - account for spacers: network i is at child index i*2
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _scrollController.ensureIndexVisible(index: _selectedNetworkIndex * 2);
       });
       return true;
     } else if (event.logicalKey == LogicalKey.arrowUp ||
@@ -240,7 +243,10 @@ class _HomePageState extends State<HomePage> {
         _selectedNetworkIndex--;
         _selectedNetworkIndex = _selectedNetworkIndex.clamp(0, networks.length - 1);
         _pendingDeleteIndex = null;
-        _scrollController.ensureIndexVisible(index: _selectedNetworkIndex);
+      });
+      // Ensure visible after render - account for spacers: network i is at child index i*2
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        _scrollController.ensureIndexVisible(index: _selectedNetworkIndex * 2);
       });
       return true;
     } else if (event.logicalKey == LogicalKey.backspace) {
@@ -287,10 +293,6 @@ class _HomePageState extends State<HomePage> {
     // react to worktree switching
     final currentDir = context.watch(currentRepoPathProvider);
     final abbreviatedPath = _abbreviatePath(currentDir);
-
-    // Check if IDE mode is enabled
-    final configManager = context.read(videConfigManagerProvider);
-    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
 
     // Watch sidebar focus state from app-level provider
     final sidebarFocused = context.watch(sidebarFocusProvider);
@@ -474,11 +476,7 @@ class _HomePageState extends State<HomePage> {
                               onPromptSubmitted: (prompt) => context
                                   .read(promptHistoryProvider.notifier)
                                   .addPrompt(prompt),
-                              onLeftEdge: ideModeEnabled
-                                  ? () => context
-                                      .read(sidebarFocusProvider.notifier)
-                                      .state = true
-                                  : null,
+                              // No sidebar on home page, so no onLeftEdge handler
                               onDownEdge: networks.isNotEmpty
                                   ? () => setState(() {
                                         _focusState = 'networksList';

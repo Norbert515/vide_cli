@@ -145,7 +145,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Team "$team" has no "lead" agent defined');
     }
 
-    final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(leadAgentName);
+    final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
+      leadAgentName,
+      teamName: team,
+    );
     if (leadConfig == null) {
       throw Exception('Agent configuration not found for: $leadAgentName');
     }
@@ -280,7 +283,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Team "$effectiveTeamName" has no agent for role "$role"');
     }
 
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName);
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(
+      agentName,
+      teamName: effectiveTeamName,
+    );
     if (config == null) {
       throw Exception('Agent configuration not found for: $agentName (role: $role)');
     }
@@ -567,7 +573,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       );
     }
 
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentPersonalityName);
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(
+      agentPersonalityName,
+      teamName: teamName,
+    );
     if (config == null) {
       throw Exception('Agent configuration not found for: $agentPersonalityName (role: $role)');
     }

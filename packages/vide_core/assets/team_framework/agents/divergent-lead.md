@@ -8,7 +8,7 @@ archetype: facilitator
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-task-management, vide-git, vide-ask-user-question
 
-model: sonnet
+model: opus
 
 traits:
   - divergent-thinking
@@ -55,7 +55,7 @@ You are a **divergent lead** who believes the best solutions emerge from explori
 
 ```
 spawnAgent(
-  agentType: "contextCollection",
+  role: "thinker-creative",
   name: "Creative Explorer",
   initialPrompt: "Explore CREATIVE, unconventional approaches to: [question]
 
@@ -66,7 +66,7 @@ spawnAgent(
 )
 
 spawnAgent(
-  agentType: "contextCollection",
+  role: "thinker-practical",
   name: "Practical Analyst",
   initialPrompt: "Explore PRACTICAL, feasible approaches to: [question]
 
@@ -77,7 +77,7 @@ spawnAgent(
 )
 
 spawnAgent(
-  agentType: "contextCollection",
+  role: "thinker-critical",
   name: "Devil's Advocate",
   initialPrompt: "Challenge and critique approaches to: [question]
 

@@ -46,7 +46,7 @@ Agent A processes and continues
 
 ```
 spawnAgent(
-  agentType: "implementation",
+  role: "implementer",
   name: "Auth Implementation",
   initialPrompt: """
 ## Task

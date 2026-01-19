@@ -7,7 +7,7 @@ archetype: critic
 tools: Read, Grep, Glob
 mcpServers: vide-git
 
-model: sonnet
+model: opus
 
 traits:
   - assumption-challenging

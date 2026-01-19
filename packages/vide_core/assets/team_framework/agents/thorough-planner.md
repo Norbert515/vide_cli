@@ -6,7 +6,7 @@ role: planner
 tools: Read, Grep, Glob
 mcpServers: vide-task-management, vide-agent
 
-model: sonnet
+model: opus
 permissionMode: plan
 
 traits:

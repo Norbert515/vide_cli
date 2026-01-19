@@ -84,8 +84,7 @@ Agents spawn sub-agents using the `spawnAgent` MCP tool and communicate via `sen
 ```
 lib/
 ├── api/                      # Public API (recommended entry point)
-├── agents/                   # Agent configurations and prompts
-│   └── prompt_sections/      # Reusable prompt components
+├── agents/                   # Agent configurations
 ├── mcp/                      # MCP server implementations
 │   ├── agent/                # Agent network operations
 │   ├── ask_user_question/    # User dialog MCP

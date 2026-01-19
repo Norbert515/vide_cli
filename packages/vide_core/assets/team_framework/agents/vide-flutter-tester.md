@@ -6,7 +6,7 @@ role: tester
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-task-management, vide-agent
 
-model: sonnet
+model: opus
 permissionMode: acceptEdits
 
 traits:
@@ -161,7 +161,7 @@ When you discover issues during testing, you CAN and SHOULD spawn implementation
 
 ```
 spawnAgent(
-  agentType: "implementation",
+  role: "implementer",
   name: "Fix Button Bug",
   initialPrompt: "Fix the submit button not responding.
 

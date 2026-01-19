@@ -6,7 +6,7 @@ role: tester
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-task-management, vide-agent
 
-model: sonnet
+model: opus
 permissionMode: acceptEdits
 
 traits:
@@ -203,7 +203,7 @@ When issues are found:
 2. **Spawn implementation agent** with full context:
 ```
 spawnAgent(
-  agentType: "implementation",
+  role: "implementer",
   name: "Fix Auth Bypass",
   initialPrompt: "SECURITY: Fix authentication bypass vulnerability.
 
