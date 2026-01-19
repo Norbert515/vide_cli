@@ -8,12 +8,9 @@ import 'dart:io';
 
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
-import 'package:uuid/uuid.dart';
 
-import 'src/agents/main_agent_config.dart';
 import 'src/services/agent_network_manager.dart';
 import 'src/services/agent_network_persistence_manager.dart';
-import 'src/services/claude_client_factory.dart';
 import 'src/services/initial_claude_client.dart';
 import 'src/services/vide_config_manager.dart';
 import 'src/utils/working_dir_provider.dart';
@@ -124,49 +121,17 @@ class VideCore {
   Future<VideSession> startSession(VideSessionConfig config) async {
     _checkNotDisposed();
 
-    // Create the initial client (this mirrors what initialClaudeClientProvider does)
-    final agentId = const Uuid().v4();
-    final mainAgentConfig = MainAgentConfig.create();
-
-    // We need to create the container first, then create the client using
-    // a factory that uses that container's ref
-    final sessionContainer = ProviderContainer(
-      parent: _container,
-      overrides: [
-        workingDirProvider.overrideWithValue(config.workingDirectory),
-      ],
-    );
-
-    final factory = ClaudeClientFactoryImpl(
-      getWorkingDirectory: () => config.workingDirectory,
-      ref: sessionContainer.read(_providerContainerRefProvider),
-    );
-
-    final client = factory.createSync(
-      agentId: agentId,
-      config: mainAgentConfig,
-      networkId: null, // Will be set after network is created
-      agentType: 'main',
-    );
-
-    // Create InitialClaudeClient wrapper and override the provider
-    final initialClient = InitialClaudeClient(
-      client: client,
-      agentId: agentId,
-      workingDirectory: config.workingDirectory,
-    );
-
-    // Create a new container with the initialClaudeClientProvider override
+    // Create a new container for this session
     final finalContainer = ProviderContainer(
       parent: _container,
       overrides: [
         workingDirProvider.overrideWithValue(config.workingDirectory),
-        initialClaudeClientProvider.overrideWithValue(initialClient),
       ],
     );
 
     // Create network via AgentNetworkManager
-    // This will use our overridden initialClaudeClientProvider
+    // The initialClaudeClientProvider will be lazily evaluated when first accessed,
+    // which will load the main agent configuration from the team framework
     final manager = finalContainer.read(agentNetworkManagerProvider.notifier);
     final network = await manager.startNew(
       Message.text(config.initialMessage),
@@ -180,9 +145,6 @@ class VideCore {
       networkId: network.id,
       container: finalContainer,
     );
-
-    // Dispose the intermediate container (not the final one)
-    sessionContainer.dispose();
 
     _activeSessions[session.id] = session;
     return session;
@@ -209,49 +171,17 @@ class VideCore {
   }) async {
     _checkNotDisposed();
 
-    // Create the initial client (this mirrors what initialClaudeClientProvider does)
-    final agentId = const Uuid().v4();
-    final mainAgentConfig = MainAgentConfig.create();
-
-    // We need to create the container first, then create the client using
-    // a factory that uses that container's ref
-    final sessionContainer = ProviderContainer(
-      parent: _container,
-      overrides: [
-        workingDirProvider.overrideWithValue(workingDirectory),
-      ],
-    );
-
-    final factory = ClaudeClientFactoryImpl(
-      getWorkingDirectory: () => workingDirectory,
-      ref: sessionContainer.read(_providerContainerRefProvider),
-    );
-
-    final client = factory.createSync(
-      agentId: agentId,
-      config: mainAgentConfig,
-      networkId: null, // Will be set after network is created
-      agentType: 'main',
-    );
-
-    // Create InitialClaudeClient wrapper and override the provider
-    final initialClient = InitialClaudeClient(
-      client: client,
-      agentId: agentId,
-      workingDirectory: workingDirectory,
-    );
-
-    // Create a new container with the initialClaudeClientProvider override
+    // Create a new container for this session
     final finalContainer = ProviderContainer(
       parent: _container,
       overrides: [
         workingDirProvider.overrideWithValue(workingDirectory),
-        initialClaudeClientProvider.overrideWithValue(initialClient),
       ],
     );
 
     // Create network via AgentNetworkManager
-    // This will use our overridden initialClaudeClientProvider
+    // The initialClaudeClientProvider will be lazily evaluated when first accessed,
+    // which will load the main agent configuration from the team framework
     final manager = finalContainer.read(agentNetworkManagerProvider.notifier);
     final network = await manager.startNew(
       message,
@@ -265,9 +195,6 @@ class VideCore {
       networkId: network.id,
       container: finalContainer,
     );
-
-    // Dispose the intermediate container (not the final one)
-    sessionContainer.dispose();
 
     _activeSessions[session.id] = session;
     return session;
@@ -477,8 +404,3 @@ class VideCore {
   /// This is a convenience getter that returns [initialClient.mcpStatusStream].
   Stream<McpStatusResponse> get mcpStatusStream => initialClient.mcpStatusStream;
 }
-
-/// Internal provider to get a Ref from the container.
-///
-/// This is a workaround to access Ref in ClaudeClientFactoryImpl.
-final _providerContainerRefProvider = Provider<Ref>((ref) => ref);

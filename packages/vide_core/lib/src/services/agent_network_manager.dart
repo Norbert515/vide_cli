@@ -7,19 +7,14 @@ import 'package:uuid/uuid.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
-import '../agents/context_collection_agent_config.dart';
-import '../agents/flutter_tester_agent_config.dart';
-import '../agents/implementation_agent_config.dart';
-import '../agents/main_agent_config.dart';
-import '../agents/planning_agent_config.dart';
 import '../agents/agent_configuration.dart';
-import '../utils/project_detector.dart';
 import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
 import 'initial_claude_client.dart';
 import 'posthog_service.dart';
+import 'team_framework_loader.dart';
 import '../state/agent_status_manager.dart';
 
 /// Agent types that can be spawned via the agent network.
@@ -31,19 +26,14 @@ enum SpawnableAgentType {
 }
 
 extension SpawnableAgentTypeExtension on SpawnableAgentType {
-  AgentConfiguration configuration({
-    ProjectType projectType = ProjectType.unknown,
-  }) {
-    switch (this) {
-      case SpawnableAgentType.implementation:
-        return ImplementationAgentConfig.create();
-      case SpawnableAgentType.contextCollection:
-        return ContextCollectionAgentConfig.create();
-      case SpawnableAgentType.flutterTester:
-        return FlutterTesterAgentConfig.create();
-      case SpawnableAgentType.planning:
-        return PlanningAgentConfig.create();
-    }
+  /// Map SpawnableAgentType to team framework role name (e.g., 'implementer', 'researcher')
+  String toTeamRole() {
+    return switch (this) {
+      SpawnableAgentType.implementation => 'implementer',
+      SpawnableAgentType.contextCollection => 'researcher',
+      SpawnableAgentType.flutterTester => 'tester',
+      SpawnableAgentType.planning => 'planner',
+    };
   }
 }
 
@@ -83,11 +73,15 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       getWorkingDirectory: () => effectiveWorkingDirectory,
       ref: _ref,
     );
+    _teamFrameworkLoader = TeamFrameworkLoader(
+      workingDirectory: workingDirectory,
+    );
   }
 
   final String workingDirectory;
   final Ref _ref;
   late final ClaudeClientFactory _clientFactory;
+  late final TeamFrameworkLoader _teamFrameworkLoader;
 
   /// Get the effective working directory (worktree if set and exists, else original).
   ///
@@ -215,20 +209,24 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         .saveNetwork(updatedNetwork);
 
     // Recreate ClaudeClients for each agent in the network
-    // Use sync version to avoid blocking on init (same as startNew)
     for (final agentMetadata in updatedNetwork.agents) {
-      final config = _getConfigurationForType(agentMetadata.type);
-      // Use sessionId if available (for forked agents), otherwise use agent id
-      final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
-      final client = _clientFactory.createSync(
-        agentId: sessionIdToUse,
-        config: config,
-        networkId: updatedNetwork.id,
-        agentType: agentMetadata.type,
-      );
-      _ref
-          .read(claudeManagerProvider.notifier)
-          .addAgent(agentMetadata.id, client);
+      try {
+        final config = await _getConfigurationForType(agentMetadata.type);
+        // Use sessionId if available (for forked agents), otherwise use agent id
+        final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
+        final client = _clientFactory.createSync(
+          agentId: sessionIdToUse,
+          config: config,
+          networkId: updatedNetwork.id,
+          agentType: agentMetadata.type,
+        );
+        _ref
+            .read(claudeManagerProvider.notifier)
+            .addAgent(agentMetadata.id, client);
+      } catch (e) {
+        print('[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e');
+        rethrow;
+      }
     }
 
     // Restore persisted status for each agent
@@ -237,29 +235,49 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }
   }
 
-  /// Get the appropriate AgentConfiguration for a given agent type string
-  AgentConfiguration _getConfigurationForType(String type) {
-    switch (type) {
-      case 'main':
-        return MainAgentConfig.create();
-      case 'implementation':
-        return ImplementationAgentConfig.create();
-      case 'contextCollection':
-        return ContextCollectionAgentConfig.create();
-      case 'flutterTester':
-        return FlutterTesterAgentConfig.create();
-      case 'planning':
-        return PlanningAgentConfig.create();
-      case 'fork':
-        // Forked agents use the main agent config
-        return MainAgentConfig.create();
-      default:
-        // Fallback to main agent config for unknown types
-        print(
-          '[AgentNetworkManager] Warning: Unknown agent type "$type", using main config',
-        );
-        return MainAgentConfig.create();
+  /// Get the appropriate AgentConfiguration for a given agent type string.
+  ///
+  /// This method should not be called directly - it's for internal use during network resume.
+  /// For new agents, use spawnAgent which handles team framework loading.
+  ///
+  /// This is a sync method that should only be called during network resume when we need
+  /// to quickly recreate clients for previously spawned agents. The config returned here
+  /// is a fallback and may not be fully initialized from the team framework.
+  ///
+  /// NOTE: This method will be removed once all agents are exclusively loaded from team framework.
+  Future<AgentConfiguration> _getConfigurationForType(String type) async {
+    // Map agent type to team role
+    final roleMap = {
+      'main': 'lead',
+      'implementation': 'implementer',
+      'contextCollection': 'researcher',
+      'flutterTester': 'tester',
+      'planning': 'planner',
+      'fork': 'lead',
+    };
+
+    final role = roleMap[type];
+    if (role == null) {
+      throw Exception('Unknown agent type: $type');
     }
+
+    // Get agent name from default team composition
+    final team = await _teamFrameworkLoader.getTeam('vide-classic');
+    if (team == null) {
+      throw Exception('Default team "vide-classic" not found in team framework');
+    }
+
+    final agentName = team.composition[role];
+    if (agentName == null) {
+      throw Exception('Team "vide-classic" has no agent for role "$role"');
+    }
+
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName);
+    if (config == null) {
+      throw Exception('Agent configuration not found for: $agentName (role: $role)');
+    }
+
+    return config;
   }
 
   /// Add a new agent to the current network
@@ -459,14 +477,19 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // 4. Recreate Claude clients for all agents with new working directory
     for (final agentMetadata in updated.agents) {
-      final config = _getConfigurationForType(agentMetadata.type);
-      final client = _clientFactory.createSync(
-        agentId: agentMetadata.id,
-        config: config,
-        networkId: updated.id,
-        agentType: agentMetadata.type,
-      );
-      claudeManagerNotifier.addAgent(agentMetadata.id, client);
+      try {
+        final config = await _getConfigurationForType(agentMetadata.type);
+        final client = _clientFactory.createSync(
+          agentId: agentMetadata.id,
+          config: config,
+          networkId: updated.id,
+          agentType: agentMetadata.type,
+        );
+        claudeManagerNotifier.addAgent(agentMetadata.id, client);
+      } catch (e) {
+        print('[AgentNetworkManager] Error recreating client for ${agentMetadata.type}: $e');
+        rethrow;
+      }
     }
 
     // 5. Persist the updated network
@@ -505,14 +528,25 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw StateError('No active network to spawn agent into');
     }
 
-    // Detect project type for proper configuration
-    final projectType =
-        ProjectType.unknown; // TODO: Get from context if available
+    // Load configuration from team framework
+    // Currently uses the default team (vide-classic) for all agents
+    // TODO: Track team per agent for team composition support
+    final team = await _teamFrameworkLoader.getTeam('vide-classic');
+    if (team == null) {
+      throw Exception('Team "vide-classic" not found in team framework');
+    }
 
-    // Create agent configuration based on type
-    final AgentConfiguration config = agentType.configuration(
-      projectType: projectType,
-    );
+    // Map agent type to team role
+    final role = agentType.toTeamRole();
+    final agentName = team.composition[role];
+    if (agentName == null) {
+      throw Exception('Team "vide-classic" has no agent for role "$role"');
+    }
+
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName);
+    if (config == null) {
+      throw Exception('Agent configuration not found for: $agentName (role: $role)');
+    }
 
     // Generate new agent ID
     final newAgentId = const Uuid().v4();
@@ -692,7 +726,7 @@ $message''';
     final forkName = name ?? '[Fork] ${sourceAgent.name}';
 
     // Get the configuration for this agent type
-    final config = _getConfigurationForType(sourceAgent.type);
+    final config = await _getConfigurationForType(sourceAgent.type);
 
     // Create metadata for the forked agent
     final metadata = AgentMetadata(

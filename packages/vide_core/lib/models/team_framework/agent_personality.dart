@@ -18,6 +18,7 @@ class AgentPersonality {
     this.tools = const [],
     this.mcpServers = const [],
     this.model,
+    this.permissionMode,
     this.traits = const [],
     this.avoids = const [],
     this.include = const [],
@@ -48,6 +49,9 @@ class AgentPersonality {
 
   /// Model to use (sonnet, opus, haiku)
   final String? model;
+
+  /// Permission mode for this agent (acceptEdits, plan, ask, etc.)
+  final String? permissionMode;
 
   /// Behavioral traits this agent exhibits
   final List<String> traits;
@@ -101,6 +105,7 @@ class AgentPersonality {
       tools: _parseStringList(yaml['tools']),
       mcpServers: _parseStringList(yaml['mcpServers']),
       model: yaml['model'] as String?,
+      permissionMode: yaml['permissionMode'] as String?,
       traits: _parseStringList(yaml['traits']),
       avoids: _parseStringList(yaml['avoids']),
       include: _parseStringList(yaml['include']),
@@ -120,6 +125,7 @@ class AgentPersonality {
       tools: tools.isNotEmpty ? tools : base.tools,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : base.mcpServers,
       model: model ?? base.model,
+      permissionMode: permissionMode ?? base.permissionMode,
       traits: [...base.traits, ...traits],
       avoids: [...base.avoids, ...avoids],
       include: [...base.include, ...include],

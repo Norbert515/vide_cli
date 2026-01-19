@@ -3,7 +3,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/mcp_servers_panel.dart';
-import 'package:vide_cli/modules/git/git_sidebar.dart';
+import 'package:vide_cli/modules/team/team_sidebar.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/modules/agent_network/pages/networks_overview_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
@@ -24,7 +24,7 @@ final sidebarFocusProvider = StateProvider<bool>((ref) => false);
 /// Provider for MCP panel focus state
 final mcpPanelFocusProvider = StateProvider<bool>((ref) => false);
 
-/// Provider for IDE mode state. When true, the git sidebar is shown.
+/// Provider for IDE mode state. When true, the team sidebar is shown.
 /// Initialized from global settings and can be toggled via /ide command.
 final ideModeEnabledProvider = StateProvider<bool>((ref) {
   final configManager = ref.read(videConfigManagerProvider);
@@ -312,7 +312,7 @@ class _VideAppContentState extends State<_VideAppContent>
                   key: _navigatorKey,
                   home: NetworksOverviewPage(),
                   // Always disable Navigator's ESC handling to prevent race conditions
-                  // with GitSidebar's ESC handling when file preview is open
+                  // with TeamSidebar's ESC handling when file preview is open
                   popBehavior: PopBehavior(escapeEnabled: false),
                 ),
               ),
@@ -337,7 +337,7 @@ class _VideAppContentState extends State<_VideAppContent>
 
     return Row(
       children: [
-        // Git sidebar - only in widget tree when IDE mode is enabled
+        // Team sidebar - only in widget tree when IDE mode is enabled
         if (ideModeEnabled)
           SizedBox(
             width: effectiveSidebarWidth,
@@ -346,7 +346,7 @@ class _VideAppContentState extends State<_VideAppContent>
                 alignment: Alignment.topLeft,
                 minWidth: _sidebarWidth,
                 maxWidth: _sidebarWidth,
-                child: GitSidebar(
+                child: TeamSidebar(
                   width: _sidebarWidth.toInt(),
                   focused: sidebarFocused,
                   expanded: true, // Sidebar is always expanded in IDE mode
@@ -354,19 +354,10 @@ class _VideAppContentState extends State<_VideAppContent>
                   onExitRight: () {
                     context.read(sidebarFocusProvider.notifier).state = false;
                   },
-                  onSendMessage: (message) {
-                    // Send message to the main agent in the current network
-                    final networkState = context.read(agentNetworkManagerProvider);
-                    final mainAgentId = networkState.currentNetwork?.agentIds.firstOrNull;
-                    if (mainAgentId != null) {
-                      context.read(agentNetworkManagerProvider.notifier).sendMessage(mainAgentId, Message(text: message));
-                    }
-                  },
-                  onSwitchWorktree: (path) {
-                    // Switch to the selected worktree directory
-                    context.read(repoPathOverrideProvider.notifier).state = path;
-                    // Also update the agent network's working directory
-                    context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+                  onSwitchTeam: (teamName) {
+                    // Team switched - this updates the prompt composition
+                    // The agent MCP will handle the team context when spawning agents
+                    print('Team switched to: $teamName');
                   },
                 ),
               ),

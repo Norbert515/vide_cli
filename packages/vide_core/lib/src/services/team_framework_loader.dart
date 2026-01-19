@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
-import '../models/team_framework/team_framework.dart';
+import '../../models/team_framework/team_framework.dart';
+import '../agents/agent_configuration.dart';
+import '../mcp/mcp_server_type.dart';
 
 /// Service for loading team framework definitions from markdown files.
 ///
@@ -148,6 +150,69 @@ class TeamFrameworkLoader {
     parts.add(agent.content);
 
     return parts.join('\n\n');
+  }
+
+  /// Build a complete AgentConfiguration from a team framework agent personality.
+  ///
+  /// This loads the agent definition, builds the complete prompt with includes,
+  /// parses MCP servers and tools, and returns a ready-to-use AgentConfiguration.
+  ///
+  /// Returns null if the agent is not found, with a warning logged.
+  Future<AgentConfiguration?> buildAgentConfiguration(String agentName) async {
+    final agent = await getAgent(agentName);
+    if (agent == null) {
+      print('Warning: Agent "$agentName" not found in team framework');
+      return null;
+    }
+
+    // Build the complete system prompt with includes
+    final systemPrompt = await buildAgentPrompt(agent);
+
+    // Parse MCP servers from the agent personality
+    final mcpServers = _parseMcpServers(agent.mcpServers);
+
+    // Use tools from the agent personality if available
+    final allowedTools = agent.tools.isNotEmpty ? agent.tools : null;
+
+    // Build the AgentConfiguration
+    return AgentConfiguration(
+      name: agent.name,
+      description: agent.description,
+      systemPrompt: systemPrompt,
+      mcpServers: mcpServers.isNotEmpty ? mcpServers : null,
+      allowedTools: allowedTools,
+      model: agent.model,
+      permissionMode: agent.permissionMode,
+    );
+  }
+
+  /// Parse MCP server names to McpServerType enum values.
+  List<McpServerType> _parseMcpServers(List<String> serverNames) {
+    final servers = <McpServerType>[];
+
+    for (final name in serverNames) {
+      final normalized = name.trim().toLowerCase();
+      try {
+        final serverType = switch (normalized) {
+          'vide-git' || 'git' => McpServerType.git,
+          'vide-agent' || 'agent' => McpServerType.agent,
+          'vide-task-management' || 'task-management' || 'task_management' =>
+            McpServerType.taskManagement,
+          'flutter-runtime' || 'flutterruntime' => McpServerType.flutterRuntime,
+          _ => null,
+        };
+
+        if (serverType != null) {
+          servers.add(serverType);
+        } else {
+          print('Warning: Unknown MCP server type "$name"');
+        }
+      } catch (e) {
+        print('Error parsing MCP server "$name": $e');
+      }
+    }
+
+    return servers;
   }
 
   /// Resolve an include path to content.
