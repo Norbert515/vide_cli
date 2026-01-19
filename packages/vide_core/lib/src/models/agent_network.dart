@@ -16,6 +16,7 @@ class AgentNetwork {
     required this.createdAt,
     this.lastActiveAt,
     this.worktreePath,
+    this.team = 'vide-classic',
   });
 
   final AgentNetworkId id;
@@ -26,6 +27,10 @@ class AgentNetwork {
 
   /// Optional worktree path for the session. When set, all agents use this directory.
   final String? worktreePath;
+
+  /// The team framework team used for this network.
+  /// Determines which agent personalities are used for each role.
+  final String team;
 
   /// Get just the agent IDs for convenience
   List<AgentId> get agentIds => agents.map((a) => a.id).toList();
@@ -62,6 +67,7 @@ class AgentNetwork {
     DateTime? lastActiveAt,
     String? worktreePath,
     bool clearWorktreePath = false,
+    String? team,
   }) {
     return AgentNetwork(
       id: id ?? this.id,
@@ -72,6 +78,7 @@ class AgentNetwork {
       worktreePath: clearWorktreePath
           ? null
           : (worktreePath ?? this.worktreePath),
+      team: team ?? this.team,
     );
   }
 
@@ -83,6 +90,7 @@ class AgentNetwork {
       'createdAt': createdAt.toIso8601String(),
       'lastActiveAt': lastActiveAt?.toIso8601String(),
       if (worktreePath != null) 'worktreePath': worktreePath,
+      'team': team,
     };
   }
 
@@ -113,6 +121,7 @@ class AgentNetwork {
           ? DateTime.parse(json['lastActiveAt'] as String)
           : null,
       worktreePath: json['worktreePath'] as String?,
+      team: json['team'] as String? ?? 'vide-classic',
     );
   }
 }

@@ -5,19 +5,16 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 
-/// A sidebar component that displays the current team and list of agents.
+/// A sidebar component that displays active agents and team composition.
 ///
-/// Shows:
-/// - Current team name at the top
-/// - List of all agents with their status indicators
-/// - Agent name and optional task name
-/// - Status indicator (⠋ working, … waiting-for-agent, ? waiting-for-user, ✓ idle)
+/// Shows two sections:
+/// 1. **Active Agents** - Currently running agents with their status
+/// 2. **Team Roles** - Available roles from the team composition (dimmed)
 ///
 /// Supports keyboard navigation:
-/// - Arrow UP/DOWN or K/J: Navigate agents
-/// - Enter/Space: Select agent
+/// - Arrow UP/DOWN or K/J: Navigate items
+/// - Enter/Space: Select agent or role
 /// - Escape or Right Arrow: Exit sidebar
-/// - Tab: Jump to team selector (if available)
 class AgentSidebar extends StatefulComponent {
   final bool focused;
   final bool expanded;
@@ -117,41 +114,49 @@ class _AgentSidebarState extends State<AgentSidebar>
   }
 
   /// Build the list of sidebar items from current state
-  List<_SidebarItem> _buildItems() {
-    final networkState = context.read(agentNetworkManagerProvider);
-    final spawnedAgents = networkState.agents;
+  List<_SidebarItem> _buildItems(List<AgentMetadata> spawnedAgents, TeamDefinition? teamDef) {
+    final items = <_SidebarItem>[];
 
-    // Standard team roles - always show these slots
-    const teamRoles = ['lead', 'researcher', 'implementer', 'planner', 'tester'];
-
-    // Map spawned agents to their roles (by type)
-    final agentsByRole = <String, List<AgentMetadata>>{};
-    for (final agent in spawnedAgents) {
-      final role = _agentTypeToRole(agent.type);
-      agentsByRole.putIfAbsent(role, () => []).add(agent);
+    // Section 1: Active Agents (always show all spawned agents)
+    if (spawnedAgents.isNotEmpty) {
+      items.add(_SidebarItem.header('Active Agents'));
+      for (final agent in spawnedAgents) {
+        items.add(_SidebarItem.agent(agent));
+      }
     }
 
-    // Build list of all items: role slots (empty or with agents)
-    final items = <_SidebarItem>[];
-    for (final role in teamRoles) {
-      final agentsInRole = agentsByRole[role] ?? [];
-      if (agentsInRole.isEmpty) {
-        // Empty slot for this role
-        items.add(_SidebarItem.emptyRole(role));
-      } else {
-        // Show all agents in this role
-        for (final agent in agentsInRole) {
-          items.add(_SidebarItem.agent(agent, role));
+    // Section 2: Team Composition (from team definition)
+    if (teamDef != null) {
+      // Get roles that have agents assigned (non-null values)
+      final rolesWithAgents = teamDef.composition.entries
+          .where((e) => e.value != null)
+          .toList();
+
+      if (rolesWithAgents.isNotEmpty) {
+        items.add(_SidebarItem.header('Team Roles'));
+        for (final entry in rolesWithAgents) {
+          items.add(_SidebarItem.teamRole(entry.key, entry.value!));
         }
       }
     }
+
     return items;
   }
 
-  void _handleKeyEvent(KeyboardEvent event) {
-    final items = _buildItems();
+  void _handleKeyEvent(KeyboardEvent event, List<_SidebarItem> items) {
+    // Filter to only selectable items (not headers)
+    final selectableIndices = <int>[];
+    for (var i = 0; i < items.length; i++) {
+      if (!items[i].isHeader) {
+        selectableIndices.add(i);
+      }
+    }
 
-    if (items.isEmpty) return;
+    if (selectableIndices.isEmpty) return;
+
+    // Find current position in selectable items
+    final currentSelectableIndex = selectableIndices.indexOf(_selectedIndex);
+    final effectiveIndex = currentSelectableIndex == -1 ? 0 : currentSelectableIndex;
 
     if (event.logicalKey == LogicalKey.escape) {
       component.onExitRight?.call();
@@ -160,13 +165,15 @@ class _AgentSidebarState extends State<AgentSidebar>
     } else if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, items.length - 1);
+        final newIndex = (effectiveIndex - 1).clamp(0, selectableIndices.length - 1);
+        _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, items.length - 1);
+        final newIndex = (effectiveIndex + 1).clamp(0, selectableIndices.length - 1);
+        _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
     } else if (event.logicalKey == LogicalKey.enter ||
@@ -174,22 +181,20 @@ class _AgentSidebarState extends State<AgentSidebar>
       if (_selectedIndex < items.length) {
         final item = items[_selectedIndex];
         if (item.agent != null) {
-          // Select spawned agent
+          // Select spawned agent - just update the provider, keep focus in sidebar
           context.read(selectedAgentIdProvider.notifier).state = item.agent!.id;
-          component.onSelectAgent?.call(item.agent!.id);
+          // Note: We intentionally don't call onSelectAgent here to keep focus in sidebar
         } else if (item.role != null) {
-          // Select empty role slot
+          // Select team role (this spawns an agent, so switching focus is fine)
           component.onSelectRole?.call(item.role!);
         }
       }
     }
   }
 
-  String _getStatusIndicator(AgentStatus status, double animationValue) {
+  String _getStatusIndicator(AgentStatus status, int spinnerFrame) {
     return switch (status) {
-      AgentStatus.working =>
-        _spinnerFrames[(animationValue * _spinnerFrames.length).floor() %
-            _spinnerFrames.length],
+      AgentStatus.working => _spinnerFrames[spinnerFrame % _spinnerFrames.length],
       AgentStatus.waitingForAgent => '…',
       AgentStatus.waitingForUser => '?',
       AgentStatus.idle => '✓',
@@ -206,74 +211,17 @@ class _AgentSidebarState extends State<AgentSidebar>
   }
 
   String _truncateText(String text, int maxLength) {
+    if (maxLength <= 3) return text.length <= maxLength ? text : '…';
     if (text.length <= maxLength) return text;
     return '${text.substring(0, maxLength - 1)}…';
   }
 
-  /// Build an empty role slot (role not yet spawned)
-  Component _buildEmptyRoleSlot(
-    int index,
-    String role,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-  ) {
-    final bgColor = isSelected
-        ? theme.base.primary.withOpacity(0.3)
-        : isHovered
-            ? theme.base.outline.withOpacity(0.1)
-            : Color.fromARGB(0, 0, 0, 0);
-
-    final textOpacity = isSelected ? 0.7 : 0.4;
-    final indicator = isSelected ? '>' : ' ';
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredIndex = index),
-      onExit: (_) => setState(() => _hoveredIndex = null),
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedIndex = index);
-          component.onSelectRole?.call(role);
-        },
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 0, vertical: 0.5),
-          decoration: BoxDecoration(color: bgColor),
-          child: Row(
-            children: [
-              Text(
-                indicator,
-                style: TextStyle(
-                  color: theme.base.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(
-                  color: theme.base.outline.withOpacity(0.3),
-                ),
-                child: Text(
-                  '○',
-                  style: TextStyle(color: theme.base.onSurface.withOpacity(0.5)),
-                ),
-              ),
-              SizedBox(width: 1),
-              Expanded(
-                child: Text(
-                  role,
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(textOpacity),
-                    fontStyle: FontStyle.italic,
-                    fontWeight: isSelected ? FontWeight.bold : null,
-                  ),
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  /// Format role name for display (e.g., "thinker-creative" -> "Thinker Creative")
+  String _formatRoleName(String role) {
+    return role
+        .split('-')
+        .map((word) => word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}')
+        .join(' ');
   }
 
   @override
@@ -281,11 +229,29 @@ class _AgentSidebarState extends State<AgentSidebar>
     final theme = VideTheme.of(context);
     final isCollapsed = _currentWidth < component.width / 2;
     final currentTeam = context.watch(currentTeamProvider);
+    final teamDefAsync = context.watch(currentTeamDefinitionProvider);
+    final teamDef = teamDefAsync.valueOrNull;
+
+    // Watch for agent changes at top level to trigger rebuild
+    final networkState = context.watch(agentNetworkManagerProvider);
+    final spawnedAgents = networkState.agents;
+
+    // Auto-select first agent if none selected
+    final currentSelectedId = context.read(selectedAgentIdProvider);
+    if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
+      // Schedule the state update for after build
+      Future.microtask(() {
+        context.read(selectedAgentIdProvider.notifier).state = spawnedAgents.first.id;
+      });
+    }
+
+    // Build items once with current state
+    final items = _buildItems(spawnedAgents, teamDef);
 
     return Focusable(
       focused: component.focused,
       onKeyEvent: (event) {
-        _handleKeyEvent(event);
+        _handleKeyEvent(event, items);
         return true;
       },
       child: Container(
@@ -299,7 +265,7 @@ class _AgentSidebarState extends State<AgentSidebar>
                     alignment: Alignment.topLeft,
                     minWidth: component.width.toDouble(),
                     maxWidth: component.width.toDouble(),
-                    child: _buildExpandedContent(context, theme, currentTeam),
+                    child: _buildExpandedContent(context, theme, currentTeam, teamDef, spawnedAgents),
                   ),
           ),
         ),
@@ -317,7 +283,7 @@ class _AgentSidebarState extends State<AgentSidebar>
           decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
           child: Center(
             child: Text(
-              'A',
+              '≡',
               style: TextStyle(
                 color: theme.base.onSurface,
                 fontWeight: FontWeight.bold,
@@ -334,100 +300,214 @@ class _AgentSidebarState extends State<AgentSidebar>
     BuildContext context,
     VideThemeData theme,
     String currentTeam,
+    TeamDefinition? teamDef,
+    List<AgentMetadata> spawnedAgents,
   ) {
-    // Watch for changes to trigger rebuild
-    context.watch(agentNetworkManagerProvider);
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
-    // Build items using shared helper
-    final items = _buildItems();
+    // Build items
+    final items = _buildItems(spawnedAgents, teamDef);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth.toInt() - 2;
+        final availableWidth = constraints.maxWidth.toInt() - 4;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: 1),
-            // Team header
+            // Team header with border
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+              padding: EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
-                color: theme.base.outline.withOpacity(0.1),
+                border: BoxBorder(bottom: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
               ),
-              child: Text(
-                'Team: $currentTeam',
-                style: TextStyle(
-                  color: theme.base.onSurface,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-              ),
-            ),
-            SizedBox(height: 1),
-            // Team members list - always show all roles
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  final isSelected = _selectedIndex == index;
-
-                  final isHovered = _hoveredIndex == index;
-
-                  if (item.agent != null) {
-                    final isSelectedById = selectedAgentId == item.agent!.id;
-                    return _buildAgentRow(
-                      index,
-                      item.agent!,
-                      isSelected,
-                      isSelectedById,
-                      isHovered,
-                      theme,
-                      availableWidth,
-                    );
-                  } else {
-                    return _buildEmptyRoleSlot(
-                      index,
-                      item.role!,
-                      isSelected,
-                      isHovered,
-                      theme,
-                    );
-                  }
-                },
-              ),
-            ),
-            if (component.focused)
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                child: Text(
-                  '→ to exit',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.disabled,
+              child: Row(
+                children: [
+                  Text(
+                    '┌ ',
+                    style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                  ),
+                  if (teamDef?.icon != null) ...[
+                    Text(
+                      '${teamDef!.icon} ',
+                      style: TextStyle(color: theme.base.primary),
+                    ),
+                  ],
+                  Text(
+                    currentTeam,
+                    style: TextStyle(
+                      color: theme.base.primary,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
+                  Text(
+                    ' ┐',
+                    style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                  ),
+                ],
+              ),
+            ),
+            // Items list
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(left: 1),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final isSelected = _selectedIndex == index;
+                    final isHovered = _hoveredIndex == index;
+
+                    if (item.isHeader) {
+                      return _buildSectionHeader(item.headerText!, theme);
+                    } else if (item.agent != null) {
+                      final isSelectedById = selectedAgentId == item.agent!.id;
+                      return _buildAgentRow(
+                        index,
+                        item.agent!,
+                        isSelected,
+                        isSelectedById,
+                        isHovered,
+                        theme,
+                        availableWidth,
+                      );
+                    } else if (item.role != null) {
+                      return _buildTeamRoleRow(
+                        index,
+                        item.role!,
+                        item.agentName!,
+                        isSelected,
+                        isHovered,
+                        theme,
+                        availableWidth,
+                      );
+                    }
+                    return SizedBox.shrink();
+                  },
                 ),
               ),
+            ),
+            // Footer with navigation hint
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 1),
+              decoration: BoxDecoration(
+                border: BoxBorder(top: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
+              ),
+              child: Row(
+                children: [
+                  if (component.focused) ...[
+                    Text(
+                      '↑↓',
+                      style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                    ),
+                    Text(
+                      ' nav ',
+                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                    ),
+                    Text(
+                      '→',
+                      style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                    ),
+                    Text(
+                      ' exit',
+                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                    ),
+                  ] else ...[
+                    Text(
+                      '←',
+                      style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled)),
+                    ),
+                    Text(
+                      ' focus',
+                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
         );
       },
     );
   }
 
-  /// Map agent type to team role
-  String _agentTypeToRole(String agentType) {
-    return switch (agentType) {
-      'main' => 'lead',
-      'contextCollection' => 'researcher',
-      'implementation' => 'implementer',
-      'planning' => 'planner',
-      'flutterTester' => 'tester',
-      _ => agentType, // fallback to agentType itself
-    };
+  /// Build a section header row
+  Component _buildSectionHeader(String title, VideThemeData theme) {
+    return Padding(
+      padding: EdgeInsets.only(top: 1),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  /// Build a team role row (from team composition)
+  Component _buildTeamRoleRow(
+    int index,
+    String role,
+    String agentName,
+    bool isSelected,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final bgColor = isSelected && component.focused
+        ? theme.base.primary.withOpacity(0.15)
+        : isHovered
+            ? theme.base.outline.withOpacity(0.08)
+            : null;
+
+    final displayRole = _formatRoleName(role);
+    final displayAgent = _truncateText(agentName, availableWidth - displayRole.length - 6);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredIndex = index),
+      onExit: (_) => setState(() => _hoveredIndex = null),
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedIndex = index);
+          component.onSelectRole?.call(role);
+        },
+        child: Container(
+          decoration: BoxDecoration(color: bgColor),
+          child: Row(
+            children: [
+              // Role indicator
+              Text(
+                '  ○ ',
+                style: TextStyle(
+                  color: theme.base.outline.withOpacity(TextOpacity.disabled),
+                ),
+              ),
+              // Role name
+              Text(
+                displayRole,
+                style: TextStyle(
+                  color: isSelected && component.focused
+                      ? theme.base.onSurface.withOpacity(TextOpacity.secondary)
+                      : theme.base.onSurface.withOpacity(TextOpacity.disabled),
+                ),
+              ),
+              // Agent name (dimmed)
+              Expanded(
+                child: Text(
+                  ' → $displayAgent',
+                  style: TextStyle(
+                    color: theme.base.outline.withOpacity(TextOpacity.disabled),
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Component _buildAgentRow(
@@ -463,33 +543,33 @@ class _AgentSidebarState extends State<AgentSidebar>
     // Build agent name with optional task
     String displayName = agent.name;
     if (agent.taskName != null && agent.taskName!.isNotEmpty) {
-      displayName = '$displayName - ${agent.taskName}';
+      displayName = '${agent.taskName}';
     }
-    displayName = _truncateText(displayName, availableWidth - 4);
+    displayName = _truncateText(displayName, availableWidth - 6);
 
     // Get spinner frame if working
     int spinnerFrame = 0;
     if (actualStatus == AgentStatus.working) {
-      // Animate spinner based on time
       final now = DateTime.now();
       final ms = now.millisecondsSinceEpoch;
-      spinnerFrame = ((ms / 100).toInt() % _spinnerFrames.length);
+      spinnerFrame = (ms ~/ 100) % _spinnerFrames.length;
     }
 
-    final statusIndicator = _getStatusIndicator(
-      actualStatus,
-      spinnerFrame.toDouble(),
-    );
+    final statusIndicator = _getStatusIndicator(actualStatus, spinnerFrame);
 
-    final bgColor = isSelected
-        ? theme.base.primary.withOpacity(0.3)
-        : isHovered
-        ? theme.base.outline.withOpacity(0.1)
-        : Color.fromARGB(0, 0, 0, 0);
+    final bgColor = isSelected && component.focused
+        ? theme.base.primary.withOpacity(0.15)
+        : isSelectedById
+            ? theme.base.outline.withOpacity(0.1)
+            : isHovered
+                ? theme.base.outline.withOpacity(0.08)
+                : null;
 
-    final textColor = isSelected
+    final textColor = isSelected && component.focused
         ? theme.base.primary
-        : theme.base.onSurface.withOpacity(0.7);
+        : isSelectedById
+            ? theme.base.onSurface
+            : theme.base.onSurface.withOpacity(TextOpacity.secondary);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hoveredIndex = index),
@@ -501,39 +581,33 @@ class _AgentSidebarState extends State<AgentSidebar>
           component.onSelectAgent?.call(agent.id);
         },
         child: Container(
-          padding: EdgeInsets.symmetric(horizontal: 0, vertical: 0.5),
           decoration: BoxDecoration(color: bgColor),
           child: Row(
             children: [
+              // Status indicator with color
               Text(
-                isSelected ? '>' : ' ',
-                style: TextStyle(
-                  color: theme.base.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+                '  $statusIndicator ',
+                style: TextStyle(color: actualStatusColor),
               ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(color: actualStatusColor),
-                child: Text(
-                  statusIndicator,
-                  style: TextStyle(color: theme.base.onSurface),
-                ),
-              ),
-              SizedBox(width: 1),
+              // Agent name
               Expanded(
                 child: Text(
                   displayName,
                   style: TextStyle(
                     color: textColor,
-                    fontWeight: isSelected ? FontWeight.bold : null,
-                    decoration: isSelectedById
-                        ? TextDecoration.underline
-                        : null,
+                    fontWeight: isSelectedById ? FontWeight.bold : null,
                   ),
                   maxLines: 1,
                 ),
               ),
+              // View indicator for currently viewed agent
+              if (isSelectedById)
+                Text(
+                  '◀',
+                  style: TextStyle(
+                    color: theme.base.primary.withOpacity(TextOpacity.tertiary),
+                  ),
+                ),
             ],
           ),
         ),
@@ -542,11 +616,28 @@ class _AgentSidebarState extends State<AgentSidebar>
   }
 }
 
-/// Helper class for sidebar items - either an empty role slot or a spawned agent
+/// Helper class for sidebar items
 class _SidebarItem {
   final AgentMetadata? agent;
   final String? role;
+  final String? agentName;
+  final String? headerText;
+  final bool isHeader;
 
-  _SidebarItem.emptyRole(this.role) : agent = null;
-  _SidebarItem.agent(this.agent, this.role);
+  _SidebarItem.header(this.headerText)
+      : agent = null,
+        role = null,
+        agentName = null,
+        isHeader = true;
+
+  _SidebarItem.agent(this.agent)
+      : role = null,
+        agentName = null,
+        headerText = null,
+        isHeader = false;
+
+  _SidebarItem.teamRole(this.role, this.agentName)
+      : agent = null,
+        headerText = null,
+        isHeader = false;
 }

@@ -74,6 +74,16 @@ final currentTeamProvider = StateProvider<String>((ref) {
   return 'vide-classic';
 });
 
+/// Provider for the current team definition.
+///
+/// Loads the full TeamDefinition for the currently selected team.
+/// Returns null if the team is not found.
+final currentTeamDefinitionProvider = FutureProvider<TeamDefinition?>((ref) async {
+  final teamName = ref.watch(currentTeamProvider);
+  final loader = ref.watch(teamFrameworkLoaderProvider);
+  return await loader.getTeam(teamName);
+});
+
 /// Provider for the selected agent ID in the sidebar.
 ///
 /// When null, no agent is selected.

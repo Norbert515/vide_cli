@@ -25,6 +25,7 @@ import 'package:vide_core/api.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
+import 'package:vide_cli/components/vide_scaffold.dart';
 
 class NetworkExecutionPage extends StatefulComponent {
   final AgentNetworkId networkId;
@@ -48,6 +49,20 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   DateTime? _lastCtrlCPress;
   bool _showQuitWarning = false;
   static const _quitTimeWindow = Duration(seconds: 2);
+
+  @override
+  void initState() {
+    super.initState();
+    // We're not on the home page anymore - set this early so sidebar shows
+    context.read(isOnHomePageProvider.notifier).state = false;
+  }
+
+  @override
+  void dispose() {
+    // Back to home page
+    context.read(isOnHomePageProvider.notifier).state = true;
+    super.dispose();
+  }
 
   Component _buildAgentChat(
     BuildContext context,
@@ -182,19 +197,21 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       ),
     );
 
-    return PermissionScope(
-      child: Focusable(
-        focused: true,
-        onKeyEvent: (event) {
-          // Ctrl+C: Show quit warning (double press to quit)
-          if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-            _handleCtrlC();
-            return true;
-          }
+    return VideScaffold(
+      child: PermissionScope(
+        child: Focusable(
+          focused: true,
+          onKeyEvent: (event) {
+            // Ctrl+C: Show quit warning (double press to quit)
+            if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
+              _handleCtrlC();
+              return true;
+            }
 
-          return false;
-        },
-        child: MouseRegion(child: content),
+            return false;
+          },
+          child: MouseRegion(child: content),
+        ),
       ),
     );
   }
@@ -230,9 +247,6 @@ class _AgentChatState extends State<_AgentChat> {
   @override
   void initState() {
     super.initState();
-
-    // We're not on the home page anymore
-    context.read(isOnHomePageProvider.notifier).state = false;
 
     final session = context.read(currentVideSessionProvider);
     if (session == null) return;
@@ -273,8 +287,6 @@ class _AgentChatState extends State<_AgentChat> {
   void dispose() {
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
-    // Back to home page
-    context.read(isOnHomePageProvider.notifier).state = true;
     super.dispose();
   }
 

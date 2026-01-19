@@ -69,24 +69,18 @@ class AgentMCPServer extends McpServerBase {
 The new agent will be added to the current network and can receive messages.
 Use this to delegate tasks to specialized agents.
 
-Available agent types:
-- implementation: Implements features and fixes based on clear requirements. Has access to Git, Memory, TaskManagement, FlutterRuntime, Dart, and Figma.
-- contextCollection: Gathers context and explores the codebase. Good for research and understanding.
-- flutterTester: Tests Flutter applications, takes screenshots, validates app behavior.
-- planning: Creates detailed implementation plans for complex tasks.
+The available roles depend on the current team's composition. Use the role name
+from the team definition (e.g., 'implementer', 'tester', 'thinker-creative').
 
 Returns the ID of the newly spawned agent which can be used with sendMessageToAgent.''',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'agentType': {
+          'role': {
             'type': 'string',
-            'enum': [
-              'implementation',
-              'contextCollection',
-              'flutterTester',
-              'planning',
-            ],
-            'description': 'The type of agent to spawn',
+            'description':
+                'The role of the agent to spawn from the current team composition '
+                '(e.g., "implementer", "tester", "thinker-creative"). '
+                'Cannot spawn "lead" - that is the main agent.',
           },
           'name': {
             'type': 'string',
@@ -99,7 +93,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
                 'The initial message/task to send to the new agent. Be specific and provide all necessary context.',
           },
         },
-        required: ['agentType', 'name', 'initialPrompt'],
+        required: ['role', 'name', 'initialPrompt'],
       ),
       callback: ({args, extra}) async {
         if (args == null) {
@@ -108,23 +102,13 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           );
         }
 
-        final agentTypeStr = args['agentType'] as String;
+        final role = args['role'] as String;
         final name = args['name'] as String;
         final initialPrompt = args['initialPrompt'] as String;
 
-        // Parse agent type
-        final SpawnableAgentType? agentType = _parseAgentType(agentTypeStr);
-        if (agentType == null) {
-          return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Unknown agent type: $agentTypeStr'),
-            ],
-          );
-        }
-
         try {
           final newAgentId = await _networkManager.spawnAgent(
-            agentType: agentType,
+            role: role,
             name: name,
             initialPrompt: initialPrompt,
             spawnedBy: callerAgentId,
@@ -134,7 +118,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             content: [
               TextContent(
                 text:
-                    'Successfully spawned $agentTypeStr agent "$name".\n'
+                    'Successfully spawned "$role" agent "$name".\n'
                     'Agent ID: $newAgentId\n'
                     'Spawned by: $callerAgentId\n\n'
                     'The agent has been sent your initial message and is now working on it. '
@@ -147,7 +131,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'spawnAgent');
             scope.setContexts('mcp_context', {
-              'agent_type': agentTypeStr,
+              'role': role,
               'caller_agent_id': callerAgentId.toString(),
             });
           });
@@ -225,16 +209,6 @@ Use this to coordinate with other agents in the network.''',
         }
       },
     );
-  }
-
-  SpawnableAgentType? _parseAgentType(String agentTypeStr) {
-    return switch (agentTypeStr) {
-      'implementation' => SpawnableAgentType.implementation,
-      'contextCollection' => SpawnableAgentType.contextCollection,
-      'flutterTester' => SpawnableAgentType.flutterTester,
-      'planning' => SpawnableAgentType.planning,
-      _ => null,
-    };
   }
 
   void _registerSetAgentStatusTool(McpServer server) {

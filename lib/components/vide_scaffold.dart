@@ -2,7 +2,6 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/main.dart'
     show
-        ideModeEnabledProvider,
         sidebarFocusProvider,
         filePreviewPathProvider,
         isOnHomePageProvider;
@@ -54,81 +53,24 @@ class VideScaffold extends StatefulComponent {
   State<VideScaffold> createState() => _VideScaffoldState();
 }
 
-class _VideScaffoldState extends State<VideScaffold>
-    with TickerProviderStateMixin {
-  late AnimationController _sidebarController;
-
-  double _currentSidebarWidth = 0.0;
-  bool _wasIdeModeEnabled = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _sidebarController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 150),
-    );
-
-    _sidebarController.addListener(() {
-      setState(() {
-        _currentSidebarWidth = _sidebarController.value * component.sidebarWidth;
-      });
-      _updateSidebarWidthProvider();
-    });
-
-    // Check initial IDE mode state
-    final configManager = context.read(videConfigManagerProvider);
-    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
-    if (ideModeEnabled) {
-      _wasIdeModeEnabled = true;
-      _sidebarController.value = 1.0;
-      _currentSidebarWidth = component.sidebarWidth;
-    }
-  }
-
-  void _updateSidebarWidthProvider() {
-    context.read(sidebarWidthProvider.notifier).state = _currentSidebarWidth;
-  }
-
-  @override
-  void dispose() {
-    _sidebarController.dispose();
-    super.dispose();
-  }
-
-  void _animateSidebarWidth(double targetWidth) {
-    final targetValue = targetWidth / component.sidebarWidth;
-    _sidebarController.animateTo(targetValue);
-  }
-
+class _VideScaffoldState extends State<VideScaffold> {
   @override
   Component build(BuildContext context) {
-    final ideModeEnabled = context.watch(ideModeEnabledProvider);
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
     final isOnHomePage = context.watch(isOnHomePageProvider);
 
-    // Hide sidebar on home page
-    final showSidebar = ideModeEnabled && !isOnHomePage;
-
-    // Handle IDE mode changes
-    if (showSidebar != _wasIdeModeEnabled) {
-      _wasIdeModeEnabled = showSidebar;
-      if (showSidebar) {
-        _animateSidebarWidth(component.sidebarWidth);
-      } else {
-        _sidebarController.stop();
-        _currentSidebarWidth = 0.0;
-        _updateSidebarWidthProvider();
-      }
-    }
+    // Show sidebar on execution page (always), hide on home page
+    final showSidebar = !isOnHomePage;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final terminalWidth = constraints.maxWidth;
         final hasEnoughWidth = terminalWidth >= component.minWidthForSidebar;
-        final effectiveSidebarWidth = hasEnoughWidth ? _currentSidebarWidth : 0.0;
+        final effectiveSidebarWidth = (showSidebar && hasEnoughWidth) ? component.sidebarWidth : 0.0;
+
+        // Update the provider so pages can know the sidebar width
+        context.read(sidebarWidthProvider.notifier).state = effectiveSidebarWidth;
 
         // Standard Row layout - sidebar + main content
         // This component should be used INSIDE the Navigator, so dialogs
@@ -211,8 +153,8 @@ class _VideScaffoldState extends State<VideScaffold>
                 return;
               }
 
-              final agentType = SpawnableAgentTypeExtension.fromTeamRole(role);
-              if (agentType == null) {
+              // Cannot spawn lead role
+              if (role == 'lead') {
                 context.read(sidebarFocusProvider.notifier).state = false;
                 return;
               }
@@ -225,9 +167,15 @@ class _VideScaffoldState extends State<VideScaffold>
                 return;
               }
 
+              // Format role name for display (e.g., "thinker-creative" -> "Thinker Creative")
+              final displayName = role
+                  .split('-')
+                  .map((word) => word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}')
+                  .join(' ');
+
               final newAgentId = await session.spawnAgent(
-                agentType: agentType,
-                name: role.substring(0, 1).toUpperCase() + role.substring(1),
+                role: role,
+                name: displayName,
                 initialPrompt: 'You have been manually spawned by the user. Ask them what they need help with.',
                 spawnedBy: mainAgent.id,
               );
