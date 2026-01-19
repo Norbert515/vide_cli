@@ -358,16 +358,16 @@ class VideSession {
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
 
-  /// Spawn a new agent of a specific type.
+  /// Spawn a new agent by role name.
   ///
-  /// [agentType] is the type of agent to spawn (e.g., 'implementation', 'contextCollection').
+  /// [role] is the role from the team composition (e.g., 'implementer', 'thinker-creative').
   /// [name] is the display name for the agent.
   /// [initialPrompt] is the initial message to send to the agent.
   /// [spawnedBy] is the ID of the agent requesting the spawn (typically main agent).
   ///
   /// Returns the ID of the newly created agent.
   Future<String> spawnAgent({
-    required SpawnableAgentType agentType,
+    required String role,
     required String name,
     required String initialPrompt,
     required String spawnedBy,
@@ -375,7 +375,7 @@ class VideSession {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return await manager.spawnAgent(
-      agentType: agentType,
+      role: role,
       name: name,
       initialPrompt: initialPrompt,
       spawnedBy: spawnedBy,

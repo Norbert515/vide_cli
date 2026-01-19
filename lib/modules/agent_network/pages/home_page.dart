@@ -106,9 +106,10 @@ class _HomePageState extends State<HomePage> {
     // This returns immediately - client creation happens in background
     // Use the repo path override if user selected a worktree before starting
     final worktreePath = context.read(repoPathOverrideProvider);
+    final currentTeam = context.read(currentTeamProvider);
     final network = await context
         .read(agentNetworkManagerProvider.notifier)
-        .startNew(message, workingDirectory: worktreePath);
+        .startNew(message, workingDirectory: worktreePath, team: currentTeam);
 
     // Update the networks list
     context
@@ -263,6 +264,8 @@ class _HomePageState extends State<HomePage> {
       return true;
     } else if (event.logicalKey == LogicalKey.enter) {
       final network = networks[_selectedNetworkIndex];
+      // Update the team provider to match the network's team
+      context.read(currentTeamProvider.notifier).state = network.team;
       // Await resume to complete before navigating to prevent flash of empty state
       context.read(videoCoreProvider).resumeSession(network.id).then((_) {
         NetworkExecutionPage.push(context, network.id);

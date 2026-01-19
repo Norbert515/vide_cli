@@ -12,42 +12,9 @@ import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
-import 'initial_claude_client.dart';
 import 'posthog_service.dart';
 import 'team_framework_loader.dart';
 import '../state/agent_status_manager.dart';
-
-/// Agent types that can be spawned via the agent network.
-enum SpawnableAgentType {
-  implementation,
-  contextCollection,
-  flutterTester,
-  planning,
-}
-
-extension SpawnableAgentTypeExtension on SpawnableAgentType {
-  /// Map SpawnableAgentType to team framework role name (e.g., 'implementer', 'researcher')
-  String toTeamRole() {
-    return switch (this) {
-      SpawnableAgentType.implementation => 'implementer',
-      SpawnableAgentType.contextCollection => 'researcher',
-      SpawnableAgentType.flutterTester => 'tester',
-      SpawnableAgentType.planning => 'planner',
-    };
-  }
-
-  /// Create SpawnableAgentType from team role name.
-  /// Returns null for unknown roles or 'lead' (main agent cannot be spawned).
-  static SpawnableAgentType? fromTeamRole(String role) {
-    return switch (role) {
-      'implementer' => SpawnableAgentType.implementation,
-      'researcher' => SpawnableAgentType.contextCollection,
-      'tester' => SpawnableAgentType.flutterTester,
-      'planner' => SpawnableAgentType.planning,
-      _ => null, // 'lead' or unknown roles return null
-    };
-  }
-}
 
 /// The state of the agent network manager - just tracks the current network
 class AgentNetworkState {
@@ -143,11 +110,16 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   ///
   /// [permissionMode] - Optional permission mode override (e.g., 'accept-edits', 'plan', 'ask', 'deny').
   /// If provided, overrides the default permission mode for the main agent.
+  ///
+  /// [team] - The team framework team to use for this network.
+  /// Determines which agent personalities are used for each role.
+  /// Defaults to 'vide-classic'.
   Future<AgentNetwork> startNew(
     Message initialMessage, {
     String? workingDirectory,
     String? model,
     String? permissionMode,
+    String team = 'vide-classic',
   }) async {
     final networkId = const Uuid().v4();
 
@@ -157,10 +129,35 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Use generic "Task X" as the display name until agent sets it via setTaskName
     final taskDisplayName = 'Task $_taskCounter';
 
-    // Use the initial client that was created at app startup
-    final initialClient = _ref.read(initialClaudeClientProvider);
-    final mainAgentId = initialClient.agentId;
-    final mainAgentClaudeClient = initialClient.client;
+    // Generate a new unique agent ID for this conversation
+    // Note: We don't reuse the pre-warmed client's agentId because that would
+    // cause a session conflict when creating a new client with a different config
+    final mainAgentId = const Uuid().v4();
+
+    // Load the main agent configuration from the selected team
+    final teamDef = await _teamFrameworkLoader.getTeam(team);
+    if (teamDef == null) {
+      throw Exception('Team "$team" not found in team framework');
+    }
+
+    final leadAgentName = teamDef.composition['lead'];
+    if (leadAgentName == null) {
+      throw Exception('Team "$team" has no "lead" agent defined');
+    }
+
+    final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(leadAgentName);
+    if (leadConfig == null) {
+      throw Exception('Agent configuration not found for: $leadAgentName');
+    }
+
+    // Create a new client with the correct team's lead agent configuration
+    // This ensures the main agent uses the team's lead personality, not the default
+    final mainAgentClaudeClient = await _clientFactory.create(
+      agentId: mainAgentId,
+      config: leadConfig,
+      networkId: networkId,
+      agentType: 'main',
+    );
 
     // Apply model override if provided
     if (model != null) {
@@ -169,7 +166,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
-      name: 'Main',
+      name: leadConfig.name,  // Use the actual agent personality name (e.g., "cautious-lead")
       type: 'main',
       createdAt: DateTime.now(),
     );
@@ -182,6 +179,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       lastActiveAt: DateTime.now(),
       worktreePath:
           workingDirectory, // Atomically set working directory from parameter
+      team: team,
     );
 
     // Set state IMMEDIATELY so UI can navigate right away
@@ -223,7 +221,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Recreate ClaudeClients for each agent in the network
     for (final agentMetadata in updatedNetwork.agents) {
       try {
-        final config = await _getConfigurationForType(agentMetadata.type);
+        final config = await _getConfigurationForType(
+          agentMetadata.type,
+          teamName: updatedNetwork.team,
+        );
         // Use sessionId if available (for forked agents), otherwise use agent id
         final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
         final client = _clientFactory.createSync(
@@ -247,41 +248,36 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }
   }
 
-  /// Get the appropriate AgentConfiguration for a given agent type string.
+  /// Get the appropriate AgentConfiguration for a given agent type/role string.
   ///
   /// This method should not be called directly - it's for internal use during network resume.
   /// For new agents, use spawnAgent which handles team framework loading.
   ///
-  /// This is a sync method that should only be called during network resume when we need
-  /// to quickly recreate clients for previously spawned agents. The config returned here
-  /// is a fallback and may not be fully initialized from the team framework.
-  ///
-  /// NOTE: This method will be removed once all agents are exclusively loaded from team framework.
-  Future<AgentConfiguration> _getConfigurationForType(String type) async {
-    // Map agent type to team role
-    final roleMap = {
-      'main': 'lead',
-      'implementation': 'implementer',
-      'contextCollection': 'researcher',
-      'flutterTester': 'tester',
-      'planning': 'planner',
-      'fork': 'lead',
+  /// [type] - The agent type/role (e.g., 'main', 'implementer', 'thinker-creative')
+  /// [teamName] - The team to use for looking up agent configurations.
+  Future<AgentConfiguration> _getConfigurationForType(String type, {String? teamName}) async {
+    // Special cases for main/fork agents
+    final role = switch (type) {
+      'main' => 'lead',
+      'fork' => 'lead',
+      _ => type, // The type IS the role (e.g., 'implementer', 'thinker-creative')
     };
 
-    final role = roleMap[type];
-    if (role == null) {
-      throw Exception('Unknown agent type: $type');
+    // Use provided team name, or fall back to network's team
+    final effectiveTeamName = teamName ?? state.currentNetwork?.team;
+    if (effectiveTeamName == null) {
+      throw Exception('No team specified and no current network');
     }
 
-    // Get agent name from default team composition
-    final team = await _teamFrameworkLoader.getTeam('vide-classic');
+    // Get agent name from team composition
+    final team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
     if (team == null) {
-      throw Exception('Default team "vide-classic" not found in team framework');
+      throw Exception('Team "$effectiveTeamName" not found in team framework');
     }
 
     final agentName = team.composition[role];
     if (agentName == null) {
-      throw Exception('Team "vide-classic" has no agent for role "$role"');
+      throw Exception('Team "$effectiveTeamName" has no agent for role "$role"');
     }
 
     final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName);
@@ -490,7 +486,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // 4. Recreate Claude clients for all agents with new working directory
     for (final agentMetadata in updated.agents) {
       try {
-        final config = await _getConfigurationForType(agentMetadata.type);
+        final config = await _getConfigurationForType(
+          agentMetadata.type,
+          teamName: updated.team,
+        );
         final client = _clientFactory.createSync(
           agentId: agentMetadata.id,
           config: config,
@@ -521,16 +520,18 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     claudeManager.sendMessage(message);
   }
 
-  /// Spawn a new agent into the current network.
+  /// Spawn a new agent into the current network by role name.
   ///
-  /// [agentType] - The type of agent to spawn
+  /// [role] - The role name from the team's composition (e.g., 'implementer', 'thinker-creative')
   /// [name] - A short, human-readable name for the agent (required)
   /// [initialPrompt] - The initial message/task to send to the new agent
   /// [spawnedBy] - The ID of the agent that is spawning this one (for context)
   ///
   /// Returns the ID of the newly spawned agent.
+  ///
+  /// Throws an exception if the role doesn't exist in the current team's composition.
   Future<AgentId> spawnAgent({
-    required SpawnableAgentType agentType,
+    required String role,
     required String name,
     required String initialPrompt,
     required AgentId spawnedBy,
@@ -540,24 +541,35 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw StateError('No active network to spawn agent into');
     }
 
-    // Load configuration from team framework
-    // Currently uses the default team (vide-classic) for all agents
-    // TODO: Track team per agent for team composition support
-    final team = await _teamFrameworkLoader.getTeam('vide-classic');
+    // Prevent spawning the lead role (that's the main agent)
+    if (role == 'lead') {
+      throw Exception('Cannot spawn a lead agent - use the main agent instead');
+    }
+
+    // Load configuration from team framework using the network's team
+    final teamName = network.team;
+    final team = await _teamFrameworkLoader.getTeam(teamName);
     if (team == null) {
-      throw Exception('Team "vide-classic" not found in team framework');
+      throw Exception('Team "$teamName" not found in team framework');
     }
 
-    // Map agent type to team role
-    final role = agentType.toTeamRole();
-    final agentName = team.composition[role];
-    if (agentName == null) {
-      throw Exception('Team "vide-classic" has no agent for role "$role"');
+    // Get agent name from team composition
+    final agentPersonalityName = team.composition[role];
+    if (agentPersonalityName == null) {
+      // List available roles for helpful error message
+      final availableRoles = team.composition.entries
+          .where((e) => e.value != null && e.key != 'lead')
+          .map((e) => e.key)
+          .toList();
+      throw Exception(
+        'Team "$teamName" has no agent for role "$role". '
+        'Available roles: ${availableRoles.join(", ")}',
+      );
     }
 
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName);
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentPersonalityName);
     if (config == null) {
-      throw Exception('Agent configuration not found for: $agentName (role: $role)');
+      throw Exception('Agent configuration not found for: $agentPersonalityName (role: $role)');
     }
 
     // Generate new agent ID
@@ -567,7 +579,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final metadata = AgentMetadata(
       id: newAgentId,
       name: name,
-      type: agentType.name,
+      type: role, // Store the role as the type
       spawnedBy: spawnedBy,
       createdAt: DateTime.now(),
     );
@@ -576,7 +588,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     await addAgent(agentId: newAgentId, config: config, metadata: metadata);
 
     // Track analytics
-    PostHogService.agentSpawned(agentType.name);
+    PostHogService.agentSpawned(role);
 
     // Prepend context about who spawned this agent
     final contextualPrompt = '''[SPAWNED BY AGENT: $spawnedBy]
@@ -587,7 +599,7 @@ $initialPrompt''';
     sendMessage(newAgentId, Message.text(contextualPrompt));
 
     print(
-      '[AgentNetworkManager] Agent $spawnedBy spawned new ${agentType.name} agent "$name": $newAgentId',
+      '[AgentNetworkManager] Agent $spawnedBy spawned new $role agent "$name" ($agentPersonalityName): $newAgentId',
     );
 
     return newAgentId;
@@ -738,7 +750,10 @@ $message''';
     final forkName = name ?? '[Fork] ${sourceAgent.name}';
 
     // Get the configuration for this agent type
-    final config = await _getConfigurationForType(sourceAgent.type);
+    final config = await _getConfigurationForType(
+      sourceAgent.type,
+      teamName: network.team,
+    );
 
     // Create metadata for the forked agent
     final metadata = AgentMetadata(

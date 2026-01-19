@@ -1,6 +1,5 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_cli/components/vide_scaffold.dart';
 import 'package:vide_cli/modules/agent_network/pages/home_page.dart';
 import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
@@ -132,17 +131,13 @@ class _VideAppContent extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    // The Navigator is at the top level, wrapping everything.
-    // This ensures that Navigator.showDialog() dialogs render on top
-    // of the entire screen, including sidebars.
+    // Navigator at top level so dialogs render on top of everything.
+    // Each page wraps itself with VideScaffold as needed.
     return WelcomeScope(
       child: SetupScope(
         child: Navigator(
           key: _navigatorKey,
-          // VideScaffold renders sidebars + main content
-          home: VideScaffold(
-            child: HomePage(),
-          ),
+          home: HomePage(),
           // Disable Navigator's ESC handling - pages handle it
           popBehavior: PopBehavior(escapeEnabled: false),
         ),
