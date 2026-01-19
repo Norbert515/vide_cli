@@ -17,8 +17,6 @@ import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
-import 'package:vide_core/src.dart'
-    show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
 
 class HomePage extends StatefulComponent {
   const HomePage({super.key});

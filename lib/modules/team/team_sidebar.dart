@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/src.dart'
+import 'package:vide_core/api.dart'
     show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';

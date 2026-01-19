@@ -5,7 +5,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/src.dart' show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
+import 'package:vide_core/api.dart' show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
 
 /// A popup dialog for selecting the team to use for new sessions.
 class TeamSelectorPopup extends StatefulComponent {
