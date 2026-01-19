@@ -153,16 +153,16 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Agent configuration not found for: $leadAgentName');
     }
 
-    // Create a new client with the correct team's lead agent configuration
-    // This ensures the main agent uses the team's lead personality, not the default
-    final mainAgentClaudeClient = await _clientFactory.create(
+    // Create client synchronously - initialization happens in background
+    // The client queues messages until ready, enabling instant navigation
+    final mainAgentClaudeClient = _clientFactory.createSync(
       agentId: mainAgentId,
       config: leadConfig,
       networkId: networkId,
       agentType: 'main',
     );
 
-    // Apply model override if provided
+    // Apply model override if provided (will take effect once client initializes)
     if (model != null) {
       mainAgentClaudeClient.setModel(model);
     }
