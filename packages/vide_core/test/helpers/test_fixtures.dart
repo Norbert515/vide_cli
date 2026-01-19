@@ -6,7 +6,7 @@ class TestFixtures {
   static AgentMetadata agentMetadata({
     String? id,
     String name = 'Test Agent',
-    String type = 'implementation',
+    String type = 'implementer',
     String? spawnedBy,
     DateTime? createdAt,
     AgentStatus status = AgentStatus.idle,

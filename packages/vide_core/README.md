@@ -143,7 +143,7 @@ Exports all internal components for advanced use cases (TUI uses this). Includes
 **AgentNetworkManager** - Core agent lifecycle orchestration
 ```dart
 final manager = container.read(agentNetworkManagerProvider.notifier);
-await manager.spawnAgent(agentType: 'implementation', ...);
+await manager.spawnAgent(role: 'implementer', ...);
 ```
 
 **ClaudeManager** - Manages ClaudeClient instances per agent
@@ -200,7 +200,7 @@ final network = AgentNetwork(
 // Agent metadata with token tracking
 final metadata = AgentMetadata(
   name: 'Bug Fix',
-  agentType: 'implementation',
+  type: 'implementer',
   totalInputTokens: 1500,
   totalOutputTokens: 500,
   costUsd: 0.003,

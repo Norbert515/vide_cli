@@ -228,8 +228,8 @@ void main() {
           ),
           AgentMetadata(
             id: 'impl-agent',
-            name: 'Implementation',
-            type: 'implementation',
+            name: 'Implementer',
+            type: 'implementer',
             spawnedBy: 'main-agent',
             createdAt: DateTime(2024, 1, 15, 10, 35),
             status: AgentStatus.waitingForAgent,
@@ -257,8 +257,8 @@ void main() {
         expect(mainAgent.status, AgentStatus.working);
 
         final implAgent = loaded.agents.firstWhere((a) => a.id == 'impl-agent');
-        expect(implAgent.name, 'Implementation');
-        expect(implAgent.type, 'implementation');
+        expect(implAgent.name, 'Implementer');
+        expect(implAgent.type, 'implementer');
         expect(implAgent.spawnedBy, 'main-agent');
         expect(implAgent.status, AgentStatus.waitingForAgent);
         expect(implAgent.taskName, 'Fix bug');
