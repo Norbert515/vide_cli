@@ -5,6 +5,7 @@ import 'package:vide_cli/modules/settings/settings_category.dart';
 import 'package:vide_cli/modules/settings/components/settings_sidebar.dart';
 import 'package:vide_cli/modules/settings/sections/general_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/appearance_section.dart';
+import 'package:vide_cli/modules/settings/sections/server_section.dart';
 import 'package:vide_cli/modules/settings/sections/mcp_servers_section.dart';
 import 'package:vide_cli/modules/settings/sections/permissions_section.dart';
 import 'package:vide_cli/modules/settings/sections/about_section.dart';
@@ -202,6 +203,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
         return GeneralSettingsSection(focused: !_sidebarFocused, onExit: _handleContentExit);
       case SettingsCategory.appearance:
         return AppearanceSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+      case SettingsCategory.server:
+        return ServerSection(focused: !_sidebarFocused, onExit: _handleContentExit);
       case SettingsCategory.mcpServers:
         return McpServersSection(focused: !_sidebarFocused, onExit: _handleContentExit);
       case SettingsCategory.permissions:
