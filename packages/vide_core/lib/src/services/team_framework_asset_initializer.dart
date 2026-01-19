@@ -10,14 +10,21 @@ class TeamFrameworkAssetInitializer {
       'packages/vide_core/assets/team_framework';
 
   /// Initialize team framework assets.
+  ///
+  /// By default, only copies if defaults directory is empty.
+  /// Set [forceSync] to true to always overwrite with latest assets.
+  ///
   /// Returns true if initialization succeeded or was not needed.
-  static Future<bool> initialize({String? videHome}) async {
+  static Future<bool> initialize({
+    String? videHome,
+    bool forceSync = false,
+  }) async {
     try {
       final home = videHome ?? _getVideHome();
       final defaultsDir = Directory(path.join(home, 'defaults'));
 
-      // If defaults directory exists and has content, we're good
-      if (await defaultsDir.exists()) {
+      // If not forcing sync and defaults directory exists with content, we're good
+      if (!forceSync && await defaultsDir.exists()) {
         final files = defaultsDir.listSync(recursive: true);
         if (files.isNotEmpty) {
           return true;

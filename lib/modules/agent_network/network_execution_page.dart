@@ -238,11 +238,13 @@ class _AgentChat extends StatefulComponent {
 class _AgentChatState extends State<_AgentChat> {
   StreamSubscription<Conversation>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
+  StreamSubscription<String?>? _modelSubscription;
   Conversation _conversation = Conversation.empty();
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
   String? _queuedMessage;
+  String? _model;
 
   @override
   void initState() {
@@ -269,6 +271,12 @@ class _AgentChatState extends State<_AgentChat> {
       setState(() => _queuedMessage = text);
     });
     _queuedMessage = session.getQueuedMessage(component.agentId);
+
+    // Listen to model updates
+    _modelSubscription = session.modelStream(component.agentId).listen((model) {
+      setState(() => _model = model);
+    });
+    _model = session.getModel(component.agentId);
   }
 
   void _syncTokenStats(Conversation conversation, VideSession session) {
@@ -287,6 +295,7 @@ class _AgentChatState extends State<_AgentChat> {
   void dispose() {
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
+    _modelSubscription?.cancel();
     super.dispose();
   }
 
@@ -504,6 +513,22 @@ class _AgentChatState extends State<_AgentChat> {
     return false;
   }
 
+  /// Formats a full model ID to a short display name.
+  /// e.g., "claude-sonnet-4-5-20250929" -> "sonnet"
+  ///       "claude-opus-4-5-20251101" -> "opus"
+  String _formatModelName(String model) {
+    final lower = model.toLowerCase();
+    if (lower.contains('opus')) return 'opus';
+    if (lower.contains('sonnet')) return 'sonnet';
+    if (lower.contains('haiku')) return 'haiku';
+    // Fallback: return last part before date suffix, or full name if short
+    if (model.length <= 10) return model;
+    // Try to extract meaningful part
+    final parts = model.split('-');
+    if (parts.length >= 2) return parts[1];
+    return model;
+  }
+
   Component _buildContextUsageSection(VideThemeData theme) {
     // Use currentContextWindowTokens for context window percentage.
     // This is the CURRENT context size (from latest turn), which includes:
@@ -519,8 +544,8 @@ class _AgentChatState extends State<_AgentChat> {
     // Only show context usage when it's getting full (>= 60%)
     final showContextUsage = isCautionZone;
 
-    // If nothing to show, return empty
-    if (!showContextUsage && _conversation.totalCostUsd <= 0) {
+    // If nothing to show (no model, no context warning, no cost), return empty
+    if (_model == null && !showContextUsage && _conversation.totalCostUsd <= 0) {
       return SizedBox();
     }
 
@@ -528,8 +553,19 @@ class _AgentChatState extends State<_AgentChat> {
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Row(
         children: [
+          // Show model name
+          if (_model != null) ...[
+            Text(
+              _formatModelName(_model!),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+              ),
+            ),
+          ],
+
           // Context usage indicator (only when >= caution threshold)
           if (showContextUsage) ...[
+            if (_model != null) SizedBox(width: 1),
             ContextUsageIndicator(usedTokens: usedTokens),
             SizedBox(width: 1),
             Text(
@@ -609,9 +645,6 @@ class _AgentChatState extends State<_AgentChat> {
       onKeyEvent: _handleKeyEvent,
       focused: true,
       child: Container(
-        decoration: BoxDecoration(
-          title: BorderTitle(text: component.key.toString()),
-        ),
         child: Column(
           children: [
             // Messages area
