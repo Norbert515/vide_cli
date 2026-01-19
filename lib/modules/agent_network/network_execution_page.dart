@@ -786,8 +786,13 @@ class _AgentChatState extends State<_AgentChat> {
                           context.watch(promptHistoryProvider);
                       final pendingText =
                           context.watch(pendingInputTextProvider);
+                      // Text field is focused when neither sidebar has focus
+                      final leftSidebarFocused = context.watch(sidebarFocusProvider);
+                      final rightSidebarFocused = context.watch(gitSidebarFocusProvider);
+                      final textFieldFocused = !leftSidebarFocused && !rightSidebarFocused;
+
                       return AttachmentTextField(
-                        focused: !context.watch(sidebarFocusProvider),
+                        focused: textFieldFocused,
                         enabled:
                             true, // Always enabled - messages queue during processing
                         placeholder: 'Type a message...',
@@ -817,6 +822,11 @@ class _AgentChatState extends State<_AgentChat> {
                         onLeftEdge: component.ideModeEnabled
                             ? () => context
                                 .read(sidebarFocusProvider.notifier)
+                                .state = true
+                            : null,
+                        onRightEdge: component.ideModeEnabled
+                            ? () => context
+                                .read(gitSidebarFocusProvider.notifier)
                                 .state = true
                             : null,
                         onEscape: () {

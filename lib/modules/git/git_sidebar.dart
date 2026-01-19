@@ -25,6 +25,7 @@ class GitSidebar extends StatefulComponent {
   final bool focused;
   final bool expanded;
   final VoidCallback? onExitRight;
+  final VoidCallback? onExitLeft;
   final String repoPath;
   final int width;
   final void Function(String message)? onSendMessage;
@@ -34,6 +35,7 @@ class GitSidebar extends StatefulComponent {
     required this.focused,
     required this.expanded,
     this.onExitRight,
+    this.onExitLeft,
     required this.repoPath,
     this.width = 30,
     this.onSendMessage,
@@ -1053,8 +1055,11 @@ class _GitSidebarState extends State<GitSidebar>
         component.onExitRight?.call();
       }
     } else if (event.logicalKey == LogicalKey.arrowRight) {
-      // Right arrow always exits sidebar
+      // Right arrow exits sidebar (for left-positioned sidebar)
       component.onExitRight?.call();
+    } else if (event.logicalKey == LogicalKey.arrowLeft) {
+      // Left arrow exits sidebar (for right-positioned sidebar)
+      component.onExitLeft?.call();
     } else if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
       setState(() {
