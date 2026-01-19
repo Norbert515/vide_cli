@@ -3,7 +3,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'welcome_page.dart';
 
 /// A scope that shows the welcome page on first run of Vide CLI.

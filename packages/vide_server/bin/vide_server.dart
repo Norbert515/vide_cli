@@ -10,7 +10,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:logging/logging.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_server/services/rest_permission_service.dart';
 import 'package:vide_server/services/network_cache_manager.dart';
 import 'package:vide_server/services/server_config.dart';

@@ -10,7 +10,7 @@ import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Provider to expose the current sidebar width for pages to read.
 /// This allows pages to know how much space the sidebar takes without coupling.

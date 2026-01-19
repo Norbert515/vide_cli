@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 // =============================================================================
 // Data Classes

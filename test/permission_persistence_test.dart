@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('Permission Persistence - LocalSettingsManager.addToAllowList', () {

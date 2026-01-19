@@ -21,7 +21,7 @@ import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog
 import 'package:vide_cli/modules/permissions/components/permission_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';

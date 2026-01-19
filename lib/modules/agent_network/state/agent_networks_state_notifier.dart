@@ -1,4 +1,4 @@
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:riverpod/riverpod.dart';
 
 final agentNetworksStateNotifierProvider =

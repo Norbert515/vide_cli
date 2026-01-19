@@ -7,7 +7,7 @@ import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 

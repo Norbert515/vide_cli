@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';

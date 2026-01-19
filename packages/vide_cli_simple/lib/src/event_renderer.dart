@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// ANSI color codes for terminal output.
 class _Colors {

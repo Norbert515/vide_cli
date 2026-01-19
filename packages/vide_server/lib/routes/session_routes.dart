@@ -12,7 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import '../dto/session_dto.dart';
 import '../services/network_cache_manager.dart';
