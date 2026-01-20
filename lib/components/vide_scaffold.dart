@@ -164,43 +164,6 @@ class _VideScaffoldState extends State<VideScaffold> {
               context.read(selectedAgentIdProvider.notifier).state = agentId;
               context.read(sidebarFocusProvider.notifier).state = false;
             },
-            onSelectRole: (role) async {
-              final session = context.read(currentVideSessionProvider);
-              if (session == null) {
-                context.read(sidebarFocusProvider.notifier).state = false;
-                return;
-              }
-
-              // Cannot spawn lead role
-              if (role == 'lead') {
-                context.read(sidebarFocusProvider.notifier).state = false;
-                return;
-              }
-
-              final networkState = context.read(agentNetworkManagerProvider);
-              final agents = networkState.agents;
-              final mainAgent = agents.where((a) => a.type == 'main').firstOrNull;
-              if (mainAgent == null) {
-                context.read(sidebarFocusProvider.notifier).state = false;
-                return;
-              }
-
-              // Format role name for display (e.g., "thinker-creative" -> "Thinker Creative")
-              final displayName = role
-                  .split('-')
-                  .map((word) => word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}')
-                  .join(' ');
-
-              final newAgentId = await session.spawnAgent(
-                agentType: role,
-                name: displayName,
-                initialPrompt: 'You have been manually spawned by the user. Ask them what they need help with.',
-                spawnedBy: mainAgent.id,
-              );
-
-              context.read(selectedAgentIdProvider.notifier).state = newAgentId;
-              context.read(sidebarFocusProvider.notifier).state = false;
-            },
           ),
         ),
       ),

@@ -26,6 +26,17 @@ generate-devtools:
 test-onboarding:
     VIDE_FORCE_WELCOME=1 dart run bin/vide.dart
 
+# Sync team framework assets from package to global config (~/.vide/defaults/)
+sync-teams:
+    @echo "Syncing team framework assets to ~/.vide/defaults/..."
+    @mkdir -p ~/.vide/defaults/agents
+    @mkdir -p ~/.vide/defaults/teams
+    @mkdir -p ~/.vide/defaults/etiquette
+    cp packages/vide_core/assets/team_framework/agents/*.md ~/.vide/defaults/agents/
+    cp packages/vide_core/assets/team_framework/teams/*.md ~/.vide/defaults/teams/
+    cp packages/vide_core/assets/team_framework/etiquette/*.md ~/.vide/defaults/etiquette/
+    @echo "Done! Synced agents, teams, and etiquette to ~/.vide/defaults/"
+
 # Create a new release (interactive)
 release:
     #!/usr/bin/env bash

@@ -5,15 +5,11 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 
-/// A sidebar component that displays active agents and team composition.
-///
-/// Shows two sections:
-/// 1. **Active Agents** - Currently running agents with their status
-/// 2. **Team Roles** - Available roles from the team composition (dimmed)
+/// A sidebar component that displays active agents.
 ///
 /// Supports keyboard navigation:
 /// - Arrow UP/DOWN or K/J: Navigate items
-/// - Enter/Space: Select agent or role
+/// - Enter/Space: Select agent
 /// - Escape or Right Arrow: Exit sidebar
 class AgentSidebar extends StatefulComponent {
   final bool focused;
@@ -21,7 +17,6 @@ class AgentSidebar extends StatefulComponent {
   final int width;
   final VoidCallback? onExitRight;
   final void Function(String agentId)? onSelectAgent;
-  final void Function(String role)? onSelectRole;
 
   const AgentSidebar({
     required this.focused,
@@ -29,7 +24,6 @@ class AgentSidebar extends StatefulComponent {
     this.width = 50,
     this.onExitRight,
     this.onSelectAgent,
-    this.onSelectRole,
     super.key,
   });
 
@@ -118,19 +112,11 @@ class _AgentSidebarState extends State<AgentSidebar>
   List<_SidebarItem> _buildItems(List<AgentMetadata> spawnedAgents, TeamDefinition? teamDef) {
     final items = <_SidebarItem>[];
 
-    // Section 1: Active Agents (always show all spawned agents)
+    // Active Agents (always show all spawned agents)
     if (spawnedAgents.isNotEmpty) {
       items.add(_SidebarItem.header('Active Agents'));
       for (final agent in spawnedAgents) {
         items.add(_SidebarItem.agent(agent));
-      }
-    }
-
-    // Section 2: Team Agents (available agent types to spawn)
-    if (teamDef != null && teamDef.agents.isNotEmpty) {
-      items.add(_SidebarItem.header('Team Agents'));
-      for (final agentType in teamDef.agents) {
-        items.add(_SidebarItem.teamRole(agentType, agentType));
       }
     }
 
@@ -178,26 +164,9 @@ class _AgentSidebarState extends State<AgentSidebar>
           // Select spawned agent - just update the provider, keep focus in sidebar
           context.read(selectedAgentIdProvider.notifier).state = item.agent!.id;
           // Note: We intentionally don't call onSelectAgent here to keep focus in sidebar
-        } else if (item.role != null) {
-          // Select team role (this spawns an agent, so switching focus is fine)
-          component.onSelectRole?.call(item.role!);
         }
       }
     }
-  }
-
-  String _truncateText(String text, int maxLength) {
-    if (maxLength <= 3) return text.length <= maxLength ? text : '…';
-    if (text.length <= maxLength) return text;
-    return '${text.substring(0, maxLength - 1)}…';
-  }
-
-  /// Format role name for display (e.g., "thinker-creative" -> "Thinker Creative")
-  String _formatRoleName(String role) {
-    return role
-        .split('-')
-        .map((word) => word.isEmpty ? '' : '${word[0].toUpperCase()}${word.substring(1)}')
-        .join(' ');
   }
 
   @override
@@ -348,16 +317,6 @@ class _AgentSidebarState extends State<AgentSidebar>
                         theme,
                         availableWidth,
                       );
-                    } else if (item.role != null) {
-                      return _buildTeamRoleRow(
-                        index,
-                        item.role!,
-                        item.agentName!,
-                        isSelected,
-                        isHovered,
-                        theme,
-                        availableWidth,
-                      );
                     }
                     return SizedBox.shrink();
                   },
@@ -417,70 +376,6 @@ class _AgentSidebarState extends State<AgentSidebar>
         style: TextStyle(
           color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
           fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  /// Build a team role row (from team composition)
-  Component _buildTeamRoleRow(
-    int index,
-    String role,
-    String agentName,
-    bool isSelected,
-    bool isHovered,
-    VideThemeData theme,
-    int availableWidth,
-  ) {
-    final bgColor = isSelected && component.focused
-        ? theme.base.primary.withOpacity(0.15)
-        : isHovered
-            ? theme.base.outline.withOpacity(0.08)
-            : null;
-
-    final displayRole = _formatRoleName(role);
-    final displayAgent = _truncateText(agentName, availableWidth - displayRole.length - 6);
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredIndex = index),
-      onExit: (_) => setState(() => _hoveredIndex = null),
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedIndex = index);
-          component.onSelectRole?.call(role);
-        },
-        child: Container(
-          decoration: BoxDecoration(color: bgColor),
-          child: Row(
-            children: [
-              // Role indicator
-              Text(
-                '  ○ ',
-                style: TextStyle(
-                  color: theme.base.outline.withOpacity(TextOpacity.disabled),
-                ),
-              ),
-              // Role name
-              Text(
-                displayRole,
-                style: TextStyle(
-                  color: isSelected && component.focused
-                      ? theme.base.onSurface.withOpacity(TextOpacity.secondary)
-                      : theme.base.onSurface.withOpacity(TextOpacity.disabled),
-                ),
-              ),
-              // Agent name (dimmed)
-              Expanded(
-                child: Text(
-                  ' → $displayAgent',
-                  style: TextStyle(
-                    color: theme.base.outline.withOpacity(TextOpacity.disabled),
-                  ),
-                  maxLines: 1,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -711,25 +606,14 @@ class _AgentRowItemState extends State<_AgentRowItem>
 /// Helper class for sidebar items
 class _SidebarItem {
   final AgentMetadata? agent;
-  final String? role;
-  final String? agentName;
   final String? headerText;
   final bool isHeader;
 
   _SidebarItem.header(this.headerText)
       : agent = null,
-        role = null,
-        agentName = null,
         isHeader = true;
 
   _SidebarItem.agent(this.agent)
-      : role = null,
-        agentName = null,
-        headerText = null,
-        isHeader = false;
-
-  _SidebarItem.teamRole(this.role, this.agentName)
-      : agent = null,
-        headerText = null,
+      : headerText = null,
         isHeader = false;
 }
