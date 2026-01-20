@@ -1,13 +1,13 @@
 ---
 name: enterprise
-description: Rigorous process-driven workflow. Problem understanding, solution exploration, verification planning, implementation, adversarial QA. For long-running, production-critical work.
+description: Team-oriented workflow with natural team formation. Features owned end-to-end by feature teams. Parallel work, iterative quality. For long-running, production-critical work.
 icon: 🏛️
 
 main-agent: enterprise-lead
 agents:
+  - feature-lead
   - requirements-analyst
   - solution-architect
-  - verification-planner
   - implementer
   - researcher
   - qa-breaker
@@ -43,153 +43,153 @@ anti-triggers:
 
 # Enterprise Team
 
-Rigorous, process-driven workflow designed for production-critical code and long-running autonomous work.
+Team-oriented workflow where **natural team structures emerge** around features. Designed for long-running, production-critical work.
 
 ## Philosophy
 
-**Process prevents problems. Haste creates them.**
+**Teams, not tasks. Ownership, not handoffs.**
 
-- A bug in production costs 100x more than catching it early
-- Misunderstood requirements waste entire development cycles
-- Untested code is unfinished code
-- Multiple solutions should be explored before committing
+- Features are owned end-to-end by feature teams
+- Teams iterate internally until quality is achieved
+- Parallel work is the norm, not the exception
+- The enterprise-lead coordinates between teams, not within them
 
-## The Enterprise Process
-
-Every non-trivial task follows this mandatory flow:
+## How It Works
 
 ```
-PHASE 1: UNDERSTAND
-    Requirements Analyst deeply explores the problem
-    Ambiguities identified and clarified with user
-
-PHASE 2: DESIGN
-    Solution Architect explores multiple approaches
-    Trade-offs analyzed objectively
-    Best solution recommended with reasoning
-
-PHASE 3: PLAN VERIFICATION
-    Verification Planner designs test strategy
-    Tooling gaps identified
-    Build tooling BEFORE implementation if needed
-
-PHASE 4: IMPLEMENT
-    Implementer follows approved design
-    Basic verification (analysis, unit tests)
-
-PHASE 5: ADVERSARIAL QA
-    QA Breaker tries to BREAK the implementation
-    Issues found → Fix → Re-test
-    Loop until QA APPROVED
-
-PHASE 6: COMPLETE
-    Full report to user
+Enterprise Lead (Orchestrator)
+│
+├── Requirements Analyst → understands full scope
+├── Solution Architect → breaks into features, designs teams
+│
+├── Feature Team A ─────────┐
+│   ├── Feature Lead        │
+│   ├── Implementer(s)      │ parallel
+│   └── QA Breaker          │
+│                           │
+├── Feature Team B ─────────┤
+│   ├── Feature Lead        │
+│   ├── Implementer(s)      │
+│   └── QA Breaker          │
+│                           ┘
+├── Integration Team (when features complete)
+│   ├── Feature Lead
+│   ├── Implementer
+│   └── QA Breaker
+│
+└── Final Report to User
 ```
 
 ## Agents
 
-### Leadership
-- **enterprise-lead** - Pure orchestrator. Delegates ALL work. Follows process strictly.
+### Orchestration
+- **enterprise-lead** - Coordinates teams. Breaks work into features. Never does implementation work.
 
-### Phase 1: Understanding
-- **requirements-analyst** - Deep requirements analysis. Makes problem crystal clear before any solution work.
+### Team Leadership
+- **feature-lead** - Owns a feature end-to-end. Spawns their own team (implementers, qa-breaker). Iterates until quality achieved.
 
-### Phase 2: Design
-- **solution-architect** - Explores multiple solutions. Never implements, only designs and recommends.
-- **verification-planner** - Plans how to verify BEFORE implementation. Identifies tooling needs.
+### Analysis (before team formation)
+- **requirements-analyst** - Deep problem understanding. Identifies features and dependencies.
+- **solution-architect** - High-level design. Recommends team structure.
 
-### Phase 3-4: Implementation
-- **implementer** - Writes code following approved design.
-- **researcher** - Gathers additional context if needed.
+### Implementation (spawned by feature leads)
+- **implementer** - Writes code. Follows the design.
+- **researcher** - Gathers context when needed.
+- **qa-breaker** - Adversarial testing. Tries to break things.
 
-### Phase 5: Verification
-- **qa-breaker** - Adversarial tester. Mission is to BREAK the implementation. Iterates until bulletproof.
+## Team Patterns
+
+### Single Feature
+```
+Enterprise Lead
+└── Feature Lead → owns feature
+    ├── Implementer
+    └── QA Breaker
+```
+
+### Multiple Independent Features (Parallel)
+```
+Enterprise Lead
+├── Feature Lead A ──┐
+├── Feature Lead B ──┤ parallel
+├── Feature Lead C ──┘
+└── Integration Lead
+```
+
+### Phased Features (Dependencies)
+```
+Enterprise Lead
+├── Phase 1: Feature A, Feature B (parallel)
+├── Phase 1 Integration
+├── Phase 2: Feature C, Feature D (depend on Phase 1)
+└── Final Integration
+```
 
 ## Key Differentiators
 
-### Main Agent Does NO Work
+### Feature Ownership
 
-The enterprise-lead has almost no tools. It cannot:
-- Read code
-- Write code
-- Run applications
-- Explore the codebase
+Each feature has a **Feature Lead** who:
+- Can read code to understand context
+- Spawns their own implementers and qa-breaker
+- Iterates internally until quality achieved
+- Reports completion to enterprise-lead
 
-It can ONLY:
-- Spawn agents
-- Send messages
-- Track tasks
-- Communicate with users
+The enterprise-lead doesn't micromanage - they delegate complete ownership.
 
-This forces proper delegation and prevents shortcuts.
+### Natural Team Formation
 
-### Multiple Solutions Explored
+Teams form organically based on the work:
+- Small feature → 1 implementer + QA
+- Medium feature → 2-3 implementers (parallel) + QA
+- Complex feature → sub-teams with coordination
 
-Before implementing, the solution-architect MUST:
-- Generate 2-3+ viable approaches
-- Analyze trade-offs objectively
-- Recommend with clear reasoning
+Feature leads decide their team size based on the work.
 
-The "obvious" solution is often not the best.
+### Parallel Execution
 
-### Verification Planned FIRST
+Independent features run in parallel:
+- Auth Team + Rate Limiting Team + Logging Team
+- All working simultaneously
+- Integration when features complete
 
-Before coding starts, we know:
-- What tests prove it works
-- What edge cases to check
-- What tooling is needed
-- How QA will verify it
+### Iterative Quality
 
-If we can't verify it, we can't trust it.
+Each team owns their quality:
+- Feature Lead coordinates implement → QA → fix → QA loops
+- Teams don't report "done" until QA approves
+- Enterprise-lead sees completion, not iteration details
 
-### Adversarial QA
+## Workflow
 
-The qa-breaker's job is to BREAK things:
-- Boundary testing
-- State manipulation
-- Timing attacks
-- Input fuzzing
-- Error path testing
-
-Implementation is not "done" until QA can't break it.
-
-### Iteration Until Quality
-
-The QA/Fix loop continues until:
-- All verification checks pass
-- All edge cases handled
-- No security concerns
-- QA formally approves
-
-No arbitrary iteration limits. Quality is the only exit criteria.
+1. **Understand** - Requirements analyst explores full scope
+2. **Design** - Solution architect breaks into features, maps dependencies
+3. **Team Formation** - Enterprise-lead spawns feature leads for each feature
+4. **Parallel Execution** - Feature teams work simultaneously
+5. **Integration** - Integration team connects completed features
+6. **Completion** - Enterprise-lead synthesizes all team reports
 
 ## When to Use Enterprise
 
-- Production deployments
+- Production deployments with multiple components
 - Security-sensitive features
 - Payment/financial systems
-- Compliance requirements
-- Data migrations
-- Features that "must not fail"
-- Long-running autonomous tasks
-- When you want thorough work, not fast work
+- Large features that benefit from team ownership
+- Long-running autonomous work (hours, not minutes)
+- When you want parallel progress on multiple fronts
 
 ## When NOT to Use Enterprise
 
 - Quick prototypes
+- Single-file changes
 - Experiments
-- Throwaway code
-- Learning/exploration
-- Time-critical hotfixes (use vide team with focused scope instead)
+- Time-critical hotfixes
 
-## Quality Gates
+## Scaling
 
-At each phase transition:
+The enterprise structure scales naturally:
+- More features = more feature teams (parallel)
+- Larger features = feature leads spawn more agents
+- Complex integration = dedicated integration team
 
-- **After Requirements**: Problem is crystal clear, success criteria defined
-- **After Design**: Best solution selected with reasoning, trade-offs documented
-- **After Verification Plan**: Test strategy complete, tooling identified
-- **After Implementation**: Analysis clean, unit tests pass
-- **After QA**: All checks pass, QA formally approves
-
-No phase proceeds without prior phase completing successfully.
+Teams can work for extended periods. Progress updates flow up to enterprise-lead, who synthesizes for the user.
