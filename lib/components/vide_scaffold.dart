@@ -192,7 +192,7 @@ class _VideScaffoldState extends State<VideScaffold> {
               // Send message to current agent's chat
               final selectedAgentId = context.read(selectedAgentIdProvider);
               if (selectedAgentId != null) {
-                session?.sendMessage(message, agentId: selectedAgentId);
+                session?.sendMessage(Message.text(message), agentId: selectedAgentId);
               }
             },
             onSwitchWorktree: (path) {

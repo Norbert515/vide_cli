@@ -292,9 +292,7 @@ class _AgentChatState extends State<_AgentChat> {
 
   void _sendMessage(Message message) {
     final session = context.read(currentVideSessionProvider);
-    // Note: session.sendMessage only takes String, not Message with attachments
-    // For now, send text only. Attachment support can be added to the API later.
-    session?.sendMessage(message.text, agentId: component.agentId);
+    session?.sendMessage(message, agentId: component.agentId);
   }
 
   bool _isLastAgent() {
@@ -311,7 +309,7 @@ class _AgentChatState extends State<_AgentChat> {
       workingDirectory: session?.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(message, agentId: component.agentId);
+        session?.sendMessage(Message.text(message), agentId: component.agentId);
       },
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
@@ -350,7 +348,7 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(message, agentId: component.agentId);
+            session?.sendMessage(Message.text(message), agentId: component.agentId);
           },
           onSwitchWorktree: (path) {
             final container = ProviderScope.containerOf(context);

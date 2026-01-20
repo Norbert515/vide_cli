@@ -134,7 +134,7 @@ Future<void> runRepl({
       ));
       subscribeToSession(session);
     } else {
-      session.sendMessage(input);
+      session.sendMessage(Message.text(input));
     }
 
     // Wait for turn to complete

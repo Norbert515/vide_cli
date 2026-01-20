@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:claude_sdk/claude_sdk.dart' show Message;
+
 import 'vide_agent.dart';
 import 'vide_event.dart';
 import 'vide_session.dart';
@@ -179,7 +181,7 @@ class VideEmbeddedServer {
           final content = message['content'] as String?;
           final agentId = message['agent_id'] as String?;
           if (content != null && content.isNotEmpty) {
-            _session.sendMessage(content, agentId: agentId);
+            _session.sendMessage(Message.text(content), agentId: agentId);
           }
 
         case 'permission':
@@ -244,7 +246,7 @@ class VideEmbeddedServer {
       return;
     }
 
-    _session.sendMessage(content, agentId: agentId);
+    _session.sendMessage(Message.text(content), agentId: agentId);
 
     request.response.headers.contentType = ContentType.json;
     request.response.write(jsonEncode({'status': 'sent'}));
