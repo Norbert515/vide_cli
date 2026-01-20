@@ -43,9 +43,18 @@ Future<String> _createTestVideHome() async {
 void main() {
   group('TeamFrameworkLoader', () {
     late TeamFrameworkLoader loader;
+    late String testVideHome;
+
+    setUpAll(() async {
+      testVideHome = await _createTestVideHome();
+    });
+
+    tearDownAll(() async {
+      await Directory(testVideHome).delete(recursive: true);
+    });
 
     setUp(() {
-      loader = TeamFrameworkLoader();
+      loader = TeamFrameworkLoader(videHome: testVideHome);
     });
 
     group('Team Loading', () {
@@ -188,21 +197,9 @@ void main() {
     });
 
     group('Source Assets Verification', () {
-      late String testVideHome;
-      late TeamFrameworkLoader sourceLoader;
-
-      setUpAll(() async {
-        testVideHome = await _createTestVideHome();
-        sourceLoader = TeamFrameworkLoader(videHome: testVideHome);
-      });
-
-      tearDownAll(() async {
-        await Directory(testVideHome).delete(recursive: true);
-      });
-
       test('source assets load correctly', () async {
-        final teams = await sourceLoader.loadTeams();
-        final agents = await sourceLoader.loadAgents();
+        final teams = await loader.loadTeams();
+        final agents = await loader.loadAgents();
 
         expect(teams, isNotEmpty);
         expect(agents, isNotEmpty);
