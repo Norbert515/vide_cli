@@ -64,6 +64,30 @@ class VideScaffold extends StatefulComponent {
 }
 
 class _VideScaffoldState extends State<VideScaffold> {
+  String? _currentFilePreviewPath;
+  bool _dialogShowing = false;
+
+  void _showFilePreviewDialog(BuildContext context, String filePath) {
+    if (_dialogShowing) return;
+    _dialogShowing = true;
+
+    Navigator.of(context).showDialog(
+      barrierDismissible: true,
+      builder: (dialogContext) => FilePreviewOverlay(
+        filePath: filePath,
+        onClose: () {
+          Navigator.of(dialogContext).pop();
+        },
+      ),
+    ).then((_) {
+      _dialogShowing = false;
+      // Clear the provider when dialog is closed
+      if (mounted) {
+        context.read(filePreviewPathProvider.notifier).state = null;
+      }
+    });
+  }
+
   @override
   Component build(BuildContext context) {
     final sidebarFocused = context.watch(sidebarFocusProvider);
@@ -71,6 +95,19 @@ class _VideScaffoldState extends State<VideScaffold> {
     final filePreviewPath = context.watch(filePreviewPathProvider);
     final isOnHomePage = context.watch(isOnHomePageProvider);
     final repoPath = context.watch(currentRepoPathProvider);
+
+    // Show file preview dialog when path changes
+    if (filePreviewPath != null && filePreviewPath != _currentFilePreviewPath) {
+      _currentFilePreviewPath = filePreviewPath;
+      // Schedule the dialog to show after this build
+      Future.microtask(() {
+        if (mounted) {
+          _showFilePreviewDialog(context, filePreviewPath);
+        }
+      });
+    } else if (filePreviewPath == null) {
+      _currentFilePreviewPath = null;
+    }
 
     // Show sidebars on execution page (always), hide on home page
     final showSidebars = !isOnHomePage;
@@ -88,56 +125,49 @@ class _VideScaffoldState extends State<VideScaffold> {
         // Standard Row layout - left sidebar + main content + right sidebar
         // This component should be used INSIDE the Navigator, so dialogs
         // rendered by Navigator.showDialog will overlay everything.
+        final mainLayout = Row(
+          children: [
+            // Left sidebar (hidden on home page)
+            if (showSidebars)
+              _buildLeftSidebar(context, effectiveSidebarWidth, sidebarFocused),
+
+            // Main content area
+            Expanded(
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 1, right: 1, top: 1),
+                      child: component.child,
+                    ),
+                  ),
+                  // Bottom bar with server indicator and version indicator
+                  Padding(
+                    padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
+                    child: Row(
+                      children: [
+                        Expanded(child: SizedBox()),
+                        const ServerIndicator(),
+                        VersionIndicator(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Right sidebar - Git status (hidden on home page)
+            if (showSidebars)
+              _buildRightSidebar(context, effectiveGitSidebarWidth, gitSidebarFocused, repoPath),
+          ],
+        );
+
         return Stack(
           children: [
             // Main layout: sidebar + content + git sidebar
-            Row(
-              children: [
-                // Left sidebar (hidden on home page)
-                if (showSidebars)
-                  _buildLeftSidebar(context, effectiveSidebarWidth, sidebarFocused),
+            mainLayout,
 
-                // Main content area
-                Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(left: 1, right: 1, top: 1),
-                          child: component.child,
-                        ),
-                      ),
-                      // Bottom bar with server indicator and version indicator
-                      Padding(
-                        padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
-                        child: Row(
-                          children: [
-                            Expanded(child: SizedBox()),
-                            const ServerIndicator(),
-                            VersionIndicator(),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Right sidebar - Git status (hidden on home page)
-                if (showSidebars)
-                  _buildRightSidebar(context, effectiveGitSidebarWidth, gitSidebarFocused, repoPath),
-              ],
-            ),
-
-            // File preview overlay
-            if (filePreviewPath != null)
-              FilePreviewOverlay(
-                filePath: filePreviewPath,
-                onClose: () {
-                  context.read(filePreviewPathProvider.notifier).state = null;
-                },
-              ),
-
-            // Toast notifications
+            // Toast notifications (stays in Stack as it doesn't need keyboard focus)
             const ToastOverlay(),
           ],
         );

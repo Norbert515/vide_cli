@@ -223,44 +223,72 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
     return TextSpan(children: children);
   }
 
+  bool _handleKeyEvent(LogicalKey key) {
+    switch (key) {
+      case LogicalKey.escape:
+        component.onClose();
+        return true;
+      case LogicalKey.arrowUp:
+      case LogicalKey.keyK:
+        _scrollController.scrollUp();
+        return true;
+      case LogicalKey.arrowDown:
+      case LogicalKey.keyJ:
+        _scrollController.scrollDown();
+        return true;
+      case LogicalKey.pageUp:
+        _scrollController.pageUp();
+        return true;
+      case LogicalKey.pageDown:
+        _scrollController.pageDown();
+        return true;
+      default:
+        return false;
+    }
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final borderColor = theme.base.primary;
 
-    return Padding(
-      padding: EdgeInsets.only(left: 1, right: 1, top: 1),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.base.surface,
-          border: BoxBorder.all(color: borderColor),
-          title: BorderTitle.rich(
-            textSpan: _buildTitleSpan(theme),
-            alignment: TitleAlignment.left,
+    return KeyboardListener(
+      onKeyEvent: _handleKeyEvent,
+      autofocus: true,
+      child: Padding(
+        padding: EdgeInsets.only(left: 1, right: 1, top: 1),
+        child: Container(
+          decoration: BoxDecoration(
+            color: theme.base.surface,
+            border: BoxBorder.all(color: borderColor),
+            title: BorderTitle.rich(
+              textSpan: _buildTitleSpan(theme),
+              alignment: TitleAlignment.left,
+            ),
           ),
-        ),
-        child: Column(
-          children: [
-            // Header with navigation hint
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 1),
-              child: Row(
-                children: [
-                  Expanded(child: SizedBox()),
-                  Text(
-                    '← to close',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
+          child: Column(
+            children: [
+              // Header with navigation hint
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 1),
+                child: Row(
+                  children: [
+                    Expanded(child: SizedBox()),
+                    Text(
+                      'ESC to close',
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.tertiary,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // File content
-            Expanded(child: _buildContent(theme)),
-          ],
+              // File content
+              Expanded(child: _buildContent(theme)),
+            ],
+          ),
         ),
       ),
     );
