@@ -51,20 +51,6 @@ class _AgentSidebarState extends State<AgentSidebar>
 
   static const double _collapsedWidth = 5.0;
 
-  // Spinner frames for working status
-  static const _spinnerFrames = [
-    '⠋',
-    '⠙',
-    '⠹',
-    '⠸',
-    '⠼',
-    '⠴',
-    '⠦',
-    '⠧',
-    '⠇',
-    '⠏',
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -198,24 +184,6 @@ class _AgentSidebarState extends State<AgentSidebar>
         }
       }
     }
-  }
-
-  String _getStatusIndicator(AgentStatus status, int spinnerFrame) {
-    return switch (status) {
-      AgentStatus.working => _spinnerFrames[spinnerFrame % _spinnerFrames.length],
-      AgentStatus.waitingForAgent => '…',
-      AgentStatus.waitingForUser => '?',
-      AgentStatus.idle => '✓',
-    };
-  }
-
-  Color _getStatusColor(AgentStatus status, VideStatusColors statusColors) {
-    return switch (status) {
-      AgentStatus.working => statusColors.working,
-      AgentStatus.waitingForAgent => statusColors.waitingForAgent,
-      AgentStatus.waitingForUser => statusColors.waitingForUser,
-      AgentStatus.idle => statusColors.idle,
-    };
   }
 
   String _truncateText(String text, int maxLength) {
@@ -527,67 +495,183 @@ class _AgentSidebarState extends State<AgentSidebar>
     VideThemeData theme,
     int availableWidth,
   ) {
-    // Get agent status from the provider (not agent.status which is stale)
-    final status = context.watch(agentStatusProvider(agent.id));
+    return _AgentRowItem(
+      agent: agent,
+      isSelected: isSelected,
+      isSelectedById: isSelectedById,
+      isHovered: isHovered,
+      isFocused: component.focused,
+      availableWidth: availableWidth,
+      onHoverEnter: () => setState(() => _hoveredIndex = index),
+      onHoverExit: () => setState(() => _hoveredIndex = null),
+      onTap: () {
+        setState(() => _selectedIndex = index);
+        context.read(selectedAgentIdProvider.notifier).state = agent.id;
+        component.onSelectAgent?.call(agent.id);
+      },
+    );
+  }
+}
 
-    // Infer actual status (similar to RunningAgentsBar)
-    final claudeStatusAsync = context.watch(claudeStatusProvider(agent.id));
-    final claudeStatus = claudeStatusAsync.valueOrNull ?? ClaudeStatus.ready;
+/// Stateful widget for individual agent rows with animated spinner
+class _AgentRowItem extends StatefulComponent {
+  final AgentMetadata agent;
+  final bool isSelected;
+  final bool isSelectedById;
+  final bool isHovered;
+  final bool isFocused;
+  final int availableWidth;
+  final VoidCallback? onHoverEnter;
+  final VoidCallback? onHoverExit;
+  final VoidCallback? onTap;
 
-    // Override status based on Claude processing state
-    final actualStatus =
-        (claudeStatus == ClaudeStatus.processing ||
-            claudeStatus == ClaudeStatus.thinking ||
-            claudeStatus == ClaudeStatus.responding)
+  const _AgentRowItem({
+    required this.agent,
+    required this.isSelected,
+    required this.isSelectedById,
+    required this.isHovered,
+    required this.isFocused,
+    required this.availableWidth,
+    this.onHoverEnter,
+    this.onHoverExit,
+    this.onTap,
+  });
+
+  @override
+  State<_AgentRowItem> createState() => _AgentRowItemState();
+}
+
+class _AgentRowItemState extends State<_AgentRowItem>
+    with SingleTickerProviderStateMixin {
+  static const _spinnerFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
+
+  late AnimationController _spinnerController;
+  AgentStatus? _lastStatus;
+
+  int get _spinnerIndex =>
+      (_spinnerController.value * _spinnerFrames.length).floor() %
+      _spinnerFrames.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _spinnerController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _spinnerController.dispose();
+    super.dispose();
+  }
+
+  void _updateSpinnerForStatus(AgentStatus status) {
+    final wasWorking = _lastStatus == AgentStatus.working;
+    final isWorking = status == AgentStatus.working;
+
+    if (isWorking && !wasWorking) {
+      _spinnerController.repeat();
+    } else if (!isWorking && wasWorking) {
+      _spinnerController
+        ..stop()
+        ..reset();
+    } else if (isWorking && !_spinnerController.isAnimating) {
+      // Handle initial mount with working status
+      _spinnerController.repeat();
+    }
+
+    _lastStatus = status;
+  }
+
+  String _getStatusIndicator(AgentStatus status) {
+    return switch (status) {
+      AgentStatus.working => _spinnerFrames[_spinnerIndex],
+      AgentStatus.waitingForAgent => '…',
+      AgentStatus.waitingForUser => '?',
+      AgentStatus.idle => '✓',
+    };
+  }
+
+  Color _getStatusColor(AgentStatus status, VideStatusColors statusColors) {
+    return switch (status) {
+      AgentStatus.working => statusColors.working,
+      AgentStatus.waitingForAgent => statusColors.waitingForAgent,
+      AgentStatus.waitingForUser => statusColors.waitingForUser,
+      AgentStatus.idle => statusColors.idle,
+    };
+  }
+
+  String _truncateText(String text, int maxLength) {
+    if (maxLength <= 3) return text.length <= maxLength ? text : '…';
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength - 1)}…';
+  }
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+
+    // Get agent status from the provider
+    final status = context.watch(agentStatusProvider(component.agent.id));
+
+    // Get conversation state to check if processing
+    final session = context.watch(currentVideSessionProvider);
+    final conversation = session?.getConversation(component.agent.id);
+    final isProcessing = conversation?.isProcessing ?? false;
+
+    // Infer actual status based on conversation processing state
+    // This is more reliable than claudeStatusProvider which may have timing issues
+    final actualStatus = isProcessing
         ? AgentStatus.working
-        : ((claudeStatus == ClaudeStatus.ready ||
-                  claudeStatus == ClaudeStatus.completed) &&
-              status == AgentStatus.working)
-        ? AgentStatus.idle
-        : status;
+        : (status == AgentStatus.working && !isProcessing)
+            ? AgentStatus.idle
+            : status;
+
+    // Update spinner animation based on status
+    _updateSpinnerForStatus(actualStatus);
 
     final actualStatusColor = _getStatusColor(actualStatus, theme.status);
+    final statusIndicator = _getStatusIndicator(actualStatus);
 
     // Build agent name with optional task
-    String displayName = agent.name;
-    if (agent.taskName != null && agent.taskName!.isNotEmpty) {
-      displayName = '${agent.taskName}';
+    String displayName = component.agent.name;
+    if (component.agent.taskName != null && component.agent.taskName!.isNotEmpty) {
+      displayName = '${component.agent.taskName}';
     }
-    displayName = _truncateText(displayName, availableWidth - 6);
+    displayName = _truncateText(displayName, component.availableWidth - 6);
 
-    // Get spinner frame if working
-    int spinnerFrame = 0;
-    if (actualStatus == AgentStatus.working) {
-      final now = DateTime.now();
-      final ms = now.millisecondsSinceEpoch;
-      spinnerFrame = (ms ~/ 100) % _spinnerFrames.length;
-    }
-
-    final statusIndicator = _getStatusIndicator(actualStatus, spinnerFrame);
-
-    final bgColor = isSelected && component.focused
+    final bgColor = component.isSelected && component.isFocused
         ? theme.base.primary.withOpacity(0.15)
-        : isSelectedById
+        : component.isSelectedById
             ? theme.base.outline.withOpacity(0.1)
-            : isHovered
+            : component.isHovered
                 ? theme.base.outline.withOpacity(0.08)
                 : null;
 
-    final textColor = isSelected && component.focused
+    final textColor = component.isSelected && component.isFocused
         ? theme.base.primary
-        : isSelectedById
+        : component.isSelectedById
             ? theme.base.onSurface
             : theme.base.onSurface.withOpacity(TextOpacity.secondary);
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _hoveredIndex = index),
-      onExit: (_) => setState(() => _hoveredIndex = null),
+      onEnter: (_) => component.onHoverEnter?.call(),
+      onExit: (_) => component.onHoverExit?.call(),
       child: GestureDetector(
-        onTap: () {
-          setState(() => _selectedIndex = index);
-          context.read(selectedAgentIdProvider.notifier).state = agent.id;
-          component.onSelectAgent?.call(agent.id);
-        },
+        onTap: () => component.onTap?.call(),
         child: Container(
           decoration: BoxDecoration(color: bgColor),
           child: Row(
@@ -603,13 +687,13 @@ class _AgentSidebarState extends State<AgentSidebar>
                   displayName,
                   style: TextStyle(
                     color: textColor,
-                    fontWeight: isSelectedById ? FontWeight.bold : null,
+                    fontWeight: component.isSelectedById ? FontWeight.bold : null,
                   ),
                   maxLines: 1,
                 ),
               ),
               // View indicator for currently viewed agent
-              if (isSelectedById)
+              if (component.isSelectedById)
                 Text(
                   '◀',
                   style: TextStyle(
