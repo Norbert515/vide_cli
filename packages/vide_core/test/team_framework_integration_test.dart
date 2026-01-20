@@ -1,61 +1,105 @@
+import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('TeamFrameworkLoader - Integration Tests', () {
     late TeamFrameworkLoader loader;
+    late Directory tempDir;
+    late String videHome;
+
+    setUpAll(() async {
+      // Create a temporary directory for test assets
+      tempDir = await Directory.systemTemp.createTemp('vide_test_');
+      videHome = tempDir.path;
+
+      // Copy assets from package to temp directory
+      final defaultsDir = Directory(path.join(videHome, 'defaults'));
+      await defaultsDir.create(recursive: true);
+
+      // Copy from package assets directory
+      final categories = ['teams', 'agents', 'etiquette'];
+      final assetsPath = 'assets/team_framework';
+
+      for (final category in categories) {
+        final targetCategoryDir =
+            Directory(path.join(defaultsDir.path, category));
+        await targetCategoryDir.create(recursive: true);
+
+        final sourceDir = Directory(path.join(assetsPath, category));
+        if (await sourceDir.exists()) {
+          final files = sourceDir
+              .listSync()
+              .whereType<File>()
+              .where((f) => f.path.endsWith('.md'));
+          for (final file in files) {
+            final targetFile = File(
+              path.join(targetCategoryDir.path, path.basename(file.path)),
+            );
+            await file.copy(targetFile.path);
+          }
+        }
+      }
+    });
+
+    tearDownAll(() async {
+      // Clean up temp directory
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
 
     setUp(() {
-      loader = TeamFrameworkLoader();
+      loader = TeamFrameworkLoader(videHome: videHome);
     });
 
     group('buildAgentConfiguration', () {
-      test('vide-implementer agent loads successfully', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+      test('implementer agent loads successfully', () async {
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
-        expect(config!.name, 'vide-implementer');
+        expect(config!.name, 'implementer');
         expect(config.description, isNotEmpty);
         expect(config.systemPrompt, isNotEmpty);
       });
 
-      test('vide-main-orchestrator agent loads successfully', () async {
-        final config = await loader.buildAgentConfiguration('vide-main-orchestrator');
+      test('main agent loads successfully', () async {
+        final config = await loader.buildAgentConfiguration('main');
 
         expect(config, isNotNull);
-        expect(config!.name, 'vide-main-orchestrator');
+        expect(config!.name, 'main');
         expect(config.description, isNotEmpty);
         expect(config.systemPrompt, isNotEmpty);
       });
 
-      test('vide-context-researcher agent loads successfully', () async {
-        final config = await loader.buildAgentConfiguration('vide-context-researcher');
+      test('researcher agent loads successfully', () async {
+        final config = await loader.buildAgentConfiguration('researcher');
 
         expect(config, isNotNull);
-        expect(config!.name, 'vide-context-researcher');
+        expect(config!.name, 'researcher');
       });
 
-      test('vide-flutter-tester agent loads successfully', () async {
-        final config = await loader.buildAgentConfiguration('vide-flutter-tester');
+      test('flutter-tester agent loads successfully', () async {
+        final config = await loader.buildAgentConfiguration('flutter-tester');
 
         expect(config, isNotNull);
-        expect(config!.name, 'vide-flutter-tester');
+        expect(config!.name, 'flutter-tester');
       });
 
-      test('vide-planner agent loads successfully', () async {
-        final config = await loader.buildAgentConfiguration('vide-planner');
+      test('tester agent loads successfully', () async {
+        final config = await loader.buildAgentConfiguration('tester');
 
         expect(config, isNotNull);
-        expect(config!.name, 'vide-planner');
+        expect(config!.name, 'tester');
       });
 
-      test('all vide-* agents load successfully', () async {
+      test('core agents load successfully', () async {
         final agents = [
-          'vide-main-orchestrator',
-          'vide-implementer',
-          'vide-context-researcher',
-          'vide-flutter-tester',
-          'vide-planner',
+          'main',
+          'implementer',
+          'researcher',
+          'tester',
         ];
 
         for (final agentName in agents) {
@@ -67,46 +111,42 @@ void main() {
       });
 
       test('returns null for non-existent agent', () async {
-        final config = await loader.buildAgentConfiguration('non-existent-agent');
+        final config =
+            await loader.buildAgentConfiguration('non-existent-agent');
         expect(config, isNull);
       });
 
       test('includes are resolved correctly in implementer', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         // Should include etiquette/messaging content
         expect(config!.systemPrompt, contains('sendMessageToAgent'),
             reason: 'Missing messaging etiquette content');
-        expect(config.systemPrompt, contains('Implementation'),
-            reason: 'Missing implementation-specific content');
       });
 
-      test('includes are resolved correctly in orchestrator', () async {
-        final config = await loader.buildAgentConfiguration('vide-main-orchestrator');
+      test('includes are resolved correctly in main', () async {
+        final config = await loader.buildAgentConfiguration('main');
 
         expect(config, isNotNull);
         // Should include messaging and handoff etiquette
-        expect(config!.systemPrompt, contains('Async Agent Communication'),
-            reason: 'Missing async communication guidance');
-        expect(config.systemPrompt, contains('ASSESS'),
-            reason: 'Missing assessment guidance');
+        expect(config!.systemPrompt, contains('ORCHESTRATOR'),
+            reason: 'Missing orchestrator guidance');
       });
 
       test('MCP servers are correctly parsed', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
         expect(config.mcpServers, isNotEmpty);
         expect(config.mcpServers, contains(McpServerType.git));
         expect(config.mcpServers, contains(McpServerType.taskManagement));
-        expect(config.mcpServers, contains(McpServerType.flutterRuntime));
         expect(config.mcpServers, contains(McpServerType.agent));
       });
 
-      test('MCP servers in orchestrator are correct', () async {
-        final config = await loader.buildAgentConfiguration('vide-main-orchestrator');
+      test('MCP servers in main are correct', () async {
+        final config = await loader.buildAgentConfiguration('main');
 
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
@@ -116,7 +156,7 @@ void main() {
       });
 
       test('tools are correctly parsed from agent definition', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         expect(config!.allowedTools, isNotNull);
@@ -126,59 +166,48 @@ void main() {
       });
 
       test('model is set correctly', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
-        expect(config!.model, 'sonnet');
-      });
-
-      test('planner has correct permission mode', () async {
-        final config = await loader.buildAgentConfiguration('vide-planner');
-
-        expect(config, isNotNull);
-        expect(config!.permissionMode, 'plan');
+        expect(config!.model, 'opus');
       });
 
       test('implementer has acceptEdits permission mode', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         expect(config!.permissionMode, 'acceptEdits');
       });
 
       test('system prompt contains complete guidance', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         final prompt = config!.systemPrompt;
 
         // Should contain key sections
-        expect(prompt, contains('Async Communication'),
-            reason: 'Missing async communication model');
-        expect(prompt, contains('Verification'),
-            reason: 'Missing verification guidance');
+        expect(prompt, contains('Implementation'),
+            reason: 'Missing implementation guidance');
         expect(prompt.length, greaterThan(500),
             reason: 'System prompt seems incomplete (too short)');
       });
 
       test('tools list is not empty for implementer', () async {
-        final config = await loader.buildAgentConfiguration('vide-implementer');
+        final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
         expect(config!.allowedTools, isNotEmpty);
         expect(config.allowedTools!.length, greaterThan(2));
       });
 
-      test('context researcher has read-only tools', () async {
-        final config = await loader.buildAgentConfiguration('vide-context-researcher');
+      test('researcher has read-only tools', () async {
+        final config = await loader.buildAgentConfiguration('researcher');
 
         expect(config, isNotNull);
         expect(config!.allowedTools, isNotNull);
         expect(config.allowedTools, contains('Read'));
         expect(config.allowedTools, contains('Grep'));
         expect(config.allowedTools, contains('Glob'));
-        expect(config.allowedTools, contains('WebSearch'));
-        expect(config.allowedTools, contains('WebFetch'));
       });
     });
 
@@ -201,13 +230,13 @@ void main() {
 
     group('Include resolution', () {
       test('etiquette includes are resolved', () async {
-        final agent = await loader.getAgent('vide-implementer');
+        final agent = await loader.getAgent('implementer');
         expect(agent, isNotNull);
         expect(agent!.include.isNotEmpty, true);
       });
 
       test('resolved include content appears in prompt', () async {
-        final agent = await loader.getAgent('vide-implementer');
+        final agent = await loader.getAgent('implementer');
         expect(agent, isNotNull);
 
         final prompt = await loader.buildAgentPrompt(agent!);
@@ -219,15 +248,15 @@ void main() {
     group('MCP Server parsing', () {
       test('parses vide-git correctly', () async {
         final agents = await loader.loadAgents();
-        final implementer = agents['vide-implementer'];
+        final implementer = agents['implementer'];
 
         expect(implementer, isNotNull);
         expect(implementer!.mcpServers, contains('vide-git'));
       });
 
-      test('parses flutter-runtime correctly', () async {
+      test('parses flutter-runtime correctly for flutter-tester', () async {
         final agents = await loader.loadAgents();
-        final tester = agents['vide-flutter-tester'];
+        final tester = agents['flutter-tester'];
 
         expect(tester, isNotNull);
         expect(tester!.mcpServers, contains('flutter-runtime'));
@@ -256,6 +285,26 @@ void main() {
         // Should load again without error
         final agents = await loader.loadAgents();
         expect(agents.isNotEmpty, true);
+      });
+    });
+
+    group('Team definitions', () {
+      test('vide team exists', () async {
+        final team = await loader.getTeam('vide');
+        expect(team, isNotNull);
+        expect(team!.name, 'vide');
+      });
+
+      test('flutter team exists', () async {
+        final team = await loader.getTeam('flutter');
+        expect(team, isNotNull);
+        expect(team!.name, 'flutter');
+      });
+
+      test('team has agents defined', () async {
+        final team = await loader.getTeam('vide');
+        expect(team, isNotNull);
+        expect(team!.agents, isNotEmpty);
       });
     });
   });

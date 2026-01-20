@@ -65,10 +65,11 @@ void main() {
 
         expect(team, isNotNull);
         expect(team!.name, 'enterprise');
-        expect(team.mainAgent, 'main');
-        expect(team.agents, contains('researcher'));
+        expect(team.mainAgent, 'enterprise-lead');
+        expect(team.agents, contains('feature-lead'));
         expect(team.agents, contains('implementer'));
-        expect(team.agents, contains('tester'));
+        expect(team.agents, contains('researcher'));
+        expect(team.agents, contains('qa-breaker'));
       });
 
       test('all teams have a main agent', () async {
