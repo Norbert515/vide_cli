@@ -66,9 +66,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   Component _buildAgentChat(
     BuildContext context,
-    AgentNetworkState networkState, {
-    bool ideModeEnabled = false,
-  }) {
+    AgentNetworkState networkState,
+  ) {
     // Get selected agent ID from provider, or use the first agent
     final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
     final selectedAgentId = context.watch(selectedAgentIdProvider);
@@ -120,7 +119,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         agentId: agentId,
         networkId: component.networkId,
         showQuitWarning: _showQuitWarning,
-        ideModeEnabled: ideModeEnabled,
       ),
     );
   }
@@ -159,10 +157,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         .read(agentNetworkManagerProvider.notifier)
         .effectiveWorkingDirectory;
 
-    // Check if IDE mode is enabled
-    final configManager = context.read(videConfigManagerProvider);
-    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
-
     // Display the network goal
     final goalText = currentNetwork?.goal ?? 'Loading...';
 
@@ -191,7 +185,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             _buildAgentChat(
               context,
               networkState,
-              ideModeEnabled: ideModeEnabled,
             ),
         ],
       ),
@@ -221,13 +214,11 @@ class _AgentChat extends StatefulComponent {
   final String agentId;
   final String networkId;
   final bool showQuitWarning;
-  final bool ideModeEnabled;
 
   const _AgentChat({
     required this.agentId,
     required this.networkId,
     this.showQuitWarning = false,
-    this.ideModeEnabled = false,
     super.key,
   });
 
@@ -819,16 +810,12 @@ class _AgentChatState extends State<_AgentChat> {
                         onPromptSubmitted: (prompt) => context
                             .read(promptHistoryProvider.notifier)
                             .addPrompt(prompt),
-                        onLeftEdge: component.ideModeEnabled
-                            ? () => context
-                                .read(sidebarFocusProvider.notifier)
-                                .state = true
-                            : null,
-                        onRightEdge: component.ideModeEnabled
-                            ? () => context
-                                .read(gitSidebarFocusProvider.notifier)
-                                .state = true
-                            : null,
+                        onLeftEdge: () => context
+                            .read(sidebarFocusProvider.notifier)
+                            .state = true,
+                        onRightEdge: () => context
+                            .read(gitSidebarFocusProvider.notifier)
+                            .state = true,
                         onEscape: () {
                           final session = context.read(currentVideSessionProvider);
                           if (session == null) return;

@@ -259,7 +259,6 @@ void main() {
             type: 'implementer',
             spawnedBy: 'main-1',
             createdAt: testDate,
-            status: AgentStatus.working,
             taskName: 'Fix bug',
           ),
         ],
@@ -276,7 +275,6 @@ void main() {
       expect(restored.agents.length, original.agents.length);
       expect(restored.agents[0].id, original.agents[0].id);
       expect(restored.agents[1].spawnedBy, 'main-1');
-      expect(restored.agents[1].status, AgentStatus.working);
       expect(restored.agents[1].taskName, 'Fix bug');
       expect(restored.createdAt, original.createdAt);
       expect(restored.lastActiveAt, original.lastActiveAt);

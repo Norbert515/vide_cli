@@ -3,7 +3,8 @@ import 'package:yaml/yaml.dart';
 /// Represents a team composition loaded from a .md file.
 ///
 /// Teams define how agents work together, including:
-/// - Which agent personalities fill which roles
+/// - The main agent personality for orchestration
+/// - Available agent personalities for spawning
 /// - Process configuration (planning, review, testing levels)
 /// - Communication style settings
 /// - Trigger patterns for team selection
@@ -12,8 +13,9 @@ class TeamDefinition {
     required this.name,
     required this.description,
     required this.filePath,
+    required this.mainAgent,
     this.icon,
-    this.composition = const {},
+    this.agents = const [],
     this.process = const ProcessConfig(),
     this.communication = const CommunicationConfig(),
     this.triggers = const [],
@@ -33,9 +35,11 @@ class TeamDefinition {
   /// Optional icon for display (e.g., "🚀")
   final String? icon;
 
-  /// Maps role names to agent personality names
-  /// e.g., {"lead": "pragmatic-lead", "implementer": "speed-demon"}
-  final Map<String, String?> composition;
+  /// The agent personality name for the main agent (e.g., "vide-main-orchestrator")
+  final String mainAgent;
+
+  /// List of agent personality names available to spawn
+  final List<String> agents;
 
   /// Process configuration for this team
   final ProcessConfig process;
@@ -80,15 +84,15 @@ class TeamDefinition {
       throw FormatException('Missing required field "description" in $filePath');
     }
 
-    // Parse composition
-    final compositionYaml = yaml['composition'] as YamlMap?;
-    final composition = <String, String?>{};
-    if (compositionYaml != null) {
-      for (final entry in compositionYaml.entries) {
-        final value = entry.value;
-        composition[entry.key as String] = value == null ? null : value as String;
-      }
+    // Parse main-agent (required)
+    final mainAgent = yaml['main-agent'] as String?;
+    if (mainAgent == null || mainAgent.isEmpty) {
+      throw FormatException('Missing required field "main-agent" in $filePath');
     }
+
+    // Parse agents list
+    final agentsYaml = yaml['agents'] as YamlList?;
+    final agents = agentsYaml?.cast<String>().toList() ?? [];
 
     // Parse process config
     final processYaml = yaml['process'] as YamlMap?;
@@ -114,8 +118,9 @@ class TeamDefinition {
       name: name,
       description: description,
       filePath: filePath,
+      mainAgent: mainAgent,
       icon: yaml['icon'] as String?,
-      composition: composition,
+      agents: agents,
       process: process,
       communication: communication,
       triggers: triggers,
@@ -149,7 +154,7 @@ class TeamDefinition {
 
   @override
   String toString() {
-    return 'TeamDefinition(name: $name, composition: $composition)';
+    return 'TeamDefinition(name: $name, mainAgent: $mainAgent, agents: $agents)';
   }
 }
 

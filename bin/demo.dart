@@ -157,39 +157,45 @@ class _DemoAgentsBarState extends State<_DemoAgentsBar> {
   @override
   Component build(BuildContext context) {
     final agents = [
-      AgentMetadata(
-        id: 'main-001',
-        name: 'Main',
-        type: 'main',
+      (
+        agent: AgentMetadata(
+          id: 'main-001',
+          name: 'Main',
+          type: 'main',
+          taskName: 'Implement user authentication',
+          createdAt: DateTime.now().subtract(Duration(minutes: 5)),
+        ),
         status: AgentStatus.working,
-        taskName: 'Implement user authentication',
-        createdAt: DateTime.now().subtract(Duration(minutes: 5)),
       ),
-      AgentMetadata(
-        id: 'research-002',
-        name: 'Auth Research',
-        type: 'contextCollection',
+      (
+        agent: AgentMetadata(
+          id: 'research-002',
+          name: 'Auth Research',
+          type: 'contextCollection',
+          taskName: 'Research complete',
+          createdAt: DateTime.now().subtract(Duration(minutes: 3)),
+        ),
         status: AgentStatus.idle,
-        taskName: 'Research complete',
-        createdAt: DateTime.now().subtract(Duration(minutes: 3)),
       ),
-      AgentMetadata(
-        id: 'jwt-003',
-        name: 'JWT Service',
-        type: 'implementation',
+      (
+        agent: AgentMetadata(
+          id: 'jwt-003',
+          name: 'JWT Service',
+          type: 'implementation',
+          taskName: 'Implementing refresh tokens',
+          createdAt: DateTime.now().subtract(Duration(minutes: 1)),
+        ),
         status: AgentStatus.working,
-        taskName: 'Implementing refresh tokens',
-        createdAt: DateTime.now().subtract(Duration(minutes: 1)),
       ),
     ];
 
-    return Row(children: [for (final agent in agents) _buildAgentItem(agent)]);
+    return Row(children: [for (final item in agents) _buildAgentItem(item.agent, item.status)]);
   }
 
-  Component _buildAgentItem(AgentMetadata agent) {
-    final statusIndicator = _getStatusIndicator(agent.status);
-    final indicatorColor = _getIndicatorColor(agent.status);
-    final indicatorTextColor = _getIndicatorTextColor(agent.status);
+  Component _buildAgentItem(AgentMetadata agent, AgentStatus status) {
+    final statusIndicator = _getStatusIndicator(status);
+    final indicatorColor = _getIndicatorColor(status);
+    final indicatorTextColor = _getIndicatorTextColor(status);
     final displayName = agent.taskName != null && agent.taskName!.isNotEmpty
         ? '${agent.name} - ${agent.taskName}'
         : agent.name;

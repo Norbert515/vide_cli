@@ -1,10 +1,13 @@
 import 'agent_id.dart';
-import 'agent_status.dart';
 
 /// Metadata about an agent in the network.
 ///
 /// This is persisted along with the agent network and contains
 /// human-readable information about each agent.
+///
+/// Note: Agent status is NOT stored here - it's purely runtime state
+/// managed by [agentStatusProvider]. On session resume, all agents
+/// start as idle since nothing is running.
 class AgentMetadata {
   AgentMetadata({
     required this.id,
@@ -12,7 +15,6 @@ class AgentMetadata {
     required this.type,
     this.spawnedBy,
     required this.createdAt,
-    this.status = AgentStatus.idle,
     this.taskName,
     this.sessionId,
     this.totalInputTokens = 0,
@@ -43,9 +45,6 @@ class AgentMetadata {
 
   /// When this agent was created
   final DateTime createdAt;
-
-  /// The current status of this agent
-  final AgentStatus status;
 
   /// The current task name for this agent (set via setAgentTaskName MCP tool)
   final String? taskName;
@@ -78,7 +77,6 @@ class AgentMetadata {
     String? type,
     AgentId? spawnedBy,
     DateTime? createdAt,
-    AgentStatus? status,
     String? taskName,
     String? sessionId,
     int? totalInputTokens,
@@ -93,7 +91,6 @@ class AgentMetadata {
       type: type ?? this.type,
       spawnedBy: spawnedBy ?? this.spawnedBy,
       createdAt: createdAt ?? this.createdAt,
-      status: status ?? this.status,
       taskName: taskName ?? this.taskName,
       sessionId: sessionId ?? this.sessionId,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
@@ -113,7 +110,6 @@ class AgentMetadata {
       'type': type,
       'spawnedBy': spawnedBy,
       'createdAt': createdAt.toIso8601String(),
-      'status': status.toStringValue(),
       'taskName': taskName,
       'sessionId': sessionId,
       'totalInputTokens': totalInputTokens,
@@ -131,7 +127,6 @@ class AgentMetadata {
       type: json['type'] as String,
       spawnedBy: json['spawnedBy'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      status: _parseStatus(json['status'] as String?),
       taskName: json['taskName'] as String?,
       sessionId: json['sessionId'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
@@ -146,9 +141,4 @@ class AgentMetadata {
 
   @override
   String toString() => 'AgentMetadata(id: $id, name: $name, type: $type)';
-}
-
-AgentStatus _parseStatus(String? value) {
-  if (value == null) return AgentStatus.idle;
-  return AgentStatusExtension.fromString(value) ?? AgentStatus.idle;
 }

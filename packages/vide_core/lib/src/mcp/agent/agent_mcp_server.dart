@@ -69,17 +69,17 @@ class AgentMCPServer extends McpServerBase {
 The new agent will be added to the current network and can receive messages.
 Use this to delegate tasks to specialized agents.
 
-The available roles depend on the current team's composition. Use the role name
-from the team definition (e.g., 'implementer', 'tester', 'thinker-creative').
+The available agent types depend on the current team's agent list. Use the agent
+personality name (e.g., 'solid-implementer', 'creative-explorer', 'deep-researcher').
 
 Returns the ID of the newly spawned agent which can be used with sendMessageToAgent.''',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'role': {
+          'agentType': {
             'type': 'string',
             'description':
-                'The role of the agent to spawn from the current team composition '
-                '(e.g., "implementer", "tester", "thinker-creative"). '
+                'The agent type/personality to spawn from the current team '
+                '(e.g., "solid-implementer", "creative-explorer", "deep-researcher"). '
                 'Cannot spawn "lead" - that is the main agent.',
           },
           'name': {
@@ -93,7 +93,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
                 'The initial message/task to send to the new agent. Be specific and provide all necessary context.',
           },
         },
-        required: ['role', 'name', 'initialPrompt'],
+        required: ['agentType', 'name', 'initialPrompt'],
       ),
       callback: ({args, extra}) async {
         if (args == null) {
@@ -102,13 +102,13 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           );
         }
 
-        final role = args['role'] as String;
+        final agentType = args['agentType'] as String;
         final name = args['name'] as String;
         final initialPrompt = args['initialPrompt'] as String;
 
         try {
           final newAgentId = await _networkManager.spawnAgent(
-            role: role,
+            agentType: agentType,
             name: name,
             initialPrompt: initialPrompt,
             spawnedBy: callerAgentId,
@@ -118,7 +118,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             content: [
               TextContent(
                 text:
-                    'Successfully spawned "$role" agent "$name".\n'
+                    'Successfully spawned "$agentType" agent "$name".\n'
                     'Agent ID: $newAgentId\n'
                     'Spawned by: $callerAgentId\n\n'
                     'The agent has been sent your initial message and is now working on it. '
@@ -131,7 +131,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'spawnAgent');
             scope.setContexts('mcp_context', {
-              'role': role,
+              'agent_type': agentType,
               'caller_agent_id': callerAgentId.toString(),
             });
           });

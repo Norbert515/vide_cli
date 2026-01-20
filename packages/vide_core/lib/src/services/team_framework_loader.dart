@@ -39,7 +39,6 @@ class TeamFrameworkLoader {
 
   // Caches
   Map<String, TeamDefinition>? _teamsCache;
-  Map<String, RoleDefinition>? _rolesCache;
   Map<String, EtiquetteProtocol>? _etiquetteCache;
   Map<String, AgentPersonality>? _agentsCache;
 
@@ -54,18 +53,6 @@ class TeamFrameworkLoader {
       getName: (t) => t.name,
     );
     return _teamsCache!;
-  }
-
-  /// Load all role definitions.
-  Future<Map<String, RoleDefinition>> loadRoles() async {
-    if (_rolesCache != null) return _rolesCache!;
-
-    _rolesCache = await _loadDefinitions<RoleDefinition>(
-      subdir: 'roles',
-      parser: RoleDefinition.fromMarkdown,
-      getName: (r) => r.name,
-    );
-    return _rolesCache!;
   }
 
   /// Load all etiquette protocols.
@@ -102,12 +89,6 @@ class TeamFrameworkLoader {
     return teams[name];
   }
 
-  /// Get a specific role by name.
-  Future<RoleDefinition?> getRole(String name) async {
-    final roles = await loadRoles();
-    return roles[name];
-  }
-
   /// Get a specific etiquette protocol by name.
   Future<EtiquetteProtocol?> getEtiquette(String name) async {
     final etiquette = await loadEtiquette();
@@ -138,7 +119,7 @@ class TeamFrameworkLoader {
 
     // If no triggers matched, return default team
     if (bestTeam == null || bestScore == 0) {
-      return teams['balanced'] ?? teams.values.first;
+      return teams['vide'] ?? teams.values.first;
     }
 
     return bestTeam;
@@ -185,14 +166,14 @@ class TeamFrameworkLoader {
     // Build the complete system prompt with includes
     var systemPrompt = await buildAgentPrompt(agent);
 
-    // If team is specified and agent has vide-agent MCP, inject available roles
+    // If team is specified and agent has vide-agent MCP, inject available agent types
     if (teamName != null && agent.mcpServers.any((s) =>
         s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent')) {
       final team = await getTeam(teamName);
       if (team != null) {
-        final availableRoles = _buildAvailableRolesSection(team);
-        if (availableRoles.isNotEmpty) {
-          systemPrompt = '$availableRoles\n\n$systemPrompt';
+        final availableAgents = _buildAvailableAgentsSection(team);
+        if (availableAgents.isNotEmpty) {
+          systemPrompt = '$availableAgents\n\n$systemPrompt';
         }
       }
     }
@@ -244,33 +225,27 @@ class TeamFrameworkLoader {
     return servers;
   }
 
-  /// Build the available roles section for injection into agent prompts.
+  /// Build the available agents section for injection into agent prompts.
   ///
-  /// This tells the agent what roles they can spawn in their team.
-  String _buildAvailableRolesSection(TeamDefinition team) {
-    // Get spawnable roles (exclude 'lead' since that's the main agent)
-    final spawnableRoles = team.composition.entries
-        .where((e) => e.value != null && e.key != 'lead')
-        .map((e) => e.key)
-        .toList();
-
-    if (spawnableRoles.isEmpty) {
+  /// This tells the agent what agent types they can spawn in their team.
+  String _buildAvailableAgentsSection(TeamDefinition team) {
+    if (team.agents.isEmpty) {
       return '';
     }
 
-    final rolesList = spawnableRoles.map((r) => '- `$r`').join('\n');
+    final agentsList = team.agents.map((a) => '- `$a`').join('\n');
 
-    return '''## Available Roles in This Team
+    return '''## Available Agent Types in This Team
 
-When using \`spawnAgent\`, you MUST use one of these role names from the "${team.name}" team:
+When using \`spawnAgent\`, you MUST use one of these agent type names from the "${team.name}" team:
 
-$rolesList
+$agentsList
 
-**IMPORTANT**: Only use the exact role names listed above. Other role names will fail.''';
+**IMPORTANT**: Only use the exact agent type names listed above. Other agent types will fail.''';
   }
 
   /// Resolve an include path to content.
-  /// Supports paths like "etiquette/handoff" or "roles/lead"
+  /// Supports paths like "etiquette/handoff"
   Future<String?> _resolveInclude(String includePath) async {
     final parts = includePath.split('/');
     if (parts.length != 2) return null;
@@ -282,9 +257,6 @@ $rolesList
       case 'etiquette':
         final protocol = await getEtiquette(name);
         return protocol?.content;
-      case 'roles':
-        final role = await getRole(name);
-        return role?.content;
       default:
         return null;
     }
@@ -387,7 +359,6 @@ $rolesList
   /// Clear all caches, forcing reload on next access.
   void clearCache() {
     _teamsCache = null;
-    _rolesCache = null;
     _etiquetteCache = null;
     _agentsCache = null;
   }

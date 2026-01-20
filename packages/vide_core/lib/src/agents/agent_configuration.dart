@@ -77,10 +77,14 @@ class AgentConfiguration {
   ///
   /// Note: MCP server configuration is handled separately in the
   /// client creation process based on [mcpServers].
+  ///
+  /// [dangerouslySkipPermissions] - If true, skips ALL permission checks.
+  /// DANGEROUS: Only use in sandboxed environments (Docker).
   ClaudeConfig toClaudeConfig({
     String? sessionId,
     String? workingDirectory,
     bool enableStreaming = true,
+    bool dangerouslySkipPermissions = false,
   }) {
     // Translate client permission modes to valid Claude CLI modes.
     // Valid CLI modes: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan
@@ -103,6 +107,7 @@ class AgentConfiguration {
       sessionId: sessionId,
       workingDirectory: workingDirectory,
       enableStreaming: enableStreaming,
+      dangerouslySkipPermissions: dangerouslySkipPermissions,
       // Enable all setting sources:
       // - user: ~/.claude.json (user-level settings)
       // - project: .claude/settings.json (project settings)

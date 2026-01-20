@@ -46,7 +46,7 @@ class TeamFrameworkAssetInitializer {
 
   /// Copy all assets from package to defaults directory
   static Future<void> _copyAssetsToDefaults(Directory defaultsDir) async {
-    final categories = ['teams', 'agents', 'roles', 'etiquette'];
+    final categories = ['teams', 'agents', 'etiquette'];
 
     for (final category in categories) {
       final categoryDir =

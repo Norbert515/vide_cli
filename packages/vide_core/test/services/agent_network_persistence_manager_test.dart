@@ -224,7 +224,6 @@ void main() {
             name: 'Main',
             type: 'main',
             createdAt: DateTime(2024, 1, 15, 10, 30),
-            status: AgentStatus.working,
           ),
           AgentMetadata(
             id: 'impl-agent',
@@ -232,7 +231,6 @@ void main() {
             type: 'implementer',
             spawnedBy: 'main-agent',
             createdAt: DateTime(2024, 1, 15, 10, 35),
-            status: AgentStatus.waitingForAgent,
             taskName: 'Fix bug',
           ),
         ];
@@ -254,13 +252,11 @@ void main() {
         final mainAgent = loaded.agents.firstWhere((a) => a.id == 'main-agent');
         expect(mainAgent.name, 'Main');
         expect(mainAgent.type, 'main');
-        expect(mainAgent.status, AgentStatus.working);
 
         final implAgent = loaded.agents.firstWhere((a) => a.id == 'impl-agent');
         expect(implAgent.name, 'Implementer');
         expect(implAgent.type, 'implementer');
         expect(implAgent.spawnedBy, 'main-agent');
-        expect(implAgent.status, AgentStatus.waitingForAgent);
         expect(implAgent.taskName, 'Fix bug');
 
         expect(loaded.worktreePath, '/path/to/worktree');
