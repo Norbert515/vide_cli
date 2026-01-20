@@ -184,6 +184,9 @@ class TeamFrameworkLoader {
     // Use tools from the agent personality if available
     final allowedTools = agent.tools.isNotEmpty ? agent.tools : null;
 
+    // Use disallowedTools from the agent personality if available
+    final disallowedTools = agent.disallowedTools.isNotEmpty ? agent.disallowedTools : null;
+
     // Build the AgentConfiguration
     return AgentConfiguration(
       name: agent.name,
@@ -191,6 +194,7 @@ class TeamFrameworkLoader {
       systemPrompt: systemPrompt,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : null,
       allowedTools: allowedTools,
+      disallowedTools: disallowedTools,
       model: agent.model,
       permissionMode: agent.permissionMode,
     );

@@ -28,14 +28,20 @@ class AgentConfiguration {
   /// Otherwise, only the specified servers are available.
   final List<McpServerType>? mcpServers;
 
-  /// Individual tools this agent can access
+  /// Individual tools this agent can access (additive - for permission purposes)
   ///
   /// If null, the agent inherits all tools (including MCP tools).
-  /// If specified, only these tools are available.
+  /// If specified, these tools are added to the allowed list.
   ///
-  /// Note: MCP tools are automatically added based on [mcpServers].
-  /// This field is for restricting non-MCP tools.
+  /// Note: This is ADDITIVE, not restrictive. Use [disallowedTools] to
+  /// actually prevent an agent from using certain tools.
   final List<String>? allowedTools;
+
+  /// Tools this agent should NOT have access to (restrictive)
+  ///
+  /// If specified, these tools are removed from the agent's available tools.
+  /// This is the only way to actually prevent an agent from using built-in tools.
+  final List<String>? disallowedTools;
 
   /// Model to use for this agent
   ///
@@ -61,6 +67,7 @@ class AgentConfiguration {
     this.description,
     this.mcpServers,
     this.allowedTools,
+    this.disallowedTools,
     this.model,
     this.permissionMode,
     this.temperature,
@@ -100,6 +107,7 @@ class AgentConfiguration {
     return ClaudeConfig(
       appendSystemPrompt: systemPrompt,
       allowedTools: allowedTools,
+      disallowedTools: disallowedTools,
       model: model,
       permissionMode: cliPermissionMode,
       temperature: temperature,
@@ -123,6 +131,7 @@ class AgentConfiguration {
     String? systemPrompt,
     List<McpServerType>? mcpServers,
     List<String>? allowedTools,
+    List<String>? disallowedTools,
     String? model,
     String? permissionMode,
     double? temperature,
@@ -134,6 +143,7 @@ class AgentConfiguration {
       systemPrompt: systemPrompt ?? this.systemPrompt,
       mcpServers: mcpServers ?? this.mcpServers,
       allowedTools: allowedTools ?? this.allowedTools,
+      disallowedTools: disallowedTools ?? this.disallowedTools,
       model: model ?? this.model,
       permissionMode: permissionMode ?? this.permissionMode,
       temperature: temperature ?? this.temperature,
