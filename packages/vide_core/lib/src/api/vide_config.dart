@@ -51,9 +51,9 @@ class VideSessionConfig {
   /// Defaults to 'ask' if not specified.
   final String? permissionMode;
 
-  /// Team to use: 'vide-classic', 'enterprise', 'startup', 'balanced', 'research', 'ideator'.
+  /// Team to use: 'vide', 'enterprise', 'startup', 'balanced', 'research', 'ideator'.
   ///
-  /// Defaults to 'vide-classic' if not specified.
+  /// Defaults to 'vide' if not specified.
   final String team;
 
   /// Whether to skip all permission checks.
@@ -67,7 +67,7 @@ class VideSessionConfig {
     required this.initialMessage,
     this.model,
     this.permissionMode,
-    this.team = 'vide-classic',
+    this.team = 'vide',
     this.dangerouslySkipPermissions = false,
   });
 }

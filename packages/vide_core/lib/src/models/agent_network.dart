@@ -16,7 +16,7 @@ class AgentNetwork {
     required this.createdAt,
     this.lastActiveAt,
     this.worktreePath,
-    this.team = 'vide-classic',
+    this.team = 'vide',
   });
 
   final AgentNetworkId id;
@@ -121,7 +121,7 @@ class AgentNetwork {
           ? DateTime.parse(json['lastActiveAt'] as String)
           : null,
       worktreePath: json['worktreePath'] as String?,
-      team: json['team'] as String? ?? 'vide-classic',
+      team: json['team'] as String? ?? 'vide',
     );
   }
 }
