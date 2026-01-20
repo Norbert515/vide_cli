@@ -187,14 +187,15 @@ class VideSession {
   /// Send a message to an agent.
   ///
   /// If [agentId] is not specified, the message is sent to the main agent.
-  void sendMessage(String content, {String? agentId}) {
+  /// The [message] can include attachments (e.g., images).
+  void sendMessage(Message message, {String? agentId}) {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     final targetAgent = agentId ?? mainAgent?.id;
     if (targetAgent == null) {
       throw StateError('No agents in session');
     }
-    manager.sendMessage(targetAgent, Message.text(content));
+    manager.sendMessage(targetAgent, message);
   }
 
   /// Respond to a permission request.
