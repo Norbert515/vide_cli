@@ -118,7 +118,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     String? workingDirectory,
     String? model,
     String? permissionMode,
-    String team = 'vide-classic',
+    String team = 'vide',
   }) async {
     final networkId = const Uuid().v4();
 
@@ -206,8 +206,19 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
   /// Resume an existing agent network
   Future<void> resume(AgentNetwork network) async {
-    // Update last active timestamp
-    final updatedNetwork = network.copyWith(lastActiveAt: DateTime.now());
+    // Check if the saved team exists, fall back to 'vide' if not
+    var effectiveTeam = network.team;
+    final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
+    if (team == null) {
+      print('[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "vide"');
+      effectiveTeam = 'vide';
+    }
+
+    // Update last active timestamp and potentially the team
+    final updatedNetwork = network.copyWith(
+      lastActiveAt: DateTime.now(),
+      team: effectiveTeam,
+    );
 
     // Set state IMMEDIATELY before any async work to prevent flash of empty state
     state = AgentNetworkState(currentNetwork: updatedNetwork);
@@ -254,15 +265,22 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// [teamName] - The team to use for looking up agent configurations.
   Future<AgentConfiguration> _getConfigurationForType(String type, {String? teamName}) async {
     // Use provided team name, or fall back to network's team
-    final effectiveTeamName = teamName ?? state.currentNetwork?.team;
+    var effectiveTeamName = teamName ?? state.currentNetwork?.team;
     if (effectiveTeamName == null) {
       throw Exception('No team specified and no current network');
     }
 
     // Get team definition to find the agent name
-    final team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
+    var team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
+
+    // If team not found, fall back to default 'vide' team
     if (team == null) {
-      throw Exception('Team "$effectiveTeamName" not found in team framework');
+      print('[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "vide"');
+      effectiveTeamName = 'vide';
+      team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
+      if (team == null) {
+        throw Exception('Default team "vide" not found in team framework');
+      }
     }
 
     // Determine the agent personality name based on type

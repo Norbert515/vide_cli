@@ -37,8 +37,8 @@ void main(List<String> args) async {
     ..addOption(
       'team',
       abbr: 't',
-      help: 'Team to use: vide-classic, enterprise, startup, balanced, research, ideator',
-      defaultsTo: 'vide-classic',
+      help: 'Team to use: vide, enterprise, startup, balanced, research, ideator',
+      defaultsTo: 'vide',
     )
     ..addFlag(
       'help',
