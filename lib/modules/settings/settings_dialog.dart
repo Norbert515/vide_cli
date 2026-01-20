@@ -24,7 +24,6 @@ class SettingsPopup extends StatelessComponent {
     return Navigator.of(context).showDialog(
       builder: (context) => const SettingsPopup(),
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.8),
     );
   }
 

@@ -17,7 +17,6 @@ class TeamSelectorPopup extends StatefulComponent {
     return Navigator.of(context).showDialog<String?>(
       builder: (context) => const TeamSelectorPopup(),
       barrierDismissible: true,
-      barrierColor: Colors.black.withOpacity(0.6),
     );
   }
 
