@@ -192,7 +192,7 @@ class _VideScaffoldState extends State<VideScaffold> {
                   .join(' ');
 
               final newAgentId = await session.spawnAgent(
-                role: role,
+                agentType: role,
                 name: displayName,
                 initialPrompt: 'You have been manually spawned by the user. Ask them what they need help with.',
                 spawnedBy: mainAgent.id,

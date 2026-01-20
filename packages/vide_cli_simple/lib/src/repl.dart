@@ -11,6 +11,7 @@ Future<void> runRepl({
   required VideCore core,
   required String workingDirectory,
   String? model,
+  required String team,
   String? initialMessage,
 }) async {
   final renderer = EventRenderer(useColors: stdout.hasTerminal);
@@ -43,11 +44,12 @@ Future<void> runRepl({
 
   // Start session if initial message provided
   if (initialMessage != null && initialMessage.isNotEmpty) {
-    stdout.writeln('Starting session...');
+    stdout.writeln('Starting session with team: $team...');
     session = await core.startSession(VideSessionConfig(
       workingDirectory: workingDirectory,
       initialMessage: initialMessage,
       model: model,
+      team: team,
     ));
     subscribeToSession(session);
 
@@ -123,11 +125,12 @@ Future<void> runRepl({
 
     // Send message
     if (session == null) {
-      stdout.writeln('Starting new session...');
+      stdout.writeln('Starting new session with team: $team...');
       session = await core.startSession(VideSessionConfig(
         workingDirectory: workingDirectory,
         initialMessage: input,
         model: model,
+        team: team,
       ));
       subscribeToSession(session);
     } else {

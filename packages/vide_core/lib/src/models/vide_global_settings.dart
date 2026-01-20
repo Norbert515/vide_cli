@@ -32,12 +32,20 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool ideModeEnabled;
 
+  /// Whether to skip all permission checks.
+  ///
+  /// DANGEROUS: Only use in sandboxed environments (Docker) where filesystem
+  /// isolation protects the host system. This bypasses ALL safety checks.
+  @JsonKey(defaultValue: false)
+  final bool dangerouslySkipPermissions;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
     this.enableStreaming = true,
     this.autoUpdatesEnabled = true,
     this.ideModeEnabled = false,
+    this.dangerouslySkipPermissions = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -53,6 +61,7 @@ class VideGlobalSettings {
     bool? enableStreaming,
     bool? autoUpdatesEnabled,
     bool? ideModeEnabled,
+    bool? dangerouslySkipPermissions,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -60,6 +69,8 @@ class VideGlobalSettings {
       enableStreaming: enableStreaming ?? this.enableStreaming,
       autoUpdatesEnabled: autoUpdatesEnabled ?? this.autoUpdatesEnabled,
       ideModeEnabled: ideModeEnabled ?? this.ideModeEnabled,
+      dangerouslySkipPermissions:
+          dangerouslySkipPermissions ?? this.dangerouslySkipPermissions,
     );
   }
 }

@@ -1,110 +1,61 @@
 ---
 name: enterprise
-description: Process-heavy, quality-focused. For production-critical and security-sensitive code.
+description: Process-heavy, quality-focused. For production-critical code.
 icon: 🏛️
 
-# Team composition - maps roles to agent personalities
-composition:
-  lead: cautious-lead
-  planner: thorough-planner
-  implementer: careful-implementer
-  reviewer: thorough-reviewer
-  tester: comprehensive-tester
+main-agent: main
+agents:
+  - researcher
+  - implementer
+  - tester
 
-# Process configuration
 process:
-  planning: thorough            # minimal | standard | thorough
-  review: required              # skip | optional | required
-  testing: comprehensive        # skip | smoke-only | recommended | comprehensive
-  documentation: full           # skip | inline-only | full
+  planning: thorough
+  review: required
+  testing: comprehensive
+  documentation: full
 
-# Communication style for this team
 communication:
-  verbosity: high               # low | medium | high
-  handoff-detail: comprehensive # minimal | standard | comprehensive
-  status-updates: continuous    # continuous | on-milestones | on-completion
+  verbosity: high
+  handoff-detail: comprehensive
+  status-updates: continuous
 
-# When to recommend this team
 triggers:
   - "production"
   - "security"
-  - "authentication"
-  - "authorization"
   - "payment"
-  - "billing"
   - "compliance"
-  - "audit"
-  - "public API"
-  - "breaking change"
   - "migration"
-  - "data"
 
-# When NOT to use
 anti-triggers:
   - "prototype"
-  - "experiment"
   - "quick"
-  - "hack"
 ---
 
 # Enterprise Team
 
-**Philosophy**: Measure twice, cut once. Quality and correctness over speed.
+Process-heavy workflow for production-critical code.
 
-## How This Team Works
+## Agents
 
-```
-User Request
-    ↓
-Lead: Thorough assessment + requirement clarification
-    ↓
-Planner: Detailed implementation plan
-    ↓
-User: Reviews and approves plan
-    ↓
-Implementer: Careful, methodical implementation
-    ↓
-Reviewer: Comprehensive code review
-    ↓
-Implementer: Address all feedback
-    ↓
-Tester: Full test coverage verification
-    ↓
-Lead: Final sign-off
-    ↓
-Done
-```
+Same agents as vide, but with more ceremony:
 
-## This Team Is Great For
+- **main** (Klaus) - Extra cautious, thorough assessment
+- **researcher** - Deep research before any implementation
+- **implementer** - Methodical, comprehensive error handling
+- **tester** - Full coverage verification
 
-- Production systems
-- Security-critical features
-- Payment and financial code
-- Data migrations
-- Public API changes
-- Compliance-required work
-- Anything with audit requirements
+## Workflow
 
-## This Team Is NOT For
-
-- Quick prototypes
-- Exploratory work
-- Internal tools
-- Time-sensitive hotfixes
+1. Thorough requirements gathering
+2. Detailed planning phase
+3. Careful implementation
+4. Comprehensive testing
+5. Documentation
 
 ## Quality Gates
 
-- All code must pass static analysis
-- All tests must pass
-- Code review approval required
-- Security considerations documented
+- All code passes static analysis
+- All tests pass
 - Error handling comprehensive
 - Edge cases covered
-- Documentation complete
-
-## Required Artifacts
-
-- Implementation plan (before coding)
-- Decision records (for architectural choices)
-- Test coverage report
-- Review approval

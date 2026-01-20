@@ -34,6 +34,12 @@ void main(List<String> args) async {
       help: 'Server port (default: 8080)',
       defaultsTo: '8080',
     )
+    ..addOption(
+      'team',
+      abbr: 't',
+      help: 'Team to use: vide-classic, enterprise, startup, balanced, research, ideator',
+      defaultsTo: 'vide-classic',
+    )
     ..addFlag(
       'help',
       abbr: 'h',
@@ -85,6 +91,7 @@ void main(List<String> args) async {
   final configDir = results['config-dir'] as String?;
   final serve = results['serve'] as bool;
   final port = int.tryParse(results['port'] as String) ?? 8080;
+  final team = results['team'] as String;
   final initialMessage = results.rest.join(' ');
 
   // Validate working directory
@@ -104,6 +111,7 @@ void main(List<String> args) async {
       workingDirectory: workingDir,
       model: model,
       port: port,
+      team: team,
       initialMessage: initialMessage.isEmpty ? null : initialMessage,
     );
   } else {
@@ -112,6 +120,7 @@ void main(List<String> args) async {
       core: core,
       workingDirectory: workingDir,
       model: model,
+      team: team,
       initialMessage: initialMessage.isEmpty ? null : initialMessage,
     );
   }
@@ -123,6 +132,7 @@ Future<void> runServeMode({
   required String workingDirectory,
   String? model,
   required int port,
+  required String team,
   String? initialMessage,
 }) async {
   final renderer = EventRenderer(useColors: stdout.hasTerminal);
@@ -142,6 +152,7 @@ Future<void> runServeMode({
     workingDirectory: workingDirectory,
     initialMessage: initialMessage,
     model: model,
+    team: team,
   ));
 
   // Subscribe to events and render to console

@@ -51,11 +51,24 @@ class VideSessionConfig {
   /// Defaults to 'ask' if not specified.
   final String? permissionMode;
 
+  /// Team to use: 'vide-classic', 'enterprise', 'startup', 'balanced', 'research', 'ideator'.
+  ///
+  /// Defaults to 'vide-classic' if not specified.
+  final String team;
+
+  /// Whether to skip all permission checks.
+  ///
+  /// DANGEROUS: Only use in sandboxed environments (Docker) where filesystem
+  /// isolation protects the host system. This bypasses ALL safety checks.
+  final bool dangerouslySkipPermissions;
+
   const VideSessionConfig({
     required this.workingDirectory,
     required this.initialMessage,
     this.model,
     this.permissionMode,
+    this.team = 'vide-classic',
+    this.dangerouslySkipPermissions = false,
   });
 }
 

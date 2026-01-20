@@ -143,11 +143,7 @@ Future<void> _loadAndApplyRealConfig({
       return;
     }
 
-    final mainAgentName = team.composition['lead'];
-    if (mainAgentName == null) {
-      print('Warning: Team "vide-classic" has no "lead" agent defined');
-      return;
-    }
+    final mainAgentName = team.mainAgent;
 
     final config = await teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,

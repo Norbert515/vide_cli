@@ -14,7 +14,6 @@ import 'claude_client_factory.dart';
 import 'claude_manager.dart';
 import 'posthog_service.dart';
 import 'team_framework_loader.dart';
-import '../state/agent_status_manager.dart';
 
 /// The state of the agent network manager - just tracks the current network
 class AgentNetworkState {
@@ -140,17 +139,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Team "$team" not found in team framework');
     }
 
-    final leadAgentName = teamDef.composition['lead'];
-    if (leadAgentName == null) {
-      throw Exception('Team "$team" has no "lead" agent defined');
-    }
+    final mainAgentName = teamDef.mainAgent;
 
     final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
-      leadAgentName,
+      mainAgentName,
       teamName: team,
     );
     if (leadConfig == null) {
-      throw Exception('Agent configuration not found for: $leadAgentName');
+      throw Exception('Agent configuration not found for: $mainAgentName');
     }
 
     // Create client synchronously - initialization happens in background
@@ -169,7 +165,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
-      name: leadConfig.name,  // Use the actual agent personality name (e.g., "cautious-lead")
+      name: 'Klaus',  // Main agent is always named Klaus
       type: 'main',
       createdAt: DateTime.now(),
     );
@@ -245,50 +241,43 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       }
     }
 
-    // Restore persisted status for each agent
-    for (final agent in updatedNetwork.agents) {
-      _ref.read(agentStatusProvider(agent.id).notifier).setStatus(agent.status);
-    }
+    // Note: Agent status is purely runtime state. On resume, all agents start
+    // as idle (the default) since nothing is running yet.
   }
 
-  /// Get the appropriate AgentConfiguration for a given agent type/role string.
+  /// Get the appropriate AgentConfiguration for a given agent type string.
   ///
   /// This method should not be called directly - it's for internal use during network resume.
   /// For new agents, use spawnAgent which handles team framework loading.
   ///
-  /// [type] - The agent type/role (e.g., 'main', 'implementer', 'thinker-creative')
+  /// [type] - The agent type (e.g., 'main', 'fork', or an agent personality name like 'solid-implementer')
   /// [teamName] - The team to use for looking up agent configurations.
   Future<AgentConfiguration> _getConfigurationForType(String type, {String? teamName}) async {
-    // Special cases for main/fork agents
-    final role = switch (type) {
-      'main' => 'lead',
-      'fork' => 'lead',
-      _ => type, // The type IS the role (e.g., 'implementer', 'thinker-creative')
-    };
-
     // Use provided team name, or fall back to network's team
     final effectiveTeamName = teamName ?? state.currentNetwork?.team;
     if (effectiveTeamName == null) {
       throw Exception('No team specified and no current network');
     }
 
-    // Get agent name from team composition
+    // Get team definition to find the agent name
     final team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
     if (team == null) {
       throw Exception('Team "$effectiveTeamName" not found in team framework');
     }
 
-    final agentName = team.composition[role];
-    if (agentName == null) {
-      throw Exception('Team "$effectiveTeamName" has no agent for role "$role"');
-    }
+    // Determine the agent personality name based on type
+    final agentName = switch (type) {
+      'main' => team.mainAgent,
+      'fork' => team.mainAgent,
+      _ => type, // The type IS the agent personality name
+    };
 
     final config = await _teamFrameworkLoader.buildAgentConfiguration(
       agentName,
       teamName: effectiveTeamName,
     );
     if (config == null) {
-      throw Exception('Agent configuration not found for: $agentName (role: $role)');
+      throw Exception('Agent configuration not found for: $agentName (type: $type)');
     }
 
     return config;
@@ -526,18 +515,18 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     claudeManager.sendMessage(message);
   }
 
-  /// Spawn a new agent into the current network by role name.
+  /// Spawn a new agent into the current network by agent type.
   ///
-  /// [role] - The role name from the team's composition (e.g., 'implementer', 'thinker-creative')
+  /// [agentType] - The agent personality name from the team's agents list (e.g., 'solid-implementer', 'deep-researcher')
   /// [name] - A short, human-readable name for the agent (required)
   /// [initialPrompt] - The initial message/task to send to the new agent
   /// [spawnedBy] - The ID of the agent that is spawning this one (for context)
   ///
   /// Returns the ID of the newly spawned agent.
   ///
-  /// Throws an exception if the role doesn't exist in the current team's composition.
+  /// Throws an exception if the agent type doesn't exist in the current team's agents list.
   Future<AgentId> spawnAgent({
-    required String role,
+    required String agentType,
     required String name,
     required String initialPrompt,
     required AgentId spawnedBy,
@@ -547,11 +536,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw StateError('No active network to spawn agent into');
     }
 
-    // Prevent spawning the lead role (that's the main agent)
-    if (role == 'lead') {
-      throw Exception('Cannot spawn a lead agent - use the main agent instead');
-    }
-
     // Load configuration from team framework using the network's team
     final teamName = network.team;
     final team = await _teamFrameworkLoader.getTeam(teamName);
@@ -559,26 +543,25 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Team "$teamName" not found in team framework');
     }
 
-    // Get agent name from team composition
-    final agentPersonalityName = team.composition[role];
-    if (agentPersonalityName == null) {
-      // List available roles for helpful error message
-      final availableRoles = team.composition.entries
-          .where((e) => e.value != null && e.key != 'lead')
-          .map((e) => e.key)
-          .toList();
+    // Prevent spawning the main agent type
+    if (agentType == team.mainAgent) {
+      throw Exception('Cannot spawn the main agent type "$agentType" - use the main agent instead');
+    }
+
+    // Validate that the agent type is in the team's agents list
+    if (!team.agents.contains(agentType)) {
       throw Exception(
-        'Team "$teamName" has no agent for role "$role". '
-        'Available roles: ${availableRoles.join(", ")}',
+        'Team "$teamName" does not have agent type "$agentType". '
+        'Available agent types: ${team.agents.join(", ")}',
       );
     }
 
     final config = await _teamFrameworkLoader.buildAgentConfiguration(
-      agentPersonalityName,
+      agentType,
       teamName: teamName,
     );
     if (config == null) {
-      throw Exception('Agent configuration not found for: $agentPersonalityName (role: $role)');
+      throw Exception('Agent configuration not found for: $agentType');
     }
 
     // Generate new agent ID
@@ -588,7 +571,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final metadata = AgentMetadata(
       id: newAgentId,
       name: name,
-      type: role, // Store the role as the type
+      type: agentType, // Store the agent type
       spawnedBy: spawnedBy,
       createdAt: DateTime.now(),
     );
@@ -597,7 +580,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     await addAgent(agentId: newAgentId, config: config, metadata: metadata);
 
     // Track analytics
-    PostHogService.agentSpawned(role);
+    PostHogService.agentSpawned(agentType);
 
     // Prepend context about who spawned this agent
     final contextualPrompt = '''[SPAWNED BY AGENT: $spawnedBy]
@@ -608,7 +591,7 @@ $initialPrompt''';
     sendMessage(newAgentId, Message.text(contextualPrompt));
 
     print(
-      '[AgentNetworkManager] Agent $spawnedBy spawned new $role agent "$name" ($agentPersonalityName): $newAgentId',
+      '[AgentNetworkManager] Agent $spawnedBy spawned new "$agentType" agent "$name": $newAgentId',
     );
 
     return newAgentId;

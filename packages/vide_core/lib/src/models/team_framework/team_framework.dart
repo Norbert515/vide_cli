@@ -2,12 +2,10 @@
 ///
 /// This library provides models for the Vide team framework:
 /// - Teams: How agents work together
-/// - Roles: What responsibilities agents have
 /// - Etiquette: How agents communicate
 /// - Personalities: Who the agents are
 library;
 
 export 'team_definition.dart';
-export 'role_definition.dart';
 export 'etiquette_protocol.dart';
 export 'agent_personality.dart';

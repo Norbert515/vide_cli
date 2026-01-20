@@ -9,7 +9,6 @@ class TestFixtures {
     String type = 'implementer',
     String? spawnedBy,
     DateTime? createdAt,
-    AgentStatus status = AgentStatus.idle,
     String? taskName,
   }) {
     return AgentMetadata(
@@ -18,7 +17,6 @@ class TestFixtures {
       type: type,
       spawnedBy: spawnedBy,
       createdAt: createdAt ?? DateTime.now(),
-      status: status,
       taskName: taskName,
     );
   }

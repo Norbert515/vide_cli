@@ -138,6 +138,7 @@ class VideCore {
       workingDirectory: config.workingDirectory,
       model: config.model,
       permissionMode: config.permissionMode,
+      team: config.team,
     );
 
     // Create and return the session

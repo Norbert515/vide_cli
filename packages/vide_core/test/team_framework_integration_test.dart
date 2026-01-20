@@ -193,11 +193,6 @@ void main() {
         expect(etiquette.isNotEmpty, true);
       });
 
-      test('all roles can be loaded', () async {
-        final roles = await loader.loadRoles();
-        expect(roles.isNotEmpty, true);
-      });
-
       test('all teams can be loaded', () async {
         final teams = await loader.loadTeams();
         expect(teams.isNotEmpty, true);

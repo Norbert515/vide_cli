@@ -13,6 +13,8 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       enableStreaming: json['enableStreaming'] as bool? ?? true,
       autoUpdatesEnabled: json['autoUpdatesEnabled'] as bool? ?? true,
       ideModeEnabled: json['ideModeEnabled'] as bool? ?? false,
+      dangerouslySkipPermissions:
+          json['dangerouslySkipPermissions'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
@@ -22,4 +24,5 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'enableStreaming': instance.enableStreaming,
       'autoUpdatesEnabled': instance.autoUpdatesEnabled,
       'ideModeEnabled': instance.ideModeEnabled,
+      'dangerouslySkipPermissions': instance.dangerouslySkipPermissions,
     };

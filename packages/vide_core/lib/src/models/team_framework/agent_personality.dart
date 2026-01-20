@@ -3,7 +3,6 @@ import 'package:yaml/yaml.dart';
 /// Represents an agent personality loaded from a .md file.
 ///
 /// This extends the basic Claude Code agent format with team framework fields:
-/// - Role assignment
 /// - Archetype (personality type)
 /// - Behavioral traits
 /// - Things to avoid
@@ -13,7 +12,6 @@ class AgentPersonality {
     required this.name,
     required this.description,
     required this.filePath,
-    this.role,
     this.archetype,
     this.tools = const [],
     this.mcpServers = const [],
@@ -34,9 +32,6 @@ class AgentPersonality {
 
   /// Path to the source markdown file
   final String filePath;
-
-  /// Role this agent is designed for (e.g., "lead", "implementer")
-  final String? role;
 
   /// Personality archetype (e.g., "pragmatist", "guardian", "explorer")
   final String? archetype;
@@ -100,7 +95,6 @@ class AgentPersonality {
       name: name,
       description: description,
       filePath: filePath,
-      role: yaml['role'] as String?,
       archetype: yaml['archetype'] as String?,
       tools: _parseStringList(yaml['tools']),
       mcpServers: _parseStringList(yaml['mcpServers']),
@@ -120,7 +114,6 @@ class AgentPersonality {
       name: name,
       description: description,
       filePath: filePath,
-      role: role ?? base.role,
       archetype: archetype ?? base.archetype,
       tools: tools.isNotEmpty ? tools : base.tools,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : base.mcpServers,
@@ -136,7 +129,7 @@ class AgentPersonality {
 
   @override
   String toString() {
-    return 'AgentPersonality(name: $name, role: $role, archetype: $archetype)';
+    return 'AgentPersonality(name: $name, archetype: $archetype)';
   }
 }
 

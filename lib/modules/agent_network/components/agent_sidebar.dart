@@ -97,6 +97,21 @@ class _AgentSidebarState extends State<AgentSidebar>
         component.expanded ? component.width.toDouble() : _collapsedWidth,
       );
     }
+
+    // When sidebar gains focus, ensure selection is on a valid selectable item
+    if (component.focused && !old.focused) {
+      final networkState = context.read(agentNetworkManagerProvider);
+      final teamDef = context.read(currentTeamDefinitionProvider).valueOrNull;
+      final items = _buildItems(networkState.agents, teamDef);
+
+      // If current selection is on a header, move to first selectable item
+      if (items.isNotEmpty && _selectedIndex < items.length && items[_selectedIndex].isHeader) {
+        final firstSelectableIndex = items.indexWhere((item) => !item.isHeader);
+        if (firstSelectableIndex != -1) {
+          setState(() => _selectedIndex = firstSelectableIndex);
+        }
+      }
+    }
   }
 
   void _animateToWidth(double targetWidth) {
@@ -125,18 +140,11 @@ class _AgentSidebarState extends State<AgentSidebar>
       }
     }
 
-    // Section 2: Team Composition (from team definition)
-    if (teamDef != null) {
-      // Get roles that have agents assigned (non-null values)
-      final rolesWithAgents = teamDef.composition.entries
-          .where((e) => e.value != null)
-          .toList();
-
-      if (rolesWithAgents.isNotEmpty) {
-        items.add(_SidebarItem.header('Team Roles'));
-        for (final entry in rolesWithAgents) {
-          items.add(_SidebarItem.teamRole(entry.key, entry.value!));
-        }
+    // Section 2: Team Agents (available agent types to spawn)
+    if (teamDef != null && teamDef.agents.isNotEmpty) {
+      items.add(_SidebarItem.header('Team Agents'));
+      for (final agentType in teamDef.agents) {
+        items.add(_SidebarItem.teamRole(agentType, agentType));
       }
     }
 
@@ -519,8 +527,8 @@ class _AgentSidebarState extends State<AgentSidebar>
     VideThemeData theme,
     int availableWidth,
   ) {
-    // Get agent status
-    final status = agent.status;
+    // Get agent status from the provider (not agent.status which is stale)
+    final status = context.watch(agentStatusProvider(agent.id));
 
     // Infer actual status (similar to RunningAgentsBar)
     final claudeStatusAsync = context.watch(claudeStatusProvider(agent.id));

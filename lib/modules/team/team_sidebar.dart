@@ -122,7 +122,8 @@ class _TeamSidebarState extends State<TeamSidebar>
             'name': teamDef.name,
             'description': teamDef.description,
             'icon': teamDef.icon,
-            'composition': teamDef.composition,
+            'mainAgent': teamDef.mainAgent,
+            'agents': teamDef.agents,
             'process': teamDef.process,
             'communication': teamDef.communication,
           };
@@ -375,31 +376,39 @@ class _TeamSidebarState extends State<TeamSidebar>
 
     content.add(SizedBox(height: 1));
 
-    // Composition
-    final composition = data['composition'] as Map<String, String?>? ?? {};
-    if (composition.isNotEmpty) {
+    // Agents list
+    final agents = data['agents'] as List<String>? ?? [];
+    final mainAgentName = data['mainAgent'] as String?;
+
+    content.add(Container(
+      padding: EdgeInsets.only(left: 1),
+      child: Text(
+        'Team Agents:',
+        style: TextStyle(
+          color: theme.base.onSurface,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    ));
+
+    if (mainAgentName != null) {
       content.add(Container(
-        padding: EdgeInsets.only(left: 1),
+        padding: EdgeInsets.only(left: 2),
         child: Text(
-          'Composition:',
-          style: TextStyle(
-            color: theme.base.onSurface,
-            fontWeight: FontWeight.bold,
-          ),
+          '• lead: $mainAgentName',
+          style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
         ),
       ));
+    }
 
-      for (final entry in composition.entries) {
-        final roleLabel = entry.key;
-        final agentLabel = entry.value ?? 'unassigned';
-        content.add(Container(
-          padding: EdgeInsets.only(left: 2),
-          child: Text(
-            '• $roleLabel: $agentLabel',
-            style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
-          ),
-        ));
-      }
+    for (final agentType in agents) {
+      content.add(Container(
+        padding: EdgeInsets.only(left: 2),
+        child: Text(
+          '• $agentType',
+          style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+        ),
+      ));
     }
 
     return Column(children: content);

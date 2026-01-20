@@ -73,6 +73,13 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     return configManager.readGlobalSettings().enableStreaming;
   }
 
+  /// Gets the dangerouslySkipPermissions setting from global settings.
+  /// DANGEROUS: Only true in sandboxed environments (Docker).
+  bool get _dangerouslySkipPermissions {
+    final configManager = _ref.read(videConfigManagerProvider);
+    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+  }
+
   @override
   ClaudeClient createSync({
     required AgentId agentId,
@@ -85,6 +92,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       workingDirectory: cwd,
       sessionId: agentId.toString(),
       enableStreaming: _enableStreaming,
+      dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
     final mcpServers = config.mcpServers
@@ -129,6 +137,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       workingDirectory: cwd,
       sessionId: agentId.toString(),
       enableStreaming: _enableStreaming,
+      dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
     final mcpServers = config.mcpServers
@@ -177,6 +186,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       workingDirectory: cwd,
       sessionId: agentId.toString(),
       enableStreaming: _enableStreaming,
+      dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
     // Apply fork settings
