@@ -14,6 +14,7 @@ class AgentPersonality {
     required this.filePath,
     this.archetype,
     this.tools = const [],
+    this.disallowedTools = const [],
     this.mcpServers = const [],
     this.model,
     this.permissionMode,
@@ -36,8 +37,11 @@ class AgentPersonality {
   /// Personality archetype (e.g., "pragmatist", "guardian", "explorer")
   final String? archetype;
 
-  /// Tools this agent can access
+  /// Tools this agent can access (additive - for permission purposes)
   final List<String> tools;
+
+  /// Tools this agent should NOT have access to (restrictive - actually removes tools)
+  final List<String> disallowedTools;
 
   /// MCP servers this agent can access
   final List<String> mcpServers;
@@ -97,6 +101,7 @@ class AgentPersonality {
       filePath: filePath,
       archetype: yaml['archetype'] as String?,
       tools: _parseStringList(yaml['tools']),
+      disallowedTools: _parseStringList(yaml['disallowedTools']),
       mcpServers: _parseStringList(yaml['mcpServers']),
       model: yaml['model'] as String?,
       permissionMode: yaml['permissionMode'] as String?,
@@ -116,6 +121,7 @@ class AgentPersonality {
       filePath: filePath,
       archetype: archetype ?? base.archetype,
       tools: tools.isNotEmpty ? tools : base.tools,
+      disallowedTools: disallowedTools.isNotEmpty ? disallowedTools : base.disallowedTools,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : base.mcpServers,
       model: model ?? base.model,
       permissionMode: permissionMode ?? base.permissionMode,
