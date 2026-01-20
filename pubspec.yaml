@@ -16,7 +16,6 @@ workspace:
   - packages/vide_core
   - packages/vide_server
   - packages/vide_cli_simple
-  - packages/vide_experiments
 
 dependencies:
   nocterm:
