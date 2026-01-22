@@ -1,5 +1,7 @@
 ---
 name: implementer
+display-name: Bert
+short-description: Writes and fixes code
 description: Implementation agent. Writes and edits code. Runs verification before completion.
 
 tools: Read, Write, Edit, Grep, Glob, Bash

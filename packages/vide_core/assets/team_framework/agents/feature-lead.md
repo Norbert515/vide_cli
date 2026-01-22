@@ -1,5 +1,7 @@
 ---
 name: feature-lead
+display-name: Aria
+short-description: Leads a feature team
 description: Owns a feature end-to-end. Spawns and coordinates their own team. Reports progress to enterprise-lead.
 
 tools: Read, Grep, Glob

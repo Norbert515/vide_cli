@@ -17,6 +17,8 @@ class AgentMetadata {
     required this.createdAt,
     this.taskName,
     this.sessionId,
+    this.shortDescription,
+    this.teamTag,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -49,6 +51,13 @@ class AgentMetadata {
   /// The current task name for this agent (set via setAgentTaskName MCP tool)
   final String? taskName;
 
+  /// Short description of what this agent type does (from agent personality markdown)
+  final String? shortDescription;
+
+  /// Optional team tag this agent belongs to (from agent personality markdown)
+  /// If null, agent belongs to the root network (no sub-team).
+  final String? teamTag;
+
   /// Total input tokens used by this agent
   final int totalInputTokens;
 
@@ -79,6 +88,8 @@ class AgentMetadata {
     DateTime? createdAt,
     String? taskName,
     String? sessionId,
+    String? shortDescription,
+    String? teamTag,
     int? totalInputTokens,
     int? totalOutputTokens,
     int? totalCacheReadInputTokens,
@@ -93,6 +104,8 @@ class AgentMetadata {
       createdAt: createdAt ?? this.createdAt,
       taskName: taskName ?? this.taskName,
       sessionId: sessionId ?? this.sessionId,
+      shortDescription: shortDescription ?? this.shortDescription,
+      teamTag: teamTag ?? this.teamTag,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
       totalCacheReadInputTokens:
@@ -112,6 +125,8 @@ class AgentMetadata {
       'createdAt': createdAt.toIso8601String(),
       'taskName': taskName,
       'sessionId': sessionId,
+      'shortDescription': shortDescription,
+      'teamTag': teamTag,
       'totalInputTokens': totalInputTokens,
       'totalOutputTokens': totalOutputTokens,
       'totalCacheReadInputTokens': totalCacheReadInputTokens,
@@ -129,6 +144,8 @@ class AgentMetadata {
       createdAt: DateTime.parse(json['createdAt'] as String),
       taskName: json['taskName'] as String?,
       sessionId: json['sessionId'] as String?,
+      shortDescription: json['shortDescription'] as String?,
+      teamTag: json['teamTag'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
       totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
       totalCacheReadInputTokens:

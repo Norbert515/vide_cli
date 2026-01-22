@@ -141,6 +141,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     final mainAgentName = teamDef.mainAgent;
 
+    // Load the main agent personality to get display name and description
+    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(mainAgentName);
+
     final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,
       teamName: team,
@@ -163,11 +166,16 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       mainAgentClaudeClient.setModel(model);
     }
 
+    // Use display name from personality, fallback to 'Klaus'
+    final mainAgentDisplayName = mainAgentPersonality?.effectiveDisplayName ?? 'Klaus';
+
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
-      name: 'Klaus',  // Main agent is always named Klaus
+      name: mainAgentDisplayName,
       type: 'main',
       createdAt: DateTime.now(),
+      shortDescription: mainAgentPersonality?.shortDescription,
+      teamTag: mainAgentPersonality?.team,
     );
 
     final network = AgentNetwork(
@@ -574,6 +582,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       );
     }
 
+    // Load the agent personality to get display name and short description
+    final personality = await _teamFrameworkLoader.getAgent(agentType);
+
     final config = await _teamFrameworkLoader.buildAgentConfiguration(
       agentType,
       teamName: teamName,
@@ -585,13 +596,19 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Generate new agent ID
     final newAgentId = const Uuid().v4();
 
+    // Use display name from personality, fallback to provided name
+    final baseName = personality?.effectiveDisplayName ?? name;
+    final uniqueName = _generateUniqueName(baseName, network.agents);
+
     // Create metadata for the new agent
     final metadata = AgentMetadata(
       id: newAgentId,
-      name: name,
+      name: uniqueName,
       type: agentType, // Store the agent type
       spawnedBy: spawnedBy,
       createdAt: DateTime.now(),
+      shortDescription: personality?.shortDescription,
+      teamTag: personality?.team,
     );
 
     // Add agent to network with metadata
@@ -609,10 +626,28 @@ $initialPrompt''';
     sendMessage(newAgentId, Message.text(contextualPrompt));
 
     print(
-      '[AgentNetworkManager] Agent $spawnedBy spawned new "$agentType" agent "$name": $newAgentId',
+      '[AgentNetworkManager] Agent $spawnedBy spawned new "$agentType" agent "$uniqueName": $newAgentId',
     );
 
     return newAgentId;
+  }
+
+  /// Generate a unique display name for an agent.
+  ///
+  /// Uses the base name from the personality, appending a number if duplicate.
+  /// Example: "Bert", "Bert 2", "Bert 3"
+  String _generateUniqueName(String baseName, List<AgentMetadata> existingAgents) {
+    final existingNames = existingAgents.map((a) => a.name).toSet();
+
+    if (!existingNames.contains(baseName)) {
+      return baseName;
+    }
+
+    var counter = 2;
+    while (existingNames.contains('$baseName $counter')) {
+      counter++;
+    }
+    return '$baseName $counter';
   }
 
   /// Terminate an agent and remove it from the network.

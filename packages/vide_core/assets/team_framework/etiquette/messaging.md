@@ -8,6 +8,24 @@ applies-to: all
 
 Agents communicate via `sendMessageToAgent`. This protocol ensures messages are clear, actionable, and properly received.
 
+## IMPORTANT: Use vide-agent MCP, NOT Built-in Task Tool
+
+**NEVER use the built-in `Task` tool to spawn agents or delegate work.**
+
+Always use the `vide-agent` MCP tools instead:
+- `spawnAgent` - Create a new agent in the network
+- `sendMessageToAgent` - Communicate with other agents
+- `setAgentStatus` - Update your status
+- `terminateAgent` - Clean up agents when done
+
+The built-in Task tool creates isolated subprocesses that:
+- Cannot communicate with the agent network
+- Cannot be monitored in the UI
+- Cannot receive messages from other agents
+- Are invisible to the orchestration system
+
+**Always use `mcp__vide-agent__spawnAgent`, never `Task`.**
+
 ## The Golden Rule
 
 **If someone asks you to report back, you MUST call `sendMessageToAgent`.**

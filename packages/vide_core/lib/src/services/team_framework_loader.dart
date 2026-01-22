@@ -213,6 +213,7 @@ class TeamFrameworkLoader {
           'vide-task-management' || 'task-management' || 'task_management' =>
             McpServerType.taskManagement,
           'flutter-runtime' || 'flutterruntime' => McpServerType.flutterRuntime,
+          'vide-knowledge' || 'knowledge' => McpServerType.knowledge,
           _ => null,
         };
 
