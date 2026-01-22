@@ -658,7 +658,7 @@ Instance ID: $instanceId
     // Flutter Screenshot
     server.tool(
       'flutterScreenshot',
-      description: 'Take a screenshot of a running Flutter instance',
+      description: 'Take a screenshot of a running Flutter instance. Use sparingly - prefer flutterGetElements for understanding UI state. Screenshots are useful for: debugging visual issues, verifying layouts, or when semantic info is insufficient.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {
@@ -718,7 +718,7 @@ Instance ID: $instanceId
     server.tool(
       'flutterAct',
       description:
-          'Perform an action on a Flutter UI element by describing it in natural language. Uses vision AI (Moondream) to locate the element. Returns a screenshot after the action.',
+          'Perform an action on a Flutter UI element by describing it in natural language. Uses vision AI (Moondream) to locate the element. PREFER flutterGetElements + flutterTapElement instead - they are faster and more reliable. Use flutterAct only when elements lack proper semantics/labels.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {
@@ -902,28 +902,14 @@ Instance ID: $instanceId
           final success = await instance.tap(x, y);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed $action on "$description" at coordinates ($x, $y)',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after action
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Tap command returned false')],
+              content: [TextContent(text: 'Error: Tap failed')],
             );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
@@ -1124,28 +1110,14 @@ Instance ID: $instanceId
           final success = await instance.tap(x, y);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed tap at coordinates ($x, $y) [from normalized ($coordinateX, $coordinateY)]',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after tap
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Tap command returned false')],
+              content: [TextContent(text: 'Error: Tap failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1159,6 +1131,143 @@ Instance ID: $instanceId
             content: [
               TextContent(
                 text: 'Error: Failed to perform tap: $e\n$stackTrace',
+              ),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Elements - Get all actionable UI elements
+    server.tool(
+      'flutterGetElements',
+      description:
+          'Get all visible actionable UI elements (buttons, text fields, checkboxes, etc.) in the Flutter app. This is the PRIMARY tool for understanding the UI state - use it instead of screenshots. Returns element IDs for use with flutterTapElement. Only elements on the current screen/route are returned (Navigator routes are properly filtered).',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          final result = await instance.getActionableElements();
+          return CallToolResult.fromContent(
+            content: [TextContent(text: _formatElements(result))],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetElements',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Failed to get elements: $e',
+              ),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Tap Element - Tap an element by ID
+    server.tool(
+      'flutterTapElement',
+      description:
+          'Tap an element by its ID from flutterGetElements. This is the PREFERRED way to interact with UI - faster and more reliable than vision AI. Call flutterGetElements after to verify the action worked.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'elementId': {
+            'type': 'string',
+            'description':
+                'ID of the element to tap (e.g., "button_0", "textfield_1"). Get IDs from flutterGetElements.',
+          },
+        },
+        required: ['instanceId', 'elementId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final elementId = args['elementId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (elementId == null || elementId.isEmpty) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: elementId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print('🎯 [FlutterRuntimeServer] Tapping element: $elementId');
+
+          final success = await instance.tapElement(elementId);
+
+          if (success) {
+            // Automatically get updated elements after tap
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
+          } else {
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: Tap failed')],
+            );
+          }
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterTapElement',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Failed to tap element: $e',
               ),
             ],
           );
@@ -1218,27 +1327,14 @@ Instance ID: $instanceId
           final success = await instance.type(text);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(text: 'Successfully typed text: "$text"'),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after typing
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Type command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Type failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1466,30 +1562,14 @@ For example:
           );
 
           if (success) {
-            // Wait for UI to update and animations to complete
-            await Future.delayed(const Duration(milliseconds: 500));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed scroll: "$instruction" at ($startX, $startY) with delta ($dx, $dy)',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after scroll
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Scroll command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Scroll failed')],
             );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
@@ -1736,30 +1816,14 @@ For example:
           );
 
           if (success) {
-            // Wait for UI to update and animations to complete
-            await Future.delayed(const Duration(milliseconds: 500));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed scroll at ($startX, $startY) with delta ($dx, $dy) [from normalized start=($normalizedStartX, $normalizedStartY), delta=($normalizedDx, $normalizedDy)]',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after scroll
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Scroll command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Scroll failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1978,19 +2042,13 @@ For example:
           // Move the cursor
           await instance.moveCursor(logicalX, logicalY);
 
-          // Take screenshot to show result
-          final resultScreenshot = await instance.screenshot();
-          final content = <Content>[
-            TextContent(
-              text: 'Cursor moved to ($logicalX, $logicalY) using $locationSource.\n\nUse flutterGetWidgetInfo to inspect widgets at this position.',
-            ),
-          ];
-
-          if (resultScreenshot != null) {
-            content.add(_createScreenshotContent(resultScreenshot));
-          }
-
-          return CallToolResult.fromContent(content: content);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Cursor moved to ($logicalX, $logicalY) using $locationSource. Use flutterGetWidgetInfo to inspect widgets at this position.',
+              ),
+            ],
+          );
         } catch (e, stackTrace) {
           await _reportError(
             e,
@@ -2189,6 +2247,30 @@ For example:
     }
 
     return result;
+  }
+
+  /// Format elements list as compact text
+  String _formatElements(Map<String, dynamic> result) {
+    final elements = result['elements'] as List<dynamic>? ?? [];
+    if (elements.isEmpty) {
+      return '(no elements)';
+    }
+
+    final buffer = StringBuffer();
+    for (final element in elements) {
+      final id = element['id'] as String?;
+      final type = element['type'] as String?;
+      final label = element['label'] as String?;
+      final enabled = element['enabled'];
+      final checked = element['checked'];
+
+      buffer.write('- $id ($type)');
+      if (label != null && label.isNotEmpty) buffer.write(': "$label"');
+      if (enabled == false) buffer.write(' [disabled]');
+      if (checked != null) buffer.write(' [${checked ? '✓' : '○'}]');
+      buffer.writeln();
+    }
+    return buffer.toString().trimRight();
   }
 
   /// Get a Flutter instance by ID for direct stream access

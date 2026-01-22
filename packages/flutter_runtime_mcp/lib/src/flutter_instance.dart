@@ -679,6 +679,110 @@ class FlutterInstance {
     throw Exception('getCursorPosition failed: ${json['error'] ?? json['status']}');
   }
 
+  /// Get all actionable elements in the current UI.
+  ///
+  /// Returns a list of interactive elements (buttons, text fields, etc.)
+  /// that can be interacted with by ID using [tapElement].
+  ///
+  /// Each element contains:
+  /// - id: Unique identifier for interaction (e.g., "button_0", "textfield_1")
+  /// - type: Element type (button, textfield, checkbox, etc.)
+  /// - label: Text label or content (if available)
+  /// - Additional type-specific properties (hint, checked, enabled, etc.)
+  Future<Map<String, dynamic>> getActionableElements() async {
+    print('🔍 [FlutterInstance] Getting actionable elements');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getActionableElements',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getActionableElements',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getActionableElements timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.getActionableElements',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getActionableElements returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      final elements = json['elements'] as List<dynamic>? ?? [];
+      print('✅ [FlutterInstance] Found ${elements.length} actionable elements');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getActionableElements failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Tap an element by its ID.
+  ///
+  /// The ID must be from a previous call to [getActionableElements].
+  /// This internally looks up the element's coordinates and performs the tap.
+  ///
+  /// Returns true if successful, throws exception if element not found.
+  Future<bool> tapElement(String elementId) async {
+    print('🎯 [FlutterInstance] Tapping element: $elementId');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    // First, look up the element's coordinates
+    print('🔧 [FlutterInstance] Looking up element coordinates');
+    final lookupResponse = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.tapElement',
+          isolateId: isolateId,
+          args: {'id': elementId},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'tapElement lookup timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final lookupJson = lookupResponse.json;
+    if (lookupJson == null || lookupJson['status'] != 'success') {
+      throw Exception(
+        'Element not found: $elementId. Call getActionableElements first to refresh the registry.',
+      );
+    }
+
+    // Get coordinates and tap
+    final x = (lookupJson['x'] as num).toDouble();
+    final y = (lookupJson['y'] as num).toDouble();
+    print('   Found element at ($x, $y), performing tap...');
+
+    return tap(x, y);
+  }
+
   /// Perform hot reload using the VM Service
   ///
   /// Calls the 'reloadSources' service registered by Flutter Tools.
