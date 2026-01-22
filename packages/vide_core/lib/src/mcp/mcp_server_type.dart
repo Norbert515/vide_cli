@@ -26,6 +26,10 @@ sealed class McpServerType {
   /// Figma design MCP server (figma-remote-mcp)
   static const figma = _BuiltInMcpServer._('figma-remote-mcp');
 
+  /// Knowledge base MCP server (vide-knowledge)
+  /// Provides tools for reading/writing persistent knowledge documents
+  static const knowledge = _BuiltInMcpServer._('vide-knowledge');
+
   /// Custom MCP server referenced by name
   ///
   /// Use this for external MCP servers not managed by Vide CLI.

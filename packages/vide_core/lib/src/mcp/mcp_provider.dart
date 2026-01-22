@@ -3,6 +3,7 @@ import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'agent/agent_mcp_server.dart';
 import 'ask_user_question/ask_user_question_server.dart';
 import 'git/git_server.dart';
+import 'knowledge/knowledge_mcp_server.dart';
 import 'mcp_server_type.dart';
 import 'task_management/task_management_server.dart';
 import 'package:riverpod/riverpod.dart';
@@ -58,6 +59,10 @@ final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpSer
     McpServerType.taskManagement => ref.watch(taskManagementServerProvider(params.agentId)),
     McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(params.agentId)),
     McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(params.agentId)),
+    McpServerType.knowledge => ref.watch(knowledgeServerProvider(KnowledgeServerParams(
+        agentId: params.agentId,
+        projectPath: params.projectPath,
+      ))),
     _ => throw Exception('MCP server type not supported: ${params.mcpServerType}'),
   };
 });

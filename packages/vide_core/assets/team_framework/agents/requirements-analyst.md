@@ -1,5 +1,7 @@
 ---
 name: requirements-analyst
+display-name: Nova
+short-description: Clarifies requirements deeply
 description: Deep requirements analysis. Ensures problem is crystal clear before any solution work begins.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch

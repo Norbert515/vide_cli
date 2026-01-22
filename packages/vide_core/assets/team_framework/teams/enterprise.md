@@ -11,6 +11,8 @@ agents:
   - implementer
   - researcher
   - qa-breaker
+  - session-synthesizer
+  - code-reviewer
 
 process:
   planning: thorough
@@ -39,6 +41,15 @@ anti-triggers:
   - "quick"
   - "hack"
   - "experiment"
+
+# Lifecycle triggers - spawn agents at specific points
+lifecycle-triggers:
+  onSessionEnd:
+    enabled: true
+    spawn: session-synthesizer
+  onTaskComplete:
+    enabled: true
+    spawn: code-reviewer
 ---
 
 # Enterprise Team

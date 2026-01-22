@@ -1,5 +1,29 @@
 import 'package:yaml/yaml.dart';
 
+/// Configuration for a lifecycle trigger that spawns an agent.
+class LifecycleTriggerConfig {
+  const LifecycleTriggerConfig({
+    required this.enabled,
+    required this.spawn,
+  });
+
+  /// Whether this trigger is enabled
+  final bool enabled;
+
+  /// Agent type to spawn when trigger fires
+  final String spawn;
+
+  factory LifecycleTriggerConfig.fromYaml(Map<String, dynamic> yaml) {
+    return LifecycleTriggerConfig(
+      enabled: yaml['enabled'] as bool? ?? true,
+      spawn: yaml['spawn'] as String? ?? '',
+    );
+  }
+
+  @override
+  String toString() => 'LifecycleTriggerConfig(enabled: $enabled, spawn: $spawn)';
+}
+
 /// Represents a team composition loaded from a .md file.
 ///
 /// Teams define how agents work together, including:
@@ -8,6 +32,7 @@ import 'package:yaml/yaml.dart';
 /// - Process configuration (planning, review, testing levels)
 /// - Communication style settings
 /// - Trigger patterns for team selection
+/// - Lifecycle triggers that spawn agents at specific points
 class TeamDefinition {
   const TeamDefinition({
     required this.name,
@@ -20,6 +45,7 @@ class TeamDefinition {
     this.communication = const CommunicationConfig(),
     this.triggers = const [],
     this.antiTriggers = const [],
+    this.lifecycleTriggers = const {},
     this.content = '',
   });
 
@@ -52,6 +78,10 @@ class TeamDefinition {
 
   /// Keywords that suggest this team should NOT be used
   final List<String> antiTriggers;
+
+  /// Lifecycle triggers that spawn agents at specific points.
+  /// Keys are trigger point names (e.g., "onSessionEnd", "onTaskComplete").
+  final Map<String, LifecycleTriggerConfig> lifecycleTriggers;
 
   /// The markdown body content (team description/philosophy)
   final String content;
@@ -114,6 +144,21 @@ class TeamDefinition {
     final antiTriggersYaml = yaml['anti-triggers'] as YamlList?;
     final antiTriggers = antiTriggersYaml?.cast<String>().toList() ?? [];
 
+    // Parse lifecycle triggers
+    final lifecycleTriggersYaml = yaml['lifecycle-triggers'] as YamlMap?;
+    final lifecycleTriggers = <String, LifecycleTriggerConfig>{};
+    if (lifecycleTriggersYaml != null) {
+      for (final entry in lifecycleTriggersYaml.entries) {
+        final triggerName = entry.key as String;
+        final triggerYaml = entry.value;
+        if (triggerYaml is YamlMap) {
+          lifecycleTriggers[triggerName] = LifecycleTriggerConfig.fromYaml(
+            Map<String, dynamic>.from(triggerYaml),
+          );
+        }
+      }
+    }
+
     return TeamDefinition(
       name: name,
       description: description,
@@ -125,6 +170,7 @@ class TeamDefinition {
       communication: communication,
       triggers: triggers,
       antiTriggers: antiTriggers,
+      lifecycleTriggers: lifecycleTriggers,
       content: body.trim(),
     );
   }

@@ -1,5 +1,7 @@
 ---
 name: researcher
+display-name: Rex
+short-description: Explores and investigates
 description: Research agent. Explores codebases, gathers context. Read-only.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch

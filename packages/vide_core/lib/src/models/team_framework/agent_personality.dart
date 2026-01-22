@@ -12,6 +12,9 @@ class AgentPersonality {
     required this.name,
     required this.description,
     required this.filePath,
+    this.displayName,
+    this.shortDescription,
+    this.team,
     this.archetype,
     this.tools = const [],
     this.disallowedTools = const [],
@@ -25,8 +28,19 @@ class AgentPersonality {
     this.content = '',
   });
 
-  /// Unique identifier for the agent (e.g., "pragmatic-lead")
+  /// Unique identifier for the agent (e.g., "implementer", "researcher")
   final String name;
+
+  /// Display name shown in UI (e.g., "Bert", "Rex", "Sage")
+  /// If not set, falls back to [name]
+  final String? displayName;
+
+  /// Short description shown next to name in UI (e.g., "Writes and fixes code")
+  final String? shortDescription;
+
+  /// Optional team tag this agent belongs to.
+  /// If null, agent belongs to the root network (no sub-team).
+  final String? team;
 
   /// Description of when to use this agent
   final String description;
@@ -99,6 +113,9 @@ class AgentPersonality {
       name: name,
       description: description,
       filePath: filePath,
+      displayName: yaml['display-name'] as String?,
+      shortDescription: yaml['short-description'] as String?,
+      team: yaml['team'] as String?,
       archetype: yaml['archetype'] as String?,
       tools: _parseStringList(yaml['tools']),
       disallowedTools: _parseStringList(yaml['disallowedTools']),
@@ -119,6 +136,9 @@ class AgentPersonality {
       name: name,
       description: description,
       filePath: filePath,
+      displayName: displayName ?? base.displayName,
+      shortDescription: shortDescription ?? base.shortDescription,
+      team: team ?? base.team,
       archetype: archetype ?? base.archetype,
       tools: tools.isNotEmpty ? tools : base.tools,
       disallowedTools: disallowedTools.isNotEmpty ? disallowedTools : base.disallowedTools,
@@ -132,6 +152,9 @@ class AgentPersonality {
       content: '${base.content}\n\n${content}',
     );
   }
+
+  /// Get the effective display name (displayName or fallback to name)
+  String get effectiveDisplayName => displayName ?? name;
 
   @override
   String toString() {
