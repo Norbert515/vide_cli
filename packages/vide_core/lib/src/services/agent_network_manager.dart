@@ -14,6 +14,7 @@ import 'claude_client_factory.dart';
 import 'claude_manager.dart';
 import 'posthog_service.dart';
 import 'team_framework_loader.dart';
+import 'trigger_service.dart';
 
 /// The state of the agent network manager - just tracks the current network
 class AgentNetworkState {
@@ -208,6 +209,21 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Send the initial message - it will be queued until client is ready
     mainAgentClaudeClient.sendMessage(initialMessage);
+
+    // Fire onSessionStart trigger in background (don't block startup)
+    () async {
+      try {
+        final triggerService = _ref.read(triggerServiceProvider);
+        final context = TriggerContext(
+          triggerPoint: TriggerPoint.onSessionStart,
+          network: network,
+          teamName: team,
+        );
+        await triggerService.fire(context);
+      } catch (e) {
+        print('[AgentNetworkManager] Error firing onSessionStart trigger: $e');
+      }
+    }();
 
     return network;
   }
@@ -842,5 +858,61 @@ $message''';
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
     return newAgentId;
+  }
+
+  /// Fire the onSessionEnd trigger for the current network.
+  ///
+  /// Call this when the session is being closed or disposed.
+  /// This will spawn any configured agents (e.g., session-synthesizer).
+  ///
+  /// Returns the spawned agent ID if a trigger was configured and fired,
+  /// or null if no trigger was configured or firing failed.
+  Future<AgentId?> fireSessionEndTrigger() async {
+    final network = state.currentNetwork;
+    if (network == null) {
+      print('[AgentNetworkManager] No active network for onSessionEnd trigger');
+      return null;
+    }
+
+    try {
+      final triggerService = _ref.read(triggerServiceProvider);
+      final context = TriggerContext(
+        triggerPoint: TriggerPoint.onSessionEnd,
+        network: network,
+        teamName: network.team,
+      );
+      return await triggerService.fire(context);
+    } catch (e) {
+      print('[AgentNetworkManager] Error firing onSessionEnd trigger: $e');
+      return null;
+    }
+  }
+
+  /// Fire the onAllAgentsIdle trigger for the current network.
+  ///
+  /// Call this when all agents in the network have become idle.
+  /// This can spawn agents for coordination/synthesis checkpoints.
+  ///
+  /// Returns the spawned agent ID if a trigger was configured and fired,
+  /// or null if no trigger was configured or firing failed.
+  Future<AgentId?> fireAllAgentsIdleTrigger() async {
+    final network = state.currentNetwork;
+    if (network == null) {
+      print('[AgentNetworkManager] No active network for onAllAgentsIdle trigger');
+      return null;
+    }
+
+    try {
+      final triggerService = _ref.read(triggerServiceProvider);
+      final context = TriggerContext(
+        triggerPoint: TriggerPoint.onAllAgentsIdle,
+        network: network,
+        teamName: network.team,
+      );
+      return await triggerService.fire(context);
+    } catch (e) {
+      print('[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e');
+      return null;
+    }
   }
 }
