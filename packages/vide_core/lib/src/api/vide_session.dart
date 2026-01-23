@@ -432,9 +432,23 @@ class VideSession {
   /// After calling dispose, the session can no longer be used.
   /// The underlying agent network is NOT deleted - it can be resumed
   /// with [VideCore.resumeSession].
-  Future<void> dispose() async {
+  ///
+  /// If [fireEndTrigger] is true (default), fires the onSessionEnd trigger
+  /// which may spawn agents like session-synthesizer for knowledge capture.
+  Future<void> dispose({bool fireEndTrigger = true}) async {
     if (_disposed) return;
     _disposed = true;
+
+    // Fire onSessionEnd trigger before cleanup (if enabled)
+    if (fireEndTrigger) {
+      try {
+        final manager = _container.read(agentNetworkManagerProvider.notifier);
+        await manager.fireSessionEndTrigger();
+      } catch (e) {
+        // Don't fail dispose if trigger fails
+        print('[VideSession] Error firing onSessionEnd trigger: $e');
+      }
+    }
 
     // Cancel all subscriptions
     for (final sub in _subscriptions) {
