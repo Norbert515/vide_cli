@@ -76,16 +76,23 @@ class PermissionResponse {
 }
 
 final permissionServiceProvider = Provider<PermissionService>((ref) {
-  final service = PermissionService();
+  final askUserQuestionService = ref.watch(askUserQuestionServiceProvider);
+  final service = PermissionService(
+    askUserQuestionService: askUserQuestionService,
+  );
   ref.onDispose(() => service.dispose());
   return service;
 });
 
 class PermissionService {
   final PermissionChecker _checker = PermissionChecker();
+  final AskUserQuestionService _askUserQuestionService;
 
   final _requestController = StreamController<PermissionRequest>.broadcast();
   final Map<String, Completer<PermissionResponse>> _pendingRequests = {};
+
+  PermissionService({required AskUserQuestionService askUserQuestionService})
+      : _askUserQuestionService = askUserQuestionService;
 
   /// Stream of permission requests for the UI
   Stream<PermissionRequest> get requests => _requestController.stream;
@@ -125,6 +132,12 @@ class PermissionService {
     ToolPermissionContext context, {
     required String cwd,
   }) async {
+    // Special handling for built-in AskUserQuestion tool
+    // We intercept it and show our own UI, then pass the answers back
+    if (toolName == 'AskUserQuestion') {
+      return _handleAskUserQuestion(toolInput);
+    }
+
     // Convert raw map to type-safe ToolInput
     final input = ToolInput.fromJson(toolName, toolInput);
 
@@ -168,6 +181,44 @@ class PermissionService {
             message: response.reason ?? 'Permission denied by user',
           );
         }
+    }
+  }
+
+  /// Handle built-in AskUserQuestion tool by showing our custom UI
+  /// and returning the answers via updatedInput
+  Future<PermissionResult> _handleAskUserQuestion(
+    Map<String, dynamic> toolInput,
+  ) async {
+    try {
+      // Parse questions from tool input
+      final questionsJson = toolInput['questions'] as List<dynamic>?;
+      if (questionsJson == null || questionsJson.isEmpty) {
+        // No questions, just allow
+        return const PermissionResultAllow();
+      }
+
+      // Convert to our AskUserQuestion types
+      final questions = questionsJson.map((q) {
+        final qMap = q as Map<String, dynamic>;
+        return AskUserQuestion.fromJson(qMap);
+      }).toList();
+
+      // Use the AskUserQuestionService to show our UI and get answers
+      final answers = await _askUserQuestionService.askQuestions(questions);
+
+      // Return allow with the answers included in updatedInput
+      // Claude Code should see the pre-filled answers and skip its UI
+      return PermissionResultAllow(
+        updatedInput: {
+          ...toolInput,
+          'answers': answers,
+        },
+      );
+    } catch (e) {
+      // If parsing fails, deny with error message
+      return PermissionResultDeny(
+        message: 'Failed to parse AskUserQuestion: $e',
+      );
     }
   }
 
