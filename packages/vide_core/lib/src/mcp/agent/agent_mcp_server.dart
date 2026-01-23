@@ -7,6 +7,7 @@ import 'package:sentry/sentry.dart';
 import '../../models/agent_id.dart';
 import '../../models/agent_status.dart';
 import '../../services/agent_network_manager.dart';
+import '../../services/trigger_service.dart';
 import '../../state/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
@@ -258,6 +259,11 @@ Call this when:
               .read(agentStatusProvider(callerAgentId).notifier)
               .setStatus(status);
 
+          // If agent became idle, check if all agents are now idle
+          if (status == AgentStatus.idle) {
+            _checkAllAgentsIdle();
+          }
+
           return CallToolResult.fromContent(
             content: [
               TextContent(text: 'Agent status updated to: "$statusStr"'),
@@ -279,6 +285,40 @@ Call this when:
         }
       },
     );
+  }
+
+  /// Check if all agents in the network are idle, and fire trigger if so.
+  void _checkAllAgentsIdle() {
+    final network = _ref.read(agentNetworkManagerProvider).currentNetwork;
+    if (network == null) return;
+
+    // Check status of all agents
+    var allIdle = true;
+    for (final agent in network.agents) {
+      final status = _ref.read(agentStatusProvider(agent.id));
+      if (status != AgentStatus.idle) {
+        allIdle = false;
+        break;
+      }
+    }
+
+    if (allIdle && network.agents.isNotEmpty) {
+      print('[AgentMCPServer] All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger');
+      // Fire trigger in background (don't block the tool response)
+      () async {
+        try {
+          final triggerService = _ref.read(triggerServiceProvider);
+          final context = TriggerContext(
+            triggerPoint: TriggerPoint.onAllAgentsIdle,
+            network: network,
+            teamName: network.team,
+          );
+          await triggerService.fire(context);
+        } catch (e) {
+          print('[AgentMCPServer] Error firing onAllAgentsIdle trigger: $e');
+        }
+      }();
+    }
   }
 
   void _registerTerminateAgentTool(McpServer server) {
