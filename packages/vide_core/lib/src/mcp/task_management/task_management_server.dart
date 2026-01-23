@@ -4,6 +4,7 @@ import 'package:sentry/sentry.dart';
 import 'package:riverpod/riverpod.dart';
 import '../../models/agent_id.dart';
 import '../../services/agent_network_manager.dart';
+import '../../services/trigger_service.dart';
 
 final taskManagementServerProvider =
     Provider.family<TaskManagementServer, AgentId>((ref, agentId) {
@@ -22,12 +23,13 @@ class TaskManagementServer extends McpServerBase {
       super(name: serverName, version: '1.0.0');
 
   @override
-  List<String> get toolNames => ['setTaskName', 'setAgentTaskName'];
+  List<String> get toolNames => ['setTaskName', 'setAgentTaskName', 'markTaskComplete'];
 
   @override
   void registerTools(McpServer server) {
     _registerSetTaskNameTool(server);
     _registerSetAgentTaskNameTool(server);
+    _registerMarkTaskCompleteTool(server);
   }
 
   void _registerSetTaskNameTool(McpServer server) {
@@ -124,6 +126,94 @@ class TaskManagementServer extends McpServerBase {
           await Sentry.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Error updating agent task name: $e')],
+          );
+        }
+      },
+    );
+  }
+
+  void _registerMarkTaskCompleteTool(McpServer server) {
+    server.tool(
+      'markTaskComplete',
+      description:
+          'Mark the current task as complete. This fires the onTaskComplete trigger which may spawn agents like code-reviewer depending on team configuration. Call this when the main task goal has been achieved.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'summary': {
+            'type': 'string',
+            'description':
+                'Brief summary of what was accomplished (e.g., "Implemented JWT authentication with refresh tokens")',
+          },
+          'filesChanged': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description':
+                'Optional list of files that were changed (e.g., ["lib/auth.dart", "test/auth_test.dart"])',
+          },
+        },
+        required: ['summary'],
+      ),
+      callback: ({args, extra}) async {
+        if (args == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
+        }
+
+        final summary = args['summary'] as String;
+        final filesChanged = (args['filesChanged'] as List?)?.cast<String>();
+
+        try {
+          final network = _ref.read(agentNetworkManagerProvider).currentNetwork;
+
+          if (network == null) {
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: No active network')],
+            );
+          }
+
+          // Fire the onTaskComplete trigger
+          final triggerService = _ref.read(triggerServiceProvider);
+          final context = TriggerContext(
+            triggerPoint: TriggerPoint.onTaskComplete,
+            network: network,
+            teamName: network.team,
+            taskName: summary,
+            filesChanged: filesChanged,
+          );
+
+          final spawnedAgentId = await triggerService.fire(context);
+
+          if (spawnedAgentId != null) {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Task marked complete: "$summary"\n'
+                      'Triggered agent spawned for review.',
+                ),
+              ],
+            );
+          } else {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Task marked complete: "$summary"\n'
+                      'No trigger configured for onTaskComplete in this team.',
+                ),
+              ],
+            );
+          }
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'markTaskComplete');
+            scope.setContexts('mcp_context', {
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await Sentry.captureException(e, stackTrace: stackTrace);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error marking task complete: $e')],
           );
         }
       },

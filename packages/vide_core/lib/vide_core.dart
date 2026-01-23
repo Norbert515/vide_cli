@@ -52,6 +52,7 @@ export 'src/services/claude_manager.dart';
 export 'src/services/initial_claude_client.dart';
 export 'src/services/team_framework_loader.dart';
 export 'src/services/team_framework_asset_initializer.dart';
+export 'src/services/trigger_service.dart';
 
 // Permissions
 export 'src/services/permissions/permission_matcher.dart';
@@ -93,6 +94,10 @@ export 'src/mcp/git/git_server.dart';
 export 'src/mcp/ask_user_question/ask_user_question_types.dart';
 export 'src/mcp/ask_user_question/ask_user_question_service.dart';
 export 'src/mcp/ask_user_question/ask_user_question_server.dart';
+
+// Knowledge
+export 'src/mcp/knowledge/knowledge_service.dart';
+export 'src/mcp/knowledge/knowledge_mcp_server.dart';
 
 // =============================================================================
 // Utilities
