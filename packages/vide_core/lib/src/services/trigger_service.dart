@@ -92,15 +92,40 @@ class TriggerService {
 
   final Ref _ref;
 
+  /// Track when each trigger point was last fired to prevent duplicate firing.
+  /// Key is "${networkId}:${triggerPoint.name}", value is when it was fired.
+  final Map<String, DateTime> _lastFired = {};
+
+  /// Cooldown period to prevent duplicate triggers (e.g., from both auto-sync and explicit call)
+  /// For onAllAgentsIdle, use a longer cooldown to prevent spawned agents from re-triggering.
+  static const _triggerCooldown = Duration(seconds: 2);
+  static const _allAgentsIdleCooldown = Duration(seconds: 60);
+
   /// Fire a trigger point with the given context.
   ///
   /// This will:
-  /// 1. Look up the team's trigger configuration
-  /// 2. Check if the trigger is enabled
-  /// 3. Spawn the configured agent with context
+  /// 1. Check for duplicate firing (cooldown period)
+  /// 2. Look up the team's trigger configuration
+  /// 3. Check if the trigger is enabled
+  /// 4. Spawn the configured agent with context
   ///
-  /// Returns the spawned agent ID, or null if trigger was not enabled.
+  /// Returns the spawned agent ID, or null if trigger was not enabled or was recently fired.
   Future<AgentId?> fire(TriggerContext context) async {
+    // Check for duplicate firing (prevents both auto-sync and explicit setAgentStatus from firing)
+    final triggerKey = '${context.network.id}:${context.triggerPoint.name}';
+    final lastFiredAt = _lastFired[triggerKey];
+    // Use longer cooldown for onAllAgentsIdle to prevent infinite spawning loops
+    final cooldown = context.triggerPoint == TriggerPoint.onAllAgentsIdle
+        ? _allAgentsIdleCooldown
+        : _triggerCooldown;
+    if (lastFiredAt != null) {
+      final elapsed = DateTime.now().difference(lastFiredAt);
+      if (elapsed < cooldown) {
+        print('[TriggerService] Skipping ${context.triggerPoint.name} - fired ${elapsed.inMilliseconds}ms ago (cooldown: ${cooldown.inMilliseconds}ms)');
+        return null;
+      }
+    }
+
     final loader = _ref.read(teamFrameworkLoaderProvider);
     final team = await loader.getTeam(context.teamName);
 
@@ -127,6 +152,9 @@ class TriggerService {
     final networkManager = _ref.read(agentNetworkManagerProvider.notifier);
 
     try {
+      // Mark as fired BEFORE spawning to prevent race conditions
+      _lastFired[triggerKey] = DateTime.now();
+
       final agentId = await networkManager.spawnAgent(
         agentType: triggerConfig.spawn,
         name: 'Triggered: ${context.triggerPoint.name}',

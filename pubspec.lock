@@ -73,6 +73,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  bashboard:
+    dependency: transitive
+    description:
+      path: "."
+      ref: HEAD
+      resolved-ref: "8cb49510415e1c6c969090fc184d880a1139926c"
+      url: "https://github.com/Norbert515/bashboard-dart.git"
+    source: git
+    version: "0.1.0"
   boolean_selector:
     dependency: transitive
     description:

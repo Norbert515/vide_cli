@@ -1,23 +1,19 @@
-import 'dart:convert';
 import 'dart:io';
 
-import 'package:http/http.dart' as http;
+import 'package:bashboard/bashboard.dart';
 import 'package:uuid/uuid.dart';
 import 'vide_config_manager.dart';
 
-/// PostHog analytics service for tracking product usage.
+/// Bashboard analytics service for tracking product usage.
 ///
-/// Uses the HTTP API directly for simplicity.
-/// Events are sent immediately (no batching) using fire-and-forget pattern.
-class PostHogService {
-  static const String _apiKey =
-      'phc_bZ79qWQHUVuLwkIV4nqIQH4L9XlvYUQqO7ui2aRXTdX';
-  static const String _host = 'https://eu.i.posthog.com';
+/// Wraps the Bashboard SDK for CLI analytics.
+/// Events are batched and sent periodically.
+class BashboardService {
+  static const String _apiKey = 'bb_O2vxR6phes2iiskhnbnzwtkjk825JfwA';
 
   static bool _initialized = false;
-  static String? _distinctId;
 
-  /// Initialize PostHog service.
+  /// Initialize Bashboard service.
   /// Loads or generates the anonymous distinct ID.
   /// Safe to call multiple times.
   ///
@@ -26,7 +22,28 @@ class PostHogService {
     if (_initialized) return;
 
     try {
-      _distinctId = await _loadOrCreateDistinctId(configManager);
+      final distinctId = await _loadOrCreateDistinctId(configManager);
+
+      Bashboard.init(
+        apiKey: _apiKey,
+        config: BashboardConfig(
+          cliName: 'vide',
+          cliVersion: '1.0.0',
+          respectDoNotTrack: true,
+          // Disable disk persistence to send events during current session
+          // (otherwise events are queued to disk and sent on next launch)
+          persistToDisk: false,
+          // Flush every 10 seconds
+          flushInterval: Duration(seconds: 10),
+        ),
+      );
+
+      // Identify the user with their anonymous ID
+      Bashboard.identify(distinctId);
+
+      // Start a session
+      Bashboard.startSession();
+
       _initialized = true;
     } catch (e) {
       // Fail silently - analytics should never crash the app
@@ -39,7 +56,7 @@ class PostHogService {
     VideConfigManager configManager,
   ) async {
     final configDir = configManager.configRoot;
-    final idFile = File('$configDir/posthog_distinct_id');
+    final idFile = File('$configDir/bashboard_distinct_id');
 
     if (await idFile.exists()) {
       final id = await idFile.readAsString();
@@ -63,35 +80,17 @@ class PostHogService {
   }
 
   /// Capture an event with optional properties.
-  /// Fire-and-forget - does not await the HTTP request.
   static void capture(String event, [Map<String, dynamic>? properties]) {
-    if (!_initialized || _distinctId == null) return;
+    if (!_initialized) return;
 
-    // Fire and forget - don't await
-    _sendEvent(event, properties);
+    Bashboard.track(event, properties: properties ?? {});
   }
 
-  /// Internal method to send event to PostHog.
-  static Future<void> _sendEvent(
-    String event,
-    Map<String, dynamic>? properties,
-  ) async {
-    try {
-      final body = jsonEncode({
-        'api_key': _apiKey,
-        'event': event,
-        'distinct_id': _distinctId,
-        'properties': {'\$lib': 'vide-dart', ...?properties},
-      });
+  /// Flush pending events. Call before app exit.
+  static Future<void> flush() async {
+    if (!_initialized) return;
 
-      await http.post(
-        Uri.parse('$_host/batch/'),
-        headers: {'Content-Type': 'application/json'},
-        body: body,
-      );
-    } catch (e) {
-      // Silently ignore errors - analytics should never impact the app
-    }
+    await Bashboard.flush();
   }
 
   // --- Helper methods for common events ---
@@ -113,6 +112,9 @@ class PostHogService {
 
   /// Track errors for product analytics (alongside Sentry)
   static void errorOccurred(String errorType) {
-    capture('error_occurred', {'error_type': errorType});
+    Bashboard.trackError(
+      'error_occurred',
+      message: errorType,
+    );
   }
 }

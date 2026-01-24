@@ -163,6 +163,12 @@ class MockClaudeClient implements ClaudeClient {
     _turnCompleteController.add(null);
   }
 
+  /// Emit a status change (for testing status sync)
+  void emitStatus(ClaudeStatus status) {
+    _currentStatus = status;
+    _statusController.add(status);
+  }
+
   /// Reset the mock for reuse
   void reset() {
     sentMessages.clear();
