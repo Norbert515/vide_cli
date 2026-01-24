@@ -71,21 +71,23 @@ class _VideScaffoldState extends State<VideScaffold> {
     if (_dialogShowing) return;
     _dialogShowing = true;
 
-    Navigator.of(context).showDialog(
-      barrierDismissible: true,
-      builder: (dialogContext) => FilePreviewOverlay(
-        filePath: filePath,
-        onClose: () {
-          Navigator.of(dialogContext).pop();
-        },
-      ),
-    ).then((_) {
-      _dialogShowing = false;
-      // Clear the provider when dialog is closed
-      if (mounted) {
-        context.read(filePreviewPathProvider.notifier).state = null;
-      }
-    });
+    Navigator.of(context)
+        .showDialog(
+          barrierDismissible: true,
+          builder: (dialogContext) => FilePreviewOverlay(
+            filePath: filePath,
+            onClose: () {
+              Navigator.of(dialogContext).pop();
+            },
+          ),
+        )
+        .then((_) {
+          _dialogShowing = false;
+          // Clear the provider when dialog is closed
+          if (mounted) {
+            context.read(filePreviewPathProvider.notifier).state = null;
+          }
+        });
   }
 
   @override
@@ -116,11 +118,16 @@ class _VideScaffoldState extends State<VideScaffold> {
       builder: (context, constraints) {
         final terminalWidth = constraints.maxWidth;
         final hasEnoughWidth = terminalWidth >= component.minWidthForSidebar;
-        final effectiveSidebarWidth = (showSidebars && hasEnoughWidth) ? component.sidebarWidth : 0.0;
-        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth) ? component.gitSidebarWidth : 0.0;
+        final effectiveSidebarWidth = (showSidebars && hasEnoughWidth)
+            ? component.sidebarWidth
+            : 0.0;
+        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth)
+            ? component.gitSidebarWidth
+            : 0.0;
 
         // Update the provider so pages can know the sidebar width
-        context.read(sidebarWidthProvider.notifier).state = effectiveSidebarWidth;
+        context.read(sidebarWidthProvider.notifier).state =
+            effectiveSidebarWidth;
 
         // Standard Row layout - left sidebar + main content + right sidebar
         // This component should be used INSIDE the Navigator, so dialogs
@@ -158,7 +165,12 @@ class _VideScaffoldState extends State<VideScaffold> {
 
             // Right sidebar - Git status (hidden on home page)
             if (showSidebars)
-              _buildRightSidebar(context, effectiveGitSidebarWidth, gitSidebarFocused, repoPath),
+              _buildRightSidebar(
+                context,
+                effectiveGitSidebarWidth,
+                gitSidebarFocused,
+                repoPath,
+              ),
           ],
         );
 
@@ -175,7 +187,11 @@ class _VideScaffoldState extends State<VideScaffold> {
     );
   }
 
-  Component _buildLeftSidebar(BuildContext context, double width, bool focused) {
+  Component _buildLeftSidebar(
+    BuildContext context,
+    double width,
+    bool focused,
+  ) {
     return SizedBox(
       width: width,
       child: ClipRect(
@@ -200,7 +216,12 @@ class _VideScaffoldState extends State<VideScaffold> {
     );
   }
 
-  Component _buildRightSidebar(BuildContext context, double width, bool focused, String repoPath) {
+  Component _buildRightSidebar(
+    BuildContext context,
+    double width,
+    bool focused,
+    String repoPath,
+  ) {
     final session = context.read(currentVideSessionProvider);
     return SizedBox(
       width: width,
@@ -222,13 +243,18 @@ class _VideScaffoldState extends State<VideScaffold> {
               // Send message to current agent's chat
               final selectedAgentId = context.read(selectedAgentIdProvider);
               if (selectedAgentId != null) {
-                session?.sendMessage(Message.text(message), agentId: selectedAgentId);
+                session?.sendMessage(
+                  Message.text(message),
+                  agentId: selectedAgentId,
+                );
               }
             },
             onSwitchWorktree: (path) {
               // Update the repo path override and agent network's worktree path
               context.read(repoPathOverrideProvider.notifier).state = path;
-              context.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+              context
+                  .read(agentNetworkManagerProvider.notifier)
+                  .setWorktreePath(path);
             },
           ),
         ),

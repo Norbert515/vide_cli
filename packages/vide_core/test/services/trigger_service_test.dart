@@ -36,9 +36,7 @@ void main() {
     });
 
     test('fromYaml defaults spawn to empty string', () {
-      final config = LifecycleTriggerConfig.fromYaml({
-        'enabled': false,
-      });
+      final config = LifecycleTriggerConfig.fromYaml({'enabled': false});
 
       expect(config.enabled, isFalse);
       expect(config.spawn, equals(''));
@@ -152,10 +150,16 @@ lifecycle-triggers:
       expect(team.lifecycleTriggers, hasLength(3));
 
       expect(team.lifecycleTriggers['onSessionEnd']?.enabled, isTrue);
-      expect(team.lifecycleTriggers['onSessionEnd']?.spawn, equals('session-synthesizer'));
+      expect(
+        team.lifecycleTriggers['onSessionEnd']?.spawn,
+        equals('session-synthesizer'),
+      );
 
       expect(team.lifecycleTriggers['onTaskComplete']?.enabled, isTrue);
-      expect(team.lifecycleTriggers['onTaskComplete']?.spawn, equals('code-reviewer'));
+      expect(
+        team.lifecycleTriggers['onTaskComplete']?.spawn,
+        equals('code-reviewer'),
+      );
 
       expect(team.lifecycleTriggers['onSessionStart']?.enabled, isFalse);
     });

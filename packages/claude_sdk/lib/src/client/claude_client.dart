@@ -110,7 +110,10 @@ abstract class ClaudeClient {
   ///
   /// [servers] - List of MCP server configurations to add/update
   /// [replace] - If true, replaces all existing servers. If false, merges.
-  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false});
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  });
 
   /// Interrupt the current execution.
   Future<void> interrupt();
@@ -214,7 +217,8 @@ class ClaudeClientImpl implements ClaudeClient {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _initDataController = StreamController<MetaResponse>.broadcast();
-  Conversation _currentConversation; // Initialized in constructor (may be pre-loaded for forks)
+  Conversation
+  _currentConversation; // Initialized in constructor (may be pre-loaded for forks)
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
   MetaResponse? _initData;
 
@@ -400,10 +404,7 @@ class ClaudeClientImpl implements ClaudeClient {
       // If this was a fork operation, clear fork settings so subsequent messages
       // use the new session ID instead of trying to fork again
       if (config.forkSession && config.resumeSessionId != null) {
-        config = config.copyWith(
-          resumeSessionId: null,
-          forkSession: false,
-        );
+        config = config.copyWith(resumeSessionId: null, forkSession: false);
       }
 
       completer.complete();
@@ -440,7 +441,8 @@ class ClaudeClientImpl implements ClaudeClient {
 
         // If we forked a session, Claude returns the new session ID in the response
         // Update our config to use that session ID for subsequent messages
-        if (response.sessionId != null && response.sessionId != config.sessionId) {
+        if (response.sessionId != null &&
+            response.sessionId != config.sessionId) {
           config = config.copyWith(sessionId: response.sessionId);
         }
 
@@ -675,10 +677,14 @@ class ClaudeClientImpl implements ClaudeClient {
   }
 
   @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) {
-      throw StateError('Client not initialized - cannot set max thinking tokens');
+      throw StateError(
+        'Client not initialized - cannot set max thinking tokens',
+      );
     }
     return await controlProtocol.setMaxThinkingTokens(maxTokens);
   }
@@ -709,7 +715,8 @@ class ClaudeClientImpl implements ClaudeClient {
     final messages = _currentConversation.messages;
     if (messages.isNotEmpty) {
       final lastMessage = messages.last;
-      if (lastMessage.role == MessageRole.assistant && lastMessage.isStreaming) {
+      if (lastMessage.role == MessageRole.assistant &&
+          lastMessage.isStreaming) {
         final updatedMessage = lastMessage.copyWith(
           isStreaming: false,
           isComplete: true,

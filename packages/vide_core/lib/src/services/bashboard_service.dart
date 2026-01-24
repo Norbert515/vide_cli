@@ -112,9 +112,6 @@ class BashboardService {
 
   /// Track errors for product analytics (alongside Sentry)
   static void errorOccurred(String errorType) {
-    Bashboard.trackError(
-      'error_occurred',
-      message: errorType,
-    );
+    Bashboard.trackError('error_occurred', message: errorType);
   }
 }

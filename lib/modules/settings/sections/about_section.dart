@@ -19,7 +19,8 @@ class AboutSection extends StatelessComponent {
     return Focusable(
       focused: focused,
       onKeyEvent: (event) {
-        if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.escape) {
+        if (event.logicalKey == LogicalKey.arrowLeft ||
+            event.logicalKey == LogicalKey.escape) {
           onExit();
           return true;
         }
@@ -40,18 +41,28 @@ class AboutSection extends StatelessComponent {
 
             Text(
               'Vide is an agentic development environment',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
             Text(
               'built specifically for Flutter developers.',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
             SizedBox(height: 3),
 
             SectionHeader(title: 'Links'),
             SizedBox(height: 2),
-            Text('• Documentation: docs.vide.dev', style: TextStyle(color: theme.base.primary)),
-            Text('• GitHub: github.com/vide-dev/vide', style: TextStyle(color: theme.base.primary)),
+            Text(
+              '• Documentation: docs.vide.dev',
+              style: TextStyle(color: theme.base.primary),
+            ),
+            Text(
+              '• GitHub: github.com/vide-dev/vide',
+              style: TextStyle(color: theme.base.primary),
+            ),
           ],
         ),
       ),
@@ -76,7 +87,12 @@ class _AboutItem extends StatelessComponent {
         children: [
           SizedBox(
             width: 12,
-            child: Text(label, style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary))),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
+            ),
           ),
           Text(value, style: TextStyle(color: theme.base.onSurface)),
         ],

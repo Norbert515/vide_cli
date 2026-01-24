@@ -97,8 +97,14 @@ class VideEmbeddedServer {
 
     // CORS headers for browser clients
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers.add(
+      'Access-Control-Allow-Methods',
+      'GET, POST, OPTIONS',
+    );
+    request.response.headers.add(
+      'Access-Control-Allow-Headers',
+      'Content-Type',
+    );
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = HttpStatus.ok;
@@ -144,11 +150,13 @@ class VideEmbeddedServer {
 
   Future<void> _handleHealth(HttpRequest request) async {
     request.response.headers.contentType = ContentType.json;
-    request.response.write(jsonEncode({
-      'status': 'ok',
-      'session_id': _session.id,
-      'agents': _session.agents.length,
-    }));
+    request.response.write(
+      jsonEncode({
+        'status': 'ok',
+        'session_id': _session.id,
+        'agents': _session.agents.length,
+      }),
+    );
     await request.response.close();
   }
 
@@ -211,18 +219,20 @@ class VideEmbeddedServer {
 
   Future<void> _handleSessionInfo(HttpRequest request) async {
     request.response.headers.contentType = ContentType.json;
-    request.response.write(jsonEncode({
-      'session_id': _session.id,
-      'agents': _session.agents.map(_agentToJson).toList(),
-    }));
+    request.response.write(
+      jsonEncode({
+        'session_id': _session.id,
+        'agents': _session.agents.map(_agentToJson).toList(),
+      }),
+    );
     await request.response.close();
   }
 
   Future<void> _handleAgents(HttpRequest request) async {
     request.response.headers.contentType = ContentType.json;
-    request.response.write(jsonEncode({
-      'agents': _session.agents.map(_agentToJson).toList(),
-    }));
+    request.response.write(
+      jsonEncode({'agents': _session.agents.map(_agentToJson).toList()}),
+    );
     await request.response.close();
   }
 
@@ -363,11 +373,7 @@ class VideEmbeddedServer {
         };
 
       case StatusEvent e:
-        return {
-          ...base,
-          'type': 'status',
-          'status': e.status.name,
-        };
+        return {...base, 'type': 'status', 'status': e.status.name};
 
       case TurnCompleteEvent e:
         return {
@@ -381,15 +387,12 @@ class VideEmbeddedServer {
           'total_cost_usd': e.totalCostUsd,
           'current_context_input_tokens': e.currentContextInputTokens,
           'current_context_cache_read_tokens': e.currentContextCacheReadTokens,
-          'current_context_cache_creation_tokens': e.currentContextCacheCreationTokens,
+          'current_context_cache_creation_tokens':
+              e.currentContextCacheCreationTokens,
         };
 
       case AgentSpawnedEvent e:
-        return {
-          ...base,
-          'type': 'agent_spawned',
-          'spawned_by': e.spawnedBy,
-        };
+        return {...base, 'type': 'agent_spawned', 'spawned_by': e.spawnedBy};
 
       case AgentTerminatedEvent e:
         return {
@@ -409,12 +412,7 @@ class VideEmbeddedServer {
         };
 
       case ErrorEvent e:
-        return {
-          ...base,
-          'type': 'error',
-          'message': e.message,
-          'code': e.code,
-        };
+        return {...base, 'type': 'error', 'message': e.message, 'code': e.code};
     }
   }
 

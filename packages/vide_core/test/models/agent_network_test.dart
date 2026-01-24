@@ -223,11 +223,7 @@ void main() {
           agents: [
             createAgent(id: 'agent-1', name: 'Agent 1', type: 'main'),
             createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementer'),
-            createAgent(
-              id: 'agent-3',
-              name: 'Agent 3',
-              type: 'researcher',
-            ),
+            createAgent(id: 'agent-3', name: 'Agent 3', type: 'researcher'),
           ],
           createdAt: testDate,
         );

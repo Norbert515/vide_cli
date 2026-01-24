@@ -3,7 +3,10 @@ import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart'
-    show TeamFrameworkLoader, TeamFrameworkAssetInitializer, videConfigManagerProvider;
+    show
+        TeamFrameworkLoader,
+        TeamFrameworkAssetInitializer,
+        videConfigManagerProvider;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart' show ideModeEnabledProvider;
@@ -16,7 +19,11 @@ class GeneralSettingsSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
 
-  const GeneralSettingsSection({required this.focused, required this.onExit, super.key});
+  const GeneralSettingsSection({
+    required this.focused,
+    required this.onExit,
+    super.key,
+  });
 
   @override
   State<GeneralSettingsSection> createState() => _GeneralSettingsSectionState();
@@ -56,17 +63,21 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
   void _handleKeyEvent(KeyboardEvent event) {
     if (!component.focused) return;
 
-    if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
       }
-    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalItems - 1) {
         setState(() => _selectedIndex++);
       }
-    } else if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.escape) {
+    } else if (event.logicalKey == LogicalKey.arrowLeft ||
+        event.logicalKey == LogicalKey.escape) {
       component.onExit();
-    } else if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
+    } else if (event.logicalKey == LogicalKey.enter ||
+        event.logicalKey == LogicalKey.space) {
       _toggleCurrentItem();
     }
   }
@@ -78,7 +89,9 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
       final configManager = container.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       final newValue = !settings.ideModeEnabled;
-      configManager.writeGlobalSettings(settings.copyWith(ideModeEnabled: newValue));
+      configManager.writeGlobalSettings(
+        settings.copyWith(ideModeEnabled: newValue),
+      );
       container.read(ideModeEnabledProvider.notifier).state = newValue;
       setState(() {}); // Rebuild to show new state
     } else if (_selectedIndex == 1) {
@@ -91,7 +104,8 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
       setState(() {}); // Rebuild to show new state
     } else {
       // Select team
-      final teamIndex = _selectedIndex - 2; // Account for IDE mode and Streaming
+      final teamIndex =
+          _selectedIndex - 2; // Account for IDE mode and Streaming
       if (teamIndex < _availableTeams.length) {
         final selectedTeam = _availableTeams[teamIndex];
         context.read(currentTeamProvider.notifier).state = selectedTeam;
@@ -156,17 +170,26 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
             SizedBox(height: 1),
             Text(
               'Choose the agent team for new sessions',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
             SizedBox(height: 2),
 
             // Team list
             if (_teamsLoading)
-              Text('Loading teams...', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)))
+              Text(
+                'Loading teams...',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
+              )
             else if (_availableTeams.isEmpty)
               Text(
                 'No teams available',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
               )
             else
               Expanded(
@@ -175,12 +198,14 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
                   itemBuilder: (context, index) {
                     final team = _availableTeams[index];
                     final isCurrentTeam = team == currentTeam;
-                    final itemIndex = index + 2; // Account for IDE mode and Streaming
+                    final itemIndex =
+                        index + 2; // Account for IDE mode and Streaming
 
                     return _TeamListItem(
                       team: team,
                       isCurrentTeam: isCurrentTeam,
-                      isSelected: component.focused && _selectedIndex == itemIndex,
+                      isSelected:
+                          component.focused && _selectedIndex == itemIndex,
                       onTap: () {
                         setState(() => _selectedIndex = itemIndex);
                         _toggleCurrentItem();
@@ -226,7 +251,9 @@ class _TeamListItem extends StatelessComponent {
             Text(
               isCurrentTeam ? '◉ ' : '○ ',
               style: TextStyle(
-                color: isCurrentTeam ? theme.base.primary : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                color: isCurrentTeam
+                    ? theme.base.primary
+                    : theme.base.onSurface.withOpacity(TextOpacity.secondary),
               ),
             ),
             Expanded(
@@ -241,7 +268,9 @@ class _TeamListItem extends StatelessComponent {
             if (isCurrentTeam)
               Text(
                 'current',
-                style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                style: TextStyle(
+                  color: theme.base.primary.withOpacity(TextOpacity.secondary),
+                ),
               ),
           ],
         ),

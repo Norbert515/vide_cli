@@ -34,7 +34,8 @@ class _TypingTextState extends State<TypingText>
     // Duration will be set dynamically based on text length
     _controller = AnimationController(
       duration: Duration(
-        milliseconds: component.characterDelay.inMilliseconds *
+        milliseconds:
+            component.characterDelay.inMilliseconds *
             component.text.length.clamp(1, 1000),
       ),
       vsync: this,
@@ -50,8 +51,9 @@ class _TypingTextState extends State<TypingText>
 
   void _onAnimationTick() {
     // Calculate how many characters should be shown based on animation progress
-    final targetIndex =
-        (_controller.value * component.text.length).ceil().clamp(0, component.text.length);
+    final targetIndex = (_controller.value * component.text.length)
+        .ceil()
+        .clamp(0, component.text.length);
 
     if (targetIndex != _currentIndex) {
       setState(() {
@@ -80,7 +82,8 @@ class _TypingTextState extends State<TypingText>
 
     // Update duration based on new text length
     _controller.duration = Duration(
-      milliseconds: component.characterDelay.inMilliseconds *
+      milliseconds:
+          component.characterDelay.inMilliseconds *
           component.text.length.clamp(1, 1000),
     );
 

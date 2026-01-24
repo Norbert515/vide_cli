@@ -14,11 +14,7 @@ void main(List<String> args) async {
       abbr: 'd',
       help: 'Working directory (default: current directory)',
     )
-    ..addOption(
-      'model',
-      abbr: 'm',
-      help: 'Model to use: sonnet, opus, haiku',
-    )
+    ..addOption('model', abbr: 'm', help: 'Model to use: sonnet, opus, haiku')
     ..addOption(
       'config-dir',
       help: 'Configuration directory (default: ~/.vide)',
@@ -37,21 +33,12 @@ void main(List<String> args) async {
     ..addOption(
       'team',
       abbr: 't',
-      help: 'Team to use: vide, enterprise, startup, balanced, research, ideator',
+      help:
+          'Team to use: vide, enterprise, startup, balanced, research, ideator',
       defaultsTo: 'vide',
     )
-    ..addFlag(
-      'help',
-      abbr: 'h',
-      help: 'Show this help',
-      negatable: false,
-    )
-    ..addFlag(
-      'version',
-      abbr: 'v',
-      help: 'Show version',
-      negatable: false,
-    );
+    ..addFlag('help', abbr: 'h', help: 'Show this help', negatable: false)
+    ..addFlag('version', abbr: 'v', help: 'Show version', negatable: false);
 
   ArgResults results;
   try {
@@ -101,9 +88,7 @@ void main(List<String> args) async {
   }
 
   // Create VideCore
-  final core = VideCore(VideCoreConfig(
-    configDir: configDir,
-  ));
+  final core = VideCore(VideCoreConfig(configDir: configDir));
 
   if (serve) {
     await runServeMode(
@@ -140,7 +125,9 @@ Future<void> runServeMode({
   // Require initial message for serve mode
   if (initialMessage == null || initialMessage.isEmpty) {
     stderr.writeln('Error: --serve mode requires an initial message');
-    stderr.writeln('Example: vide_cli --serve -p 8080 "Help me with this project"');
+    stderr.writeln(
+      'Example: vide_cli --serve -p 8080 "Help me with this project"',
+    );
     core.dispose();
     exit(1);
   }
@@ -148,12 +135,14 @@ Future<void> runServeMode({
   stdout.writeln('Starting session...');
 
   // Start session
-  final session = await core.startSession(VideSessionConfig(
-    workingDirectory: workingDirectory,
-    initialMessage: initialMessage,
-    model: model,
-    team: team,
-  ));
+  final session = await core.startSession(
+    VideSessionConfig(
+      workingDirectory: workingDirectory,
+      initialMessage: initialMessage,
+      model: model,
+      team: team,
+    ),
+  );
 
   // Subscribe to events and render to console
   final eventSub = session.events.listen((event) {
@@ -167,29 +156,60 @@ Future<void> runServeMode({
   });
 
   // Start embedded server
-  final server = await VideEmbeddedServer.start(
-    session: session,
-    port: port,
-  );
+  final server = await VideEmbeddedServer.start(session: session, port: port);
 
   stdout.writeln();
-  stdout.writeln('╔════════════════════════════════════════════════════════════╗');
-  stdout.writeln('║  vide_cli Server Mode                                      ║');
-  stdout.writeln('╠════════════════════════════════════════════════════════════╣');
-  stdout.writeln('║  HTTP Server: http://localhost:$port                        ');
-  stdout.writeln('║  WebSocket:   ws://localhost:$port/ws                       ');
-  stdout.writeln('╠════════════════════════════════════════════════════════════╣');
-  stdout.writeln('║  Endpoints:                                                ║');
-  stdout.writeln('║    GET  /health    - Server health check                   ║');
-  stdout.writeln('║    GET  /session   - Session info                          ║');
-  stdout.writeln('║    GET  /agents    - List agents                           ║');
-  stdout.writeln('║    POST /message   - Send message                          ║');
-  stdout.writeln('║    POST /permission - Respond to permission                ║');
-  stdout.writeln('║    POST /abort     - Abort session                         ║');
-  stdout.writeln('║    WS   /ws        - WebSocket for real-time events        ║');
-  stdout.writeln('╠════════════════════════════════════════════════════════════╣');
-  stdout.writeln('║  Press Ctrl+C to stop the server                           ║');
-  stdout.writeln('╚════════════════════════════════════════════════════════════╝');
+  stdout.writeln(
+    '╔════════════════════════════════════════════════════════════╗',
+  );
+  stdout.writeln(
+    '║  vide_cli Server Mode                                      ║',
+  );
+  stdout.writeln(
+    '╠════════════════════════════════════════════════════════════╣',
+  );
+  stdout.writeln(
+    '║  HTTP Server: http://localhost:$port                        ',
+  );
+  stdout.writeln(
+    '║  WebSocket:   ws://localhost:$port/ws                       ',
+  );
+  stdout.writeln(
+    '╠════════════════════════════════════════════════════════════╣',
+  );
+  stdout.writeln(
+    '║  Endpoints:                                                ║',
+  );
+  stdout.writeln(
+    '║    GET  /health    - Server health check                   ║',
+  );
+  stdout.writeln(
+    '║    GET  /session   - Session info                          ║',
+  );
+  stdout.writeln(
+    '║    GET  /agents    - List agents                           ║',
+  );
+  stdout.writeln(
+    '║    POST /message   - Send message                          ║',
+  );
+  stdout.writeln(
+    '║    POST /permission - Respond to permission                ║',
+  );
+  stdout.writeln(
+    '║    POST /abort     - Abort session                         ║',
+  );
+  stdout.writeln(
+    '║    WS   /ws        - WebSocket for real-time events        ║',
+  );
+  stdout.writeln(
+    '╠════════════════════════════════════════════════════════════╣',
+  );
+  stdout.writeln(
+    '║  Press Ctrl+C to stop the server                           ║',
+  );
+  stdout.writeln(
+    '╚════════════════════════════════════════════════════════════╝',
+  );
   stdout.writeln();
 
   // Handle Ctrl+C

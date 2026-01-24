@@ -676,7 +676,9 @@ class FlutterInstance {
       }
     }
 
-    throw Exception('getCursorPosition failed: ${json['error'] ?? json['status']}');
+    throw Exception(
+      'getCursorPosition failed: ${json['error'] ?? json['status']}',
+    );
   }
 
   /// Get all actionable elements in the current UI.
@@ -732,7 +734,9 @@ class FlutterInstance {
       return Map<String, dynamic>.from(json);
     }
 
-    throw Exception('getActionableElements failed: ${json['error'] ?? json['status']}');
+    throw Exception(
+      'getActionableElements failed: ${json['error'] ?? json['status']}',
+    );
   }
 
   /// Tap an element by its ID.
@@ -812,7 +816,8 @@ class FlutterInstance {
       // Look for the reloadSources service in registered services
       String? reloadServiceName;
       if (vm.json != null && vm.json!['_registeredServices'] != null) {
-        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        final services =
+            vm.json!['_registeredServices'] as Map<String, dynamic>?;
         if (services != null) {
           for (final entry in services.entries) {
             if (entry.key == 'reloadSources') {
@@ -826,19 +831,22 @@ class FlutterInstance {
       if (reloadServiceName != null) {
         // Call the Flutter Tools reloadSources service
         print('🔄 [FlutterInstance] Calling $reloadServiceName service...');
-        final result = await _vmService!.callMethod(
-          reloadServiceName,
-          args: {'isolateId': isolateId},
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () => throw TimeoutException('Hot reload timed out'),
+        final result = await _vmService!
+            .callMethod(reloadServiceName, args: {'isolateId': isolateId})
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Hot reload timed out'),
+            );
+        print(
+          '✅ [FlutterInstance] Hot reload completed via service: ${result.json}',
         );
-        print('✅ [FlutterInstance] Hot reload completed via service: ${result.json}');
         return 'Hot reload completed';
       }
 
       // Fallback: Use stdin (works for all platforms including web)
-      print('⚠️  [FlutterInstance] reloadSources service not found, using stdin fallback');
+      print(
+        '⚠️  [FlutterInstance] reloadSources service not found, using stdin fallback',
+      );
       process.stdin.writeln('r');
       await process.stdin.flush();
 
@@ -884,7 +892,8 @@ class FlutterInstance {
 
       String? restartServiceName;
       if (vm.json != null && vm.json!['_registeredServices'] != null) {
-        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        final services =
+            vm.json!['_registeredServices'] as Map<String, dynamic>?;
         if (services != null) {
           for (final entry in services.entries) {
             if (entry.key == 'hotRestart') {
@@ -898,17 +907,18 @@ class FlutterInstance {
       if (restartServiceName != null) {
         // Call the Flutter Tools hotRestart service
         print('🔄 [FlutterInstance] Calling $restartServiceName service...');
-        await _vmService!.callMethod(
-          restartServiceName,
-          args: {},
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () => throw TimeoutException('Hot restart timed out'),
-        );
+        await _vmService!
+            .callMethod(restartServiceName, args: {})
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Hot restart timed out'),
+            );
         print('✅ [FlutterInstance] Hot restart completed via service');
       } else {
         // Fallback: send 'R' to stdin (less reliable but works)
-        print('⚠️  [FlutterInstance] hotRestart service not found, using stdin fallback');
+        print(
+          '⚠️  [FlutterInstance] hotRestart service not found, using stdin fallback',
+        );
         process.stdin.writeln('R');
         await process.stdin.flush();
         // Wait for restart to complete

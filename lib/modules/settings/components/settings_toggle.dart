@@ -18,17 +18,40 @@ class SettingsToggle extends StatelessComponent {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text('●', style: TextStyle(color: theme.base.primary)),
-          Text('━━', style: TextStyle(color: theme.base.primary.withOpacity(0.5))),
-          Text('○', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled))),
+          Text(
+            '━━',
+            style: TextStyle(color: theme.base.primary.withOpacity(0.5)),
+          ),
+          Text(
+            '○',
+            style: TextStyle(
+              color: theme.base.outline.withOpacity(TextOpacity.disabled),
+            ),
+          ),
         ],
       );
     } else {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('○', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled))),
-          Text('━━', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.separator))),
-          Text('●', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.secondary))),
+          Text(
+            '○',
+            style: TextStyle(
+              color: theme.base.outline.withOpacity(TextOpacity.disabled),
+            ),
+          ),
+          Text(
+            '━━',
+            style: TextStyle(
+              color: theme.base.outline.withOpacity(TextOpacity.separator),
+            ),
+          ),
+          Text(
+            '●',
+            style: TextStyle(
+              color: theme.base.outline.withOpacity(TextOpacity.secondary),
+            ),
+          ),
         ],
       );
     }
@@ -60,7 +83,9 @@ class SettingsToggleItem extends StatelessComponent {
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-        decoration: BoxDecoration(color: isSelected ? theme.base.primary.withOpacity(0.2) : null),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.base.primary.withOpacity(0.2) : null,
+        ),
         child: Row(
           children: [
             SettingsToggle(value: value, focused: isSelected),
@@ -71,9 +96,19 @@ class SettingsToggleItem extends StatelessComponent {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: theme.base.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  Text(description, style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary))),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

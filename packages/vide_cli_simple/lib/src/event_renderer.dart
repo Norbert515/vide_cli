@@ -120,7 +120,9 @@ class EventRenderer {
       }
     } else if (e.role == 'user') {
       _finishAllStreaming();
-      stdout.writeln('${_color(_Colors.dim)}[User: ${e.content}]${_color(_Colors.reset)}');
+      stdout.writeln(
+        '${_color(_Colors.dim)}[User: ${e.content}]${_color(_Colors.reset)}',
+      );
     }
   }
 
@@ -128,27 +130,35 @@ class EventRenderer {
     final color = _getAgentColor(e.agentId);
     final name = e.agentName ?? e.agentType;
     stdout.writeln();
-    stdout.writeln('${_color(color)}${_color(_Colors.bold)}━━━ $name ━━━${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}${_color(_Colors.bold)}━━━ $name ━━━${_color(_Colors.reset)}',
+    );
   }
 
   void _showAgentSwitch(VideEvent e) {
     final color = _getAgentColor(e.agentId);
     final name = e.agentName ?? e.agentType;
     stdout.writeln();
-    stdout.writeln('${_color(color)}${_color(_Colors.bold)}━━━ $name ━━━${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}${_color(_Colors.bold)}━━━ $name ━━━${_color(_Colors.reset)}',
+    );
   }
 
   void _renderToolUse(ToolUseEvent e) {
     _handleAgentContextSwitch(e);
     final color = _getAgentColor(e.agentId);
     final prefix = _agentPrefix(e);
-    stdout.writeln('${_color(color)}$prefix[Tool: ${e.toolName}]${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}$prefix[Tool: ${e.toolName}]${_color(_Colors.reset)}',
+    );
   }
 
   void _renderToolResult(ToolResultEvent e) {
     if (e.isError) {
       final prefix = _agentPrefix(e);
-      stdout.writeln('${_color(_Colors.red)}$prefix[Tool Error: ${_truncate(e.result, 100)}]${_color(_Colors.reset)}');
+      stdout.writeln(
+        '${_color(_Colors.red)}$prefix[Tool Error: ${_truncate(e.result, 100)}]${_color(_Colors.reset)}',
+      );
     }
     // Don't print successful tool results by default - too verbose
   }
@@ -168,7 +178,9 @@ class EventRenderer {
     final tokenInfo = e.totalCostUsd > 0
         ? ' (${e.currentContextWindowTokens} ctx, \$${e.totalCostUsd.toStringAsFixed(4)})'
         : '';
-    stdout.writeln('${_color(color)}${_color(_Colors.dim)}$prefix--- ${e.reason}$tokenInfo ---${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}${_color(_Colors.dim)}$prefix--- ${e.reason}$tokenInfo ---${_color(_Colors.reset)}',
+    );
     stdout.writeln();
 
     // Clear active agent if this was it
@@ -180,13 +192,17 @@ class EventRenderer {
   void _renderAgentSpawned(AgentSpawnedEvent e) {
     _finishAllStreaming();
     final color = _getAgentColor(e.agentId);
-    stdout.writeln('${_color(color)}${_color(_Colors.bold)}[+ Agent: ${e.agentName ?? e.agentId}]${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}${_color(_Colors.bold)}[+ Agent: ${e.agentName ?? e.agentId}]${_color(_Colors.reset)}',
+    );
   }
 
   void _renderAgentTerminated(AgentTerminatedEvent e) {
     _finishAllStreaming();
     final color = _getAgentColor(e.agentId);
-    stdout.writeln('${_color(color)}${_color(_Colors.dim)}[- Agent: ${e.agentName ?? e.agentId}]${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(color)}${_color(_Colors.dim)}[- Agent: ${e.agentName ?? e.agentId}]${_color(_Colors.reset)}',
+    );
 
     // Clean up state
     _agentStates.remove(e.agentId);
@@ -201,32 +217,54 @@ class EventRenderer {
     final name = e.agentName ?? e.agentType;
 
     stdout.writeln();
-    stdout.writeln('${_color(_Colors.magenta)}╔══════════════════════════════════════════════════════════════╗${_color(_Colors.reset)}');
-    stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  ${_color(color)}Permission Required${_color(_Colors.reset)} (${name})');
-    stdout.writeln('${_color(_Colors.magenta)}╠══════════════════════════════════════════════════════════════╣${_color(_Colors.reset)}');
-    stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Tool: ${e.toolName}');
+    stdout.writeln(
+      '${_color(_Colors.magenta)}╔══════════════════════════════════════════════════════════════╗${_color(_Colors.reset)}',
+    );
+    stdout.writeln(
+      '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  ${_color(color)}Permission Required${_color(_Colors.reset)} (${name})',
+    );
+    stdout.writeln(
+      '${_color(_Colors.magenta)}╠══════════════════════════════════════════════════════════════╣${_color(_Colors.reset)}',
+    );
+    stdout.writeln(
+      '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Tool: ${e.toolName}',
+    );
 
     // Show relevant input parameters
     final input = e.toolInput;
     if (input.containsKey('command')) {
-      stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Command: ${_truncate(input['command'].toString(), 50)}');
+      stdout.writeln(
+        '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Command: ${_truncate(input['command'].toString(), 50)}',
+      );
     }
     if (input.containsKey('file_path')) {
-      stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  File: ${input['file_path']}');
+      stdout.writeln(
+        '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  File: ${input['file_path']}',
+      );
     }
     if (input.containsKey('url')) {
-      stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  URL: ${input['url']}');
+      stdout.writeln(
+        '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  URL: ${input['url']}',
+      );
     }
 
-    stdout.writeln('${_color(_Colors.magenta)}╠══════════════════════════════════════════════════════════════╣${_color(_Colors.reset)}');
-    stdout.writeln('${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Allow? [y/n]: ');
-    stdout.writeln('${_color(_Colors.magenta)}╚══════════════════════════════════════════════════════════════╝${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(_Colors.magenta)}╠══════════════════════════════════════════════════════════════╣${_color(_Colors.reset)}',
+    );
+    stdout.writeln(
+      '${_color(_Colors.magenta)}║${_color(_Colors.reset)}  Allow? [y/n]: ',
+    );
+    stdout.writeln(
+      '${_color(_Colors.magenta)}╚══════════════════════════════════════════════════════════════╝${_color(_Colors.reset)}',
+    );
   }
 
   void _renderError(ErrorEvent e) {
     _finishAllStreaming();
     final prefix = _agentPrefix(e);
-    stdout.writeln('${_color(_Colors.red)}$prefix[Error: ${e.message}]${_color(_Colors.reset)}');
+    stdout.writeln(
+      '${_color(_Colors.red)}$prefix[Error: ${e.message}]${_color(_Colors.reset)}',
+    );
   }
 
   void _handleAgentContextSwitch(VideEvent e) {

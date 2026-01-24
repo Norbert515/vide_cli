@@ -78,7 +78,9 @@ final currentTeamProvider = StateProvider<String>((ref) {
 ///
 /// Loads the full TeamDefinition for the currently selected team.
 /// Returns null if the team is not found.
-final currentTeamDefinitionProvider = FutureProvider<TeamDefinition?>((ref) async {
+final currentTeamDefinitionProvider = FutureProvider<TeamDefinition?>((
+  ref,
+) async {
   final teamName = ref.watch(currentTeamProvider);
   final loader = ref.watch(teamFrameworkLoaderProvider);
   return await loader.getTeam(teamName);
@@ -96,15 +98,12 @@ class EmbeddedServerState {
   final bool isStarting;
   final String? error;
 
-  const EmbeddedServerState({
-    this.server,
-    this.isStarting = false,
-    this.error,
-  });
+  const EmbeddedServerState({this.server, this.isStarting = false, this.error});
 
   bool get isRunning => server != null;
   String? get url => server != null ? 'http://localhost:${server!.port}' : null;
-  String? get wsUrl => server != null ? 'ws://localhost:${server!.port}/ws' : null;
+  String? get wsUrl =>
+      server != null ? 'ws://localhost:${server!.port}/ws' : null;
 
   EmbeddedServerState copyWith({
     VideEmbeddedServer? server,
@@ -169,5 +168,5 @@ class EmbeddedServerNotifier extends StateNotifier<EmbeddedServerState> {
 /// Provider for managing the embedded server state.
 final embeddedServerProvider =
     StateNotifierProvider<EmbeddedServerNotifier, EmbeddedServerState>((ref) {
-  return EmbeddedServerNotifier(ref);
-});
+      return EmbeddedServerNotifier(ref);
+    });

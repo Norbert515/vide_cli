@@ -66,13 +66,21 @@ void main() {
 
         // Check onSessionEnd trigger
         final sessionEndTrigger = team.lifecycleTriggers['onSessionEnd'];
-        expect(sessionEndTrigger, isNotNull, reason: 'onSessionEnd trigger should be configured');
+        expect(
+          sessionEndTrigger,
+          isNotNull,
+          reason: 'onSessionEnd trigger should be configured',
+        );
         expect(sessionEndTrigger!.enabled, isTrue);
         expect(sessionEndTrigger.spawn, equals('session-synthesizer'));
 
         // Check onTaskComplete trigger
         final taskCompleteTrigger = team.lifecycleTriggers['onTaskComplete'];
-        expect(taskCompleteTrigger, isNotNull, reason: 'onTaskComplete trigger should be configured');
+        expect(
+          taskCompleteTrigger,
+          isNotNull,
+          reason: 'onTaskComplete trigger should be configured',
+        );
         expect(taskCompleteTrigger!.enabled, isTrue);
         expect(taskCompleteTrigger.spawn, equals('code-reviewer'));
       });
@@ -80,7 +88,11 @@ void main() {
       test('session-synthesizer agent exists and can be loaded', () async {
         final agent = await loader.getAgent('session-synthesizer');
 
-        expect(agent, isNotNull, reason: 'session-synthesizer agent should exist');
+        expect(
+          agent,
+          isNotNull,
+          reason: 'session-synthesizer agent should exist',
+        );
         expect(agent!.name, equals('session-synthesizer'));
         expect(agent.displayName, equals('Sage'));
         expect(agent.mcpServers, contains('vide-knowledge'));
@@ -122,8 +134,11 @@ void main() {
         final team = await loader.getTeam('vide');
 
         expect(team, isNotNull);
-        expect(team!.lifecycleTriggers, isEmpty,
-            reason: 'vide team should not have lifecycle triggers');
+        expect(
+          team!.lifecycleTriggers,
+          isEmpty,
+          reason: 'vide team should not have lifecycle triggers',
+        );
       });
     });
 
@@ -209,7 +224,10 @@ void main() {
 
         expect(section, contains('onSessionEnd'));
         expect(section, contains('Test'));
-        expect(section, isNot(contains('### Task'))); // Task section should be absent
+        expect(
+          section,
+          isNot(contains('### Task')),
+        ); // Task section should be absent
       });
     });
 
@@ -227,9 +245,14 @@ void main() {
 
         // The keys in lifecycleTriggers should match TriggerPoint enum names
         for (final key in team!.lifecycleTriggers.keys) {
-          final matchesTriggerPoint = TriggerPoint.values.any((tp) => tp.name == key);
-          expect(matchesTriggerPoint, isTrue,
-              reason: 'Trigger key "$key" should match a TriggerPoint enum value');
+          final matchesTriggerPoint = TriggerPoint.values.any(
+            (tp) => tp.name == key,
+          );
+          expect(
+            matchesTriggerPoint,
+            isTrue,
+            reason: 'Trigger key "$key" should match a TriggerPoint enum value',
+          );
         }
       });
     });
@@ -290,7 +313,9 @@ void main() {
 
         // This would be the prompt sent to the triggered agent
         print('--- Simulated Trigger Prompt ---');
-        print('Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})');
+        print(
+          'Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})',
+        );
         print('Trigger: onSessionEnd');
         print('Context:\n$contextSection');
         print('--- End ---');
@@ -356,7 +381,9 @@ void main() {
         expect(contextSection, contains('lib/auth/auth_middleware.dart'));
 
         print('--- Simulated Trigger Prompt ---');
-        print('Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})');
+        print(
+          'Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})',
+        );
         print('Trigger: onTaskComplete');
         print('Context:\n$contextSection');
         print('--- End ---');

@@ -59,7 +59,9 @@ class _WelcomePageState extends State<WelcomePage>
     super.initState();
     // Initialize typing animation controller
     _typingController = AnimationController(
-      duration: const Duration(milliseconds: 1000), // Will be updated dynamically
+      duration: const Duration(
+        milliseconds: 1000,
+      ), // Will be updated dynamically
       vsync: this,
     );
     _typingController.addListener(_onTypingTick);
@@ -71,8 +73,7 @@ class _WelcomePageState extends State<WelcomePage>
     );
     _shimmerController.addListener(() {
       setState(() {
-        _shimmerPosition =
-            (_shimmerController.value * 22).floor() % 22;
+        _shimmerPosition = (_shimmerController.value * 22).floor() % 22;
       });
     });
     // Start with theme selection, verification happens after
@@ -87,8 +88,9 @@ class _WelcomePageState extends State<WelcomePage>
 
   void _onTypingTick() {
     // Calculate how many characters should be shown based on animation progress
-    final targetIndex =
-        (_typingController.value * _claudeResponse.length).ceil().clamp(0, _claudeResponse.length);
+    final targetIndex = (_typingController.value * _claudeResponse.length)
+        .ceil()
+        .clamp(0, _claudeResponse.length);
 
     if (targetIndex != _typingIndex) {
       setState(() {
@@ -136,10 +138,10 @@ class _WelcomePageState extends State<WelcomePage>
   Future<void> _runClaudeTest() async {
     try {
       final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
-      final result = await Process.run(
-        executable,
-        ['--print', 'Respond with exactly: "Connected and ready to help!"'],
-      );
+      final result = await Process.run(executable, [
+        '--print',
+        'Respond with exactly: "Connected and ready to help!"',
+      ]);
 
       if (result.exitCode != 0) {
         setState(() {

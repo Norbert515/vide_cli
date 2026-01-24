@@ -10,10 +10,7 @@ class KnowledgeServerParams {
   final AgentId agentId;
   final String projectPath;
 
-  KnowledgeServerParams({
-    required this.agentId,
-    required this.projectPath,
-  });
+  KnowledgeServerParams({required this.agentId, required this.projectPath});
 
   @override
   bool operator ==(Object other) =>
@@ -29,11 +26,11 @@ class KnowledgeServerParams {
 
 final knowledgeServerProvider =
     Provider.family<KnowledgeMcpServer, KnowledgeServerParams>((ref, params) {
-  return KnowledgeMcpServer(
-    callerAgentId: params.agentId,
-    projectPath: params.projectPath,
-  );
-});
+      return KnowledgeMcpServer(
+        callerAgentId: params.agentId,
+        projectPath: params.projectPath,
+      );
+    });
 
 /// MCP server for knowledge base operations.
 ///
@@ -46,21 +43,19 @@ class KnowledgeMcpServer extends McpServerBase {
   final AgentId callerAgentId;
   final KnowledgeService _service;
 
-  KnowledgeMcpServer({
-    required this.callerAgentId,
-    required String projectPath,
-  })  : _service = KnowledgeService(projectPath: projectPath),
-        super(name: serverName, version: '1.0.0');
+  KnowledgeMcpServer({required this.callerAgentId, required String projectPath})
+    : _service = KnowledgeService(projectPath: projectPath),
+      super(name: serverName, version: '1.0.0');
 
   @override
   List<String> get toolNames => [
-        'getKnowledgeIndex',
-        'getKnowledgeSummary',
-        'readKnowledge',
-        'writeKnowledge',
-        'searchKnowledge',
-        'listKnowledge',
-      ];
+    'getKnowledgeIndex',
+    'getKnowledgeSummary',
+    'readKnowledge',
+    'writeKnowledge',
+    'searchKnowledge',
+    'listKnowledge',
+  ];
 
   @override
   void registerTools(McpServer server) {
@@ -244,10 +239,7 @@ writeKnowledge(
             'description':
                 'Document path (e.g., "global/decisions/use-jwt.md", "teams/auth/findings/token-format.md")',
           },
-          'title': {
-            'type': 'string',
-            'description': 'Document title',
-          },
+          'title': {'type': 'string', 'description': 'Document title'},
           'type': {
             'type': 'string',
             'description':
@@ -255,21 +247,20 @@ writeKnowledge(
           },
           'content': {
             'type': 'string',
-            'description': 'Markdown content body (without frontmatter or title header)',
+            'description':
+                'Markdown content body (without frontmatter or title header)',
           },
           'tags': {
             'type': 'array',
             'items': {'type': 'string'},
             'description': 'Optional tags for categorization',
           },
-          'author': {
-            'type': 'string',
-            'description': 'Optional author name',
-          },
+          'author': {'type': 'string', 'description': 'Optional author name'},
           'references': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Optional code references (e.g., "lib/auth.dart:45")',
+            'description':
+                'Optional code references (e.g., "lib/auth.dart:45")',
           },
         },
         required: ['path', 'title', 'type', 'content'],
@@ -286,10 +277,15 @@ writeKnowledge(
         final type = args['type'] as String?;
         final content = args['content'] as String?;
 
-        if (docPath == null || title == null || type == null || content == null) {
+        if (docPath == null ||
+            title == null ||
+            type == null ||
+            content == null) {
           return CallToolResult.fromContent(
             content: [
-              TextContent(text: 'Error: path, title, type, and content are required'),
+              TextContent(
+                text: 'Error: path, title, type, and content are required',
+              ),
             ],
           );
         }
@@ -307,7 +303,9 @@ writeKnowledge(
           );
 
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Knowledge document written: $docPath')],
+            content: [
+              TextContent(text: 'Knowledge document written: $docPath'),
+            ],
           );
         } catch (e) {
           return CallToolResult.fromContent(
@@ -402,7 +400,8 @@ More targeted than getKnowledgeIndex when you know what type of knowledge you ne
           'tags': {
             'type': 'array',
             'items': {'type': 'string'},
-            'description': 'Filter by tags (documents must have at least one matching tag)',
+            'description':
+                'Filter by tags (documents must have at least one matching tag)',
           },
         },
       ),

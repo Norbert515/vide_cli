@@ -303,7 +303,9 @@ Call this when:
     }
 
     if (allIdle && network.agents.isNotEmpty) {
-      print('[AgentMCPServer] All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger');
+      print(
+        '[AgentMCPServer] All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger',
+      );
       // Fire trigger in background (don't block the tool response)
       () async {
         try {

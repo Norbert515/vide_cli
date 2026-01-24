@@ -189,7 +189,11 @@ class _DemoAgentsBarState extends State<_DemoAgentsBar> {
       ),
     ];
 
-    return Row(children: [for (final item in agents) _buildAgentItem(item.agent, item.status)]);
+    return Row(
+      children: [
+        for (final item in agents) _buildAgentItem(item.agent, item.status),
+      ],
+    );
   }
 
   Component _buildAgentItem(AgentMetadata agent, AgentStatus status) {

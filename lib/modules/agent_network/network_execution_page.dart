@@ -69,14 +69,19 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     AgentNetworkState networkState,
   ) {
     // Get selected agent ID from provider, or use the first agent
-    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
+    final selectedAgentIdNotifier = context.read(
+      selectedAgentIdProvider.notifier,
+    );
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
     // Find the selected agent, or default to the first agent
-    String agentId = selectedAgentId ?? (networkState.agentIds.isNotEmpty ? networkState.agentIds[0] : '');
+    String agentId =
+        selectedAgentId ??
+        (networkState.agentIds.isNotEmpty ? networkState.agentIds[0] : '');
 
     // Ensure selected agent is still valid
-    if (!networkState.agentIds.contains(agentId) && networkState.agentIds.isNotEmpty) {
+    if (!networkState.agentIds.contains(agentId) &&
+        networkState.agentIds.isNotEmpty) {
       agentId = networkState.agentIds[0];
       selectedAgentIdNotifier.state = agentId;
     }
@@ -182,10 +187,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
           if (networkState.agentIds.isEmpty)
             Center(child: Text('No agents'))
           else
-            _buildAgentChat(
-              context,
-              networkState,
-            ),
+            _buildAgentChat(context, networkState),
         ],
       ),
     );
@@ -245,20 +247,23 @@ class _AgentChatState extends State<_AgentChat> {
     if (session == null) return;
 
     // Listen to conversation updates
-    _conversationSubscription = session.conversationStream(component.agentId).listen((
-      conversation,
-    ) {
-      setState(() {
-        _conversation = conversation;
-      });
+    _conversationSubscription = session
+        .conversationStream(component.agentId)
+        .listen((conversation) {
+          setState(() {
+            _conversation = conversation;
+          });
 
-      // Sync token stats to AgentMetadata for persistence and network-wide tracking
-      _syncTokenStats(conversation, session);
-    });
-    _conversation = session.getConversation(component.agentId) ?? Conversation.empty();
+          // Sync token stats to AgentMetadata for persistence and network-wide tracking
+          _syncTokenStats(conversation, session);
+        });
+    _conversation =
+        session.getConversation(component.agentId) ?? Conversation.empty();
 
     // Listen to queued message updates
-    _queueSubscription = session.queuedMessageStream(component.agentId).listen((text) {
+    _queueSubscription = session.queuedMessageStream(component.agentId).listen((
+      text,
+    ) {
       setState(() => _queuedMessage = text);
     });
     _queuedMessage = session.getQueuedMessage(component.agentId);
@@ -276,8 +281,7 @@ class _AgentChatState extends State<_AgentChat> {
       totalInputTokens: conversation.totalInputTokens,
       totalOutputTokens: conversation.totalOutputTokens,
       totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens:
-          conversation.totalCacheCreationInputTokens,
+      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
       totalCostUsd: conversation.totalCostUsd,
     );
   }
@@ -297,7 +301,8 @@ class _AgentChatState extends State<_AgentChat> {
 
   bool _isLastAgent() {
     final network = context.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null) return true; // If no network, treat as last agent (safe default)
+    if (network == null)
+      return true; // If no network, treat as last agent (safe default)
     return network.agents.length <= 1;
   }
 
@@ -331,7 +336,10 @@ class _AgentChatState extends State<_AgentChat> {
         );
       },
       forkAgent: (name) async {
-        final newAgentId = await session?.forkAgent(component.agentId, name: name);
+        final newAgentId = await session?.forkAgent(
+          component.agentId,
+          name: name,
+        );
         return newAgentId ?? '';
       },
       killAgent: () async {
@@ -348,12 +356,17 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(Message.text(message), agentId: component.agentId);
+            session?.sendMessage(
+              Message.text(message),
+              agentId: component.agentId,
+            );
           },
           onSwitchWorktree: (path) {
             final container = ProviderScope.containerOf(context);
             container.read(repoPathOverrideProvider.notifier).state = path;
-            container.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+            container
+                .read(agentNetworkManagerProvider.notifier)
+                .setWorktreePath(path);
           },
         );
       },
@@ -436,9 +449,7 @@ class _AgentChatState extends State<_AgentChat> {
         permissionService.addSessionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
-        final settingsManager = ClaudeSettingsManager(
-          projectRoot: request.cwd,
-        );
+        final settingsManager = ClaudeSettingsManager(projectRoot: request.cwd);
 
         final pattern =
             patternOverride ?? PatternInference.inferPattern(toolName, input);
@@ -534,7 +545,9 @@ class _AgentChatState extends State<_AgentChat> {
     final showContextUsage = isCautionZone;
 
     // If nothing to show (no model, no context warning, no cost), return empty
-    if (_model == null && !showContextUsage && _conversation.totalCostUsd <= 0) {
+    if (_model == null &&
+        !showContextUsage &&
+        _conversation.totalCostUsd <= 0) {
       return SizedBox();
     }
 
@@ -581,8 +594,11 @@ class _AgentChatState extends State<_AgentChat> {
   /// Builds the filtered list of messages (excluding slash commands)
   List<ConversationMessage> _getFilteredMessages() {
     return _conversation.messages.reversed
-        .where((message) => !(message.role == MessageRole.user &&
-            message.content.startsWith('/')))
+        .where(
+          (message) =>
+              !(message.role == MessageRole.user &&
+                  message.content.startsWith('/')),
+        )
         .toList();
   }
 
@@ -637,9 +653,7 @@ class _AgentChatState extends State<_AgentChat> {
         child: Column(
           children: [
             // Messages area
-            Expanded(
-              child: _buildMessageList(context),
-            ),
+            Expanded(child: _buildMessageList(context)),
 
             // Input area - conditionally show permission dialog or text field
             Column(
@@ -771,14 +785,21 @@ class _AgentChatState extends State<_AgentChat> {
                     currentPermissionRequest == null)
                   Builder(
                     builder: (context) {
-                      final promptHistory =
-                          context.watch(promptHistoryProvider);
-                      final pendingText =
-                          context.watch(pendingInputTextProvider);
+                      final promptHistory = context.watch(
+                        promptHistoryProvider,
+                      );
+                      final pendingText = context.watch(
+                        pendingInputTextProvider,
+                      );
                       // Text field is focused when neither sidebar has focus
-                      final leftSidebarFocused = context.watch(sidebarFocusProvider);
-                      final rightSidebarFocused = context.watch(gitSidebarFocusProvider);
-                      final textFieldFocused = !leftSidebarFocused && !rightSidebarFocused;
+                      final leftSidebarFocused = context.watch(
+                        sidebarFocusProvider,
+                      );
+                      final rightSidebarFocused = context.watch(
+                        gitSidebarFocusProvider,
+                      );
+                      final textFieldFocused =
+                          !leftSidebarFocused && !rightSidebarFocused;
 
                       return AttachmentTextField(
                         focused: textFieldFocused,
@@ -786,21 +807,25 @@ class _AgentChatState extends State<_AgentChat> {
                             true, // Always enabled - messages queue during processing
                         placeholder: 'Type a message...',
                         initialText: pendingText,
-                        onTextChanged: (text) => context
-                            .read(pendingInputTextProvider.notifier)
-                            .state = text,
+                        onTextChanged: (text) =>
+                            context
+                                    .read(pendingInputTextProvider.notifier)
+                                    .state =
+                                text,
                         onSubmit: (message) {
                           // Clear pending text on submit
                           context
-                              .read(pendingInputTextProvider.notifier)
-                              .state = '';
+                                  .read(pendingInputTextProvider.notifier)
+                                  .state =
+                              '';
                           _sendMessage(message);
                         },
                         onCommand: (cmd) {
                           // Clear pending text on command
                           context
-                              .read(pendingInputTextProvider.notifier)
-                              .state = '';
+                                  .read(pendingInputTextProvider.notifier)
+                                  .state =
+                              '';
                           _handleCommand(cmd);
                         },
                         commandSuggestions: _getCommandSuggestions,
@@ -808,14 +833,18 @@ class _AgentChatState extends State<_AgentChat> {
                         onPromptSubmitted: (prompt) => context
                             .read(promptHistoryProvider.notifier)
                             .addPrompt(prompt),
-                        onLeftEdge: () => context
-                            .read(sidebarFocusProvider.notifier)
-                            .state = true,
-                        onRightEdge: () => context
-                            .read(gitSidebarFocusProvider.notifier)
-                            .state = true,
+                        onLeftEdge: () =>
+                            context.read(sidebarFocusProvider.notifier).state =
+                                true,
+                        onRightEdge: () =>
+                            context
+                                    .read(gitSidebarFocusProvider.notifier)
+                                    .state =
+                                true,
                         onEscape: () {
-                          final session = context.read(currentVideSessionProvider);
+                          final session = context.read(
+                            currentVideSessionProvider,
+                          );
                           if (session == null) return;
                           // If there's a queued message, clear it first
                           if (_queuedMessage != null) {

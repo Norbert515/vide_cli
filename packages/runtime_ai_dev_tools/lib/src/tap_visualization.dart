@@ -51,7 +51,8 @@ class TapVisualizationService {
         }
       });
     } else {
-      print('✅ [TapVisualization] Cursor position set to ($x, $y) (no overlay key)');
+      print(
+          '✅ [TapVisualization] Cursor position set to ($x, $y) (no overlay key)');
     }
   }
 

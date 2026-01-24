@@ -23,16 +23,16 @@ void main() {
       final assetsPath = 'assets/team_framework';
 
       for (final category in categories) {
-        final targetCategoryDir =
-            Directory(path.join(defaultsDir.path, category));
+        final targetCategoryDir = Directory(
+          path.join(defaultsDir.path, category),
+        );
         await targetCategoryDir.create(recursive: true);
 
         final sourceDir = Directory(path.join(assetsPath, category));
         if (await sourceDir.exists()) {
-          final files = sourceDir
-              .listSync()
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.md'));
+          final files = sourceDir.listSync().whereType<File>().where(
+            (f) => f.path.endsWith('.md'),
+          );
           for (final file in files) {
             final targetFile = File(
               path.join(targetCategoryDir.path, path.basename(file.path)),
@@ -95,24 +95,23 @@ void main() {
       });
 
       test('core agents load successfully', () async {
-        final agents = [
-          'main',
-          'implementer',
-          'researcher',
-          'tester',
-        ];
+        final agents = ['main', 'implementer', 'researcher', 'tester'];
 
         for (final agentName in agents) {
           final config = await loader.buildAgentConfiguration(agentName);
           expect(config, isNotNull, reason: 'Agent $agentName failed to load');
-          expect(config!.systemPrompt.isNotEmpty, true,
-              reason: 'Agent $agentName has empty system prompt');
+          expect(
+            config!.systemPrompt.isNotEmpty,
+            true,
+            reason: 'Agent $agentName has empty system prompt',
+          );
         }
       });
 
       test('returns null for non-existent agent', () async {
-        final config =
-            await loader.buildAgentConfiguration('non-existent-agent');
+        final config = await loader.buildAgentConfiguration(
+          'non-existent-agent',
+        );
         expect(config, isNull);
       });
 
@@ -121,8 +120,11 @@ void main() {
 
         expect(config, isNotNull);
         // Should include etiquette/messaging content
-        expect(config!.systemPrompt, contains('sendMessageToAgent'),
-            reason: 'Missing messaging etiquette content');
+        expect(
+          config!.systemPrompt,
+          contains('sendMessageToAgent'),
+          reason: 'Missing messaging etiquette content',
+        );
       });
 
       test('includes are resolved correctly in main', () async {
@@ -130,8 +132,11 @@ void main() {
 
         expect(config, isNotNull);
         // Should include messaging and handoff etiquette
-        expect(config!.systemPrompt, contains('ORCHESTRATOR'),
-            reason: 'Missing orchestrator guidance');
+        expect(
+          config!.systemPrompt,
+          contains('ORCHESTRATOR'),
+          reason: 'Missing orchestrator guidance',
+        );
       });
 
       test('MCP servers are correctly parsed', () async {
@@ -186,10 +191,16 @@ void main() {
         final prompt = config!.systemPrompt;
 
         // Should contain key sections
-        expect(prompt, contains('Implementation'),
-            reason: 'Missing implementation guidance');
-        expect(prompt.length, greaterThan(500),
-            reason: 'System prompt seems incomplete (too short)');
+        expect(
+          prompt,
+          contains('Implementation'),
+          reason: 'Missing implementation guidance',
+        );
+        expect(
+          prompt.length,
+          greaterThan(500),
+          reason: 'System prompt seems incomplete (too short)',
+        );
       });
 
       test('tools list is not empty for implementer', () async {
@@ -240,8 +251,11 @@ void main() {
         expect(agent, isNotNull);
 
         final prompt = await loader.buildAgentPrompt(agent!);
-        expect(prompt.length, greaterThan(agent.content.length),
-            reason: 'Prompt should include additional content from includes');
+        expect(
+          prompt.length,
+          greaterThan(agent.content.length),
+          reason: 'Prompt should include additional content from includes',
+        );
       });
     });
 
@@ -274,8 +288,11 @@ void main() {
         final first = await loader.loadAgents();
         final second = await loader.loadAgents();
 
-        expect(identical(first, second), true,
-            reason: 'Loader should return cached agents');
+        expect(
+          identical(first, second),
+          true,
+          reason: 'Loader should return cached agents',
+        );
       });
 
       test('clearCache forces reload', () async {

@@ -22,15 +22,21 @@ void main() {
         await service.ensureDirectoryStructure();
 
         expect(
-          await Directory(path.join(service.knowledgeRoot, 'global', 'decisions')).exists(),
+          await Directory(
+            path.join(service.knowledgeRoot, 'global', 'decisions'),
+          ).exists(),
           isTrue,
         );
         expect(
-          await Directory(path.join(service.knowledgeRoot, 'global', 'patterns')).exists(),
+          await Directory(
+            path.join(service.knowledgeRoot, 'global', 'patterns'),
+          ).exists(),
           isTrue,
         );
         expect(
-          await Directory(path.join(service.knowledgeRoot, 'global', 'findings')).exists(),
+          await Directory(
+            path.join(service.knowledgeRoot, 'global', 'findings'),
+          ).exists(),
           isTrue,
         );
       });
@@ -48,7 +54,9 @@ void main() {
           author: 'TestAgent',
         );
 
-        final file = File(path.join(service.knowledgeRoot, 'global/decisions/test-decision.md'));
+        final file = File(
+          path.join(service.knowledgeRoot, 'global/decisions/test-decision.md'),
+        );
         expect(await file.exists(), isTrue);
 
         final content = await file.readAsString();
@@ -69,10 +77,12 @@ void main() {
           content: 'JWT tokens use...',
         );
 
-        final file = File(path.join(
-          service.knowledgeRoot,
-          'teams/auth-team/findings/token-format.md',
-        ));
+        final file = File(
+          path.join(
+            service.knowledgeRoot,
+            'teams/auth-team/findings/token-format.md',
+          ),
+        );
         expect(await file.exists(), isTrue);
       });
     });
@@ -84,7 +94,8 @@ void main() {
           docPath: 'global/findings/test.md',
           title: 'Test Finding',
           type: 'finding',
-          content: 'First paragraph of the finding.\n\nSecond paragraph with more details.',
+          content:
+              'First paragraph of the finding.\n\nSecond paragraph with more details.',
           tags: ['test'],
         );
 
@@ -113,10 +124,13 @@ void main() {
           docPath: 'global/decisions/summary-test.md',
           title: 'Summary Test',
           type: 'decision',
-          content: 'This is the first paragraph summary.\n\nThis is the second paragraph.',
+          content:
+              'This is the first paragraph summary.\n\nThis is the second paragraph.',
         );
 
-        final doc = await service.getSummary('global/decisions/summary-test.md');
+        final doc = await service.getSummary(
+          'global/decisions/summary-test.md',
+        );
 
         expect(doc, isNotNull);
         expect(doc!.title, equals('Summary Test'));
@@ -145,7 +159,10 @@ void main() {
         final documents = await service.getIndex();
 
         expect(documents, hasLength(2));
-        expect(documents.map((d) => d.title), containsAll(['Decision 1', 'Finding 1']));
+        expect(
+          documents.map((d) => d.title),
+          containsAll(['Decision 1', 'Finding 1']),
+        );
         // Should not have content in shallow query
         for (final doc in documents) {
           expect(doc.content, isNull);

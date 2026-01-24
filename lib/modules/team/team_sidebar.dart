@@ -176,13 +176,19 @@ class _TeamSidebarState extends State<TeamSidebar>
     } else if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, _getNavigableItems().length - 1);
+        _selectedIndex = (_selectedIndex - 1).clamp(
+          0,
+          _getNavigableItems().length - 1,
+        );
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       setState(() {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, _getNavigableItems().length - 1);
+        _selectedIndex = (_selectedIndex + 1).clamp(
+          0,
+          _getNavigableItems().length - 1,
+        );
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
     } else if (event.logicalKey == LogicalKey.enter ||
@@ -216,7 +222,8 @@ class _TeamSidebarState extends State<TeamSidebar>
       _loadTeamData(selectedTeam);
       setState(() => _showTeamList = false);
       _selectedIndex = 0;
-    } else if (!_showTeamList && _selectedIndex == _getNavigableItems().length - 1) {
+    } else if (!_showTeamList &&
+        _selectedIndex == _getNavigableItems().length - 1) {
       setState(() => _showTeamList = true);
       _selectedIndex = 0;
     }
@@ -234,9 +241,7 @@ class _TeamSidebarState extends State<TeamSidebar>
         return true;
       },
       child: Container(
-        decoration: BoxDecoration(
-          color: theme.base.surface,
-        ),
+        decoration: BoxDecoration(color: theme.base.surface),
         child: ClipRect(
           child: SizedBox(
             width: _currentWidth,
@@ -261,9 +266,7 @@ class _TeamSidebarState extends State<TeamSidebar>
         SizedBox(height: 1),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            color: theme.base.outline.withOpacity(0.3),
-          ),
+          decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
           child: Center(
             child: Text(
               '⚙',
@@ -279,10 +282,7 @@ class _TeamSidebarState extends State<TeamSidebar>
     );
   }
 
-  Component _buildExpandedContent(
-    BuildContext context,
-    VideThemeData theme,
-  ) {
+  Component _buildExpandedContent(BuildContext context, VideThemeData theme) {
     final items = _getNavigableItems();
 
     return LayoutBuilder(
@@ -319,8 +319,9 @@ class _TeamSidebarState extends State<TeamSidebar>
                 child: Text(
                   '→ to exit',
                   style: TextStyle(
-                    color:
-                        theme.base.onSurface.withOpacity(TextOpacity.disabled),
+                    color: theme.base.onSurface.withOpacity(
+                      TextOpacity.disabled,
+                    ),
                   ),
                 ),
               ),
@@ -345,33 +346,33 @@ class _TeamSidebarState extends State<TeamSidebar>
     final content = <Component>[];
 
     // Team header
-    content.add(Container(
-      padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-      decoration: BoxDecoration(
-        color: theme.base.outline.withOpacity(0.1),
-      ),
-      child: Text(
-        '${data['icon'] ?? '⚙'} ${data['name']}',
-        style: TextStyle(
-          color: theme.base.onSurface,
-          fontWeight: FontWeight.bold,
+    content.add(
+      Container(
+        padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+        decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.1)),
+        child: Text(
+          '${data['icon'] ?? '⚙'} ${data['name']}',
+          style: TextStyle(
+            color: theme.base.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-    ));
+    );
 
     // Description
     final desc = (data['description'] as String?) ?? 'No description';
     if (desc.isNotEmpty) {
-      content.add(Container(
-        padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-        child: Text(
-          desc,
-          style: TextStyle(
-            color: theme.base.onSurface.withOpacity(0.8),
+      content.add(
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+          child: Text(
+            desc,
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+            maxLines: 3,
           ),
-          maxLines: 3,
         ),
-      ));
+      );
     }
 
     content.add(SizedBox(height: 1));
@@ -380,35 +381,41 @@ class _TeamSidebarState extends State<TeamSidebar>
     final agents = data['agents'] as List<String>? ?? [];
     final mainAgentName = data['mainAgent'] as String?;
 
-    content.add(Container(
-      padding: EdgeInsets.only(left: 1),
-      child: Text(
-        'Team Agents:',
-        style: TextStyle(
-          color: theme.base.onSurface,
-          fontWeight: FontWeight.bold,
+    content.add(
+      Container(
+        padding: EdgeInsets.only(left: 1),
+        child: Text(
+          'Team Agents:',
+          style: TextStyle(
+            color: theme.base.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-    ));
+    );
 
     if (mainAgentName != null) {
-      content.add(Container(
-        padding: EdgeInsets.only(left: 2),
-        child: Text(
-          '• lead: $mainAgentName',
-          style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+      content.add(
+        Container(
+          padding: EdgeInsets.only(left: 2),
+          child: Text(
+            '• lead: $mainAgentName',
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+          ),
         ),
-      ));
+      );
     }
 
     for (final agentType in agents) {
-      content.add(Container(
-        padding: EdgeInsets.only(left: 2),
-        child: Text(
-          '• $agentType',
-          style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+      content.add(
+        Container(
+          padding: EdgeInsets.only(left: 2),
+          child: Text(
+            '• $agentType',
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.8)),
+          ),
         ),
-      ));
+      );
     }
 
     return Column(children: content);
@@ -426,28 +433,27 @@ class _TeamSidebarState extends State<TeamSidebar>
     }
 
     final items = <Component>[];
-    items.add(Container(
-      padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
-      decoration: BoxDecoration(
-        color: theme.base.outline.withOpacity(0.1),
-      ),
-      child: Text(
-        'Available Teams:',
-        style: TextStyle(
-          color: theme.base.onSurface,
-          fontWeight: FontWeight.bold,
+    items.add(
+      Container(
+        padding: EdgeInsets.symmetric(horizontal: 1, vertical: 1),
+        decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.1)),
+        child: Text(
+          'Available Teams:',
+          style: TextStyle(
+            color: theme.base.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
-    ));
+    );
 
     for (final team in _availableTeams) {
-      items.add(Container(
-        padding: EdgeInsets.only(left: 1, top: 0.5, bottom: 0.5),
-        child: Text(
-          '• $team',
-          style: TextStyle(color: theme.base.onSurface),
+      items.add(
+        Container(
+          padding: EdgeInsets.only(left: 1, top: 0.5, bottom: 0.5),
+          child: Text('• $team', style: TextStyle(color: theme.base.onSurface)),
         ),
-      ));
+      );
     }
 
     return Column(children: items);
@@ -468,8 +474,8 @@ class _TeamSidebarState extends State<TeamSidebar>
     final bgColor = isSelected
         ? theme.base.primary.withOpacity(0.3)
         : isHovered
-            ? theme.base.outline.withOpacity(0.1)
-            : Color.fromARGB(0, 0, 0, 0);
+        ? theme.base.outline.withOpacity(0.1)
+        : Color.fromARGB(0, 0, 0, 0);
 
     final textColor = isSelected
         ? theme.base.primary
@@ -486,11 +492,7 @@ class _TeamSidebarState extends State<TeamSidebar>
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0.5),
           decoration: BoxDecoration(color: bgColor),
-          child: Text(
-            label,
-            style: TextStyle(color: textColor),
-            maxLines: 1,
-          ),
+          child: Text(label, style: TextStyle(color: textColor), maxLines: 1),
         ),
       ),
     );

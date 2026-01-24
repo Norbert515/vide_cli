@@ -375,11 +375,12 @@ class ControlProtocol {
   /// Set the maximum thinking tokens for extended thinking.
   ///
   /// [maxTokens] - Maximum number of thinking tokens (0 to disable)
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
-    final response = await _sendControlRequest(
-      'set_max_thinking_tokens',
-      {'max_thinking_tokens': maxTokens},
-    );
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
+    final response = await _sendControlRequest('set_max_thinking_tokens', {
+      'max_thinking_tokens': maxTokens,
+    });
     return SetMaxThinkingTokensResponse.fromJson(response);
   }
 
@@ -407,9 +408,7 @@ class ControlProtocol {
         if (server.env != null) 'env': server.env,
       };
     }
-    await _sendControlRequest('mcp_set_servers', {
-      'servers': serversMap,
-    });
+    await _sendControlRequest('mcp_set_servers', {'servers': serversMap});
   }
 
   /// Send a message to a specific MCP server.

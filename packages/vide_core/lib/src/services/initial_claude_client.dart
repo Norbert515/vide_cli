@@ -91,7 +91,9 @@ final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
 
   // Load and apply the real config asynchronously
   _loadAndApplyRealConfig(
-    teamFrameworkLoader: TeamFrameworkLoader(workingDirectory: workingDirectory),
+    teamFrameworkLoader: TeamFrameworkLoader(
+      workingDirectory: workingDirectory,
+    ),
     client: client,
     factory: factory,
     agentId: agentId,
@@ -161,7 +163,9 @@ Future<void> _loadAndApplyRealConfig({
       print('[InitialClaudeClient] Set model to: ${config.model}');
     }
 
-    print('[InitialClaudeClient] Loaded main agent config from team framework: $mainAgentName');
+    print(
+      '[InitialClaudeClient] Loaded main agent config from team framework: $mainAgentName',
+    );
   } catch (e) {
     print('Error loading team framework config: $e');
   }

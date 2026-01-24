@@ -23,11 +23,9 @@ final teamFrameworkLoaderProvider = Provider<TeamFrameworkLoader>((ref) {
 /// 2. User customizations: `~/.vide/user/`
 /// 3. Vide defaults: `~/.vide/defaults/`
 class TeamFrameworkLoader {
-  TeamFrameworkLoader({
-    String? workingDirectory,
-    String? videHome,
-  })  : _workingDirectory = workingDirectory ?? Directory.current.path,
-        _videHome = videHome ?? _defaultVideHome;
+  TeamFrameworkLoader({String? workingDirectory, String? videHome})
+    : _workingDirectory = workingDirectory ?? Directory.current.path,
+      _videHome = videHome ?? _defaultVideHome;
 
   final String _workingDirectory;
   final String _videHome;
@@ -167,8 +165,10 @@ class TeamFrameworkLoader {
     var systemPrompt = await buildAgentPrompt(agent);
 
     // If team is specified and agent has vide-agent MCP, inject available agent types
-    if (teamName != null && agent.mcpServers.any((s) =>
-        s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent')) {
+    if (teamName != null &&
+        agent.mcpServers.any(
+          (s) => s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent',
+        )) {
       final team = await getTeam(teamName);
       if (team != null) {
         final availableAgents = _buildAvailableAgentsSection(team);
@@ -185,7 +185,9 @@ class TeamFrameworkLoader {
     final allowedTools = agent.tools.isNotEmpty ? agent.tools : null;
 
     // Use disallowedTools from the agent personality if available
-    final disallowedTools = agent.disallowedTools.isNotEmpty ? agent.disallowedTools : null;
+    final disallowedTools = agent.disallowedTools.isNotEmpty
+        ? agent.disallowedTools
+        : null;
 
     // Build the AgentConfiguration
     return AgentConfiguration(
@@ -210,8 +212,9 @@ class TeamFrameworkLoader {
         final serverType = switch (normalized) {
           'vide-git' || 'git' => McpServerType.git,
           'vide-agent' || 'agent' => McpServerType.agent,
-          'vide-task-management' || 'task-management' || 'task_management' =>
-            McpServerType.taskManagement,
+          'vide-task-management' ||
+          'task-management' ||
+          'task_management' => McpServerType.taskManagement,
           'flutter-runtime' || 'flutterruntime' => McpServerType.flutterRuntime,
           'vide-knowledge' || 'knowledge' => McpServerType.knowledge,
           _ => null,
@@ -342,8 +345,8 @@ $agentsList
 
     try {
       final files = dir.listSync().whereType<File>().where(
-            (f) => path.extension(f.path) == '.md',
-          );
+        (f) => path.extension(f.path) == '.md',
+      );
 
       for (final file in files) {
         try {

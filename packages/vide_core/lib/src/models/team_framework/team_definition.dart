@@ -2,10 +2,7 @@ import 'package:yaml/yaml.dart';
 
 /// Configuration for a lifecycle trigger that spawns an agent.
 class LifecycleTriggerConfig {
-  const LifecycleTriggerConfig({
-    required this.enabled,
-    required this.spawn,
-  });
+  const LifecycleTriggerConfig({required this.enabled, required this.spawn});
 
   /// Whether this trigger is enabled
   final bool enabled;
@@ -21,7 +18,8 @@ class LifecycleTriggerConfig {
   }
 
   @override
-  String toString() => 'LifecycleTriggerConfig(enabled: $enabled, spawn: $spawn)';
+  String toString() =>
+      'LifecycleTriggerConfig(enabled: $enabled, spawn: $spawn)';
 }
 
 /// Represents a team composition loaded from a .md file.
@@ -111,7 +109,9 @@ class TeamDefinition {
       throw FormatException('Missing required field "name" in $filePath');
     }
     if (description == null || description.isEmpty) {
-      throw FormatException('Missing required field "description" in $filePath');
+      throw FormatException(
+        'Missing required field "description" in $filePath',
+      );
     }
 
     // Parse main-agent (required)
@@ -223,7 +223,9 @@ class ProcessConfig {
       planning: ProcessLevel.fromString(yaml['planning'] as String?),
       review: ReviewLevel.fromString(yaml['review'] as String?),
       testing: TestingLevel.fromString(yaml['testing'] as String?),
-      documentation: DocumentationLevel.fromString(yaml['documentation'] as String?),
+      documentation: DocumentationLevel.fromString(
+        yaml['documentation'] as String?,
+      ),
     );
   }
 }
@@ -244,7 +246,9 @@ class CommunicationConfig {
     return CommunicationConfig(
       verbosity: Verbosity.fromString(yaml['verbosity'] as String?),
       handoffDetail: DetailLevel.fromString(yaml['handoff-detail'] as String?),
-      statusUpdates: UpdateFrequency.fromString(yaml['status-updates'] as String?),
+      statusUpdates: UpdateFrequency.fromString(
+        yaml['status-updates'] as String?,
+      ),
     );
   }
 }

@@ -46,11 +46,17 @@ class SettingsPopup extends StatelessComponent {
               height: dialogHeight - 2, // Reserve space for footer
               decoration: BoxDecoration(
                 color: theme.base.surface,
-                border: BoxBorder.all(color: theme.base.primary, style: BoxBorderStyle.rounded),
+                border: BoxBorder.all(
+                  color: theme.base.primary,
+                  style: BoxBorderStyle.rounded,
+                ),
                 title: BorderTitle(
                   text: '⚙ Settings',
                   alignment: TitleAlignment.center,
-                  style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: theme.base.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
               child: SettingsDialog(onClose: () => Navigator.of(context).pop()),
@@ -76,13 +82,33 @@ class _NavigationFooter extends StatelessComponent {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text('↑↓ ', style: TextStyle(color: theme.base.primary)),
-          Text('navigate  ', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+          Text(
+            'navigate  ',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
           Text('→ ', style: TextStyle(color: theme.base.primary)),
-          Text('enter section  ', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+          Text(
+            'enter section  ',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
           Text('Tab ', style: TextStyle(color: theme.base.primary)),
-          Text('switch  ', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+          Text(
+            'switch  ',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
           Text('Esc ', style: TextStyle(color: theme.base.primary)),
-          Text('close', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary))),
+          Text(
+            'close',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
         ],
       ),
     );
@@ -117,7 +143,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
   bool _handleSidebarNavigation(KeyboardEvent event) {
     final categories = SettingsCategory.values;
 
-    if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       if (_sidebarIndex > 0) {
         setState(() {
           _sidebarIndex--;
@@ -125,7 +152,8 @@ class _SettingsDialogState extends State<SettingsDialog> {
         });
       }
       return true;
-    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       if (_sidebarIndex < categories.length - 1) {
         setState(() {
           _sidebarIndex++;
@@ -183,7 +211,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
                 // Vertical divider
                 Container(
                   width: 1,
-                  decoration: BoxDecoration(color: theme.base.outline.withOpacity(TextOpacity.separator)),
+                  decoration: BoxDecoration(
+                    color: theme.base.outline.withOpacity(
+                      TextOpacity.separator,
+                    ),
+                  ),
                 ),
 
                 // Content area
@@ -199,17 +231,35 @@ class _SettingsDialogState extends State<SettingsDialog> {
   Component _buildContent() {
     switch (_selectedCategory) {
       case SettingsCategory.general:
-        return GeneralSettingsSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return GeneralSettingsSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
       case SettingsCategory.appearance:
-        return AppearanceSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return AppearanceSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
       case SettingsCategory.server:
-        return ServerSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return ServerSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
       case SettingsCategory.mcpServers:
-        return McpServersSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return McpServersSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
       case SettingsCategory.permissions:
-        return PermissionsSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return PermissionsSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
       case SettingsCategory.about:
-        return AboutSection(focused: !_sidebarFocused, onExit: _handleContentExit);
+        return AboutSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
     }
   }
 }

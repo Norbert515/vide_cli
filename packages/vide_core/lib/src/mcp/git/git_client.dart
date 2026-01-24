@@ -255,7 +255,10 @@ class GitClient {
   Future<bool> isWorktree() async {
     try {
       final gitDir = await _runGitCommand(['rev-parse', '--git-dir']);
-      final gitCommonDir = await _runGitCommand(['rev-parse', '--git-common-dir']);
+      final gitCommonDir = await _runGitCommand([
+        'rev-parse',
+        '--git-common-dir',
+      ]);
       // If git-dir != git-common-dir, we're in a worktree
       return gitDir.trim() != gitCommonDir.trim();
     } catch (e) {
@@ -268,7 +271,10 @@ class GitClient {
   /// This returns the same path whether called from the main repo or a worktree.
   Future<String> getMainRepoPath() async {
     try {
-      final gitCommonDir = await _runGitCommand(['rev-parse', '--git-common-dir']);
+      final gitCommonDir = await _runGitCommand([
+        'rev-parse',
+        '--git-common-dir',
+      ]);
       final commonDir = gitCommonDir.trim();
       // git-common-dir returns the .git directory, we need its parent
       if (commonDir == '.git') {
@@ -403,7 +409,9 @@ class GitClient {
 
       for (final line in output.split('\n')) {
         // Look for "checkout: moving from X to Y" pattern
-        final match = RegExp(r'checkout: moving from .+ to (.+)').firstMatch(line);
+        final match = RegExp(
+          r'checkout: moving from .+ to (.+)',
+        ).firstMatch(line);
         if (match != null) {
           final branch = match.group(1)!;
           // Skip detached HEAD states (commit hashes)
@@ -507,7 +515,9 @@ class GitClient {
         } else if (status == '??') {
           // Don't expand directories - just show the directory name
           // Expanding with listSync is expensive and blocks the UI
-          untracked.add(file.endsWith('/') ? file.substring(0, file.length - 1) : file);
+          untracked.add(
+            file.endsWith('/') ? file.substring(0, file.length - 1) : file,
+          );
         }
       }
     }

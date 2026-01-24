@@ -67,7 +67,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
   /// Active subscriptions for agent status sync.
   /// We listen to Claude status changes and auto-set agent status.
-  final Map<AgentId, StreamSubscription<ClaudeStatus>> _statusSyncSubscriptions = {};
+  final Map<AgentId, StreamSubscription<ClaudeStatus>>
+  _statusSyncSubscriptions = {};
 
   /// Set up status sync for an agent's Claude client.
   ///
@@ -77,8 +78,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Cancel any existing subscription
     _statusSyncSubscriptions[agentId]?.cancel();
 
-    _statusSyncSubscriptions[agentId] = client.statusStream.listen((claudeStatus) {
-      final agentStatusNotifier = _ref.read(agentStatusProvider(agentId).notifier);
+    _statusSyncSubscriptions[agentId] = client.statusStream.listen((
+      claudeStatus,
+    ) {
+      final agentStatusNotifier = _ref.read(
+        agentStatusProvider(agentId).notifier,
+      );
       final currentAgentStatus = _ref.read(agentStatusProvider(agentId));
 
       switch (claudeStatus) {
@@ -123,9 +128,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Only check non-triggered agents
     // Triggered agents are identified by having spawnedBy starting with 'trigger:'
-    final nonTriggeredAgents = network.agents.where(
-      (a) => a.spawnedBy == null || !a.spawnedBy!.startsWith('trigger:'),
-    ).toList();
+    final nonTriggeredAgents = network.agents
+        .where(
+          (a) => a.spawnedBy == null || !a.spawnedBy!.startsWith('trigger:'),
+        )
+        .toList();
 
     if (nonTriggeredAgents.isEmpty) {
       return;
@@ -153,7 +160,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           );
           await triggerService.fire(context);
         } catch (e) {
-          print('[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e');
+          print(
+            '[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e',
+          );
         }
       }();
     }
@@ -246,7 +255,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final mainAgentName = teamDef.mainAgent;
 
     // Load the main agent personality to get display name and description
-    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(mainAgentName);
+    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(
+      mainAgentName,
+    );
 
     final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,
@@ -271,7 +282,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }
 
     // Use display name from personality, fallback to 'Klaus'
-    final mainAgentDisplayName = mainAgentPersonality?.effectiveDisplayName ?? 'Klaus';
+    final mainAgentDisplayName =
+        mainAgentPersonality?.effectiveDisplayName ?? 'Klaus';
 
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
@@ -340,7 +352,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     var effectiveTeam = network.team;
     final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
     if (team == null) {
-      print('[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "vide"');
+      print(
+        '[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "vide"',
+      );
       effectiveTeam = 'vide';
     }
 
@@ -379,7 +393,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         // Set up status sync to auto-update agent status when turn completes
         _setupStatusSync(agentMetadata.id, client);
       } catch (e) {
-        print('[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e');
+        print(
+          '[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e',
+        );
         rethrow;
       }
     }
@@ -395,7 +411,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   ///
   /// [type] - The agent type (e.g., 'main', 'fork', or an agent personality name like 'solid-implementer')
   /// [teamName] - The team to use for looking up agent configurations.
-  Future<AgentConfiguration> _getConfigurationForType(String type, {String? teamName}) async {
+  Future<AgentConfiguration> _getConfigurationForType(
+    String type, {
+    String? teamName,
+  }) async {
     // Use provided team name, or fall back to network's team
     var effectiveTeamName = teamName ?? state.currentNetwork?.team;
     if (effectiveTeamName == null) {
@@ -407,7 +426,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // If team not found, fall back to default 'vide' team
     if (team == null) {
-      print('[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "vide"');
+      print(
+        '[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "vide"',
+      );
       effectiveTeamName = 'vide';
       team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
       if (team == null) {
@@ -427,7 +448,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       teamName: effectiveTeamName,
     );
     if (config == null) {
-      throw Exception('Agent configuration not found for: $agentName (type: $type)');
+      throw Exception(
+        'Agent configuration not found for: $agentName (type: $type)',
+      );
     }
 
     return config;
@@ -649,7 +672,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         // Set up status sync for the recreated client
         _setupStatusSync(agentMetadata.id, client);
       } catch (e) {
-        print('[AgentNetworkManager] Error recreating client for ${agentMetadata.type}: $e');
+        print(
+          '[AgentNetworkManager] Error recreating client for ${agentMetadata.type}: $e',
+        );
         rethrow;
       }
     }
@@ -701,7 +726,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Prevent spawning the main agent type
     if (agentType == team.mainAgent) {
-      throw Exception('Cannot spawn the main agent type "$agentType" - use the main agent instead');
+      throw Exception(
+        'Cannot spawn the main agent type "$agentType" - use the main agent instead',
+      );
     }
 
     // Validate that the agent type is in the team's agents list
@@ -766,7 +793,10 @@ $initialPrompt''';
   ///
   /// Uses the base name from the personality, appending a number if duplicate.
   /// Example: "Bert", "Bert 2", "Bert 3"
-  String _generateUniqueName(String baseName, List<AgentMetadata> existingAgents) {
+  String _generateUniqueName(
+    String baseName,
+    List<AgentMetadata> existingAgents,
+  ) {
     final existingNames = existingAgents.map((a) => a.name).toSet();
 
     if (!existingNames.contains(baseName)) {
@@ -911,8 +941,9 @@ $message''';
     }
 
     // Find source agent metadata
-    final sourceAgent =
-        network.agents.where((a) => a.id == sourceAgentId).firstOrNull;
+    final sourceAgent = network.agents
+        .where((a) => a.id == sourceAgentId)
+        .firstOrNull;
     if (sourceAgent == null) {
       throw Exception('Agent not found: $sourceAgentId');
     }
@@ -1017,7 +1048,9 @@ $message''';
   Future<AgentId?> fireAllAgentsIdleTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      print('[AgentNetworkManager] No active network for onAllAgentsIdle trigger');
+      print(
+        '[AgentNetworkManager] No active network for onAllAgentsIdle trigger',
+      );
       return null;
     }
 

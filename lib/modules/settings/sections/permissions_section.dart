@@ -8,7 +8,11 @@ class PermissionsSection extends StatelessComponent {
   final bool focused;
   final VoidCallback onExit;
 
-  const PermissionsSection({required this.focused, required this.onExit, super.key});
+  const PermissionsSection({
+    required this.focused,
+    required this.onExit,
+    super.key,
+  });
 
   @override
   Component build(BuildContext context) {
@@ -17,7 +21,8 @@ class PermissionsSection extends StatelessComponent {
     return Focusable(
       focused: focused,
       onKeyEvent: (event) {
-        if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.escape) {
+        if (event.logicalKey == LogicalKey.arrowLeft ||
+            event.logicalKey == LogicalKey.escape) {
           onExit();
           return true;
         }
@@ -32,7 +37,9 @@ class PermissionsSection extends StatelessComponent {
             SizedBox(height: 1),
             Text(
               'Configure tool access permissions',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
             SizedBox(height: 3),
 
@@ -51,29 +58,52 @@ class PermissionsSection extends StatelessComponent {
                 children: [
                   Text(
                     'Coming Soon',
-                    style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: theme.base.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   SizedBox(height: 2),
                   Text(
                     'Permission management will allow you to:',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                   SizedBox(height: 1),
                   Text(
                     '• View and edit allow/deny lists',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                   Text(
                     '• Configure file path permissions',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                   Text(
                     '• Manage bash command permissions',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                   Text(
                     '• Set up web domain restrictions',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                 ],
               ),

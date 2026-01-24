@@ -85,7 +85,9 @@ class _AgentSidebarState extends State<AgentSidebar>
       final items = _buildItems(networkState.agents, teamDef);
 
       // If current selection is on a header, move to first selectable item
-      if (items.isNotEmpty && _selectedIndex < items.length && items[_selectedIndex].isHeader) {
+      if (items.isNotEmpty &&
+          _selectedIndex < items.length &&
+          items[_selectedIndex].isHeader) {
         final firstSelectableIndex = items.indexWhere((item) => !item.isHeader);
         if (firstSelectableIndex != -1) {
           setState(() => _selectedIndex = firstSelectableIndex);
@@ -109,7 +111,10 @@ class _AgentSidebarState extends State<AgentSidebar>
   }
 
   /// Build the list of sidebar items from current state
-  List<_SidebarItem> _buildItems(List<AgentMetadata> spawnedAgents, TeamDefinition? teamDef) {
+  List<_SidebarItem> _buildItems(
+    List<AgentMetadata> spawnedAgents,
+    TeamDefinition? teamDef,
+  ) {
     final items = <_SidebarItem>[];
 
     // Active Agents (always show all spawned agents)
@@ -136,7 +141,9 @@ class _AgentSidebarState extends State<AgentSidebar>
 
     // Find current position in selectable items
     final currentSelectableIndex = selectableIndices.indexOf(_selectedIndex);
-    final effectiveIndex = currentSelectableIndex == -1 ? 0 : currentSelectableIndex;
+    final effectiveIndex = currentSelectableIndex == -1
+        ? 0
+        : currentSelectableIndex;
 
     if (event.logicalKey == LogicalKey.escape) {
       component.onExitRight?.call();
@@ -145,14 +152,20 @@ class _AgentSidebarState extends State<AgentSidebar>
     } else if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        final newIndex = (effectiveIndex - 1).clamp(0, selectableIndices.length - 1);
+        final newIndex = (effectiveIndex - 1).clamp(
+          0,
+          selectableIndices.length - 1,
+        );
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       setState(() {
-        final newIndex = (effectiveIndex + 1).clamp(0, selectableIndices.length - 1);
+        final newIndex = (effectiveIndex + 1).clamp(
+          0,
+          selectableIndices.length - 1,
+        );
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
@@ -186,7 +199,8 @@ class _AgentSidebarState extends State<AgentSidebar>
     if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
       // Schedule the state update for after build
       Future.microtask(() {
-        context.read(selectedAgentIdProvider.notifier).state = spawnedAgents.first.id;
+        context.read(selectedAgentIdProvider.notifier).state =
+            spawnedAgents.first.id;
       });
     }
 
@@ -210,7 +224,13 @@ class _AgentSidebarState extends State<AgentSidebar>
                     alignment: Alignment.topLeft,
                     minWidth: component.width.toDouble(),
                     maxWidth: component.width.toDouble(),
-                    child: _buildExpandedContent(context, theme, currentTeam, teamDef, spawnedAgents),
+                    child: _buildExpandedContent(
+                      context,
+                      theme,
+                      currentTeam,
+                      teamDef,
+                      spawnedAgents,
+                    ),
                   ),
           ),
         ),
@@ -264,13 +284,23 @@ class _AgentSidebarState extends State<AgentSidebar>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
-                border: BoxBorder(bottom: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
+                border: BoxBorder(
+                  bottom: BorderSide(
+                    color: theme.base.outline.withOpacity(
+                      TextOpacity.separator,
+                    ),
+                  ),
+                ),
               ),
               child: Row(
                 children: [
                   Text(
                     '┌ ',
-                    style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.outline.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
                   if (teamDef?.icon != null) ...[
                     Text(
@@ -287,7 +317,11 @@ class _AgentSidebarState extends State<AgentSidebar>
                   ),
                   Text(
                     ' ┐',
-                    style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.outline.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -327,35 +361,65 @@ class _AgentSidebarState extends State<AgentSidebar>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
-                border: BoxBorder(top: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
+                border: BoxBorder(
+                  top: BorderSide(
+                    color: theme.base.outline.withOpacity(
+                      TextOpacity.separator,
+                    ),
+                  ),
+                ),
               ),
               child: Row(
                 children: [
                   if (component.focused) ...[
                     Text(
                       '↑↓',
-                      style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                      style: TextStyle(
+                        color: theme.base.primary.withOpacity(
+                          TextOpacity.secondary,
+                        ),
+                      ),
                     ),
                     Text(
                       ' nav ',
-                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.disabled,
+                        ),
+                      ),
                     ),
                     Text(
                       '→',
-                      style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                      style: TextStyle(
+                        color: theme.base.primary.withOpacity(
+                          TextOpacity.secondary,
+                        ),
+                      ),
                     ),
                     Text(
                       ' exit',
-                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.disabled,
+                        ),
+                      ),
                     ),
                   ] else ...[
                     Text(
                       '←',
-                      style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled)),
+                      style: TextStyle(
+                        color: theme.base.outline.withOpacity(
+                          TextOpacity.disabled,
+                        ),
+                      ),
                     ),
                     Text(
                       ' focus',
-                      style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.disabled,
+                        ),
+                      ),
                     ),
                   ],
                 ],
@@ -532,8 +596,8 @@ class _AgentRowItemState extends State<_AgentRowItem>
     final actualStatus = isProcessing
         ? AgentStatus.working
         : (status == AgentStatus.working && !isProcessing)
-            ? AgentStatus.idle
-            : status;
+        ? AgentStatus.idle
+        : status;
 
     // Update spinner animation based on status
     _updateSpinnerForStatus(actualStatus);
@@ -543,7 +607,8 @@ class _AgentRowItemState extends State<_AgentRowItem>
 
     // Build agent name with optional task
     String displayName = component.agent.name;
-    if (component.agent.taskName != null && component.agent.taskName!.isNotEmpty) {
+    if (component.agent.taskName != null &&
+        component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
     displayName = _truncateText(displayName, component.availableWidth - 6);
@@ -551,16 +616,16 @@ class _AgentRowItemState extends State<_AgentRowItem>
     final bgColor = component.isSelected && component.isFocused
         ? theme.base.primary.withOpacity(0.15)
         : component.isSelectedById
-            ? theme.base.outline.withOpacity(0.1)
-            : component.isHovered
-                ? theme.base.outline.withOpacity(0.08)
-                : null;
+        ? theme.base.outline.withOpacity(0.1)
+        : component.isHovered
+        ? theme.base.outline.withOpacity(0.08)
+        : null;
 
     final textColor = component.isSelected && component.isFocused
         ? theme.base.primary
         : component.isSelectedById
-            ? theme.base.onSurface
-            : theme.base.onSurface.withOpacity(TextOpacity.secondary);
+        ? theme.base.onSurface
+        : theme.base.onSurface.withOpacity(TextOpacity.secondary);
 
     return MouseRegion(
       onEnter: (_) => component.onHoverEnter?.call(),
@@ -582,7 +647,9 @@ class _AgentRowItemState extends State<_AgentRowItem>
                   displayName,
                   style: TextStyle(
                     color: textColor,
-                    fontWeight: component.isSelectedById ? FontWeight.bold : null,
+                    fontWeight: component.isSelectedById
+                        ? FontWeight.bold
+                        : null,
                   ),
                   maxLines: 1,
                 ),
@@ -609,11 +676,7 @@ class _SidebarItem {
   final String? headerText;
   final bool isHeader;
 
-  _SidebarItem.header(this.headerText)
-      : agent = null,
-        isHeader = true;
+  _SidebarItem.header(this.headerText) : agent = null, isHeader = true;
 
-  _SidebarItem.agent(this.agent)
-      : headerText = null,
-        isHeader = false;
+  _SidebarItem.agent(this.agent) : headerText = null, isHeader = false;
 }

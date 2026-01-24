@@ -104,7 +104,8 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
 
   /// Derive shimmer position from animation controller, cycling through activity text
   int get _shimmerPosition {
-    final textLength = _activities[_activityIndex].length + 10; // +10 for padding
+    final textLength =
+        _activities[_activityIndex].length + 10; // +10 for padding
     final pos = (_spinnerController.value * textLength).floor() - 5;
     return pos;
   }
@@ -116,12 +117,10 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
 
     // Animation controller for braille spinner and shimmer effect
     // Duration of 1 second gives smooth animation through all frames
-    _spinnerController = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )
-      ..addListener(() => setState(() {}))
-      ..repeat();
+    _spinnerController =
+        AnimationController(duration: const Duration(seconds: 1), vsync: this)
+          ..addListener(() => setState(() {}))
+          ..repeat();
 
     // Activity change controller - cycles through fun messages every 4 seconds
     _activityController = AnimationController(
@@ -168,7 +167,9 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     // Get Claude status if agent ID is provided
     ClaudeStatus? claudeStatus;
     if (component.agentId != null) {
-      final statusAsync = context.watch(claudeStatusProvider(component.agentId!));
+      final statusAsync = context.watch(
+        claudeStatusProvider(component.agentId!),
+      );
       claudeStatus = statusAsync.valueOrNull;
     }
 

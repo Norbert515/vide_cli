@@ -51,11 +51,11 @@ class McpServerStatusInfo {
   }
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'status': status.name,
-        if (serverInfo != null) 'serverInfo': serverInfo!.toJson(),
-        if (error != null) 'error': error,
-      };
+    'name': name,
+    'status': status.name,
+    if (serverInfo != null) 'serverInfo': serverInfo!.toJson(),
+    if (error != null) 'error': error,
+  };
 
   @override
   String toString() =>
@@ -70,10 +70,7 @@ class McpServerInfo {
   /// Server version
   final String version;
 
-  const McpServerInfo({
-    required this.name,
-    required this.version,
-  });
+  const McpServerInfo({required this.name, required this.version});
 
   factory McpServerInfo.fromJson(Map<String, dynamic> json) {
     return McpServerInfo(
@@ -82,10 +79,7 @@ class McpServerInfo {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'version': version,
-      };
+  Map<String, dynamic> toJson() => {'name': name, 'version': version};
 }
 
 /// Response from mcp_status control request
@@ -127,10 +121,7 @@ class SetModelResponse {
   const SetModelResponse({this.model, this.success = true});
 
   factory SetModelResponse.fromJson(Map<String, dynamic> json) {
-    return SetModelResponse(
-      model: json['model'] as String?,
-      success: true,
-    );
+    return SetModelResponse(model: json['model'] as String?, success: true);
   }
 }
 
@@ -160,7 +151,10 @@ class SetMaxThinkingTokensResponse {
   /// Whether the operation succeeded
   final bool success;
 
-  const SetMaxThinkingTokensResponse({this.maxThinkingTokens, this.success = true});
+  const SetMaxThinkingTokensResponse({
+    this.maxThinkingTokens,
+    this.success = true,
+  });
 
   factory SetMaxThinkingTokensResponse.fromJson(Map<String, dynamic> json) {
     return SetMaxThinkingTokensResponse(
@@ -222,9 +216,9 @@ class McpServerConfig {
   });
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'command': command,
-        'args': args,
-        if (env != null) 'env': env,
-      };
+    'name': name,
+    'command': command,
+    'args': args,
+    if (env != null) 'env': env,
+  };
 }

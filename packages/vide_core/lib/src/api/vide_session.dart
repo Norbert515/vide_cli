@@ -76,9 +76,9 @@ class VideSession {
   VideSession._({
     required String networkId,
     required ProviderContainer container,
-  })  : _networkId = networkId,
-        _container = container,
-        _eventController = StreamController<VideEvent>.broadcast() {
+  }) : _networkId = networkId,
+       _container = container,
+       _eventController = StreamController<VideEvent>.broadcast() {
     // Create conversation state manager immediately and subscribe to events
     _conversationStateManager = ConversationStateManager();
     _eventController.stream.listen((event) {
@@ -93,10 +93,7 @@ class VideSession {
     required String networkId,
     required ProviderContainer container,
   }) {
-    final session = VideSession._(
-      networkId: networkId,
-      container: container,
-    );
+    final session = VideSession._(networkId: networkId, container: container);
     session._initialize();
     return session;
   }
@@ -213,9 +210,9 @@ class VideSession {
       if (allow) {
         completer.complete(const PermissionResultAllow());
       } else {
-        completer.complete(PermissionResultDeny(
-          message: message ?? 'Permission denied',
-        ));
+        completer.complete(
+          PermissionResultDeny(message: message ?? 'Permission denied'),
+        );
       }
     }
   }
@@ -464,9 +461,9 @@ class VideSession {
     // Complete any pending permissions with deny
     for (final completer in _pendingPermissions.values) {
       if (!completer.isCompleted) {
-        completer.complete(const PermissionResultDeny(
-          message: 'Session disposed',
-        ));
+        completer.complete(
+          const PermissionResultDeny(message: 'Session disposed'),
+        );
       }
     }
     _pendingPermissions.clear();
@@ -488,55 +485,58 @@ class VideSession {
   }
 
   void _subscribeToNetworkChanges() {
-    final subscription = _container.listen(
-      agentNetworkManagerProvider,
-      (previous, next) {
-        if (next.currentNetwork?.id != _networkId) return;
+    final subscription = _container.listen(agentNetworkManagerProvider, (
+      previous,
+      next,
+    ) {
+      if (next.currentNetwork?.id != _networkId) return;
 
-        final prevAgentIds =
-            previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-        final nextAgentIds =
-            next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+      final prevAgentIds =
+          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+      final nextAgentIds =
+          next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
 
-        // Check for new agents (spawned)
-        for (final agentId in nextAgentIds.difference(prevAgentIds)) {
-          final agent = next.currentNetwork!.agents.firstWhere(
-            (a) => a.id == agentId,
-          );
+      // Check for new agents (spawned)
+      for (final agentId in nextAgentIds.difference(prevAgentIds)) {
+        final agent = next.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
 
-          // Emit spawn event
-          _eventController.add(AgentSpawnedEvent(
+        // Emit spawn event
+        _eventController.add(
+          AgentSpawnedEvent(
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
             taskName: agent.taskName,
             spawnedBy: agent.spawnedBy ?? 'unknown',
-          ));
+          ),
+        );
 
-          // Subscribe to the new agent
-          _subscribeToAgent(agent);
-        }
+        // Subscribe to the new agent
+        _subscribeToAgent(agent);
+      }
 
-        // Check for removed agents (terminated)
-        for (final agentId in prevAgentIds.difference(nextAgentIds)) {
-          final agent = previous!.currentNetwork!.agents.firstWhere(
-            (a) => a.id == agentId,
-          );
+      // Check for removed agents (terminated)
+      for (final agentId in prevAgentIds.difference(nextAgentIds)) {
+        final agent = previous!.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
 
-          // Emit terminate event
-          _eventController.add(AgentTerminatedEvent(
+        // Emit terminate event
+        _eventController.add(
+          AgentTerminatedEvent(
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
             taskName: agent.taskName,
-          ));
+          ),
+        );
 
-          // Unsubscribe from the terminated agent
-          _unsubscribeFromAgent(agentId);
-        }
-      },
-      fireImmediately: false,
-    );
+        // Unsubscribe from the terminated agent
+        _unsubscribeFromAgent(agentId);
+      }
+    }, fireImmediately: false);
     _providerSubscriptions.add(subscription);
   }
 
@@ -564,12 +564,14 @@ class VideSession {
     final conversationSub = client.conversation.listen(
       (conversation) => _handleConversation(agent, conversation),
       onError: (error) {
-        _eventController.add(ErrorEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          message: error.toString(),
-        ));
+        _eventController.add(
+          ErrorEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            message: error.toString(),
+          ),
+        );
       },
     );
     _subscriptions.add(conversationSub);
@@ -579,36 +581,43 @@ class VideSession {
       // Finalize any in-progress message
       final state = _agentStates[agent.id];
       if (state != null && state.currentMessageEventId != null) {
-        _eventController.add(MessageEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          eventId: state.currentMessageEventId!,
-          role: 'assistant',
-          content: '',
-          isPartial: false,
-        ));
+        _eventController.add(
+          MessageEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            eventId: state.currentMessageEventId!,
+            role: 'assistant',
+            content: '',
+            isPartial: false,
+          ),
+        );
         state.currentMessageEventId = null;
       }
 
       // Get token/cost data from current conversation
       final conversation = client.currentConversation;
-      _eventController.add(TurnCompleteEvent(
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: state?.taskName,
-        reason: 'end_turn',
-        totalInputTokens: conversation.totalInputTokens,
-        totalOutputTokens: conversation.totalOutputTokens,
-        totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-        totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
-        totalCostUsd: conversation.totalCostUsd,
-        currentContextInputTokens: conversation.currentContextInputTokens,
-        currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
-        currentContextCacheCreationTokens: conversation.currentContextCacheCreationTokens,
-      ));
+      _eventController.add(
+        TurnCompleteEvent(
+          agentId: agent.id,
+          agentType: agent.type,
+          agentName: agent.name,
+          taskName: state?.taskName,
+          reason: 'end_turn',
+          totalInputTokens: conversation.totalInputTokens,
+          totalOutputTokens: conversation.totalOutputTokens,
+          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+          totalCacheCreationInputTokens:
+              conversation.totalCacheCreationInputTokens,
+          totalCostUsd: conversation.totalCostUsd,
+          currentContextInputTokens: conversation.currentContextInputTokens,
+          currentContextCacheReadTokens:
+              conversation.currentContextCacheReadTokens,
+          currentContextCacheCreationTokens:
+              conversation.currentContextCacheCreationTokens,
+        ),
+      );
     });
     _subscriptions.add(turnCompleteSub);
 
@@ -618,22 +627,26 @@ class VideSession {
       (previous, next) {
         if (previous != null && previous != next) {
           // Update task name from network state
-          final network =
-              _container.read(agentNetworkManagerProvider).currentNetwork;
-          final agentMeta =
-              network?.agents.where((a) => a.id == agent.id).firstOrNull;
+          final network = _container
+              .read(agentNetworkManagerProvider)
+              .currentNetwork;
+          final agentMeta = network?.agents
+              .where((a) => a.id == agent.id)
+              .firstOrNull;
           final state = _agentStates[agent.id];
           if (state != null && agentMeta != null) {
             state.taskName = agentMeta.taskName;
           }
 
-          _eventController.add(StatusEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state?.taskName,
-            status: _mapStatus(next),
-          ));
+          _eventController.add(
+            StatusEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state?.taskName,
+              status: _mapStatus(next),
+            ),
+          );
         }
       },
       fireImmediately: false,
@@ -656,7 +669,9 @@ class VideSession {
 
     // Update task name from network state
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    final agentMeta = network?.agents.where((a) => a.id == agent.id).firstOrNull;
+    final agentMeta = network?.agents
+        .where((a) => a.id == agent.id)
+        .firstOrNull;
     if (agentMeta != null) {
       state.taskName = agentMeta.taskName;
     }
@@ -674,16 +689,18 @@ class VideSession {
       state.currentMessageEventId = eventId;
 
       if (latestMessage.content.isNotEmpty) {
-        _eventController.add(MessageEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: latestMessage.content,
-          isPartial: true,
-        ));
+        _eventController.add(
+          MessageEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            eventId: eventId,
+            role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
+            content: latestMessage.content,
+            isPartial: true,
+          ),
+        );
       }
 
       state.lastMessageCount = currentMessageCount;
@@ -694,16 +711,18 @@ class VideSession {
       final delta = latestMessage.content.substring(state.lastContentLength);
       if (delta.isNotEmpty) {
         final eventId = state.currentMessageEventId ?? const Uuid().v4();
-        _eventController.add(MessageEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: delta,
-          isPartial: true,
-        ));
+        _eventController.add(
+          MessageEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            eventId: eventId,
+            role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
+            content: delta,
+            isPartial: true,
+          ),
+        );
       }
       state.lastContentLength = currentContentLength;
     }
@@ -713,13 +732,15 @@ class VideSession {
 
     // Check for errors
     if (conversation.currentError != null) {
-      _eventController.add(ErrorEvent(
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: state.taskName,
-        message: conversation.currentError!,
-      ));
+      _eventController.add(
+        ErrorEvent(
+          agentId: agent.id,
+          agentType: agent.type,
+          agentName: agent.name,
+          taskName: state.taskName,
+          message: conversation.currentError!,
+        ),
+      );
     }
   }
 
@@ -737,27 +758,32 @@ class VideSession {
         final toolUseId = response.toolUseId ?? const Uuid().v4();
         state.toolNamesByUseId[toolUseId] = response.toolName;
 
-        _eventController.add(ToolUseEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          toolUseId: toolUseId,
-          toolName: response.toolName,
-          toolInput: response.parameters,
-        ));
+        _eventController.add(
+          ToolUseEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            toolUseId: toolUseId,
+            toolName: response.toolName,
+            toolInput: response.parameters,
+          ),
+        );
       } else if (response is ToolResultResponse) {
-        final toolName = state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        _eventController.add(ToolResultEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          toolUseId: response.toolUseId,
-          toolName: toolName,
-          result: response.content,
-          isError: response.isError,
-        ));
+        final toolName =
+            state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
+        _eventController.add(
+          ToolResultEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            toolUseId: response.toolUseId,
+            toolName: toolName,
+            result: response.content,
+            isError: response.isError,
+          ),
+        );
       }
     }
 
@@ -784,15 +810,17 @@ class VideSession {
       final state = _agentStates[agentId];
 
       // Emit permission request event
-      _eventController.add(PermissionRequestEvent(
-        agentId: agentId,
-        agentType: agentType ?? 'unknown',
-        agentName: agentName,
-        taskName: state?.taskName,
-        requestId: requestId,
-        toolName: toolName,
-        toolInput: input,
-      ));
+      _eventController.add(
+        PermissionRequestEvent(
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: state?.taskName,
+          requestId: requestId,
+          toolName: toolName,
+          toolInput: input,
+        ),
+      );
 
       // Wait for response (with timeout)
       try {
@@ -807,9 +835,7 @@ class VideSession {
         );
       } catch (e) {
         _pendingPermissions.remove(requestId);
-        return PermissionResultDeny(
-          message: 'Error: $e',
-        );
+        return PermissionResultDeny(message: 'Error: $e');
       }
     };
   }

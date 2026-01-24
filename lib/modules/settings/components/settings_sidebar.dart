@@ -38,8 +38,8 @@ class SettingsSidebar extends StatelessComponent {
                   color: i == selectedIndex && focused
                       ? theme.base.primary.withOpacity(0.2)
                       : i == selectedIndex
-                          ? theme.base.outline.withOpacity(0.1)
-                          : null,
+                      ? theme.base.outline.withOpacity(0.1)
+                      : null,
                 ),
                 child: Row(
                   children: [
@@ -49,7 +49,9 @@ class SettingsSidebar extends StatelessComponent {
                       style: TextStyle(
                         color: focused && i == selectedIndex
                             ? theme.base.primary
-                            : theme.base.outline.withOpacity(TextOpacity.separator),
+                            : theme.base.outline.withOpacity(
+                                TextOpacity.separator,
+                              ),
                       ),
                     ),
                     Expanded(
@@ -57,9 +59,15 @@ class SettingsSidebar extends StatelessComponent {
                         categories[i].label,
                         style: TextStyle(
                           color: i == selectedIndex
-                              ? (focused ? theme.base.primary : theme.base.onSurface)
-                              : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                          fontWeight: i == selectedIndex ? FontWeight.bold : null,
+                              ? (focused
+                                    ? theme.base.primary
+                                    : theme.base.onSurface)
+                              : theme.base.onSurface.withOpacity(
+                                  TextOpacity.secondary,
+                                ),
+                          fontWeight: i == selectedIndex
+                              ? FontWeight.bold
+                              : null,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),

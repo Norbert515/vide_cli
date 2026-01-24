@@ -203,7 +203,9 @@ class SessionPermissionManager {
     }
 
     if (session == null) {
-      _log.warning('No session registered for $sessionId after waiting, denying $toolName');
+      _log.warning(
+        'No session registered for $sessionId after waiting, denying $toolName',
+      );
       return const SessionPermissionDeny(
         'No active client connection to request permission',
       );

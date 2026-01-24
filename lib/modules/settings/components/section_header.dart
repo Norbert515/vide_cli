@@ -14,15 +14,25 @@ class SectionHeader extends StatelessComponent {
 
     return Row(
       children: [
-        Text('─── ', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.separator))),
+        Text(
+          '─── ',
+          style: TextStyle(
+            color: theme.base.outline.withOpacity(TextOpacity.separator),
+          ),
+        ),
         Text(
           title,
-          style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: theme.base.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         Expanded(
           child: Text(
             ' ─────────────────────────────────────────',
-            style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.separator)),
+            style: TextStyle(
+              color: theme.base.outline.withOpacity(TextOpacity.separator),
+            ),
             overflow: TextOverflow.clip,
           ),
         ),
