@@ -65,7 +65,9 @@ class SessionEventStore {
     events.add(StoredEvent(seq: seq, json: json));
     _seqBySession[sessionId] = seq;
     _expectedNextSeq[sessionId] = seq + 1;
-    _log.fine('[Session $sessionId] Stored event seq=$seq type=${json['type']}');
+    _log.fine(
+      '[Session $sessionId] Stored event seq=$seq type=${json['type']}',
+    );
   }
 
   /// Get all events for a session (for history replay)

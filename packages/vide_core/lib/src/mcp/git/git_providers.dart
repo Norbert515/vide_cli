@@ -30,31 +30,34 @@ final gitStatusStreamProvider = StreamProvider.family
     });
 
 /// Discovers git repositories in immediate subdirectories of the given path.
-final childRepositoriesProvider = FutureProvider.family<List<GitRepository>, String>((ref, parentPath) async {
-  final repos = <GitRepository>[];
-  final parentDir = Directory(parentPath);
+final childRepositoriesProvider =
+    FutureProvider.family<List<GitRepository>, String>((ref, parentPath) async {
+      final repos = <GitRepository>[];
+      final parentDir = Directory(parentPath);
 
-  if (!await parentDir.exists()) return repos;
+      if (!await parentDir.exists()) return repos;
 
-  await for (final entity in parentDir.list(followLinks: false)) {
-    if (entity is Directory) {
-      final gitDir = Directory(p.join(entity.path, '.git'));
-      if (await gitDir.exists()) {
-        repos.add(GitRepository(
-          path: entity.path,
-          name: p.basename(entity.path),
-        ));
+      await for (final entity in parentDir.list(followLinks: false)) {
+        if (entity is Directory) {
+          final gitDir = Directory(p.join(entity.path, '.git'));
+          if (await gitDir.exists()) {
+            repos.add(
+              GitRepository(path: entity.path, name: p.basename(entity.path)),
+            );
+          }
+        }
       }
-    }
-  }
 
-  // Sort alphabetically by name
-  repos.sort((a, b) => a.name.compareTo(b.name));
-  return repos;
-});
+      // Sort alphabetically by name
+      repos.sort((a, b) => a.name.compareTo(b.name));
+      return repos;
+    });
 
 /// Checks if the given path is itself a git repository.
-final isGitRepoProvider = FutureProvider.family<bool, String>((ref, path) async {
+final isGitRepoProvider = FutureProvider.family<bool, String>((
+  ref,
+  path,
+) async {
   final gitDir = Directory(p.join(path, '.git'));
   return gitDir.existsSync();
 });

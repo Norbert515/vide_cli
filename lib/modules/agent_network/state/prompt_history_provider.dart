@@ -6,8 +6,8 @@ const int _maxHistoryLength = 100;
 /// Provider for prompt history. Newest prompts are at the front of the list.
 final promptHistoryProvider =
     StateNotifierProvider<PromptHistoryNotifier, List<String>>((ref) {
-  return PromptHistoryNotifier();
-});
+      return PromptHistoryNotifier();
+    });
 
 class PromptHistoryNotifier extends StateNotifier<List<String>> {
   PromptHistoryNotifier() : super([]);

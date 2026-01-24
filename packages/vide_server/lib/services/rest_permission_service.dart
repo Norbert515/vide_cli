@@ -15,7 +15,9 @@ import 'session_permission_manager.dart';
 /// Note: Other modes like `acceptEdits`, `plan`, etc. are handled by Claude CLI itself
 /// via the --permission-mode flag. This callback only handles the vide-level permission
 /// checks (safe commands, dangerous commands, etc.).
-CanUseToolCallback createSmartPermissionCallback(PermissionCallbackContext ctx) {
+CanUseToolCallback createSmartPermissionCallback(
+  PermissionCallbackContext ctx,
+) {
   // For 'ask' or 'delegate' mode, use interactive callback that forwards to client
   // Note: Claude CLI doesn't have an 'ask' mode - 'delegate' is the closest equivalent
   // that routes permissions through the SDK callback. When the client requests 'ask',

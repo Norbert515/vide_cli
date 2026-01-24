@@ -658,7 +658,8 @@ Instance ID: $instanceId
     // Flutter Screenshot
     server.tool(
       'flutterScreenshot',
-      description: 'Take a screenshot of a running Flutter instance. Use sparingly - prefer flutterGetElements for understanding UI state. Screenshots are useful for: debugging visual issues, verifying layouts, or when semantic info is insufficient.',
+      description:
+          'Take a screenshot of a running Flutter instance. Use sparingly - prefer flutterGetElements for understanding UI state. Screenshots are useful for: debugging visual issues, verifying layouts, or when semantic info is insufficient.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {
@@ -806,10 +807,7 @@ Instance ID: $instanceId
 
           // Step 3: Use Moondream's point API to find the element coordinates
           final pointResponse = await _moondreamClient!
-              .point(
-                imageUrl: imageUrl,
-                object: description,
-              )
+              .point(imageUrl: imageUrl, object: description)
               .timeout(
                 _moondreamTimeout,
                 onTimeout: () => throw TimeoutException(
@@ -1185,11 +1183,7 @@ Instance ID: $instanceId
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(
-                text: 'Error: Failed to get elements: $e',
-              ),
-            ],
+            content: [TextContent(text: 'Error: Failed to get elements: $e')],
           );
         }
       },
@@ -1265,11 +1259,7 @@ Instance ID: $instanceId
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(
-                text: 'Error: Failed to tap element: $e',
-              ),
-            ],
+            content: [TextContent(text: 'Error: Failed to tap element: $e')],
           );
         }
       },
@@ -1903,11 +1893,15 @@ For example:
 
           // If coordinates provided, use them directly
           if (normalizedX != null && normalizedY != null) {
-            if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) {
+            if (normalizedX < 0 ||
+                normalizedX > 1 ||
+                normalizedY < 0 ||
+                normalizedY > 1) {
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Coordinates must be normalized (0.0 to 1.0). Got x=$normalizedX, y=$normalizedY',
+                    text:
+                        'Error: Coordinates must be normalized (0.0 to 1.0). Got x=$normalizedX, y=$normalizedY',
                   ),
                 ],
               );
@@ -1919,7 +1913,8 @@ For example:
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Failed to capture screenshot for coordinate conversion',
+                    text:
+                        'Error: Failed to capture screenshot for coordinate conversion',
                   ),
                 ],
               );
@@ -1934,7 +1929,9 @@ For example:
                 bytes[3] != 0x47) {
               return CallToolResult.fromContent(
                 content: [
-                  TextContent(text: 'Error: Invalid PNG format from screenshot'),
+                  TextContent(
+                    text: 'Error: Invalid PNG format from screenshot',
+                  ),
                 ],
               );
             }
@@ -1963,7 +1960,8 @@ For example:
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Moondream API not available. Set MOONDREAM_API_KEY environment variable. Use x/y coordinates instead.',
+                    text:
+                        'Error: Moondream API not available. Set MOONDREAM_API_KEY environment variable. Use x/y coordinates instead.',
                   ),
                 ],
               );
@@ -1986,25 +1984,27 @@ For example:
             );
 
             // Query Moondream for element location
-            print('🔍 [FlutterRuntimeServer] Asking Moondream to locate: "$description"');
+            print(
+              '🔍 [FlutterRuntimeServer] Asking Moondream to locate: "$description"',
+            );
             final pointResponse = await _moondreamClient!
-                .point(
-                  imageUrl: imageUrl,
-                  object: description,
-                )
+                .point(imageUrl: imageUrl, object: description)
                 .timeout(_moondreamTimeout);
 
             // Get normalized coordinates (0-1 range)
             final moondreamX = pointResponse.x;
             final moondreamY = pointResponse.y;
 
-            print('📍 [FlutterRuntimeServer] Moondream response: x=$moondreamX, y=$moondreamY');
+            print(
+              '📍 [FlutterRuntimeServer] Moondream response: x=$moondreamX, y=$moondreamY',
+            );
 
             if (moondreamX == null || moondreamY == null) {
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Could not locate "$description" in the screenshot. Try a different description or use coordinates.',
+                    text:
+                        'Error: Could not locate "$description" in the screenshot. Try a different description or use coordinates.',
                   ),
                 ],
               );
@@ -2033,7 +2033,8 @@ For example:
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Error: Either x/y coordinates OR description must be provided',
+                  text:
+                      'Error: Either x/y coordinates OR description must be provided',
                 ),
               ],
             );
@@ -2045,7 +2046,8 @@ For example:
           return CallToolResult.fromContent(
             content: [
               TextContent(
-                text: 'Cursor moved to ($logicalX, $logicalY) using $locationSource. Use flutterGetWidgetInfo to inspect widgets at this position.',
+                text:
+                    'Cursor moved to ($logicalX, $logicalY) using $locationSource. Use flutterGetWidgetInfo to inspect widgets at this position.',
               ),
             ],
           );
@@ -2057,9 +2059,7 @@ For example:
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to move cursor: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to move cursor: $e')],
           );
         }
       },
@@ -2107,7 +2107,8 @@ For example:
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Error: No cursor position set. Use flutterMoveCursor or flutterTapAt first to position the cursor.',
+                  text:
+                      'Error: No cursor position set. Use flutterMoveCursor or flutterTapAt first to position the cursor.',
                 ),
               ],
             );
@@ -2118,12 +2119,17 @@ For example:
           );
 
           // Get widget info at the cursor position
-          final widgetInfo = await instance.getWidgetInfo(cursorPos.x, cursorPos.y);
+          final widgetInfo = await instance.getWidgetInfo(
+            cursorPos.x,
+            cursorPos.y,
+          );
 
           // Format the response
           final widgets = widgetInfo['widgets'] as List<dynamic>? ?? [];
           final buffer = StringBuffer();
-          buffer.writeln('Widget Info at cursor (${cursorPos.x}, ${cursorPos.y}):');
+          buffer.writeln(
+            'Widget Info at cursor (${cursorPos.x}, ${cursorPos.y}):',
+          );
           buffer.writeln('');
 
           if (widgets.isEmpty) {
@@ -2169,9 +2175,7 @@ For example:
           }
 
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: buffer.toString()),
-            ],
+            content: [TextContent(text: buffer.toString())],
           );
         } catch (e, stackTrace) {
           await _reportError(
@@ -2182,9 +2186,7 @@ For example:
           );
           return CallToolResult.fromContent(
             content: [
-              TextContent(
-                text: 'Error: Failed to get widget info: $e',
-              ),
+              TextContent(text: 'Error: Failed to get widget info: $e'),
             ],
           );
         }
@@ -2321,10 +2323,7 @@ For example:
 
     // Step 3: Use Moondream's point API to find the element coordinates
     final pointResponse = await _moondreamClient!
-        .point(
-          imageUrl: imageUrl,
-          object: description,
-        )
+        .point(imageUrl: imageUrl, object: description)
         .timeout(
           _moondreamTimeout,
           onTimeout: () => throw TimeoutException(
@@ -2419,9 +2418,7 @@ For example:
         }
       } catch (e) {
         // Log but continue with other instances
-        print(
-          '[FlutterRuntimeServer] Error stopping instance $instanceId: $e',
-        );
+        print('[FlutterRuntimeServer] Error stopping instance $instanceId: $e');
       }
     }
     _instances.clear();

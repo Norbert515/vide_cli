@@ -32,29 +32,37 @@ class _ServerSectionState extends State<ServerSection> {
       return;
     }
 
-    if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
       }
-    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalItems - 1) {
         setState(() => _selectedIndex++);
       }
-    } else if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.escape) {
+    } else if (event.logicalKey == LogicalKey.arrowLeft ||
+        event.logicalKey == LogicalKey.escape) {
       component.onExit();
-    } else if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
+    } else if (event.logicalKey == LogicalKey.enter ||
+        event.logicalKey == LogicalKey.space) {
       _activateCurrentItem();
     }
   }
 
   void _handlePortEditing(KeyboardEvent event) {
-    if (event.logicalKey == LogicalKey.escape || event.logicalKey == LogicalKey.enter) {
+    if (event.logicalKey == LogicalKey.escape ||
+        event.logicalKey == LogicalKey.enter) {
       setState(() => _editingPort = false);
     } else if (event.logicalKey == LogicalKey.backspace) {
       if (_portInput.isNotEmpty) {
-        setState(() => _portInput = _portInput.substring(0, _portInput.length - 1));
+        setState(
+          () => _portInput = _portInput.substring(0, _portInput.length - 1),
+        );
       }
-    } else if (event.character != null && RegExp(r'^\d$').hasMatch(event.character!)) {
+    } else if (event.character != null &&
+        RegExp(r'^\d$').hasMatch(event.character!)) {
       if (_portInput.length < 5) {
         setState(() => _portInput += event.character!);
       }
@@ -105,7 +113,9 @@ class _ServerSectionState extends State<ServerSection> {
 
             Text(
               'Run an HTTP/WebSocket server to control Vide from external apps.',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              ),
             ),
             SizedBox(height: 2),
 
@@ -114,7 +124,9 @@ class _ServerSectionState extends State<ServerSection> {
                 padding: EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   color: theme.base.error.withOpacity(0.1),
-                  border: BoxBorder.all(color: theme.base.error.withOpacity(0.3)),
+                  border: BoxBorder.all(
+                    color: theme.base.error.withOpacity(0.3),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -163,7 +175,9 @@ class _ServerSectionState extends State<ServerSection> {
                 padding: EdgeInsets.all(2),
                 decoration: BoxDecoration(
                   color: theme.base.error.withOpacity(0.1),
-                  border: BoxBorder.all(color: theme.base.error.withOpacity(0.3)),
+                  border: BoxBorder.all(
+                    color: theme.base.error.withOpacity(0.3),
+                  ),
                 ),
                 child: Text(
                   'Error: ${serverState.error}',
@@ -182,7 +196,9 @@ class _ServerSectionState extends State<ServerSection> {
               SizedBox(height: 2),
               Text(
                 'Tip: Use the WebSocket endpoint for real-time event streaming',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                ),
               ),
             ],
           ],
@@ -248,14 +264,9 @@ class _ServerToggleItem extends StatelessComponent {
               padding: EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
                 color: isRunning ? theme.base.primary.withOpacity(0.2) : null,
-                border: BoxBorder.all(
-                  color: statusColor.withOpacity(0.5),
-                ),
+                border: BoxBorder.all(color: statusColor.withOpacity(0.5)),
               ),
-              child: Text(
-                statusText,
-                style: TextStyle(color: statusColor),
-              ),
+              child: Text(statusText, style: TextStyle(color: statusColor)),
             ),
             SizedBox(width: 2),
             Text(
@@ -336,7 +347,9 @@ class _PortInputItem extends StatelessComponent {
             if (!enabled)
               Text(
                 '(stop server to change)',
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(TextOpacity.disabled),
+                ),
               ),
           ],
         ),
@@ -361,12 +374,17 @@ class _UrlDisplay extends StatelessComponent {
           width: 12,
           child: Text(
             '$label:',
-            style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+            ),
           ),
         ),
         Text(
           url,
-          style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: theme.base.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );

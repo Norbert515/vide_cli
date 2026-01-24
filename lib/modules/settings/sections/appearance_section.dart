@@ -11,7 +11,11 @@ class AppearanceSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
 
-  const AppearanceSection({required this.focused, required this.onExit, super.key});
+  const AppearanceSection({
+    required this.focused,
+    required this.onExit,
+    super.key,
+  });
 
   @override
   State<AppearanceSection> createState() => _AppearanceSectionState();
@@ -43,21 +47,25 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   void _handleKeyEvent(KeyboardEvent event) {
     if (!component.focused) return;
 
-    if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
         _applyPreview();
       }
-    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalOptions - 1) {
         setState(() => _selectedIndex++);
         _applyPreview();
       }
-    } else if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.escape) {
+    } else if (event.logicalKey == LogicalKey.arrowLeft ||
+        event.logicalKey == LogicalKey.escape) {
       // Clear preview and restore original theme when exiting
       setState(() => _previewTheme = null);
       component.onExit();
-    } else if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
+    } else if (event.logicalKey == LogicalKey.enter ||
+        event.logicalKey == LogicalKey.space) {
       _confirmSelection();
     }
   }
@@ -134,7 +142,11 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   SizedBox(height: 1),
                   Text(
                     'Select a color theme for the interface',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                   SizedBox(height: 2),
 
@@ -166,7 +178,11 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   SizedBox(height: 2),
                   Text(
                     'Press Enter to apply theme',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -223,7 +239,9 @@ class _ThemeListItem extends StatelessComponent {
             Text(
               isCurrent ? '◉ ' : '○ ',
               style: TextStyle(
-                color: isCurrent ? theme.base.primary : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                color: isCurrent
+                    ? theme.base.primary
+                    : theme.base.onSurface.withOpacity(TextOpacity.secondary),
               ),
             ),
             SizedBox(
@@ -239,14 +257,20 @@ class _ThemeListItem extends StatelessComponent {
             Expanded(
               child: Text(
                 description,
-                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             if (isCurrent)
               Text(
                 'current',
-                style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary)),
+                style: TextStyle(
+                  color: theme.base.primary.withOpacity(TextOpacity.secondary),
+                ),
               ),
           ],
         ),

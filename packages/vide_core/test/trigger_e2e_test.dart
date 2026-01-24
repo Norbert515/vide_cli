@@ -24,9 +24,7 @@ void main() {
 
     setUp(() {
       container = ProviderContainer(
-        overrides: [
-          workingDirProvider.overrideWithValue('/tmp/test'),
-        ],
+        overrides: [workingDirProvider.overrideWithValue('/tmp/test')],
       );
     });
 
@@ -40,10 +38,14 @@ void main() {
       const agentId = 'test-agent-1';
 
       // Add to claude manager
-      container.read(claudeManagerProvider.notifier).addAgent(agentId, mockClient);
+      container
+          .read(claudeManagerProvider.notifier)
+          .addAgent(agentId, mockClient);
 
       // Get the agent status notifier
-      final statusNotifier = container.read(agentStatusProvider(agentId).notifier);
+      final statusNotifier = container.read(
+        agentStatusProvider(agentId).notifier,
+      );
 
       // Initial status should be working (default)
       var status = container.read(agentStatusProvider(agentId));
@@ -113,7 +115,11 @@ void main() {
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));
-      expect(status, equals(AgentStatus.idle), reason: 'Status should be idle after completed');
+      expect(
+        status,
+        equals(AgentStatus.idle),
+        reason: 'Status should be idle after completed',
+      );
       print('Status after completed: $status');
 
       // Clean up

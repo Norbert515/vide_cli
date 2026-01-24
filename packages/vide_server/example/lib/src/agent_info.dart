@@ -13,9 +13,9 @@ class AgentInfo {
   });
 
   factory AgentInfo.fromJson(Map<String, dynamic> json) => AgentInfo(
-        id: json['agent-id'] as String? ?? json['id'] as String? ?? '',
-        type: json['agent-type'] as String? ?? json['type'] as String? ?? '',
-        name: json['agent-name'] as String? ?? json['name'] as String? ?? 'Agent',
-        taskName: json['task-name'] as String?,
-      );
+    id: json['agent-id'] as String? ?? json['id'] as String? ?? '',
+    type: json['agent-type'] as String? ?? json['type'] as String? ?? '',
+    name: json['agent-name'] as String? ?? json['name'] as String? ?? 'Agent',
+    taskName: json['task-name'] as String?,
+  );
 }

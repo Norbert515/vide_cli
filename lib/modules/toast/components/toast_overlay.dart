@@ -26,9 +26,7 @@ class ToastOverlay extends StatelessComponent {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (final toast in toasts) _buildToastItem(toast, theme),
-          ],
+          children: [for (final toast in toasts) _buildToastItem(toast, theme)],
         ),
       ),
     );
@@ -55,7 +53,10 @@ class ToastOverlay extends StatelessComponent {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('$icon ', style: TextStyle(color: color)),
-              Text(toast.message, style: TextStyle(color: theme.base.onSurface)),
+              Text(
+                toast.message,
+                style: TextStyle(color: theme.base.onSurface),
+              ),
             ],
           ),
         ),

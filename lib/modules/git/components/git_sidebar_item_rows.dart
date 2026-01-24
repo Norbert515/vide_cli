@@ -67,13 +67,15 @@ Component buildQuickActionRow({
     actionState = isBranchAction
         ? (repoBranchActionState[repoPath] ?? QuickActionState.collapsed)
         : (repoWorktreeActionState[repoPath] ?? QuickActionState.collapsed);
-    isEnteringName = actionState == QuickActionState.enteringName &&
+    isEnteringName =
+        actionState == QuickActionState.enteringName &&
         repoActiveInputType[repoPath] == item.type;
     isExpanded = actionState != QuickActionState.collapsed;
   } else {
     // Single-repo mode
     actionState = isBranchAction ? branchActionState : worktreeActionState;
-    isEnteringName = actionState == QuickActionState.enteringName &&
+    isEnteringName =
+        actionState == QuickActionState.enteringName &&
         activeInputType == item.type;
     isExpanded = actionState != QuickActionState.collapsed;
   }
@@ -180,13 +182,14 @@ Component buildWorktreeHeaderRow({
   // Count total changes
   final changeCount = gitStatus != null
       ? gitStatus.modifiedFiles.length +
-          gitStatus.stagedFiles.length +
-          gitStatus.untrackedFiles.length
+            gitStatus.stagedFiles.length +
+            gitStatus.untrackedFiles.length
       : 0;
 
   // Current worktree uses primary color, others use default
-  final branchColor =
-      isCurrentWorktree ? theme.base.primary : theme.base.onSurface;
+  final branchColor = isCurrentWorktree
+      ? theme.base.primary
+      : theme.base.onSurface;
 
   // Show branch icon: ⎇ for worktrees,  for main repo
   final branchIcon = isWorktree ? '⎇' : '';
@@ -197,8 +200,7 @@ Component buildWorktreeHeaderRow({
       Container(
         decoration: highlight
             ? BoxDecoration(
-                color:
-                    theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
             : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
         child: Padding(
@@ -207,11 +209,14 @@ Component buildWorktreeHeaderRow({
             children: [
               Text(expandIcon, style: TextStyle(color: branchColor)),
               SizedBox(width: 1),
-              Text(branchIcon,
-                  style: TextStyle(
-                      color: isCurrentWorktree
-                          ? theme.base.primary
-                          : vsCodeAccentColor)),
+              Text(
+                branchIcon,
+                style: TextStyle(
+                  color: isCurrentWorktree
+                      ? theme.base.primary
+                      : vsCodeAccentColor,
+                ),
+              ),
               SizedBox(width: 1),
               Expanded(
                 child: Text(
@@ -228,9 +233,7 @@ Component buildWorktreeHeaderRow({
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(
-                    color: vsCodeModifiedColor,
-                  ),
+                  style: TextStyle(color: vsCodeModifiedColor),
                 ),
               // Ahead/behind indicators
               if (gitStatus != null) ...[
@@ -376,8 +379,8 @@ Component buildRepoHeaderRow({
   // Fall back to live count if expanded
   final changeCount = isExpanded && status != null
       ? status.modifiedFiles.length +
-          status.stagedFiles.length +
-          status.untrackedFiles.length
+            status.stagedFiles.length +
+            status.untrackedFiles.length
       : item.fileCount;
 
   return Column(
@@ -386,19 +389,16 @@ Component buildRepoHeaderRow({
       Container(
         decoration: highlight
             ? BoxDecoration(
-                color:
-                    theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
             : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Row(
             children: [
-              Text(expandIcon,
-                  style: TextStyle(color: theme.base.onSurface)),
+              Text(expandIcon, style: TextStyle(color: theme.base.onSurface)),
               SizedBox(width: 1),
-              Text('',
-                  style: TextStyle(color: vsCodeAccentColor)),
+              Text('', style: TextStyle(color: vsCodeAccentColor)),
               SizedBox(width: 1),
               Flexible(
                 flex: 2,
@@ -419,8 +419,9 @@ Component buildRepoHeaderRow({
                   child: Text(
                     ' ${status.branch}',
                     style: TextStyle(
-                      color: theme.base.onSurface
-                          .withOpacity(TextOpacity.secondary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -431,19 +432,21 @@ Component buildRepoHeaderRow({
               if (status != null &&
                   (status.ahead > 0 || status.behind > 0)) ...[
                 if (status.behind > 0)
-                  Text(' ↓${status.behind}',
-                      style: TextStyle(color: vsCodeModifiedColor)),
+                  Text(
+                    ' ↓${status.behind}',
+                    style: TextStyle(color: vsCodeModifiedColor),
+                  ),
                 if (status.ahead > 0)
-                  Text(' ↑${status.ahead}',
-                      style: TextStyle(color: theme.base.success)),
+                  Text(
+                    ' ↑${status.ahead}',
+                    style: TextStyle(color: theme.base.success),
+                  ),
               ],
               // Show change count when collapsed (and has changes)
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(
-                    color: vsCodeModifiedColor,
-                  ),
+                  style: TextStyle(color: vsCodeModifiedColor),
                 ),
             ],
           ),
@@ -531,9 +534,7 @@ Component buildCommitPushActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.success,
-              ),
+              style: TextStyle(color: theme.base.success),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -571,9 +572,7 @@ Component buildSyncActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Syncing...' : item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -614,9 +613,7 @@ Component buildMergeToMainActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Merging...' : item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -760,9 +757,7 @@ Component buildSwitchWorktreeActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -798,9 +793,7 @@ Component buildWorktreeCopyPathActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -841,9 +834,7 @@ Component buildWorktreeRemoveActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Removing...' : item.name,
-              style: TextStyle(
-                color: theme.base.error,
-              ),
+              style: TextStyle(color: theme.base.error),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -954,20 +945,11 @@ Component buildBranchRow({
           ),
           // Worktree indicator
           if (isWorktree)
-            Text(
-              '⎇ ',
-              style: TextStyle(color: theme.base.primary),
-            )
+            Text('⎇ ', style: TextStyle(color: theme.base.primary))
           else if (isCurrent)
-            Text(
-              '● ',
-              style: TextStyle(color: theme.base.success),
-            )
+            Text('● ', style: TextStyle(color: theme.base.success))
           else
-            Text(
-              '  ',
-              style: TextStyle(color: theme.base.outline),
-            ),
+            Text('  ', style: TextStyle(color: theme.base.outline)),
           Expanded(
             child: Text(
               item.name,
@@ -975,9 +957,11 @@ Component buildBranchRow({
                 color: isCurrent
                     ? theme.base.primary
                     : isMainBranch
-                        ? theme.base.onSurface
-                        : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                fontWeight: (isCurrent || isMainBranch) ? FontWeight.bold : FontWeight.normal,
+                    ? theme.base.onSurface
+                    : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                fontWeight: (isCurrent || isMainBranch)
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -1015,9 +999,7 @@ Component buildBranchActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),

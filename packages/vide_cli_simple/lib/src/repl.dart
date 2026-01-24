@@ -45,12 +45,14 @@ Future<void> runRepl({
   // Start session if initial message provided
   if (initialMessage != null && initialMessage.isNotEmpty) {
     stdout.writeln('Starting session with team: $team...');
-    session = await core.startSession(VideSessionConfig(
-      workingDirectory: workingDirectory,
-      initialMessage: initialMessage,
-      model: model,
-      team: team,
-    ));
+    session = await core.startSession(
+      VideSessionConfig(
+        workingDirectory: workingDirectory,
+        initialMessage: initialMessage,
+        model: model,
+        team: team,
+      ),
+    );
     subscribeToSession(session);
 
     // Wait for turn to complete
@@ -72,18 +74,42 @@ Future<void> runRepl({
 
   // Print welcome message
   stdout.writeln();
-  stdout.writeln('╔════════════════════════════════════════════════════════════╗');
-  stdout.writeln('║  vide_cli - Simple CLI for testing vide_core API           ║');
-  stdout.writeln('╠════════════════════════════════════════════════════════════╣');
-  stdout.writeln('║  Commands:                                                 ║');
-  stdout.writeln('║    /help     - Show this help                              ║');
-  stdout.writeln('║    /agents   - List agents in session                      ║');
-  stdout.writeln('║    /sessions - List all sessions                           ║');
-  stdout.writeln('║    /abort    - Abort current operation                     ║');
-  stdout.writeln('║    /quit     - Exit the CLI                                ║');
-  stdout.writeln('║                                                            ║');
-  stdout.writeln('║  Type a message to chat with the agent.                    ║');
-  stdout.writeln('╚════════════════════════════════════════════════════════════╝');
+  stdout.writeln(
+    '╔════════════════════════════════════════════════════════════╗',
+  );
+  stdout.writeln(
+    '║  vide_cli - Simple CLI for testing vide_core API           ║',
+  );
+  stdout.writeln(
+    '╠════════════════════════════════════════════════════════════╣',
+  );
+  stdout.writeln(
+    '║  Commands:                                                 ║',
+  );
+  stdout.writeln(
+    '║    /help     - Show this help                              ║',
+  );
+  stdout.writeln(
+    '║    /agents   - List agents in session                      ║',
+  );
+  stdout.writeln(
+    '║    /sessions - List all sessions                           ║',
+  );
+  stdout.writeln(
+    '║    /abort    - Abort current operation                     ║',
+  );
+  stdout.writeln(
+    '║    /quit     - Exit the CLI                                ║',
+  );
+  stdout.writeln(
+    '║                                                            ║',
+  );
+  stdout.writeln(
+    '║  Type a message to chat with the agent.                    ║',
+  );
+  stdout.writeln(
+    '╚════════════════════════════════════════════════════════════╝',
+  );
   stdout.writeln();
 
   // Use async stdin reading to allow event processing
@@ -126,12 +152,14 @@ Future<void> runRepl({
     // Send message
     if (session == null) {
       stdout.writeln('Starting new session with team: $team...');
-      session = await core.startSession(VideSessionConfig(
-        workingDirectory: workingDirectory,
-        initialMessage: input,
-        model: model,
-        team: team,
-      ));
+      session = await core.startSession(
+        VideSessionConfig(
+          workingDirectory: workingDirectory,
+          initialMessage: input,
+          model: model,
+          team: team,
+        ),
+      );
       subscribeToSession(session);
     } else {
       session.sendMessage(Message.text(input));

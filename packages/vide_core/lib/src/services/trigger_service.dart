@@ -56,7 +56,9 @@ class TriggerContext {
 
     buffer.writeln('### Agents in Session');
     for (final agent in network.agents) {
-      final desc = agent.shortDescription != null ? ' - ${agent.shortDescription}' : '';
+      final desc = agent.shortDescription != null
+          ? ' - ${agent.shortDescription}'
+          : '';
       buffer.writeln('- **${agent.name}** (${agent.type})$desc');
     }
     buffer.writeln();
@@ -121,7 +123,9 @@ class TriggerService {
     if (lastFiredAt != null) {
       final elapsed = DateTime.now().difference(lastFiredAt);
       if (elapsed < cooldown) {
-        print('[TriggerService] Skipping ${context.triggerPoint.name} - fired ${elapsed.inMilliseconds}ms ago (cooldown: ${cooldown.inMilliseconds}ms)');
+        print(
+          '[TriggerService] Skipping ${context.triggerPoint.name} - fired ${elapsed.inMilliseconds}ms ago (cooldown: ${cooldown.inMilliseconds}ms)',
+        );
         return null;
       }
     }
@@ -130,18 +134,24 @@ class TriggerService {
     final team = await loader.getTeam(context.teamName);
 
     if (team == null) {
-      print('[TriggerService] Team "${context.teamName}" not found, skipping trigger');
+      print(
+        '[TriggerService] Team "${context.teamName}" not found, skipping trigger',
+      );
       return null;
     }
 
     final triggerConfig = team.lifecycleTriggers[context.triggerPoint.name];
     if (triggerConfig == null || !triggerConfig.enabled) {
-      print('[TriggerService] Trigger ${context.triggerPoint.name} not enabled for team "${context.teamName}"');
+      print(
+        '[TriggerService] Trigger ${context.triggerPoint.name} not enabled for team "${context.teamName}"',
+      );
       return null;
     }
 
     if (triggerConfig.spawn.isEmpty) {
-      print('[TriggerService] Trigger ${context.triggerPoint.name} has no agent configured');
+      print(
+        '[TriggerService] Trigger ${context.triggerPoint.name} has no agent configured',
+      );
       return null;
     }
 
@@ -162,10 +172,14 @@ class TriggerService {
         spawnedBy: 'trigger:${context.triggerPoint.name}',
       );
 
-      print('[TriggerService] Fired ${context.triggerPoint.name} -> spawned ${triggerConfig.spawn}');
+      print(
+        '[TriggerService] Fired ${context.triggerPoint.name} -> spawned ${triggerConfig.spawn}',
+      );
       return agentId;
     } catch (e) {
-      print('[TriggerService] Error spawning agent for trigger ${context.triggerPoint.name}: $e');
+      print(
+        '[TriggerService] Error spawning agent for trigger ${context.triggerPoint.name}: $e',
+      );
       return null;
     }
   }
@@ -183,13 +197,17 @@ class TriggerService {
       case TriggerPoint.onSessionStart:
         buffer.writeln('## Your Task');
         buffer.writeln();
-        buffer.writeln('A new session has started. Review the session context above and perform any initialization work configured for your role.');
+        buffer.writeln(
+          'A new session has started. Review the session context above and perform any initialization work configured for your role.',
+        );
         break;
 
       case TriggerPoint.onSessionEnd:
         buffer.writeln('## Your Task');
         buffer.writeln();
-        buffer.writeln('The session is ending. Review what was accomplished and synthesize any knowledge worth preserving.');
+        buffer.writeln(
+          'The session is ending. Review what was accomplished and synthesize any knowledge worth preserving.',
+        );
         buffer.writeln();
         buffer.writeln('Consider:');
         buffer.writeln('- Important decisions that were made');
@@ -201,7 +219,9 @@ class TriggerService {
       case TriggerPoint.onTaskComplete:
         buffer.writeln('## Your Task');
         buffer.writeln();
-        buffer.writeln('The main task has been marked as complete. Review the work that was done.');
+        buffer.writeln(
+          'The main task has been marked as complete. Review the work that was done.',
+        );
         if (context.filesChanged != null && context.filesChanged!.isNotEmpty) {
           buffer.writeln();
           buffer.writeln('Focus on reviewing the changed files listed above.');

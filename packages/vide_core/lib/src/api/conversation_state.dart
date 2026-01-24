@@ -24,15 +24,9 @@ final class TextContent extends ConversationContent {
   /// Whether this text is still being streamed.
   final bool isStreaming;
 
-  const TextContent({
-    required this.text,
-    this.isStreaming = false,
-  });
+  const TextContent({required this.text, this.isStreaming = false});
 
-  TextContent copyWith({
-    String? text,
-    bool? isStreaming,
-  }) {
+  TextContent copyWith({String? text, bool? isStreaming}) {
     return TextContent(
       text: text ?? this.text,
       isStreaming: isStreaming ?? this.isStreaming,
@@ -115,15 +109,9 @@ final class VideMessage {
     return buffer.toString();
   }
 
-  const VideMessage({
-    required this.role,
-    required this.content,
-  });
+  const VideMessage({required this.role, required this.content});
 
-  VideMessage copyWith({
-    String? role,
-    List<ConversationContent>? content,
-  }) {
+  VideMessage copyWith({String? role, List<ConversationContent>? content}) {
     return VideMessage(
       role: role ?? this.role,
       content: content ?? this.content,
@@ -256,7 +244,8 @@ class ConversationStateManager {
   Iterable<String> get agentIds => _agentStates.keys;
 
   /// Get state for a specific agent.
-  AgentConversationState? getAgentState(String agentId) => _agentStates[agentId];
+  AgentConversationState? getAgentState(String agentId) =>
+      _agentStates[agentId];
 
   /// Get or create state for an agent.
   AgentConversationState _getOrCreateAgentState(VideEvent event) {
@@ -306,15 +295,14 @@ class ConversationStateManager {
       state._currentMessageEventId = event.eventId;
 
       // Start new message
-      state.messages.add(VideMessage(
-        role: event.role,
-        content: [
-          TextContent(
-            text: event.content,
-            isStreaming: event.isPartial,
-          ),
-        ],
-      ));
+      state.messages.add(
+        VideMessage(
+          role: event.role,
+          content: [
+            TextContent(text: event.content, isStreaming: event.isPartial),
+          ],
+        ),
+      );
     } else {
       // Continuing existing message
       if (state.messages.isEmpty) return;
@@ -332,14 +320,14 @@ class ConversationStateManager {
         );
       } else {
         // No text content yet in this message, add one
-        contentList.add(TextContent(
-          text: event.content,
-          isStreaming: event.isPartial,
-        ));
+        contentList.add(
+          TextContent(text: event.content, isStreaming: event.isPartial),
+        );
       }
 
-      state.messages[state.messages.length - 1] =
-          lastMessage.copyWith(content: contentList);
+      state.messages[state.messages.length - 1] = lastMessage.copyWith(
+        content: contentList,
+      );
     }
 
     _changeController.add(null);
@@ -351,10 +339,7 @@ class ConversationStateManager {
 
     // Ensure we have an assistant message to add the tool to
     if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
-      state.messages.add(const VideMessage(
-        role: 'assistant',
-        content: [],
-      ));
+      state.messages.add(const VideMessage(role: 'assistant', content: []));
     }
 
     final lastMessage = state.messages.last;
@@ -371,18 +356,21 @@ class ConversationStateManager {
     }
 
     // Add the tool use
-    contentList.add(ToolContent(
-      toolUseId: event.toolUseId,
-      toolName: event.toolName,
-      toolInput: event.toolInput,
-    ));
+    contentList.add(
+      ToolContent(
+        toolUseId: event.toolUseId,
+        toolName: event.toolName,
+        toolInput: event.toolInput,
+      ),
+    );
 
     // Track where this tool is for later result
     state._pendingToolMessageIndex[event.toolUseId] = state.messages.length - 1;
     state._pendingToolContentIndex[event.toolUseId] = contentList.length - 1;
 
-    state.messages[state.messages.length - 1] =
-        lastMessage.copyWith(content: contentList);
+    state.messages[state.messages.length - 1] = lastMessage.copyWith(
+      content: contentList,
+    );
 
     _changeController.add(null);
   }
@@ -438,7 +426,8 @@ class ConversationStateManager {
     state.totalCostUsd = event.totalCostUsd;
     state.currentContextInputTokens = event.currentContextInputTokens;
     state.currentContextCacheReadTokens = event.currentContextCacheReadTokens;
-    state.currentContextCacheCreationTokens = event.currentContextCacheCreationTokens;
+    state.currentContextCacheCreationTokens =
+        event.currentContextCacheCreationTokens;
 
     // Mark any streaming content as complete
     if (state.messages.isNotEmpty) {
@@ -457,8 +446,9 @@ class ConversationStateManager {
       }
 
       if (changed) {
-        state.messages[state.messages.length - 1] =
-            lastMessage.copyWith(content: contentList);
+        state.messages[state.messages.length - 1] = lastMessage.copyWith(
+          content: contentList,
+        );
       }
     }
 

@@ -223,7 +223,12 @@ class _EventHandler {
       case StatusEvent(:final status):
         print('[$agentName] Status: ${status.name}');
 
-      case MessageEvent(:final role, :final content, :final isPartial, :final eventId):
+      case MessageEvent(
+        :final role,
+        :final content,
+        :final isPartial,
+        :final eventId,
+      ):
         _handleMessage(role, content, isPartial, eventId);
 
       case ToolUseEvent(:final toolName):
@@ -289,8 +294,7 @@ class _EventHandler {
     String? eventId,
   ) {
     if (_currentEventId != eventId) {
-      if (_currentStreamRole == MessageRole.assistant &&
-          _buffer.isNotEmpty) {
+      if (_currentStreamRole == MessageRole.assistant && _buffer.isNotEmpty) {
         print('');
         print('└─');
       }

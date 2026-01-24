@@ -36,7 +36,9 @@ class VideClient {
   /// Check if the server is running and healthy.
   ///
   /// Throws if the server is not reachable or not responding correctly.
-  Future<void> checkHealth({Duration timeout = const Duration(seconds: 2)}) async {
+  Future<void> checkHealth({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
     final response = await http
         .get(Uri.parse('$_httpUrl/health'))
         .timeout(timeout);
@@ -73,10 +75,7 @@ class VideClient {
     final wsUrl = '$_wsUrl/api/v1/sessions/$sessionId/stream';
     final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
-    return Session._(
-      id: sessionId,
-      channel: channel,
-    );
+    return Session._(id: sessionId, channel: channel);
   }
 }
 
@@ -102,11 +101,9 @@ class Session {
   SessionStatus _status = SessionStatus.open;
   Object? _error;
 
-  Session._({
-    required this.id,
-    required WebSocketChannel channel,
-  })  : _channel = channel,
-        _eventController = StreamController<VideEvent>.broadcast() {
+  Session._({required this.id, required WebSocketChannel channel})
+    : _channel = channel,
+      _eventController = StreamController<VideEvent>.broadcast() {
     _channel.stream.listen(
       (message) {
         final json = jsonDecode(message as String) as Map<String, dynamic>;
@@ -141,10 +138,7 @@ class Session {
     if (_status != SessionStatus.open) {
       throw StateError('Cannot send message on closed session');
     }
-    _channel.sink.add(jsonEncode({
-      'type': 'user-message',
-      'content': message,
-    }));
+    _channel.sink.add(jsonEncode({'type': 'user-message', 'content': message}));
   }
 
   /// Close the session.

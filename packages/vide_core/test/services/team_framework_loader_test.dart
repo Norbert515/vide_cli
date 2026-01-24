@@ -85,8 +85,11 @@ void main() {
         final teams = await loader.loadTeams();
 
         for (final team in teams.values) {
-          expect(team.mainAgent, isNotEmpty,
-              reason: 'Team ${team.name} missing main agent');
+          expect(
+            team.mainAgent,
+            isNotEmpty,
+            reason: 'Team ${team.name} missing main agent',
+          );
         }
       });
 
@@ -110,8 +113,11 @@ void main() {
           }
         }
 
-        expect(missingAgents, isEmpty,
-            reason: 'Missing agents: $missingAgents');
+        expect(
+          missingAgents,
+          isEmpty,
+          reason: 'Missing agents: $missingAgents',
+        );
       });
     });
 
@@ -149,8 +155,11 @@ void main() {
         final agents = await loader.loadAgents();
 
         for (final agent in agents.values) {
-          expect(agent.mcpServers, contains('vide-agent'),
-              reason: 'Agent ${agent.name} missing vide-agent MCP server');
+          expect(
+            agent.mcpServers,
+            contains('vide-agent'),
+            reason: 'Agent ${agent.name} missing vide-agent MCP server',
+          );
         }
       });
     });

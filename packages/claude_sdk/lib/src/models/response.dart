@@ -559,7 +559,8 @@ class ApiErrorResponse extends ClaudeResponse {
 
   factory ApiErrorResponse.fromJson(Map<String, dynamic> json) {
     return ApiErrorResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -594,7 +595,8 @@ class TurnDurationResponse extends ClaudeResponse {
 
   factory TurnDurationResponse.fromJson(Map<String, dynamic> json) {
     return TurnDurationResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -628,7 +630,8 @@ class LocalCommandResponse extends ClaudeResponse {
 
   factory LocalCommandResponse.fromJson(Map<String, dynamic> json) {
     return LocalCommandResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -821,11 +824,10 @@ class CompletionResponse extends ClaudeResponse {
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       modelUsage: json['modelUsage'] as Map<String, dynamic>?,
-      permissionDenials:
-          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      permissionDenials: (json['permission_denials'] as List?)
+          ?.cast<Map<String, dynamic>>(),
       durationApiMs: json['duration_api_ms'] as int?,
-      serverToolUse:
-          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
+      serverToolUse: json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }
@@ -841,11 +843,10 @@ class CompletionResponse extends ClaudeResponse {
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       modelUsage: json['modelUsage'] as Map<String, dynamic>?,
-      permissionDenials:
-          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      permissionDenials: (json['permission_denials'] as List?)
+          ?.cast<Map<String, dynamic>>(),
       durationApiMs: json['duration_api_ms'] as int?,
-      serverToolUse:
-          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
+      serverToolUse: json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }

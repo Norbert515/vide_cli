@@ -84,14 +84,16 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
 void _initializeSemanticsEarly() {
   if (_globalSemanticsHandle != null) return;
 
-  print('🔗 [DebugWidgetsFlutterBinding] Initializing semantics for AI dev tools');
+  print(
+      '🔗 [DebugWidgetsFlutterBinding] Initializing semantics for AI dev tools');
 
   // Enable semantics - this creates the semantics tree
   _globalSemanticsHandle = SemanticsBinding.instance.ensureSemantics();
 
   // Schedule a post-frame callback to ensure the tree is built after the first frame
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    print('🔗 [DebugWidgetsFlutterBinding] Semantics tree ready after first frame');
+    print(
+        '🔗 [DebugWidgetsFlutterBinding] Semantics tree ready after first frame');
     // Force a rebuild to ensure semantics are fully generated
     final rootElement = WidgetsBinding.instance.rootElement;
     if (rootElement != null) {

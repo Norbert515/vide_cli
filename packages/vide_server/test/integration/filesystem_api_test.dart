@@ -30,8 +30,9 @@ void main() {
     await Directory(p.join(testDir.path, 'another')).create();
     await File(p.join(testDir.path, 'file1.txt')).writeAsString('content1');
     await File(p.join(testDir.path, 'file2.dart')).writeAsString('content2');
-    await File(p.join(testDir.path, 'subdir', 'nested.txt'))
-        .writeAsString('nested');
+    await File(
+      p.join(testDir.path, 'subdir', 'nested.txt'),
+    ).writeAsString('nested');
 
     // Create config file with filesystem-root set to our test directory
     final homeDir = Platform.environment['HOME'] ?? Directory.current.path;
@@ -46,11 +47,13 @@ void main() {
     }
 
     // Write test config
-    await configFile.writeAsString(jsonEncode({
-      'permission-timeout-seconds': 60,
-      'auto-approve-all': false,
-      'filesystem-root': testDir.path,
-    }));
+    await configFile.writeAsString(
+      jsonEncode({
+        'permission-timeout-seconds': 60,
+        'auto-approve-all': false,
+        'filesystem-root': testDir.path,
+      }),
+    );
 
     // Start the server
     port = testPortBase + filesystemTestOffset;
@@ -130,28 +133,30 @@ void main() {
         expect(entries[0]['is-directory'], false);
       });
 
-      test('returns entries sorted (directories first, then alphabetically)',
-          () async {
-        final response = await http.get(
-          Uri.parse('$baseUrl/api/v1/filesystem'),
-        );
+      test(
+        'returns entries sorted (directories first, then alphabetically)',
+        () async {
+          final response = await http.get(
+            Uri.parse('$baseUrl/api/v1/filesystem'),
+          );
 
-        expect(response.statusCode, 200);
-        final body = jsonDecode(response.body);
-        final entries = body['entries'] as List;
+          expect(response.statusCode, 200);
+          final body = jsonDecode(response.body);
+          final entries = body['entries'] as List;
 
-        // First two should be directories (alphabetically: another, subdir)
-        expect(entries[0]['name'], 'another');
-        expect(entries[0]['is-directory'], true);
-        expect(entries[1]['name'], 'subdir');
-        expect(entries[1]['is-directory'], true);
+          // First two should be directories (alphabetically: another, subdir)
+          expect(entries[0]['name'], 'another');
+          expect(entries[0]['is-directory'], true);
+          expect(entries[1]['name'], 'subdir');
+          expect(entries[1]['is-directory'], true);
 
-        // Then files (alphabetically: file1.txt, file2.dart)
-        expect(entries[2]['name'], 'file1.txt');
-        expect(entries[2]['is-directory'], false);
-        expect(entries[3]['name'], 'file2.dart');
-        expect(entries[3]['is-directory'], false);
-      });
+          // Then files (alphabetically: file1.txt, file2.dart)
+          expect(entries[2]['name'], 'file1.txt');
+          expect(entries[2]['is-directory'], false);
+          expect(entries[3]['name'], 'file2.dart');
+          expect(entries[3]['is-directory'], false);
+        },
+      );
 
       test('rejects path outside filesystem root', () async {
         final response = await http.get(
@@ -191,10 +196,7 @@ void main() {
         final response = await http.post(
           Uri.parse('$baseUrl/api/v1/filesystem'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'parent': testDir.path,
-            'name': 'newdir',
-          }),
+          body: jsonEncode({'parent': testDir.path, 'name': 'newdir'}),
         );
 
         expect(response.statusCode, 200);
@@ -233,10 +235,7 @@ void main() {
         final response = await http.post(
           Uri.parse('$baseUrl/api/v1/filesystem'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'parent': '/tmp',
-            'name': 'newdir3',
-          }),
+          body: jsonEncode({'parent': '/tmp', 'name': 'newdir3'}),
         );
 
         expect(response.statusCode, 403);
@@ -263,10 +262,7 @@ void main() {
         final response = await http.post(
           Uri.parse('$baseUrl/api/v1/filesystem'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
-            'parent': testDir.path,
-            'name': 'sub/dir',
-          }),
+          body: jsonEncode({'parent': testDir.path, 'name': 'sub/dir'}),
         );
 
         expect(response.statusCode, 400);

@@ -21,8 +21,9 @@ void main() {
     await Directory(p.join(testDir.path, 'another')).create();
     await File(p.join(testDir.path, 'file1.txt')).writeAsString('content1');
     await File(p.join(testDir.path, 'file2.dart')).writeAsString('content2');
-    await File(p.join(testDir.path, 'subdir', 'nested.txt'))
-        .writeAsString('nested');
+    await File(
+      p.join(testDir.path, 'subdir', 'nested.txt'),
+    ).writeAsString('nested');
   });
 
   tearDown(() async {

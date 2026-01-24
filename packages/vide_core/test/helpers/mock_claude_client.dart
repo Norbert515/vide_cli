@@ -103,12 +103,17 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
     return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
   }
 
   @override
-  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false}) async {
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  }) async {
     // Mock implementation - no-op
   }
 

@@ -49,8 +49,7 @@ class TeamFrameworkAssetInitializer {
     final categories = ['teams', 'agents', 'etiquette'];
 
     for (final category in categories) {
-      final categoryDir =
-          Directory(path.join(defaultsDir.path, category));
+      final categoryDir = Directory(path.join(defaultsDir.path, category));
       await categoryDir.create(recursive: true);
 
       // Copy from package assets
@@ -75,10 +74,9 @@ class TeamFrameworkAssetInitializer {
         return;
       }
 
-      final files = sourceDir
-          .listSync()
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.md'));
+      final files = sourceDir.listSync().whereType<File>().where(
+        (f) => f.path.endsWith('.md'),
+      );
 
       for (final file in files) {
         final targetFile = File(

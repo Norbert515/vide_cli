@@ -1,10 +1,5 @@
 /// Status of an MCP server
-enum McpServerStatus {
-  connected,
-  error,
-  stopped,
-  unknown,
-}
+enum McpServerStatus { connected, error, stopped, unknown }
 
 /// Scope/origin of an MCP server
 enum McpServerScope {

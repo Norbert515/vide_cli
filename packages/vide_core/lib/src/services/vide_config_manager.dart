@@ -79,7 +79,7 @@ class VideConfigManager {
     String encoded = normalized.replaceAll('/', '-');
     if (Platform.isWindows) {
       encoded = encoded.replaceAll('\\', '-');
-      encoded = encoded.replaceAll(':', '');  // Remove colons (e.g., D: -> D)
+      encoded = encoded.replaceAll(':', ''); // Remove colons (e.g., D: -> D)
     }
 
     return encoded;

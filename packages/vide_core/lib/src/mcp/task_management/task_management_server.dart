@@ -23,7 +23,11 @@ class TaskManagementServer extends McpServerBase {
       super(name: serverName, version: '1.0.0');
 
   @override
-  List<String> get toolNames => ['setTaskName', 'setAgentTaskName', 'markTaskComplete'];
+  List<String> get toolNames => [
+    'setTaskName',
+    'setAgentTaskName',
+    'markTaskComplete',
+  ];
 
   @override
   void registerTools(McpServer server) {
@@ -188,7 +192,8 @@ class TaskManagementServer extends McpServerBase {
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Task marked complete: "$summary"\n'
+                  text:
+                      'Task marked complete: "$summary"\n'
                       'Triggered agent spawned for review.',
                 ),
               ],
@@ -197,7 +202,8 @@ class TaskManagementServer extends McpServerBase {
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Task marked complete: "$summary"\n'
+                  text:
+                      'Task marked complete: "$summary"\n'
                       'No trigger configured for onTaskComplete in this team.',
                 ),
               ],

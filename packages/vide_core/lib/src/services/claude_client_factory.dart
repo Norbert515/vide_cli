@@ -95,26 +95,33 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
-    final mcpServers = config.mcpServers
-            ?.map((server) => _ref.watch(genericMcpServerProvider(
+    final mcpServers =
+        config.mcpServers
+            ?.map(
+              (server) => _ref.watch(
+                genericMcpServerProvider(
                   AgentIdAndMcpServerType(
                     agentId: agentId,
                     mcpServerType: server,
                     projectPath: cwd,
                   ),
-                )))
+                ),
+              ),
+            )
             .toList() ??
         [];
 
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
-      cwd: cwd,
-      agentId: agentId,
-      agentName: config.name,
-      agentType: agentType,
-      permissionMode: config.permissionMode,
-      networkId: networkId,
-    ));
+    final canUseTool = callbackFactory?.call(
+      PermissionCallbackContext(
+        cwd: cwd,
+        agentId: agentId,
+        agentName: config.name,
+        agentType: agentType,
+        permissionMode: config.permissionMode,
+        networkId: networkId,
+      ),
+    );
 
     final client = ClaudeClient.createNonBlocking(
       config: claudeConfig,
@@ -140,26 +147,33 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
-    final mcpServers = config.mcpServers
-            ?.map((server) => _ref.watch(genericMcpServerProvider(
+    final mcpServers =
+        config.mcpServers
+            ?.map(
+              (server) => _ref.watch(
+                genericMcpServerProvider(
                   AgentIdAndMcpServerType(
                     agentId: agentId,
                     mcpServerType: server,
                     projectPath: cwd,
                   ),
-                )))
+                ),
+              ),
+            )
             .toList() ??
         [];
 
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
-      cwd: cwd,
-      agentId: agentId,
-      agentName: config.name,
-      agentType: agentType,
-      permissionMode: config.permissionMode,
-      networkId: networkId,
-    ));
+    final canUseTool = callbackFactory?.call(
+      PermissionCallbackContext(
+        cwd: cwd,
+        agentId: agentId,
+        agentName: config.name,
+        agentType: agentType,
+        permissionMode: config.permissionMode,
+        networkId: networkId,
+      ),
+    );
 
     final client = await ClaudeClient.create(
       config: claudeConfig,
@@ -195,26 +209,33 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       forkSession: true,
     );
 
-    final mcpServers = config.mcpServers
-            ?.map((server) => _ref.watch(genericMcpServerProvider(
+    final mcpServers =
+        config.mcpServers
+            ?.map(
+              (server) => _ref.watch(
+                genericMcpServerProvider(
                   AgentIdAndMcpServerType(
                     agentId: agentId,
                     mcpServerType: server,
                     projectPath: cwd,
                   ),
-                )))
+                ),
+              ),
+            )
             .toList() ??
         [];
 
     final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(PermissionCallbackContext(
-      cwd: cwd,
-      agentId: agentId,
-      agentName: config.name,
-      agentType: agentType,
-      permissionMode: config.permissionMode,
-      networkId: networkId,
-    ));
+    final canUseTool = callbackFactory?.call(
+      PermissionCallbackContext(
+        cwd: cwd,
+        agentId: agentId,
+        agentName: config.name,
+        agentType: agentType,
+        permissionMode: config.permissionMode,
+        networkId: networkId,
+      ),
+    );
 
     // Use createNonBlocking to avoid hanging on init
     // Pass sourceConversation so the forked agent shows the same history immediately

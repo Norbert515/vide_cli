@@ -177,11 +177,13 @@ class KnowledgeService {
           }
 
           if (score > 0) {
-            results.add(KnowledgeSearchResult(
-              document: doc,
-              score: score,
-              snippet: snippet,
-            ));
+            results.add(
+              KnowledgeSearchResult(
+                document: doc,
+                score: score,
+                snippet: snippet,
+              ),
+            );
           }
         } catch (e) {
           // Skip files that can't be parsed
@@ -271,7 +273,8 @@ class KnowledgeService {
 
     return KnowledgeDocument(
       path: relativePath,
-      title: yaml['title'] as String? ?? path.basenameWithoutExtension(filePath),
+      title:
+          yaml['title'] as String? ?? path.basenameWithoutExtension(filePath),
       type: yaml['type'] as String? ?? 'unknown',
       status: yaml['status'] as String? ?? 'active',
       tags: _parseStringList(yaml['tags']),
@@ -306,7 +309,11 @@ class KnowledgeService {
       return value.cast<String>().toList();
     }
     if (value is String) {
-      return value.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      return value
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
     return [];
   }
@@ -358,17 +365,17 @@ class KnowledgeDocument {
   final String? content;
 
   Map<String, dynamic> toJson() => {
-        'path': path,
-        'title': title,
-        'type': type,
-        'status': status,
-        'tags': tags,
-        if (author != null) 'author': author,
-        if (created != null) 'created': created!.toIso8601String(),
-        if (references.isNotEmpty) 'references': references,
-        if (summary != null) 'summary': summary,
-        if (content != null) 'content': content,
-      };
+    'path': path,
+    'title': title,
+    'type': type,
+    'status': status,
+    'tags': tags,
+    if (author != null) 'author': author,
+    if (created != null) 'created': created!.toIso8601String(),
+    if (references.isNotEmpty) 'references': references,
+    if (summary != null) 'summary': summary,
+    if (content != null) 'content': content,
+  };
 }
 
 /// Search result with relevance score and snippet.
@@ -384,8 +391,8 @@ class KnowledgeSearchResult {
   final String? snippet;
 
   Map<String, dynamic> toJson() => {
-        ...document.toJson(),
-        'score': score,
-        if (snippet != null) 'snippet': snippet,
-      };
+    ...document.toJson(),
+    'score': score,
+    if (snippet != null) 'snippet': snippet,
+  };
 }

@@ -106,7 +106,9 @@ class AgentPersonality {
       throw FormatException('Missing required field "name" in $filePath');
     }
     if (description == null || description.isEmpty) {
-      throw FormatException('Missing required field "description" in $filePath');
+      throw FormatException(
+        'Missing required field "description" in $filePath',
+      );
     }
 
     return AgentPersonality(
@@ -141,7 +143,9 @@ class AgentPersonality {
       team: team ?? base.team,
       archetype: archetype ?? base.archetype,
       tools: tools.isNotEmpty ? tools : base.tools,
-      disallowedTools: disallowedTools.isNotEmpty ? disallowedTools : base.disallowedTools,
+      disallowedTools: disallowedTools.isNotEmpty
+          ? disallowedTools
+          : base.disallowedTools,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : base.mcpServers,
       model: model ?? base.model,
       permissionMode: permissionMode ?? base.permissionMode,
@@ -169,7 +173,11 @@ List<String> _parseStringList(dynamic value) {
     return value.cast<String>().toList();
   }
   if (value is String) {
-    return value.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    return value
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
   }
   return [];
 }

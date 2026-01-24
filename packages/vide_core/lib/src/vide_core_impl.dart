@@ -59,7 +59,7 @@ class VideCore {
   final Map<String, VideSession> _activeSessions = {};
 
   VideCore._(this._container, {bool ownsContainer = true})
-      : _ownsContainer = ownsContainer;
+    : _ownsContainer = ownsContainer;
 
   /// Create a new VideCore instance.
   ///
@@ -175,9 +175,7 @@ class VideCore {
     // Create a new container for this session
     final finalContainer = ProviderContainer(
       parent: _container,
-      overrides: [
-        workingDirProvider.overrideWithValue(workingDirectory),
-      ],
+      overrides: [workingDirProvider.overrideWithValue(workingDirectory)],
     );
 
     // Create network via AgentNetworkManager
@@ -221,7 +219,9 @@ class VideCore {
     }
 
     // Load network from persistence
-    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
+    final persistenceManager = _container.read(
+      agentNetworkPersistenceManagerProvider,
+    );
     final networks = await persistenceManager.loadNetworks();
     final network = networks.where((n) => n.id == sessionId).firstOrNull;
 
@@ -235,9 +235,7 @@ class VideCore {
     // Create a new container for this session
     final sessionContainer = ProviderContainer(
       parent: _container,
-      overrides: [
-        workingDirProvider.overrideWithValue(workingDir),
-      ],
+      overrides: [workingDirProvider.overrideWithValue(workingDir)],
     );
 
     // Resume the network
@@ -261,7 +259,9 @@ class VideCore {
   Future<List<VideSessionInfo>> listSessions() async {
     _checkNotDisposed();
 
-    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
+    final persistenceManager = _container.read(
+      agentNetworkPersistenceManagerProvider,
+    );
     final networks = await persistenceManager.loadNetworks();
 
     return networks.map((network) {
@@ -276,7 +276,8 @@ class VideCore {
             id: agent.id,
             name: agent.name,
             type: agent.type,
-            status: VideAgentStatus.idle, // We don't have live status for inactive sessions
+            status: VideAgentStatus
+                .idle, // We don't have live status for inactive sessions
             spawnedBy: agent.spawnedBy,
             taskName: agent.taskName,
             createdAt: agent.createdAt,
@@ -347,7 +348,9 @@ class VideCore {
     }
 
     // Delete from persistence
-    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
+    final persistenceManager = _container.read(
+      agentNetworkPersistenceManagerProvider,
+    );
     await persistenceManager.deleteNetwork(sessionId);
   }
 
@@ -379,7 +382,10 @@ class VideCore {
   }
 
   static String _defaultConfigDir() {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
     return '$home/.vide';
   }
 
@@ -403,5 +409,6 @@ class VideCore {
   /// Stream of MCP status updates.
   ///
   /// This is a convenience getter that returns [initialClient.mcpStatusStream].
-  Stream<McpStatusResponse> get mcpStatusStream => initialClient.mcpStatusStream;
+  Stream<McpStatusResponse> get mcpStatusStream =>
+      initialClient.mcpStatusStream;
 }

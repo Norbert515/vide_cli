@@ -5,7 +5,8 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart' show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
+import 'package:vide_core/vide_core.dart'
+    show TeamFrameworkLoader, TeamFrameworkAssetInitializer;
 
 /// A popup dialog for selecting the team to use for new sessions.
 class TeamSelectorPopup extends StatefulComponent {
@@ -76,19 +77,22 @@ class _TeamSelectorPopupState extends State<TeamSelectorPopup> {
           Navigator.of(context).pop(null);
           return true;
         }
-        if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+        if (event.logicalKey == LogicalKey.arrowUp ||
+            event.logicalKey == LogicalKey.keyK) {
           if (_selectedIndex > 0) {
             setState(() => _selectedIndex--);
           }
           return true;
         }
-        if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+        if (event.logicalKey == LogicalKey.arrowDown ||
+            event.logicalKey == LogicalKey.keyJ) {
           if (_selectedIndex < _availableTeams.length - 1) {
             setState(() => _selectedIndex++);
           }
           return true;
         }
-        if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
+        if (event.logicalKey == LogicalKey.enter ||
+            event.logicalKey == LogicalKey.space) {
           _selectTeam();
           return true;
         }
@@ -100,73 +104,95 @@ class _TeamSelectorPopupState extends State<TeamSelectorPopup> {
           constraints: BoxConstraints(maxHeight: 15),
           decoration: BoxDecoration(
             color: theme.base.surface,
-            border: BoxBorder.all(color: theme.base.primary, style: BoxBorderStyle.rounded),
+            border: BoxBorder.all(
+              color: theme.base.primary,
+              style: BoxBorderStyle.rounded,
+            ),
             title: BorderTitle(
               text: 'Select Team',
               alignment: TitleAlignment.center,
-              style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: theme.base.primary,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           child: _loading
               ? Center(
                   child: Text(
                     'Loading teams...',
-                    style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
+                    ),
                   ),
                 )
               : _availableTeams.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No teams found',
-                        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
-                      ),
-                    )
-                  : Padding(
-                      padding: EdgeInsets.symmetric(vertical: 1),
-                      child: ListView.builder(
-                        itemCount: _availableTeams.length,
-                        itemBuilder: (context, index) {
-                          final team = _availableTeams[index];
-                          final isSelected = index == _selectedIndex;
-                          final isCurrent = team == currentTeam;
-
-                          return Container(
-                            padding: EdgeInsets.symmetric(horizontal: 2),
-                            decoration: isSelected
-                                ? BoxDecoration(color: theme.base.primary.withOpacity(0.3))
-                                : null,
-                            child: Row(
-                              children: [
-                                Text(
-                                  isSelected ? '>' : ' ',
-                                  style: TextStyle(color: theme.base.primary),
-                                ),
-                                SizedBox(width: 1),
-                                Expanded(
-                                  child: Text(
-                                    team,
-                                    style: TextStyle(
-                                      color: isSelected
-                                          ? theme.base.onSurface
-                                          : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                                if (isCurrent)
-                                  Text(
-                                    ' (current)',
-                                    style: TextStyle(
-                                      color: theme.base.primary.withOpacity(TextOpacity.secondary),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
+              ? Center(
+                  child: Text(
+                    'No teams found',
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
                       ),
                     ),
+                  ),
+                )
+              : Padding(
+                  padding: EdgeInsets.symmetric(vertical: 1),
+                  child: ListView.builder(
+                    itemCount: _availableTeams.length,
+                    itemBuilder: (context, index) {
+                      final team = _availableTeams[index];
+                      final isSelected = index == _selectedIndex;
+                      final isCurrent = team == currentTeam;
+
+                      return Container(
+                        padding: EdgeInsets.symmetric(horizontal: 2),
+                        decoration: isSelected
+                            ? BoxDecoration(
+                                color: theme.base.primary.withOpacity(0.3),
+                              )
+                            : null,
+                        child: Row(
+                          children: [
+                            Text(
+                              isSelected ? '>' : ' ',
+                              style: TextStyle(color: theme.base.primary),
+                            ),
+                            SizedBox(width: 1),
+                            Expanded(
+                              child: Text(
+                                team,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? theme.base.onSurface
+                                      : theme.base.onSurface.withOpacity(
+                                          TextOpacity.secondary,
+                                        ),
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (isCurrent)
+                              Text(
+                                ' (current)',
+                                style: TextStyle(
+                                  color: theme.base.primary.withOpacity(
+                                    TextOpacity.secondary,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
         ),
       ),
     );

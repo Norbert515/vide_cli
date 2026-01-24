@@ -19,9 +19,7 @@ class VideCoreConfig {
   /// Defaults to `~/.vide` if not specified.
   final String? configDir;
 
-  const VideCoreConfig({
-    this.configDir,
-  });
+  const VideCoreConfig({this.configDir});
 }
 
 /// Configuration for starting a new session.

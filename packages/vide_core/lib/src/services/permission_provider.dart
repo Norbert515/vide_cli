@@ -33,9 +33,8 @@ class PermissionCallbackContext {
 ///
 /// This design allows each agent to have its own cwd and permission behavior
 /// while sharing the underlying permission logic.
-typedef CanUseToolCallbackFactory = CanUseToolCallback Function(
-  PermissionCallbackContext context,
-);
+typedef CanUseToolCallbackFactory =
+    CanUseToolCallback Function(PermissionCallbackContext context);
 
 /// Riverpod provider for the canUseTool callback factory.
 ///

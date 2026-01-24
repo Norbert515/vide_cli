@@ -390,11 +390,17 @@ class MockClaudeClient implements ClaudeClient {
   Future<McpStatusResponse> getMcpStatus() async {
     // Return mock MCP status
     return McpStatusResponse(
-      servers: mcpServers.map((s) => McpServerStatusInfo(
-        name: s.name,
-        status: s.isRunning ? McpServerStatus.connected : McpServerStatus.disconnected,
-        serverInfo: McpServerInfo(name: s.name, version: '1.0.0'),
-      )).toList(),
+      servers: mcpServers
+          .map(
+            (s) => McpServerStatusInfo(
+              name: s.name,
+              status: s.isRunning
+                  ? McpServerStatus.connected
+                  : McpServerStatus.disconnected,
+              serverInfo: McpServerInfo(name: s.name, version: '1.0.0'),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -405,14 +411,21 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
     print('[MockClaudeClient] Setting max thinking tokens to: $maxTokens');
     return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
   }
 
   @override
-  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false}) async {
-    print('[MockClaudeClient] Setting MCP servers: ${servers.map((s) => s.name).join(', ')}');
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  }) async {
+    print(
+      '[MockClaudeClient] Setting MCP servers: ${servers.map((s) => s.name).join(', ')}',
+    );
   }
 
   @override

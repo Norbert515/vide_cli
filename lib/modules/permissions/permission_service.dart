@@ -92,7 +92,7 @@ class PermissionService {
   final Map<String, Completer<PermissionResponse>> _pendingRequests = {};
 
   PermissionService({required AskUserQuestionService askUserQuestionService})
-      : _askUserQuestionService = askUserQuestionService;
+    : _askUserQuestionService = askUserQuestionService;
 
   /// Stream of permission requests for the UI
   Stream<PermissionRequest> get requests => _requestController.stream;
@@ -209,10 +209,7 @@ class PermissionService {
       // Return allow with the answers included in updatedInput
       // Claude Code should see the pre-filled answers and skip its UI
       return PermissionResultAllow(
-        updatedInput: {
-          ...toolInput,
-          'answers': answers,
-        },
+        updatedInput: {...toolInput, 'answers': answers},
       );
     } catch (e) {
       // If parsing fails, deny with error message

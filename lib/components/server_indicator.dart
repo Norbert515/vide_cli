@@ -22,16 +22,11 @@ class ServerIndicator extends StatelessComponent {
       children: [
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(
-            color: theme.base.primary.withOpacity(0.2),
-          ),
+          decoration: BoxDecoration(color: theme.base.primary.withOpacity(0.2)),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '⚡',
-                style: TextStyle(color: theme.base.primary),
-              ),
+              Text('⚡', style: TextStyle(color: theme.base.primary)),
               Text(
                 ' ${serverState.url}',
                 style: TextStyle(color: theme.base.primary),

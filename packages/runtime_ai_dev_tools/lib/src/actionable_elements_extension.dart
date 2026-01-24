@@ -98,7 +98,8 @@ void registerActionableElementsExtension() {
 /// The semantics tree correctly handles Navigator routes, dialogs,
 /// and all visibility cases - it's what screen readers see.
 Map<String, dynamic> _getActionableElements() {
-  print('🔍 [RuntimeAiDevTools] Scanning for actionable elements via Semantics tree...');
+  print(
+      '🔍 [RuntimeAiDevTools] Scanning for actionable elements via Semantics tree...');
 
   final binding = WidgetsBinding.instance;
   final rootElement = binding.rootElement;
@@ -114,9 +115,11 @@ Map<String, dynamic> _getActionableElements() {
   // Note: Semantics tree uses PHYSICAL pixels, so we need to scale screen bounds
   final renderView = binding.renderViews.firstOrNull;
   final screenSize = renderView?.size ?? Size.zero;
-  final dpr = binding.platformDispatcher.views.firstOrNull?.devicePixelRatio ?? 1.0;
+  final dpr =
+      binding.platformDispatcher.views.firstOrNull?.devicePixelRatio ?? 1.0;
   // Scale to physical pixels to match semantics tree coordinates
-  final screenBounds = Rect.fromLTWH(0, 0, screenSize.width * dpr, screenSize.height * dpr);
+  final screenBounds =
+      Rect.fromLTWH(0, 0, screenSize.width * dpr, screenSize.height * dpr);
 
   // Clear previous registry
   ActionableElementRegistry.instance.clear();
@@ -133,6 +136,7 @@ Map<String, dynamic> _getActionableElements() {
     }
     element.visitChildren(buildSemanticsMap);
   }
+
   rootElement.visitChildren(buildSemanticsMap);
 
   // Try to get semantics from the render view
@@ -153,7 +157,8 @@ Map<String, dynamic> _getActionableElements() {
     return _getElementsFromWidgetTree(rootElement, screenBounds);
   }
 
-  return _getElementsFromSemantics(rootSemanticsNode, semanticsToElement, screenBounds, dpr);
+  return _getElementsFromSemantics(
+      rootSemanticsNode, semanticsToElement, screenBounds, dpr);
 }
 
 /// Traverse the semantics tree to find actionable elements.
@@ -192,10 +197,13 @@ Map<String, dynamic> _getElementsFromSemantics(
     }
 
     // Calculate global bounds using transform
-    final globalTransform = transform.multiplied(node.transform ?? Matrix4.identity());
+    final globalTransform =
+        transform.multiplied(node.transform ?? Matrix4.identity());
     final localRect = node.rect;
-    final topLeft = MatrixUtils.transformPoint(globalTransform, localRect.topLeft);
-    final bottomRight = MatrixUtils.transformPoint(globalTransform, localRect.bottomRight);
+    final topLeft =
+        MatrixUtils.transformPoint(globalTransform, localRect.topLeft);
+    final bottomRight =
+        MatrixUtils.transformPoint(globalTransform, localRect.bottomRight);
     final globalBounds = Rect.fromPoints(topLeft, bottomRight);
 
     // Skip if completely off-screen
@@ -222,10 +230,12 @@ Map<String, dynamic> _getElementsFromSemantics(
       // Register for tap lookup (use logical bounds)
       final element = semanticsToElement[node];
       if (element != null) {
-        ActionableElementRegistry.instance.register(info['id'] as String, element, logicalBounds);
+        ActionableElementRegistry.instance
+            .register(info['id'] as String, element, logicalBounds);
       } else {
         // Register with bounds only (still tappable via coordinates)
-        ActionableElementRegistry.instance._elements[info['id'] as String] = _RegisteredElement(
+        ActionableElementRegistry.instance._elements[info['id'] as String] =
+            _RegisteredElement(
           element: WidgetsBinding.instance.rootElement!,
           bounds: logicalBounds,
         );
@@ -242,7 +252,8 @@ Map<String, dynamic> _getElementsFromSemantics(
 
   visitSemanticsNode(rootNode, Matrix4.identity());
 
-  print('   ✅ Found ${elements.length} actionable elements (via Semantics tree)');
+  print(
+      '   ✅ Found ${elements.length} actionable elements (via Semantics tree)');
 
   return {
     'status': 'success',
@@ -274,8 +285,17 @@ Map<String, dynamic>? _extractFromSemanticsNode(
   final isLink = data.hasFlag(SemanticsFlag.isLink);
 
   // Skip non-actionable nodes
-  final isActionable = hasTap || hasLongPress || hasSetText || hasIncrease || hasDecrease ||
-      isButton || isTextField || isSlider || isToggled || isChecked || isLink;
+  final isActionable = hasTap ||
+      hasLongPress ||
+      hasSetText ||
+      hasIncrease ||
+      hasDecrease ||
+      isButton ||
+      isTextField ||
+      isSlider ||
+      isToggled ||
+      isChecked ||
+      isLink;
 
   if (!isActionable) return null;
 
@@ -344,7 +364,8 @@ Map<String, dynamic>? _extractFromSemanticsNode(
 
 /// Alternative: Get actionable elements by traversing just the widget tree.
 /// Used as a fallback when semantics isn't providing visibility info.
-Map<String, dynamic> _getElementsFromWidgetTree(Element rootElement, Rect screenBounds) {
+Map<String, dynamic> _getElementsFromWidgetTree(
+    Element rootElement, Rect screenBounds) {
   final counters = <String, int>{};
 
   String generateId(String type) {
@@ -387,7 +408,8 @@ Map<String, dynamic> _getElementsFromWidgetTree(Element rootElement, Rect screen
       return; // Don't traverse children of fully transparent render objects
     }
 
-    final info = _extractActionableInfoFromWidget(widget, element, generateId, screenBounds);
+    final info = _extractActionableInfoFromWidget(
+        widget, element, generateId, screenBounds);
 
     if (info != null) {
       elements.add(info);
@@ -463,7 +485,8 @@ Map<String, dynamic>? _extractActionableInfoFromWidget(
 }
 
 /// Match widget to actionable type and extract relevant info.
-Map<String, dynamic>? _matchWidget(Widget widget, Element element, Rect bounds) {
+Map<String, dynamic>? _matchWidget(
+    Widget widget, Element element, Rect bounds) {
   // Material Buttons
   if (widget is ElevatedButton ||
       widget is TextButton ||
@@ -571,12 +594,18 @@ Map<String, dynamic>? _matchWidget(Widget widget, Element element, Rect bounds) 
   }
 
   // Chip
-  if (widget is Chip || widget is ActionChip || widget is FilterChip || widget is ChoiceChip) {
+  if (widget is Chip ||
+      widget is ActionChip ||
+      widget is FilterChip ||
+      widget is ChoiceChip) {
     return {
       'type': 'chip',
       'label': _findChildText(element),
-      'selected': widget is FilterChip ? widget.selected :
-                  widget is ChoiceChip ? widget.selected : null,
+      'selected': widget is FilterChip
+          ? widget.selected
+          : widget is ChoiceChip
+              ? widget.selected
+              : null,
     };
   }
 

@@ -46,23 +46,34 @@ class AgentIdAndMcpServerType {
   }
 
   @override
-  int get hashCode => agentId.hashCode ^ mcpServerType.hashCode ^ projectPath.hashCode;
+  int get hashCode =>
+      agentId.hashCode ^ mcpServerType.hashCode ^ projectPath.hashCode;
 }
 
-final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpServerType>((
-  ref,
-  params,
-) {
-  return switch (params.mcpServerType) {
-    McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
-    McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
-    McpServerType.taskManagement => ref.watch(taskManagementServerProvider(params.agentId)),
-    McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(params.agentId)),
-    McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(params.agentId)),
-    McpServerType.knowledge => ref.watch(knowledgeServerProvider(KnowledgeServerParams(
-        agentId: params.agentId,
-        projectPath: params.projectPath,
-      ))),
-    _ => throw Exception('MCP server type not supported: ${params.mcpServerType}'),
-  };
-});
+final genericMcpServerProvider =
+    Provider.family<McpServerBase, AgentIdAndMcpServerType>((ref, params) {
+      return switch (params.mcpServerType) {
+        McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
+        McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
+        McpServerType.taskManagement => ref.watch(
+          taskManagementServerProvider(params.agentId),
+        ),
+        McpServerType.askUserQuestion => ref.watch(
+          askUserQuestionServerProvider(params.agentId),
+        ),
+        McpServerType.flutterRuntime => ref.watch(
+          flutterRuntimeServerProvider(params.agentId),
+        ),
+        McpServerType.knowledge => ref.watch(
+          knowledgeServerProvider(
+            KnowledgeServerParams(
+              agentId: params.agentId,
+              projectPath: params.projectPath,
+            ),
+          ),
+        ),
+        _ => throw Exception(
+          'MCP server type not supported: ${params.mcpServerType}',
+        ),
+      };
+    });
