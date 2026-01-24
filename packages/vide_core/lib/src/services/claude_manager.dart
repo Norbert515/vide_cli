@@ -10,6 +10,10 @@ final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, agentId) {
 ///
 /// This provides real-time status updates (processing, thinking, responding, etc.)
 /// from the Claude API, useful for showing activity indicators in the UI.
+///
+/// Note: Agent status auto-sync is handled by AgentNetworkManager._setupStatusSync()
+/// which subscribes to status changes when agents are created. This provider is
+/// purely for UI observation.
 final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((
   ref,
   agentId,

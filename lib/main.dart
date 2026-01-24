@@ -85,10 +85,10 @@ Future<void> main(List<String> args, {List<Override> overrides = const []}) asyn
   // Create VideCore from the existing container (enables public API usage)
   videCore = VideCore.fromContainer(container);
 
-  // Initialize PostHog analytics
+  // Initialize Bashboard analytics
   final configManager = container.read(videConfigManagerProvider);
-  await PostHogService.init(configManager);
-  PostHogService.appStarted();
+  await BashboardService.init(configManager);
+  BashboardService.appStarted();
 
   // Note: Pending updates are applied by the wrapper script at ~/.local/bin/vide
   // before launching the actual binary. The version indicator shows "ready" when

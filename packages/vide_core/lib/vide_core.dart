@@ -42,7 +42,7 @@ export 'src/models/team_framework/team_framework.dart';
 // Services
 // =============================================================================
 export 'src/services/vide_config_manager.dart';
-export 'src/services/posthog_service.dart';
+export 'src/services/bashboard_service.dart';
 export 'src/services/auto_update_service.dart';
 export 'src/services/permission_provider.dart';
 export 'src/services/agent_network_persistence_manager.dart';

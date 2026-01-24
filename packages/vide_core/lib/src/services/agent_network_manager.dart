@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:claude_sdk/claude_sdk.dart';
@@ -7,12 +8,14 @@ import 'package:uuid/uuid.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
+import '../models/agent_status.dart';
 import '../agents/agent_configuration.dart';
+import '../state/agent_status_manager.dart';
 import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
-import 'posthog_service.dart';
+import 'bashboard_service.dart';
 import 'team_framework_loader.dart';
 import 'trigger_service.dart';
 
@@ -61,6 +64,106 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final Ref _ref;
   late final ClaudeClientFactory _clientFactory;
   late final TeamFrameworkLoader _teamFrameworkLoader;
+
+  /// Active subscriptions for agent status sync.
+  /// We listen to Claude status changes and auto-set agent status.
+  final Map<AgentId, StreamSubscription<ClaudeStatus>> _statusSyncSubscriptions = {};
+
+  /// Set up status sync for an agent's Claude client.
+  ///
+  /// This listens to the Claude status stream and automatically updates
+  /// the agent status to idle when the turn completes.
+  void _setupStatusSync(AgentId agentId, ClaudeClient client) {
+    // Cancel any existing subscription
+    _statusSyncSubscriptions[agentId]?.cancel();
+
+    _statusSyncSubscriptions[agentId] = client.statusStream.listen((claudeStatus) {
+      final agentStatusNotifier = _ref.read(agentStatusProvider(agentId).notifier);
+      final currentAgentStatus = _ref.read(agentStatusProvider(agentId));
+
+      switch (claudeStatus) {
+        case ClaudeStatus.processing:
+        case ClaudeStatus.thinking:
+        case ClaudeStatus.responding:
+          // Claude is working, set agent status to working
+          if (currentAgentStatus != AgentStatus.working) {
+            agentStatusNotifier.setStatus(AgentStatus.working);
+          }
+          break;
+        case ClaudeStatus.ready:
+        case ClaudeStatus.completed:
+          // Claude is done with this turn
+          // Only auto-set to idle if agent was in working state
+          // (don't override waitingForAgent/waitingForUser that agent set explicitly)
+          if (currentAgentStatus == AgentStatus.working) {
+            agentStatusNotifier.setStatus(AgentStatus.idle);
+            // Check if all agents are now idle
+            _checkAllAgentsIdle();
+          }
+          break;
+        case ClaudeStatus.error:
+        case ClaudeStatus.unknown:
+          // On error, set to idle so triggers can fire
+          if (currentAgentStatus == AgentStatus.working) {
+            agentStatusNotifier.setStatus(AgentStatus.idle);
+            _checkAllAgentsIdle();
+          }
+          break;
+      }
+    });
+  }
+
+  /// Check if all NON-TRIGGERED agents are idle and fire the trigger if so.
+  ///
+  /// Only considers agents that were NOT spawned by a trigger.
+  /// This prevents infinite loops where triggered agents spawn more triggered agents.
+  void _checkAllAgentsIdle() {
+    final network = state.currentNetwork;
+    if (network == null) return;
+
+    // Only check non-triggered agents
+    // Triggered agents are identified by having spawnedBy starting with 'trigger:'
+    final nonTriggeredAgents = network.agents.where(
+      (a) => a.spawnedBy == null || !a.spawnedBy!.startsWith('trigger:'),
+    ).toList();
+
+    if (nonTriggeredAgents.isEmpty) {
+      return;
+    }
+
+    // Check if all non-triggered agents are idle
+    var allIdle = true;
+    for (final agent in nonTriggeredAgents) {
+      final status = _ref.read(agentStatusProvider(agent.id));
+      if (status != AgentStatus.idle) {
+        allIdle = false;
+        break;
+      }
+    }
+
+    if (allIdle) {
+      // Fire trigger in background
+      () async {
+        try {
+          final triggerService = _ref.read(triggerServiceProvider);
+          final context = TriggerContext(
+            triggerPoint: TriggerPoint.onAllAgentsIdle,
+            network: network,
+            teamName: network.team,
+          );
+          await triggerService.fire(context);
+        } catch (e) {
+          print('[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e');
+        }
+      }();
+    }
+  }
+
+  /// Clean up status sync subscription for an agent.
+  void _cleanupStatusSync(AgentId agentId) {
+    _statusSyncSubscriptions[agentId]?.cancel();
+    _statusSyncSubscriptions.remove(agentId);
+  }
 
   /// Get the effective working directory (worktree if set and exists, else original).
   ///
@@ -197,8 +300,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         .read(claudeManagerProvider.notifier)
         .addAgent(mainAgentId, mainAgentClaudeClient);
 
+    // Set up status sync to auto-update agent status when turn completes
+    _setupStatusSync(mainAgentId, mainAgentClaudeClient);
+
     // Track analytics
-    PostHogService.conversationStarted();
+    BashboardService.conversationStarted();
 
     // Do persistence in background
     () async {
@@ -270,6 +376,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         _ref
             .read(claudeManagerProvider.notifier)
             .addAgent(agentMetadata.id, client);
+        // Set up status sync to auto-update agent status when turn completes
+        _setupStatusSync(agentMetadata.id, client);
       } catch (e) {
         print('[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e');
         rethrow;
@@ -343,6 +451,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agentType: metadata.type,
     );
     _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
+    // Set up status sync to auto-update agent status when turn completes
+    _setupStatusSync(agentId, client);
 
     // Update network with new agent metadata
     final updatedNetwork = network.copyWith(
@@ -503,6 +613,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       if (client != null) {
         await client.abort();
       }
+      // Clean up status sync subscription
+      _cleanupStatusSync(agentId);
       claudeManagerNotifier.removeAgent(agentId);
     }
 
@@ -534,6 +646,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           agentType: agentMetadata.type,
         );
         claudeManagerNotifier.addAgent(agentMetadata.id, client);
+        // Set up status sync for the recreated client
+        _setupStatusSync(agentMetadata.id, client);
       } catch (e) {
         print('[AgentNetworkManager] Error recreating client for ${agentMetadata.type}: $e');
         rethrow;
@@ -631,7 +745,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     await addAgent(agentId: newAgentId, config: config, metadata: metadata);
 
     // Track analytics
-    PostHogService.agentSpawned(agentType);
+    BashboardService.agentSpawned(agentType);
 
     // Prepend context about who spawned this agent
     final contextualPrompt = '''[SPAWNED BY AGENT: $spawnedBy]
@@ -706,6 +820,9 @@ $initialPrompt''';
     if (client != null) {
       await client.abort();
     }
+
+    // Clean up status sync subscription
+    _cleanupStatusSync(targetAgentId);
 
     // Remove from ClaudeManager
     _ref.read(claudeManagerProvider.notifier).removeAgent(targetAgentId);
@@ -837,6 +954,8 @@ $message''';
     );
 
     _ref.read(claudeManagerProvider.notifier).addAgent(newAgentId, client);
+    // Set up status sync for the forked agent
+    _setupStatusSync(newAgentId, client);
 
     // Listen for MetaResponse to capture the actual session ID from Claude
     // When forking, Claude assigns a new session ID which we need to persist

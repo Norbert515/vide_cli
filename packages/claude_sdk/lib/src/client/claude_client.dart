@@ -331,6 +331,9 @@ class ClaudeClientImpl implements ClaudeClient {
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) return;
 
+    // Update status to processing so triggers can detect when agent becomes idle
+    _updateStatus(ClaudeStatus.processing);
+
     for (final message in _pendingMessages) {
       _sendMessageViaProtocol(message, controlProtocol);
     }
@@ -455,6 +458,9 @@ class ClaudeClientImpl implements ClaudeClient {
     _updateConversation(conversation);
 
     if (turnComplete) {
+      // When turn completes, update status to ready (idle)
+      // This enables trigger systems to detect when agents are done
+      _updateStatus(ClaudeStatus.ready);
       _turnCompleteController.add(null);
     }
   }
@@ -556,6 +562,9 @@ class ClaudeClientImpl implements ClaudeClient {
           .addMessage(userMessage)
           .withState(ConversationState.sendingMessage),
     );
+
+    // Update status to processing so triggers can detect when agent becomes idle
+    _updateStatus(ClaudeStatus.processing);
 
     // Send via control protocol
     _sendMessageViaProtocol(message, controlProtocol);
