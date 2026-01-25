@@ -127,14 +127,13 @@ class VideApp extends StatelessComponent {
       title: context.watch(consoleTitleProvider),
       // Pass explicit theme if set, otherwise NoctermApp auto-detects
       theme: explicitTheme,
-      child: explicitTheme != null
-          // If we have an explicit theme, wrap with matching VideTheme
-          ? VideTheme(
-              data: VideThemeData.fromBrightness(explicitTheme),
-              child: _VideAppContent(),
-            )
-          // Otherwise, use auto-detection
-          : VideTheme.auto(child: _VideAppContent()),
+      // Use withOptionalOverride to keep widget tree stable when switching themes
+      child: VideTheme.withOptionalOverride(
+        data: explicitTheme != null
+            ? VideThemeData.fromBrightness(explicitTheme)
+            : null,
+        child: _VideAppContent(),
+      ),
     );
   }
 }
