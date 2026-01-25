@@ -142,47 +142,6 @@ class _McpServersSectionState extends State<McpServersSection> {
             ),
             SizedBox(height: 2),
 
-            // Status legend
-            Row(
-              children: [
-                Text('● ', style: TextStyle(color: theme.status.idle)),
-                Text(
-                  'connected  ',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.tertiary,
-                    ),
-                  ),
-                ),
-                Text('✗ ', style: TextStyle(color: theme.status.error)),
-                Text(
-                  'failed  ',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.tertiary,
-                    ),
-                  ),
-                ),
-                Text(
-                  '◐ ',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-                Text(
-                  'connecting',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.tertiary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 2),
-
             // Server list
             if (_mcpStatus == null)
               Text(
@@ -253,16 +212,16 @@ class _McpServerItem extends StatelessComponent {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
 
-    // Status indicator
-    final (statusSymbol, statusColor) = switch (server.status) {
-      McpServerStatus.connected => ('●', theme.status.idle),
-      McpServerStatus.failed => ('✗', theme.status.error),
+    // Status text and color
+    final (statusText, statusColor) = switch (server.status) {
+      McpServerStatus.connected => ('connected', theme.status.idle),
+      McpServerStatus.failed => ('failed', theme.status.error),
       McpServerStatus.connecting => (
-        '◐',
+        'connecting',
         theme.base.onSurface.withOpacity(TextOpacity.secondary),
       ),
       McpServerStatus.disconnected => (
-        '○',
+        'disabled',
         theme.base.onSurface.withOpacity(TextOpacity.disabled),
       ),
     };
@@ -279,12 +238,9 @@ class _McpServerItem extends StatelessComponent {
             ),
             child: Row(
               children: [
-                // Enable/disable toggle
+                // Enable/disable checkbox
                 SettingsToggle(value: isEnabled, focused: isSelected),
                 SizedBox(width: 2),
-                // Status indicator
-                Text(statusSymbol, style: TextStyle(color: statusColor)),
-                SizedBox(width: 1),
                 // Server name
                 Expanded(
                   child: Text(
@@ -299,13 +255,18 @@ class _McpServerItem extends StatelessComponent {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Status text on the right
+                Text(
+                  statusText,
+                  style: TextStyle(color: statusColor),
+                ),
               ],
             ),
           ),
           // Error message
           if (server.error != null)
             Padding(
-              padding: EdgeInsets.only(left: 8),
+              padding: EdgeInsets.only(left: 6),
               child: Text(
                 server.error!,
                 style: TextStyle(
