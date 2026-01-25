@@ -131,17 +131,14 @@ class VideTheme extends StatelessComponent {
       effectiveData = _data!;
     }
 
-    // Only wrap with TuiTheme if we're not auto-detecting
-    // (if auto-detecting, TuiTheme is already provided by NoctermApp)
-    if (_autoDetect) {
-      return _VideThemeInherited(data: effectiveData, child: child);
-    } else {
-      // Wrap with TuiTheme so nocterm components can access the base theme
-      return TuiTheme(
-        data: effectiveData.base,
-        child: _VideThemeInherited(data: effectiveData, child: child),
-      );
-    }
+    // Always wrap with TuiTheme to keep widget tree structure stable.
+    // This prevents dialogs from closing when switching between auto and explicit themes.
+    // When auto-detecting, NoctermApp also provides TuiTheme, but having a nested
+    // TuiTheme is harmless and keeps the structure consistent.
+    return TuiTheme(
+      data: effectiveData.base,
+      child: _VideThemeInherited(data: effectiveData, child: child),
+    );
   }
 }
 
