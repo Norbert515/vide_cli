@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/modules/agent_network/pages/home_page.dart';
@@ -26,6 +28,37 @@ final ideModeEnabledProvider = StateProvider<bool>((ref) {
   final configManager = ref.read(videConfigManagerProvider);
   return configManager.readGlobalSettings().ideModeEnabled;
 });
+
+/// Provider for git sidebar setting. When true, the git sidebar will show
+/// (if the current directory is a git repo).
+final gitSidebarEnabledProvider = StateProvider<bool>((ref) {
+  final configManager = ref.read(videConfigManagerProvider);
+  return configManager.readGlobalSettings().gitSidebarEnabled;
+});
+
+/// Provider that checks if the current repo path is a git repository.
+/// Returns true if .git directory exists in the current or any parent directory.
+final currentDirIsGitRepoProvider = Provider<bool>((ref) {
+  final repoPath = ref.watch(currentRepoPathProvider);
+  return _isGitRepo(repoPath);
+});
+
+/// Check if a directory is inside a git repository.
+bool _isGitRepo(String path) {
+  var dir = Directory(path);
+  while (true) {
+    final gitDir = Directory('${dir.path}/.git');
+    if (gitDir.existsSync()) {
+      return true;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) {
+      // Reached root
+      return false;
+    }
+    dir = parent;
+  }
+}
 
 /// Provider for file preview path. When set, file preview is shown.
 /// Null means no file preview is open.
