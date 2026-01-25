@@ -17,22 +17,28 @@ abstract class ClaudeClientFactory {
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
   /// [agentType] is the type of agent (e.g., 'main', 'implementation').
+  /// [workingDirectory] is an optional override for the working directory.
+  /// If null, uses the session's effective working directory.
   ClaudeClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
+    String? workingDirectory,
   });
 
   /// Creates a ClaudeClient asynchronously, waiting for full initialization.
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
   /// [agentType] is the type of agent (e.g., 'main', 'implementation').
+  /// [workingDirectory] is an optional override for the working directory.
+  /// If null, uses the session's effective working directory.
   Future<ClaudeClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
+    String? workingDirectory,
   });
 
   /// Creates a ClaudeClient by forking an existing session.
@@ -46,6 +52,8 @@ abstract class ClaudeClientFactory {
   /// [agentType] - The type of agent (e.g., 'main', 'implementation')
   /// [resumeSessionId] - The session ID to fork from
   /// [sourceConversation] - The conversation from the source agent (for immediate UI display)
+  /// [workingDirectory] - Optional override for the working directory.
+  /// If null, uses the session's effective working directory.
   Future<ClaudeClient> createForked({
     required AgentId agentId,
     required AgentConfiguration config,
@@ -53,6 +61,7 @@ abstract class ClaudeClientFactory {
     String? agentType,
     required String resumeSessionId,
     Conversation? sourceConversation,
+    String? workingDirectory,
   });
 }
 
@@ -86,8 +95,9 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
+    String? workingDirectory,
   }) {
-    final cwd = _getWorkingDirectory();
+    final cwd = workingDirectory ?? _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
@@ -138,8 +148,9 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
+    String? workingDirectory,
   }) async {
-    final cwd = _getWorkingDirectory();
+    final cwd = workingDirectory ?? _getWorkingDirectory();
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
@@ -192,8 +203,9 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     String? agentType,
     required String resumeSessionId,
     Conversation? sourceConversation,
+    String? workingDirectory,
   }) async {
-    final cwd = _getWorkingDirectory();
+    final cwd = workingDirectory ?? _getWorkingDirectory();
 
     // Create config with fork settings
     final baseConfig = config.toClaudeConfig(

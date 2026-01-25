@@ -5,7 +5,7 @@ short-description: Organizes teams, coordinates features
 description: Enterprise orchestrator. Breaks work into features, spawns feature teams, coordinates integration. Never does implementation work.
 
 tools: Skill
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-task-management, vide-git
 
 model: opus
 permissionMode: acceptEdits
@@ -133,18 +133,40 @@ Which need to be sequential?
 )
 ```
 
-### Phase 3: Spawn Feature Teams
+### Phase 3: Spawn Feature Teams on Worktrees
 
-Based on the architecture, spawn feature leads who will build their own teams:
+**IMPORTANT: Each feature team works in its own git worktree for isolation.**
+
+This enables:
+- Parallel work without merge conflicts
+- Clean git history per feature
+- Teams can merge and clean up independently
+- Main branch stays stable during development
+
+**Workflow for spawning a feature team:**
 
 ```dart
-// Feature A - can start immediately
+// Step 1: Create a worktree for the feature
+gitWorktreeAdd(
+  path: "../project-auth-feature",
+  branch: "feature/auth-system",
+  createBranch: true
+)
+// Returns the absolute path, e.g., "/path/to/project-auth-feature"
+
+// Step 2: Spawn feature lead IN that worktree
 spawnAgent(
   agentType: "feature-lead",
   name: "Auth System Lead",
+  workingDirectory: "/path/to/project-auth-feature",  // From step 1
   initialPrompt: """
 ## Your Feature
 Authentication system - JWT tokens, refresh logic, middleware
+
+## Worktree Info
+You are working in a dedicated git worktree:
+- Branch: feature/auth-system
+- Path: /path/to/project-auth-feature
 
 ## Requirements
 [Relevant requirements for this feature]
@@ -158,35 +180,55 @@ Authentication system - JWT tokens, refresh logic, middleware
 ## Success Criteria
 [Specific criteria for this feature]
 
-You own this feature end-to-end. Build your team, iterate until solid,
-report back when complete. Send progress updates for longer work.
-"""
-)
+## When Complete
+1. Ensure all changes are committed on your branch
+2. Merge your branch back to main
+3. Clean up by removing the worktree
+4. Report completion to me
 
-// Feature B - can start in parallel
-spawnAgent(
-  agentType: "feature-lead",
-  name: "Rate Limiting Lead",
-  initialPrompt: """
-## Your Feature
-API rate limiting - per-user limits, sliding window, response headers
-
-## Requirements
-[Relevant requirements]
-
-## Architecture Context
-[How this fits in]
-
-## Dependencies
-- Needs Auth middleware (coordinate with Auth team when ready)
-
-## Success Criteria
-[Criteria]
-
-You own this feature. Build your team, iterate, report when done.
+You own this feature end-to-end. Build your team, iterate until solid.
 """
 )
 ```
+
+**Parallel feature teams example:**
+
+```dart
+// Feature A worktree
+gitWorktreeAdd(
+  path: "../project-auth",
+  branch: "feature/auth",
+  createBranch: true
+)
+// Returns: /path/to/project-auth
+
+spawnAgent(
+  agentType: "feature-lead",
+  name: "Auth Lead",
+  workingDirectory: "/path/to/project-auth",
+  initialPrompt: "..."
+)
+
+// Feature B worktree (parallel)
+gitWorktreeAdd(
+  path: "../project-rate-limit",
+  branch: "feature/rate-limiting",
+  createBranch: true
+)
+// Returns: /path/to/project-rate-limit
+
+spawnAgent(
+  agentType: "feature-lead",
+  name: "Rate Limiting Lead",
+  workingDirectory: "/path/to/project-rate-limit",
+  initialPrompt: "..."
+)
+```
+
+Each team works in isolation. When they complete:
+1. They merge their feature branch to main
+2. They remove their worktree
+3. They report back to you
 
 ### Phase 4: Coordinate Integration
 

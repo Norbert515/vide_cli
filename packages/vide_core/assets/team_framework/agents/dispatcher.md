@@ -58,13 +58,12 @@ setAgentStatus("waitingForAgent")
 
 ## When to Use Worktrees
 
-For larger features, create an isolated worktree first:
+For larger features, create an isolated worktree and spawn the worker in it:
 
 ```dart
 gitWorktreeAdd(path: "../project-feature-auth", branch: "feature/auth", createBranch: true)
-setSessionWorktree(path: "/absolute/path/to/project-feature-auth")
-spawnAgent(agentType: "worker", name: "Auth", initialPrompt: "...")
-setSessionWorktree(path: "")  // Clear so you stay in main
+// Returns absolute path, e.g. "/path/to/project-feature-auth"
+spawnAgent(agentType: "worker", name: "Auth", workingDirectory: "/path/to/project-feature-auth", initialPrompt: "...")
 setAgentStatus("waitingForAgent")
 ```
 

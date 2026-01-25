@@ -237,8 +237,8 @@ memoryRetrieve(key: "build_command")
 The system encourages using git worktrees for non-trivial features:
 
 1. Create worktree: `gitWorktreeAdd` with new branch
-2. Switch session: `setSessionWorktree` to work in worktree
-3. All agents spawned after this point work in the worktree
+2. Spawn agent with `workingDirectory` pointing to the worktree
+3. Agent works in isolation on the feature branch
 4. Merge back when ready: `gitMerge` from main worktree
 
 ## Testing Guidelines

@@ -19,6 +19,7 @@ class AgentMetadata {
     this.sessionId,
     this.shortDescription,
     this.teamTag,
+    this.workingDirectory,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -58,6 +59,10 @@ class AgentMetadata {
   /// If null, agent belongs to the root network (no sub-team).
   final String? teamTag;
 
+  /// Optional working directory override for this agent.
+  /// If null, uses the session's effective working directory.
+  final String? workingDirectory;
+
   /// Total input tokens used by this agent
   final int totalInputTokens;
 
@@ -90,6 +95,7 @@ class AgentMetadata {
     String? sessionId,
     String? shortDescription,
     String? teamTag,
+    String? workingDirectory,
     int? totalInputTokens,
     int? totalOutputTokens,
     int? totalCacheReadInputTokens,
@@ -106,6 +112,7 @@ class AgentMetadata {
       sessionId: sessionId ?? this.sessionId,
       shortDescription: shortDescription ?? this.shortDescription,
       teamTag: teamTag ?? this.teamTag,
+      workingDirectory: workingDirectory ?? this.workingDirectory,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
       totalCacheReadInputTokens:
@@ -127,6 +134,7 @@ class AgentMetadata {
       'sessionId': sessionId,
       'shortDescription': shortDescription,
       'teamTag': teamTag,
+      'workingDirectory': workingDirectory,
       'totalInputTokens': totalInputTokens,
       'totalOutputTokens': totalOutputTokens,
       'totalCacheReadInputTokens': totalCacheReadInputTokens,
@@ -146,6 +154,7 @@ class AgentMetadata {
       sessionId: json['sessionId'] as String?,
       shortDescription: json['shortDescription'] as String?,
       teamTag: json['teamTag'] as String?,
+      workingDirectory: json['workingDirectory'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
       totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
       totalCacheReadInputTokens:

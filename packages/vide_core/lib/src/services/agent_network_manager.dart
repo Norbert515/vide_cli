@@ -386,6 +386,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           config: config,
           networkId: updatedNetwork.id,
           agentType: agentMetadata.type,
+          workingDirectory: agentMetadata.workingDirectory,
         );
         _ref
             .read(claudeManagerProvider.notifier)
@@ -472,6 +473,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       config: config,
       networkId: network.id,
       agentType: metadata.type,
+      workingDirectory: metadata.workingDirectory,
     );
     _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
     // Set up status sync to auto-update agent status when turn completes
@@ -656,6 +658,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = state.copyWith(currentNetwork: updated);
 
     // 4. Recreate Claude clients for all agents with new working directory
+    // Per-agent workingDirectory overrides take precedence over session worktree
     for (final agentMetadata in updated.agents) {
       try {
         final config = await _getConfigurationForType(
@@ -667,6 +670,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           config: config,
           networkId: updated.id,
           agentType: agentMetadata.type,
+          workingDirectory: agentMetadata.workingDirectory,
         );
         claudeManagerNotifier.addAgent(agentMetadata.id, client);
         // Set up status sync for the recreated client
@@ -702,6 +706,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// [name] - A short, human-readable name for the agent (required)
   /// [initialPrompt] - The initial message/task to send to the new agent
   /// [spawnedBy] - The ID of the agent that is spawning this one (for context)
+  /// [workingDirectory] - Optional working directory for this agent.
+  /// If null, uses the session's effective working directory.
   ///
   /// Returns the ID of the newly spawned agent.
   ///
@@ -711,6 +717,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required String name,
     required String initialPrompt,
     required AgentId spawnedBy,
+    String? workingDirectory,
   }) async {
     final network = state.currentNetwork;
     if (network == null) {
@@ -766,6 +773,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       createdAt: DateTime.now(),
       shortDescription: personality?.shortDescription,
       teamTag: personality?.team,
+      workingDirectory: workingDirectory,
     );
 
     // Add agent to network with metadata

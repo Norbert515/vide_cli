@@ -166,11 +166,10 @@ final result = checker.checkPermission(toolPermissionContext);
 ### MCP Servers
 
 **Agent MCP Server** - Agent spawning and messaging
-- `spawnAgent` - Create specialized sub-agents
+- `spawnAgent` - Create specialized sub-agents (supports optional `workingDirectory` for per-agent worktrees)
 - `sendMessageToAgent` - Async message passing
 - `setAgentStatus` - Update agent status
 - `terminateAgent` - Remove agent
-- `setSessionWorktree` - Switch working directory
 
 **Git MCP Server** - Comprehensive git operations
 - Status, commit, add, diff, log

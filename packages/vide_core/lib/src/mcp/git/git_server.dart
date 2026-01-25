@@ -581,7 +581,9 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
     // Git Worktree Add
     server.tool(
       'gitWorktreeAdd',
-      description: 'Add a new worktree',
+      description: '''Add a new worktree.
+
+Returns the absolute path to the new worktree, which can be used with spawnAgent's workingDirectory parameter to spawn an agent that works in the worktree.''',
       toolInputSchema: ToolInputSchema(
         properties: {
           'path': {
@@ -614,8 +616,22 @@ ${diffResult.isEmpty ? 'No changes' : diffResult}
             branch: branch,
             createBranch: createBranch,
           );
+
+          // Resolve the absolute path for use with spawnAgent
+          final absoluteWorktreePath = Directory(worktreePath).absolute.path;
+
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Worktree added at: $worktreePath')],
+            content: [
+              TextContent(
+                text: '''Worktree added successfully.
+
+Path: $absoluteWorktreePath
+Branch: ${branch ?? '(detached HEAD)'}
+
+To spawn an agent in this worktree, use:
+  spawnAgent(..., workingDirectory: "$absoluteWorktreePath")''',
+              ),
+            ],
           );
         } catch (e, stackTrace) {
           await _reportError(
