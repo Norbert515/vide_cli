@@ -9,7 +9,7 @@ import 'vide_config_manager.dart';
 /// Wraps the Bashboard SDK for CLI analytics.
 /// Events are batched and sent periodically.
 class BashboardService {
-  static const String _apiKey = 'bb_O2vxR6phes2iiskhnbnzwtkjk825JfwA';
+  static const String _apiKey = 'bb_Ea9k4WNNxcATHZi4eUeZ2pZuGrIHRkTx';
 
   static bool _initialized = false;
 
@@ -30,9 +30,6 @@ class BashboardService {
           cliName: 'vide',
           cliVersion: '1.0.0',
           respectDoNotTrack: true,
-          // Disable disk persistence to send events during current session
-          // (otherwise events are queued to disk and sent on next launch)
-          persistToDisk: false,
           // Flush every 10 seconds
           flushInterval: Duration(seconds: 10),
         ),
@@ -52,9 +49,7 @@ class BashboardService {
   }
 
   /// Load existing distinct ID or create a new one.
-  static Future<String> _loadOrCreateDistinctId(
-    VideConfigManager configManager,
-  ) async {
+  static Future<String> _loadOrCreateDistinctId(VideConfigManager configManager) async {
     final configDir = configManager.configRoot;
     final idFile = File('$configDir/bashboard_distinct_id');
 
