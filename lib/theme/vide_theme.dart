@@ -64,6 +64,18 @@ class VideTheme extends StatelessComponent {
     : _data = null,
       _autoDetect = true;
 
+  /// Creates a Vide theme provider that uses explicit data if provided,
+  /// otherwise auto-detects from the parent [TuiTheme].
+  ///
+  /// This is useful when you want to keep the widget tree stable while
+  /// switching between auto and explicit themes.
+  const VideTheme.withOptionalOverride({
+    super.key,
+    VideThemeData? data,
+    required this.child,
+  }) : _data = data,
+       _autoDetect = data == null;
+
   /// Returns the [VideThemeData] from the closest [VideTheme] ancestor.
   ///
   /// If no [VideTheme] ancestor exists, returns [VideThemeData.dark] as
