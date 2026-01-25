@@ -6,7 +6,7 @@ import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
 import 'package:vide_cli/modules/settings/components/section_header.dart';
 import 'package:vide_cli/modules/setup/theme_selector.dart';
 
-/// Appearance settings content (theme selection with live preview).
+/// Appearance settings content (theme selection).
 class AppearanceSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -94,67 +94,43 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       },
       child: Padding(
         padding: EdgeInsets.all(3),
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Theme selection list
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SectionHeader(title: 'Theme'),
-                  SizedBox(height: 1),
-                  Text(
-                    'Select a color theme for the interface',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.secondary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(height: 2),
-
-                  // Auto option
-                  _ThemeListItem(
-                    displayName: 'Auto',
-                    description: 'Match terminal brightness',
-                    isSelected: component.focused && _selectedIndex == 0,
-                    isCurrent: currentThemeId == null,
-                    onTap: () {
-                      setState(() => _selectedIndex = 0);
-                      _applyTheme();
-                    },
-                  ),
-
-                  // Theme options
-                  for (int i = 0; i < ThemeOption.all.length; i++)
-                    _ThemeListItem(
-                      displayName: ThemeOption.all[i].displayName,
-                      description: ThemeOption.all[i].description,
-                      isSelected: component.focused && _selectedIndex == i + 1,
-                      isCurrent: currentThemeId == ThemeOption.all[i].id,
-                      onTap: () {
-                        setState(() => _selectedIndex = i + 1);
-                        _applyTheme();
-                      },
-                    ),
-
-                ],
+            SectionHeader(title: 'Theme'),
+            SizedBox(height: 1),
+            Text(
+              'Select a color theme for the interface',
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
               ),
             ),
+            SizedBox(height: 2),
 
-            // Preview panel
-            SizedBox(width: 2),
-            Container(
-              padding: EdgeInsets.all(1),
-              decoration: BoxDecoration(
-                border: BoxBorder.all(
-                  color: theme.base.outline.withOpacity(TextOpacity.separator),
-                  style: BoxBorderStyle.rounded,
-                ),
-              ),
-              child: const ThemePreview(),
+            // Auto option
+            _ThemeListItem(
+              displayName: 'Auto',
+              description: 'Match terminal',
+              isSelected: component.focused && _selectedIndex == 0,
+              isCurrent: currentThemeId == null,
+              onTap: () {
+                setState(() => _selectedIndex = 0);
+                _applyTheme();
+              },
             ),
+
+            // Theme options
+            for (int i = 0; i < ThemeOption.all.length; i++)
+              _ThemeListItem(
+                displayName: ThemeOption.all[i].displayName,
+                description: ThemeOption.all[i].description,
+                isSelected: component.focused && _selectedIndex == i + 1,
+                isCurrent: currentThemeId == ThemeOption.all[i].id,
+                onTap: () {
+                  setState(() => _selectedIndex = i + 1);
+                  _applyTheme();
+                },
+              ),
           ],
         ),
       ),
@@ -162,7 +138,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   }
 }
 
-/// Individual theme item in the list.
+/// Individual theme item in the list - compact single-line format.
 class _ThemeListItem extends StatelessComponent {
   final String displayName;
   final String description;
@@ -185,7 +161,7 @@ class _ThemeListItem extends StatelessComponent {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0.5),
+        padding: EdgeInsets.symmetric(horizontal: 1),
         decoration: BoxDecoration(
           color: isSelected ? theme.base.primary.withOpacity(0.2) : null,
         ),
@@ -209,24 +185,12 @@ class _ThemeListItem extends StatelessComponent {
                 ),
               ),
             ),
-            Expanded(
-              child: Text(
-                description,
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(
-                    TextOpacity.secondary,
-                  ),
-                ),
-                overflow: TextOverflow.ellipsis,
+            Text(
+              description,
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
               ),
             ),
-            if (isCurrent)
-              Text(
-                'current',
-                style: TextStyle(
-                  color: theme.base.primary.withOpacity(TextOpacity.secondary),
-                ),
-              ),
           ],
         ),
       ),
