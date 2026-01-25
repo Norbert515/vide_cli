@@ -15,6 +15,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       ideModeEnabled: json['ideModeEnabled'] as bool? ?? false,
       dangerouslySkipPermissions:
           json['dangerouslySkipPermissions'] as bool? ?? false,
+      gitSidebarEnabled: json['gitSidebarEnabled'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
@@ -25,4 +26,5 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'autoUpdatesEnabled': instance.autoUpdatesEnabled,
       'ideModeEnabled': instance.ideModeEnabled,
       'dangerouslySkipPermissions': instance.dangerouslySkipPermissions,
+      'gitSidebarEnabled': instance.gitSidebarEnabled,
     };

@@ -39,6 +39,11 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool dangerouslySkipPermissions;
 
+  /// Whether the git sidebar is enabled.
+  /// The sidebar will only show if this is true AND the current directory is a git repo.
+  @JsonKey(defaultValue: true)
+  final bool gitSidebarEnabled;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -46,6 +51,7 @@ class VideGlobalSettings {
     this.autoUpdatesEnabled = true,
     this.ideModeEnabled = false,
     this.dangerouslySkipPermissions = false,
+    this.gitSidebarEnabled = true,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -62,6 +68,7 @@ class VideGlobalSettings {
     bool? autoUpdatesEnabled,
     bool? ideModeEnabled,
     bool? dangerouslySkipPermissions,
+    bool? gitSidebarEnabled,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -71,6 +78,7 @@ class VideGlobalSettings {
       ideModeEnabled: ideModeEnabled ?? this.ideModeEnabled,
       dangerouslySkipPermissions:
           dangerouslySkipPermissions ?? this.dangerouslySkipPermissions,
+      gitSidebarEnabled: gitSidebarEnabled ?? this.gitSidebarEnabled,
     );
   }
 }

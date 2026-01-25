@@ -4,6 +4,8 @@ import 'package:vide_cli/main.dart'
     show
         sidebarFocusProvider,
         gitSidebarFocusProvider,
+        gitSidebarEnabledProvider,
+        currentDirIsGitRepoProvider,
         filePreviewPathProvider,
         isOnHomePageProvider,
         repoPathOverrideProvider,
@@ -94,9 +96,14 @@ class _VideScaffoldState extends State<VideScaffold> {
   Component build(BuildContext context) {
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final gitSidebarFocused = context.watch(gitSidebarFocusProvider);
+    final gitSidebarEnabled = context.watch(gitSidebarEnabledProvider);
+    final isGitRepo = context.watch(currentDirIsGitRepoProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
     final isOnHomePage = context.watch(isOnHomePageProvider);
     final repoPath = context.watch(currentRepoPathProvider);
+
+    // Git sidebar shows only if setting is enabled AND we're in a git repo
+    final showGitSidebar = gitSidebarEnabled && isGitRepo;
 
     // Show file preview dialog when path changes
     if (filePreviewPath != null && filePreviewPath != _currentFilePreviewPath) {
@@ -121,7 +128,7 @@ class _VideScaffoldState extends State<VideScaffold> {
         final effectiveSidebarWidth = (showSidebars && hasEnoughWidth)
             ? component.sidebarWidth
             : 0.0;
-        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth)
+        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth && showGitSidebar)
             ? component.gitSidebarWidth
             : 0.0;
 
@@ -163,8 +170,8 @@ class _VideScaffoldState extends State<VideScaffold> {
               ),
             ),
 
-            // Right sidebar - Git status (hidden on home page)
-            if (showSidebars)
+            // Right sidebar - Git status (hidden on home page, or if disabled/not git repo)
+            if (showSidebars && showGitSidebar)
               _buildRightSidebar(
                 context,
                 effectiveGitSidebarWidth,
