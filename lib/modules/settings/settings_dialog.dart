@@ -7,7 +7,6 @@ import 'package:vide_cli/modules/settings/sections/general_settings_section.dart
 import 'package:vide_cli/modules/settings/sections/appearance_section.dart';
 import 'package:vide_cli/modules/settings/sections/server_section.dart';
 import 'package:vide_cli/modules/settings/sections/mcp_servers_section.dart';
-import 'package:vide_cli/modules/settings/sections/permissions_section.dart';
 import 'package:vide_cli/modules/settings/sections/about_section.dart';
 
 /// A popup overlay wrapper for the settings dialog.
@@ -247,11 +246,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       case SettingsCategory.mcpServers:
         return McpServersSection(
-          focused: !_sidebarFocused,
-          onExit: _handleContentExit,
-        );
-      case SettingsCategory.permissions:
-        return PermissionsSection(
           focused: !_sidebarFocused,
           onExit: _handleContentExit,
         );
