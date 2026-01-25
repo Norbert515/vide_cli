@@ -323,6 +323,12 @@ class _HomePageState extends State<HomePage> {
     return Focusable(
       focused: !sidebarFocused,
       onKeyEvent: (event) {
+        // Tab: Quick access to settings (when not consumed by text field autocomplete)
+        if (event.logicalKey == LogicalKey.tab) {
+          SettingsPopup.show(context);
+          return true;
+        }
+
         // Handle events based on current focus state
         if (_focusState == 'teamSelector') {
           return _handleTeamSelectorKeyEvent(event);
