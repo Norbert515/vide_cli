@@ -510,6 +510,13 @@ class _AgentChatState extends State<_AgentChat> {
       session.abortAgent(component.agentId);
       return true;
     }
+
+    // Tab: Quick access to settings (when not consumed by text field autocomplete)
+    if (event.logicalKey == LogicalKey.tab) {
+      SettingsPopup.show(context);
+      return true;
+    }
+
     return false;
   }
 
