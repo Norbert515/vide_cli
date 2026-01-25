@@ -232,7 +232,7 @@ class _McpServerItem extends StatelessComponent {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0.5),
+            padding: EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
               color: isSelected ? theme.base.primary.withOpacity(0.2) : null,
             ),
