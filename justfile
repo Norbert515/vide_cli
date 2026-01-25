@@ -22,20 +22,16 @@ compile:
 generate-devtools:
     dart run packages/flutter_runtime_mcp/tool/generate_bundled_devtools.dart
 
+# Generate bundled team framework assets (run after changing team_framework assets)
+generate-teams:
+    dart run packages/vide_core/tool/generate_bundled_team_framework.dart
+
+# Generate all bundled assets
+generate: generate-devtools generate-teams
+
 # Run vide as if it's the first time (shows onboarding)
 test-onboarding:
     VIDE_FORCE_WELCOME=1 dart run bin/vide.dart
-
-# Sync team framework assets from package to global config (~/.vide/defaults/)
-sync-teams:
-    @echo "Syncing team framework assets to ~/.vide/defaults/..."
-    @mkdir -p ~/.vide/defaults/agents
-    @mkdir -p ~/.vide/defaults/teams
-    @mkdir -p ~/.vide/defaults/etiquette
-    cp packages/vide_core/assets/team_framework/agents/*.md ~/.vide/defaults/agents/
-    cp packages/vide_core/assets/team_framework/teams/*.md ~/.vide/defaults/teams/
-    cp packages/vide_core/assets/team_framework/etiquette/*.md ~/.vide/defaults/etiquette/
-    @echo "Done! Synced agents, teams, and etiquette to ~/.vide/defaults/"
 
 # Create a new release (interactive)
 release:

@@ -1,10 +1,15 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import '../generated/bundled_team_framework.dart';
 
-/// Service for initializing team framework assets from package resources.
+/// Service for initializing team framework assets from bundled resources.
 ///
-/// On first app launch, copies default .md files from package assets to
-/// ~/.vide/defaults/ if that directory doesn't exist or is missing files.
+/// On first app launch, writes bundled .md files to ~/.vide/defaults/
+/// if that directory doesn't exist or is missing files.
+///
+/// In development mode (running from source), it copies from the package
+/// assets directory directly. In production mode (compiled binary), it uses
+/// the bundled assets that are embedded in the binary at compile time.
 class TeamFrameworkAssetInitializer {
   static const _teamFrameworkAssetsPath =
       'packages/vide_core/assets/team_framework';
@@ -34,8 +39,13 @@ class TeamFrameworkAssetInitializer {
       // Create the defaults directory if it doesn't exist
       await defaultsDir.create(recursive: true);
 
-      // Copy assets from package to defaults
-      await _copyAssetsToDefaults(defaultsDir);
+      // Try filesystem first (development mode), fall back to bundled (production)
+      final useFilesystem = _canUseFilesystemAssets();
+      if (useFilesystem) {
+        await _copyAssetsFromFilesystem(defaultsDir);
+      } else {
+        await _copyAssetsFromBundled(defaultsDir);
+      }
 
       return true;
     } catch (e) {
@@ -44,34 +54,42 @@ class TeamFrameworkAssetInitializer {
     }
   }
 
-  /// Copy all assets from package to defaults directory
-  static Future<void> _copyAssetsToDefaults(Directory defaultsDir) async {
+  /// Check if we can use filesystem assets (development mode).
+  static bool _canUseFilesystemAssets() {
+    final sourceDir = Directory(_teamFrameworkAssetsPath);
+    return sourceDir.existsSync();
+  }
+
+  /// Copy assets from bundled constants (production mode).
+  static Future<void> _copyAssetsFromBundled(Directory defaultsDir) async {
+    for (final category in ['teams', 'agents', 'etiquette']) {
+      final categoryDir = Directory(path.join(defaultsDir.path, category));
+      await categoryDir.create(recursive: true);
+
+      final assets = bundledTeamFramework[category] ?? {};
+      for (final entry in assets.entries) {
+        final targetFile = File(
+          path.join(categoryDir.path, '${entry.key}.md'),
+        );
+        await targetFile.writeAsString(entry.value);
+      }
+    }
+  }
+
+  /// Copy assets from filesystem (development mode).
+  static Future<void> _copyAssetsFromFilesystem(Directory defaultsDir) async {
     final categories = ['teams', 'agents', 'etiquette'];
 
     for (final category in categories) {
       final categoryDir = Directory(path.join(defaultsDir.path, category));
       await categoryDir.create(recursive: true);
 
-      // Copy from package assets
-      await _copyAssetsFromPackage(
-        sourcePath: path.join(_teamFrameworkAssetsPath, category),
-        targetDir: categoryDir,
-      );
-    }
-  }
-
-  /// Copy assets from package directory to target directory
-  static Future<void> _copyAssetsFromPackage({
-    required String sourcePath,
-    required Directory targetDir,
-  }) async {
-    try {
-      // Try to read from the source path as if it exists in the filesystem
+      final sourcePath = path.join(_teamFrameworkAssetsPath, category);
       final sourceDir = Directory(sourcePath);
 
       if (!await sourceDir.exists()) {
         print('Warning: Asset directory not found at $sourcePath');
-        return;
+        continue;
       }
 
       final files = sourceDir.listSync().whereType<File>().where(
@@ -80,14 +98,10 @@ class TeamFrameworkAssetInitializer {
 
       for (final file in files) {
         final targetFile = File(
-          path.join(targetDir.path, path.basename(file.path)),
+          path.join(categoryDir.path, path.basename(file.path)),
         );
         await file.copy(targetFile.path);
       }
-    } catch (e) {
-      print('Error copying assets from $sourcePath: $e');
-      // Continue gracefully - assets might be bundled differently
-      // in some deployment scenarios
     }
   }
 
