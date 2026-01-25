@@ -23,7 +23,6 @@ class AppearanceSection extends StatefulComponent {
 
 class _AppearanceSectionState extends State<AppearanceSection> {
   int _selectedIndex = 0;
-  TuiThemeData? _previewTheme;
 
   // We add 'auto' as the first option
   int get _totalOptions => ThemeOption.all.length + 1; // +1 for auto
@@ -51,38 +50,24 @@ class _AppearanceSectionState extends State<AppearanceSection> {
         event.logicalKey == LogicalKey.keyK) {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
-        _applyPreview();
+        _applyTheme();
       }
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalOptions - 1) {
         setState(() => _selectedIndex++);
-        _applyPreview();
+        _applyTheme();
       }
     } else if (event.logicalKey == LogicalKey.arrowLeft ||
         event.logicalKey == LogicalKey.escape) {
-      // Clear preview and restore original theme when exiting
-      setState(() => _previewTheme = null);
       component.onExit();
     } else if (event.logicalKey == LogicalKey.enter ||
         event.logicalKey == LogicalKey.space) {
-      _confirmSelection();
+      _applyTheme();
     }
   }
 
-  void _applyPreview() {
-    setState(() {
-      if (_selectedIndex == 0) {
-        // For auto, use the detected theme (dark as fallback)
-        _previewTheme = TuiThemeData.dark;
-      } else {
-        final option = ThemeOption.all[_selectedIndex - 1];
-        _previewTheme = option.themeData;
-      }
-    });
-  }
-
-  void _confirmSelection() {
+  void _applyTheme() {
     final String? themeId;
     if (_selectedIndex == 0) {
       themeId = null;
@@ -90,36 +75,15 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       themeId = ThemeOption.all[_selectedIndex - 1].id;
     }
 
-    // Save the theme
+    // Save and apply the theme immediately
     context.read(themeSettingProvider.notifier).state = themeId;
     final configManager = context.read(videConfigManagerProvider);
     configManager.setTheme(themeId);
-
-    // Clear preview (the actual theme change will be applied)
-    setState(() => _previewTheme = null);
   }
 
   @override
   Component build(BuildContext context) {
     final currentThemeId = context.watch(themeSettingProvider);
-
-    Component content = _buildContent(context, currentThemeId);
-
-    // Apply preview theme if set
-    if (_previewTheme != null) {
-      content = TuiTheme(
-        data: _previewTheme!,
-        child: VideTheme(
-          data: VideThemeData.fromBrightness(_previewTheme!),
-          child: content,
-        ),
-      );
-    }
-
-    return content;
-  }
-
-  Component _buildContent(BuildContext context, String? currentThemeId) {
     final theme = VideTheme.of(context);
 
     return Focusable(
@@ -158,7 +122,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     isCurrent: currentThemeId == null,
                     onTap: () {
                       setState(() => _selectedIndex = 0);
-                      _applyPreview();
+                      _applyTheme();
                     },
                   ),
 
@@ -171,19 +135,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       isCurrent: currentThemeId == ThemeOption.all[i].id,
                       onTap: () {
                         setState(() => _selectedIndex = i + 1);
-                        _applyPreview();
+                        _applyTheme();
                       },
                     ),
 
-                  SizedBox(height: 2),
-                  Text(
-                    'Press Enter to apply theme',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
