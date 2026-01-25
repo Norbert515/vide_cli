@@ -2,7 +2,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
-/// Toggle switch component for settings.
+/// Simple checkbox component for settings.
 class SettingsToggle extends StatelessComponent {
   final bool value;
   final bool focused;
@@ -14,45 +14,16 @@ class SettingsToggle extends StatelessComponent {
     final theme = VideTheme.of(context);
 
     if (value) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('●', style: TextStyle(color: theme.base.primary)),
-          Text(
-            '━━',
-            style: TextStyle(color: theme.base.primary.withOpacity(0.5)),
-          ),
-          Text(
-            '○',
-            style: TextStyle(
-              color: theme.base.outline.withOpacity(TextOpacity.disabled),
-            ),
-          ),
-        ],
+      return Text(
+        '[✓]',
+        style: TextStyle(color: theme.base.primary),
       );
     } else {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '○',
-            style: TextStyle(
-              color: theme.base.outline.withOpacity(TextOpacity.disabled),
-            ),
-          ),
-          Text(
-            '━━',
-            style: TextStyle(
-              color: theme.base.outline.withOpacity(TextOpacity.separator),
-            ),
-          ),
-          Text(
-            '●',
-            style: TextStyle(
-              color: theme.base.outline.withOpacity(TextOpacity.secondary),
-            ),
-          ),
-        ],
+      return Text(
+        '[ ]',
+        style: TextStyle(
+          color: theme.base.outline.withOpacity(TextOpacity.secondary),
+        ),
       );
     }
   }
