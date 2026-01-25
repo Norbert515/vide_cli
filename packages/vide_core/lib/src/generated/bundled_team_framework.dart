@@ -55,10 +55,10 @@ anti-triggers:
 # Lifecycle triggers - spawn agents at specific points
 lifecycle-triggers:
   onSessionEnd:
-    enabled: true
+    enabled: false
     spawn: session-synthesizer
   onTaskComplete:
-    enabled: true
+    enabled: false
     spawn: code-reviewer
 ---
 
