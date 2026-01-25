@@ -33,7 +33,7 @@ class SettingsSidebar extends StatelessComponent {
             GestureDetector(
               onTap: () => onCategorySelected(categories[i], i),
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0.5),
+                padding: EdgeInsets.only(left: 1, right: 1),
                 decoration: BoxDecoration(
                   color: i == selectedIndex && focused
                       ? theme.base.primary.withOpacity(0.2)
@@ -45,7 +45,7 @@ class SettingsSidebar extends StatelessComponent {
                   children: [
                     // Left accent bar for selected item
                     Text(
-                      i == selectedIndex ? '┃ ' : '  ',
+                      i == selectedIndex ? '| ' : '  ',
                       style: TextStyle(
                         color: focused && i == selectedIndex
                             ? theme.base.primary
