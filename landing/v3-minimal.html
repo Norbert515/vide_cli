@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vide - The Development Team That Never Sleeps</title>
+    <meta name="description" content="Vide is a multi-agent orchestration system for Claude Code. Spawn specialized AI agents that work in parallel - research, implement, test, review - all at once.">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+
+    <style>
+        /* ============================================
+           Vide Landing Page - Terminal Bento Style
+           Inspired by nocterm.dev
+           ============================================ */
+
+        :root {
+            /* Base colors */
+            --bg-dark: #080810;
+            --bg-panel: #0c0c14;
+            --border-default: #2a2a3a;
+            --border-glow: #2080a0;
+
+            /* Text colors */
+            --text-bright: #ffffff;
+            --text-primary: #9999bb;
+            --text-secondary: #666688;
+            --text-muted: #4a4a5a;
+            --text-label: #6a6a8a;
+
+            /* Accent colors - cyan/blue for Vide */
+            --cyan: #00d4ff;
+            --cyan-dim: rgba(0, 212, 255, 0.15);
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --green: #1dd1a1;
+            --yellow: #feca57;
+            --pink: #ff6b9d;
+            --orange: #ff9f43;
+
+            /* Code colors */
+            --code-keyword: #c678dd;
+            --code-string: #98c379;
+            --code-type: #e5c07b;
+            --code-function: #61afef;
+
+            /* Spacing */
+            --gap: 8px;
+            --padding: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            font-size: 14px;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ============================================
+           Main Container
+           ============================================ */
+
+        .terminal-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ============================================
+           MINIMAL/TECHNICAL STYLES
+           ============================================ */
+
+        .minimal-wrapper {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        .minimal-wrapper section {
+            padding: 48px 0;
+            border-bottom: 1px solid var(--border-default);
+        }
+
+        .minimal-wrapper h2 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        /* What is */
+        .what-is {
+            padding: 32px 0 !important;
+        }
+
+        .what-is p {
+            font-size: 1rem;
+            color: var(--text-secondary);
+        }
+
+        /* Install */
+        .install-section {
+            padding: 32px 0 !important;
+        }
+
+        .install-box {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .install-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+        }
+
+        .install-box code {
+            color: var(--cyan);
+            font-size: 0.85rem;
+        }
+
+        /* Agents Table */
+        .agents-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .agents-table th {
+            text-align: left;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-default);
+            color: var(--text-muted);
+            font-weight: normal;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .agents-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-default);
+            color: var(--text-secondary);
+        }
+
+        .agents-table td:first-child {
+            color: var(--cyan);
+        }
+
+        .agents-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Terminal Block */
+        .terminal-block {
+            background: #0a0a0f;
+            border: 1px solid var(--border-default);
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid var(--border-default);
+            display: flex;
+            gap: 6px;
+        }
+
+        .terminal-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .terminal-dot:first-child { background: #ff5f57; }
+        .terminal-dot:nth-child(2) { background: #febc2e; }
+        .terminal-dot:last-child { background: #28c840; }
+
+        .terminal-body {
+            padding: 16px;
+            overflow-x: auto;
+        }
+
+        .terminal-body pre {
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+        }
+
+        .term-comment { color: #5c6370; }
+        .term-prompt { color: var(--cyan); }
+        .term-system { color: #c678dd; }
+        .term-agent { color: #61afef; }
+        .term-success { color: #98c379; }
+
+        /* Feature List */
+        .feature-list {
+            list-style: none;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .feature-check {
+            color: var(--green);
+            margin-right: 8px;
+        }
+
+        .feature-list strong {
+            color: var(--text-primary);
+        }
+
+        /* Tech Grid */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .tech-item {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: 12px 16px;
+        }
+
+        .tech-name {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+
+        .tech-desc {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Links */
+        .links-section {
+            display: flex;
+            gap: 24px;
+            border-bottom: none !important;
+        }
+
+        .link-item {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .link-item:hover {
+            color: var(--cyan);
+        }
+
+        /* Minimal Footer */
+        .minimal-footer {
+            padding: 24px;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-default);
+        }
+
+        .minimal-footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        .minimal-footer a:hover {
+            color: var(--cyan);
+        }
+
+        @media (max-width: 600px) {
+            .install-box {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .install-box code {
+                font-size: 0.75rem;
+                word-break: break-all;
+            }
+
+            .tech-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .links-section {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
+
+        /* ============================================
+           Top Navbar - Floating over hero
+           ============================================ */
+
+        .site-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(8, 8, 16, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-default);
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .site-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .site-brand-icon {
+            width: 24px;
+            height: 24px;
+        }
+
+        .site-brand-name {
+            color: var(--text-bright);
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        .site-nav {
+            display: flex;
+            gap: 16px;
+        }
+
+        .site-nav a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s ease;
+        }
+
+        .site-nav a:hover {
+            color: var(--text-primary);
+        }
+
+        .site-nav a.active {
+            color: var(--cyan);
+        }
+
+        /* ============================================
+           Top Row - Hero + Sidebar
+           ============================================ */
+
+        /* Hero Section - Full Viewport Edge to Edge */
+        .hero-section {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            min-height: 500px;
+            background: var(--bg-dark);
+            overflow: hidden;
+        }
+
+        .vortex-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Floating content over vortex */
+        .hero-overlay {
+            position: absolute;
+            bottom: 80px;
+            left: 24px;
+            right: 24px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .hero-tagline-box {
+            background: rgba(8, 8, 16, 0.85);
+            border: 1px solid var(--border-default);
+            padding: 12px 16px;
+            pointer-events: auto;
+        }
+
+        .hero-tagline {
+            color: var(--text-bright);
+            font-size: 0.9rem;
+            margin: 0 0 4px 0;
+        }
+
+        .hero-features {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin: 0;
+        }
+
+        .hero-features strong {
+            color: var(--cyan);
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 8px;
+            pointer-events: auto;
+        }
+
+        .hero-cta-button {
+            padding: 10px 20px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            border: 1px solid;
+        }
+
+        .hero-cta-button.primary {
+            background: var(--cyan);
+            color: var(--bg-dark);
+            border-color: var(--cyan);
+            font-weight: bold;
+        }
+
+        .hero-cta-button.primary:hover {
+            background: transparent;
+            color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .hero-cta-button.secondary {
+            background: rgba(8, 8, 16, 0.85);
+            color: var(--text-primary);
+            border-color: var(--border-default);
+        }
+
+        .hero-cta-button.secondary:hover {
+            border-color: var(--cyan);
+            color: var(--text-bright);
+        }
+
+        /* Scroll Indicator */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            animation: fade-pulse 2s ease-in-out infinite;
+        }
+
+        .scroll-arrow {
+            font-size: 1.2rem;
+            animation: bounce 2s ease-in-out infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
+
+        @keyframes fade-pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* Stats Row (replaces sidebar) */
+        .stats-row {
+            display: flex;
+            gap: var(--gap);
+        }
+
+        .stat-card {
+            flex: 1;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: var(--padding);
+            text-align: center;
+            transition: border-color 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--cyan);
+        }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--cyan);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .stat-card .label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ============================================
+           Features Row
+           ============================================ */
+
+        .features-row {
+            display: flex;
+            gap: var(--gap);
+        }
+
+        .feature-card {
+            flex: 1;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: var(--padding);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            animation: feature-wave 4s ease-in-out infinite;
+            animation-delay: calc(var(--card-index) * 0.4s);
+        }
+
+        @keyframes feature-wave {
+            0%, 100% {
+                border-color: var(--border-default);
+            }
+            50% {
+                border-color: rgba(var(--accent-color), 0.4);
+                box-shadow: 0 0 15px rgba(var(--accent-color), 0.1);
+            }
+        }
+
+        .feature-card h3 {
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .feature-icon {
+            animation: icon-pulse 4s ease-in-out infinite;
+            animation-delay: calc(var(--card-index) * 0.4s);
+        }
+
+        @keyframes icon-pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .feature-divider {
+            height: 1px;
+            background: var(--border-default);
+            margin-bottom: 6px;
+            opacity: 0.5;
+        }
+
+        .feature-card p {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* ============================================
+           Problem Section
+           ============================================ */
+
+        .problem-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: calc(var(--padding) * 1.5);
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: normal;
+            color: var(--text-label);
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .section-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .problem-content {
+            max-width: 700px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .problem-content p {
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            line-height: 1.7;
+            margin-bottom: 12px;
+        }
+
+        .problem-content .highlight {
+            color: var(--cyan);
+            font-weight: bold;
+        }
+
+        .problem-content .strike {
+            text-decoration: line-through;
+            color: var(--text-muted);
+        }
+
+        .comparison-boxes {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .comparison-box {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-default);
+            padding: 16px 24px;
+            text-align: center;
+        }
+
+        .comparison-box.after {
+            border-color: var(--cyan);
+        }
+
+        .comparison-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .comparison-box.after .comparison-label {
+            color: var(--cyan);
+        }
+
+        .comparison-flow {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .flow-item {
+            padding: 4px 8px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+        }
+
+        .comparison-box.after .flow-item {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .flow-arrow {
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           Agents Section
+           ============================================ */
+
+        .agents-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: var(--padding);
+        }
+
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--gap);
+        }
+
+        .agent-card {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-default);
+            padding: var(--padding);
+            transition: border-color 0.2s ease;
+        }
+
+        .agent-card:hover {
+            border-color: var(--cyan);
+        }
+
+        .agent-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .agent-icon {
+            font-size: 1.3rem;
+        }
+
+        .agent-card h3 {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        .agent-tag {
+            margin-left: auto;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            background: var(--bg-panel);
+            padding: 2px 6px;
+        }
+
+        .agent-card p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* ============================================
+           Demo Section
+           ============================================ */
+
+        .demo-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: var(--padding);
+        }
+
+        .demo-window {
+            background: var(--bg-dark);
+            border: 1px solid var(--border-default);
+            overflow: hidden;
+        }
+
+        .demo-titlebar {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 1px solid var(--border-default);
+            gap: 8px;
+        }
+
+        .demo-dots {
+            display: flex;
+            gap: 5px;
+        }
+
+        .demo-dots span {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .demo-dots span:first-child { background: #ff5f57; }
+        .demo-dots span:nth-child(2) { background: #febc2e; }
+        .demo-dots span:last-child { background: #28c840; }
+
+        .demo-title {
+            flex: 1;
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .demo-badge {
+            background: var(--green);
+            color: var(--bg-dark);
+            font-size: 0.6rem;
+            font-weight: bold;
+            padding: 2px 6px;
+            animation: pulse-badge 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-badge {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .demo-content img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* ============================================
+           CTA Section
+           ============================================ */
+
+        .cta-section {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-glow);
+            padding: calc(var(--padding) * 1.5);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--padding);
+            flex-wrap: wrap;
+            animation: border-glow 4s ease-in-out infinite;
+        }
+
+        .cta-content h2 {
+            font-size: 1.1rem;
+            color: var(--text-bright);
+            margin-bottom: 4px;
+        }
+
+        .cta-content p {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .cta-code {
+            background: var(--bg-dark);
+            padding: 10px 18px;
+            border: 1px solid var(--border-default);
+        }
+
+        .cta-code code {
+            color: var(--cyan);
+            font-size: 0.85rem;
+        }
+
+        .cta-code .prompt {
+            color: var(--green);
+            margin-right: 8px;
+        }
+
+        .cta-links {
+            display: flex;
+            gap: 10px;
+        }
+
+        .cta-button {
+            padding: 10px 18px;
+            font-size: 0.8rem;
+            font-family: inherit;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .cta-button.primary {
+            background: var(--cyan);
+            color: var(--bg-dark);
+            border: 1px solid var(--cyan);
+            font-weight: bold;
+        }
+
+        .cta-button.primary:hover {
+            background: transparent;
+            color: var(--cyan);
+        }
+
+        .cta-button.secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-default);
+        }
+
+        .cta-button.secondary:hover {
+            border-color: var(--text-primary);
+            color: var(--text-bright);
+        }
+
+        /* ============================================
+           Bottom Bar
+           ============================================ */
+
+        .bottom-bar {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: 12px var(--padding);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .brand-icon {
+            width: 20px;
+            height: 20px;
+        }
+
+        .brand-name {
+            color: var(--text-bright);
+            font-weight: bold;
+        }
+
+        .brand-tagline {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-style: italic;
+        }
+
+        .wave-container {
+            display: flex;
+            gap: 0;
+            font-size: 0.8rem;
+        }
+
+        .wave-char {
+            animation: wave-color 3s ease-in-out infinite;
+            animation-delay: calc(var(--i) * 0.1s);
+        }
+
+        @keyframes wave-color {
+            0%, 100% { color: rgba(0, 100, 140, 0.4); }
+            25% { color: rgba(0, 140, 180, 0.6); }
+            50% { color: rgba(0, 212, 255, 0.9); }
+            75% { color: rgba(0, 140, 180, 0.6); }
+        }
+
+        .bottom-links {
+            display: flex;
+            gap: 16px;
+        }
+
+        .bottom-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.8rem;
+            transition: color 0.2s ease;
+        }
+
+        .bottom-links a:hover {
+            color: var(--text-primary);
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+
+        @media (max-width: 900px) {
+            .hero-section {
+                height: 100vh;
+                min-height: 500px;
+            }
+
+            .stats-row {
+                flex-wrap: wrap;
+            }
+
+            .stat-card {
+                flex: 1 1 calc(50% - var(--gap));
+            }
+
+            .agents-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .site-header {
+                padding: 12px 16px;
+            }
+
+            .hero-section {
+                height: 100vh;
+                min-height: 450px;
+            }
+
+            .hero-overlay {
+                flex-direction: column;
+                gap: 12px;
+                align-items: stretch;
+                left: 16px;
+                right: 16px;
+                bottom: 80px;
+            }
+
+            .hero-tagline-box {
+                text-align: center;
+            }
+
+            .hero-cta {
+                justify-content: center;
+            }
+
+            .scroll-indicator {
+                bottom: 20px;
+            }
+
+            .features-row {
+                flex-wrap: wrap;
+            }
+
+            .feature-card {
+                flex: 1 1 calc(50% - var(--gap));
+                min-width: 140px;
+            }
+
+            .agents-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .comparison-boxes {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .content-wrapper {
+                padding: 12px;
+            }
+
+            .cta-section {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .wave-container {
+                display: none;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .feature-card {
+                flex: 1 1 100%;
+            }
+
+            .hero-cta {
+                flex-direction: column;
+            }
+
+            .hero-cta-button {
+                width: 100%;
+                text-align: center;
+            }
+        }
+
+        /* ============================================
+           Accessibility
+           ============================================ */
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+            }
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+    <main class="terminal-container">
+        <!-- Top Navbar -->
+        <header class="site-header">
+            <a href="/" class="site-brand">
+                <img src="assets/logo.png" alt="Vide" class="site-brand-icon">
+                <span class="site-brand-name">Vide</span>
+            </a>
+            <nav class="site-nav">
+                <a href="/" class="active">Home</a>
+                <a href="https://github.com/Norbert515/vide_cli">GitHub</a>
+                <a href="https://discord.gg/st8Gup7xjB">Discord</a>
+            </nav>
+        </header>
+
+        <!-- Hero Section - Full Viewport Vortex -->
+        <section class="hero-section">
+            <h1 class="sr-only">Vide - The development team that never sleeps</h1>
+            <canvas id="vortex-canvas" class="vortex-canvas" aria-hidden="true"></canvas>
+            <div class="hero-overlay">
+                <div class="hero-tagline-box">
+                    <p class="hero-tagline">The development team that never sleeps</p>
+                    <p class="hero-features">
+                        spawnAgent • sendMessage • <strong>parallel execution</strong>
+                    </p>
+                </div>
+                <div class="hero-cta">
+                    <a href="#install" class="hero-cta-button primary">Get Started</a>
+                    <a href="https://github.com/Norbert515/vide_cli" class="hero-cta-button secondary">GitHub</a>
+                </div>
+            </div>
+            <!-- Scroll indicator -->
+            <div class="scroll-indicator">
+                <span>scroll</span>
+                <div class="scroll-arrow">↓</div>
+            </div>
+        </section>
+
+        <!-- MINIMAL/TECHNICAL LAYOUT -->
+
+        <div class="minimal-wrapper">
+
+        <!-- What is Vide - One line -->
+        <section class="what-is">
+            <p>Multi-agent orchestration for Claude Code. Parallel execution. Git worktree isolation.</p>
+        </section>
+
+        <!-- Install -->
+        <section class="install-section" id="install">
+            <div class="install-box">
+                <span class="install-label">Install</span>
+                <code>curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
+            </div>
+        </section>
+
+        <!-- Agents - Compact Table -->
+        <section class="agents-table-section">
+            <h2>Agents</h2>
+            <table class="agents-table">
+                <thead>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Role</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>orchestrator</code></td>
+                        <td>lead</td>
+                        <td>Delegates tasks, synthesizes results. Never writes code.</td>
+                    </tr>
+                    <tr>
+                        <td><code>researcher</code></td>
+                        <td>context</td>
+                        <td>Explores codebase, finds patterns, gathers context.</td>
+                    </tr>
+                    <tr>
+                        <td><code>implementer</code></td>
+                        <td>code</td>
+                        <td>Writes code in isolated git worktrees.</td>
+                    </tr>
+                    <tr>
+                        <td><code>planner</code></td>
+                        <td>strategy</td>
+                        <td>Creates implementation plans before coding.</td>
+                    </tr>
+                    <tr>
+                        <td><code>tester</code></td>
+                        <td>QA</td>
+                        <td>Runs Flutter apps, takes screenshots, validates with vision AI.</td>
+                    </tr>
+                    <tr>
+                        <td><code>reviewer</code></td>
+                        <td>quality</td>
+                        <td>Reviews code for quality and security.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- How it works - Code/Terminal style -->
+        <section class="how-section">
+            <h2>How it works</h2>
+            <div class="terminal-block">
+                <div class="terminal-header">
+                    <span class="terminal-dot"></span>
+                    <span class="terminal-dot"></span>
+                    <span class="terminal-dot"></span>
+                </div>
+                <div class="terminal-body">
+<pre><span class="term-comment"># You send a message</span>
+<span class="term-prompt">you:</span> Add JWT authentication to the API
+
+<span class="term-comment"># Orchestrator spawns specialists</span>
+<span class="term-system">[orchestrator]</span> Spawning researcher, implementer, tester...
+
+<span class="term-comment"># Agents work in parallel</span>
+<span class="term-agent">[researcher]</span> Found existing auth patterns in /lib/auth/
+<span class="term-agent">[implementer]</span> Created worktree: feature/jwt-auth
+<span class="term-agent">[implementer]</span> Implementing JWT middleware...
+<span class="term-agent">[tester]</span> Starting Flutter app on Chrome...
+
+<span class="term-comment"># Results synthesized</span>
+<span class="term-success">[orchestrator]</span> Done. JWT auth implemented and tested.
+<span class="term-success">[orchestrator]</span> Ready to merge from feature/jwt-auth</pre>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features - Compact list -->
+        <section class="features-section">
+            <h2>Features</h2>
+            <ul class="feature-list">
+                <li><span class="feature-check">✓</span> <strong>Parallel execution</strong> — Multiple agents work simultaneously</li>
+                <li><span class="feature-check">✓</span> <strong>Git worktrees</strong> — Isolated branches, no merge conflicts</li>
+                <li><span class="feature-check">✓</span> <strong>Message passing</strong> — Async agent communication</li>
+                <li><span class="feature-check">✓</span> <strong>Vision AI</strong> — Screenshots + Moondream for UI validation</li>
+                <li><span class="feature-check">✓</span> <strong>Hot reload</strong> — Flutter tester integration</li>
+                <li><span class="feature-check">✓</span> <strong>MCP servers</strong> — Extensible tool system</li>
+            </ul>
+        </section>
+
+        <!-- Tech Stack -->
+        <section class="tech-section">
+            <h2>Built with</h2>
+            <div class="tech-grid">
+                <div class="tech-item">
+                    <span class="tech-name">Claude SDK</span>
+                    <span class="tech-desc">Official Anthropic SDK</span>
+                </div>
+                <div class="tech-item">
+                    <span class="tech-name">MCP</span>
+                    <span class="tech-desc">Model Context Protocol</span>
+                </div>
+                <div class="tech-item">
+                    <span class="tech-name">Moondream</span>
+                    <span class="tech-desc">Vision AI for UI testing</span>
+                </div>
+                <div class="tech-item">
+                    <span class="tech-name">nocterm</span>
+                    <span class="tech-desc">Terminal UI framework</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Links -->
+        <section class="links-section">
+            <a href="https://github.com/Norbert515/vide_cli" class="link-item">GitHub →</a>
+            <a href="https://github.com/Norbert515/vide_cli/releases" class="link-item">Releases →</a>
+            <a href="https://discord.gg/st8Gup7xjB" class="link-item">Discord →</a>
+        </section>
+
+        </div><!-- end minimal-wrapper -->
+
+        <!-- Footer -->
+        <footer class="minimal-footer">
+            <span>Vide · MIT License · <a href="https://github.com/Norbert515/vide_cli">GitHub</a></span>
+        </footer>
+    </main>
+
+    <script>
+        // ============================================
+        // ASCII Vortex Effect with "VIDE" at center
+        // ============================================
+
+        class AsciiVortex {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.time = 0;
+                this.animationId = null;
+                this.isVisible = true;
+
+                // Character sets for different intensities
+                this.chars = ' .·:;+*#%@█';
+                this.vortexChars = '░▒▓█▓▒░';
+
+                // VIDE ASCII art (will be rendered at center)
+                this.videArt = [
+                    '██╗   ██╗██╗██████╗ ███████╗',
+                    '██║   ██║██║██╔══██╗██╔════╝',
+                    '██║   ██║██║██║  ██║█████╗  ',
+                    '╚██╗ ██╔╝██║██║  ██║██╔══╝  ',
+                    ' ╚████╔╝ ██║██████╔╝███████╗',
+                    '  ╚═══╝  ╚═╝╚═════╝ ╚══════╝'
+                ];
+
+                this.charWidth = 10;
+                this.charHeight = 16;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
+                // Visibility handling
+                document.addEventListener('visibilitychange', () => {
+                    this.isVisible = !document.hidden;
+                    if (this.isVisible && !this.animationId) {
+                        this.animate();
+                    }
+                });
+
+                this.observer = new IntersectionObserver((entries) => {
+                    this.isVisible = entries[0].isIntersecting;
+                    if (this.isVisible && !this.animationId) {
+                        this.animate();
+                    }
+                }, { threshold: 0.1 });
+                this.observer.observe(this.canvas);
+            }
+
+            resize() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.canvas.style.width = rect.width + 'px';
+                this.canvas.style.height = rect.height + 'px';
+
+                this.ctx.scale(dpr, dpr);
+                this.width = rect.width;
+                this.height = rect.height;
+
+                this.cols = Math.ceil(this.width / this.charWidth);
+                this.rows = Math.ceil(this.height / this.charHeight);
+                this.centerX = this.cols / 2;
+                this.centerY = this.rows / 2;
+            }
+
+            getVortexChar(x, y, time) {
+                // Calculate distance and angle from center
+                const dx = x - this.centerX;
+                const dy = (y - this.centerY) * 1.8; // Adjust for char aspect ratio
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+
+                // SUBTLE spiral formula: slower rotation, gentler curves
+                const spiralAngle = angle + dist * 0.08 - time * 0.4;
+                const spiralValue = Math.sin(spiralAngle * 2) * 0.5 + 0.5;
+
+                // Gentler radial waves
+                const radialWave = Math.sin(dist * 0.2 - time * 0.6) * 0.5 + 0.5;
+
+                // Combine effects with more emphasis on spiral
+                const intensity = (spiralValue * 0.7 + radialWave * 0.3);
+
+                // Stronger fade at edges for subtlety
+                const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
+                const distFade = 1 - Math.min(dist / maxDist, 1);
+                const finalIntensity = intensity * (0.15 + distFade * 0.6);
+
+                // Pick character based on intensity
+                const charIndex = Math.floor(finalIntensity * (this.vortexChars.length - 1));
+                return {
+                    char: this.vortexChars[Math.max(0, Math.min(charIndex, this.vortexChars.length - 1))],
+                    intensity: finalIntensity,
+                    dist: dist
+                };
+            }
+
+            getColor(intensity, dist, time) {
+                // Color gradient: very dark -> subtle cyan toward center
+                const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
+                const normalizedDist = Math.min(dist / maxDist, 1);
+
+                // Muted cyan color palette
+                let r = 0;
+                let g = Math.floor(60 + intensity * 80);
+                let b = Math.floor(100 + intensity * 100);
+
+                // Subtle color variation
+                const colorShift = Math.sin(time * 0.5 + dist * 0.05) * 15;
+                g = Math.max(30, Math.min(180, g + colorShift));
+
+                // Gentle brightening toward center
+                if (normalizedDist < 0.25) {
+                    const centerBoost = (0.25 - normalizedDist) / 0.25;
+                    r = Math.floor(r + centerBoost * 40);
+                    g = Math.floor(g + centerBoost * 30);
+                    b = Math.floor(b + centerBoost * 20);
+                }
+
+                // More aggressive fade at edges
+                const alpha = 0.15 + intensity * 0.5 * (1 - normalizedDist * 0.7);
+
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+
+            render() {
+                const ctx = this.ctx;
+
+                // Clear with dark background
+                ctx.fillStyle = '#080810';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                ctx.font = `${this.charHeight - 2}px "JetBrains Mono", monospace`;
+                ctx.textBaseline = 'top';
+
+                // Calculate VIDE art position (centered)
+                const videWidth = this.videArt[0].length;
+                const videHeight = this.videArt.length;
+                const videStartX = Math.floor(this.centerX - videWidth / 2);
+                const videStartY = Math.floor(this.centerY - videHeight / 2);
+
+                // Draw vortex characters
+                for (let y = 0; y < this.rows; y++) {
+                    for (let x = 0; x < this.cols; x++) {
+                        // Check if this position is part of VIDE text
+                        const videX = x - videStartX;
+                        const videY = y - videStartY;
+                        const isVideArea = videX >= 0 && videX < videWidth &&
+                                          videY >= 0 && videY < videHeight;
+
+                        if (isVideArea) {
+                            // Render VIDE character
+                            const videChar = this.videArt[videY][videX];
+                            if (videChar && videChar !== ' ') {
+                                // Subtle glowing cyan for VIDE text
+                                const glowIntensity = 0.8 + Math.sin(this.time * 0.8) * 0.2;
+                                ctx.fillStyle = `rgba(0, ${Math.floor(180 + glowIntensity * 40)}, 255, ${glowIntensity})`;
+
+                                // Subtle glow effect
+                                ctx.shadowColor = '#00d4ff';
+                                ctx.shadowBlur = 12 + Math.sin(this.time * 0.5) * 4;
+
+                                ctx.fillText(videChar, x * this.charWidth, y * this.charHeight);
+                                ctx.shadowBlur = 0;
+                            }
+                        } else {
+                            // Render vortex character
+                            const vortex = this.getVortexChar(x, y, this.time);
+                            if (vortex.char !== ' ' && vortex.intensity > 0.05) {
+                                ctx.fillStyle = this.getColor(vortex.intensity, vortex.dist, this.time);
+                                ctx.fillText(vortex.char, x * this.charWidth, y * this.charHeight);
+                            }
+                        }
+                    }
+                }
+
+                // Add subtle radial gradient overlay for depth
+                const gradient = ctx.createRadialGradient(
+                    this.width / 2, this.height / 2, 0,
+                    this.width / 2, this.height / 2, Math.max(this.width, this.height) / 2
+                );
+                gradient.addColorStop(0, 'rgba(0, 212, 255, 0.05)');
+                gradient.addColorStop(0.5, 'transparent');
+                gradient.addColorStop(1, 'rgba(8, 8, 16, 0.3)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, this.width, this.height);
+            }
+
+            animate() {
+                if (!this.isVisible) {
+                    this.animationId = null;
+                    return;
+                }
+
+                this.time += 0.012; // Slower animation
+                this.render();
+                this.animationId = requestAnimationFrame(() => this.animate());
+            }
+
+            start() {
+                this.animate();
+            }
+        }
+
+        // ============================================
+        // Wave Effect (Footer)
+        // ============================================
+
+        class WaveEffect {
+            constructor(container) {
+                this.container = container;
+                this.createElements();
+            }
+
+            createElements() {
+                const chars = 25;
+                const fragment = document.createDocumentFragment();
+
+                for (let i = 0; i < chars; i++) {
+                    const span = document.createElement('span');
+                    span.className = 'wave-char';
+                    span.style.setProperty('--i', i);
+                    span.textContent = '█';
+                    fragment.appendChild(span);
+                }
+
+                this.container.appendChild(fragment);
+            }
+        }
+
+        // ============================================
+        // Initialize
+        // ============================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            if (!prefersReducedMotion) {
+                // Initialize vortex
+                const vortexCanvas = document.getElementById('vortex-canvas');
+                if (vortexCanvas) {
+                    const vortex = new AsciiVortex(vortexCanvas);
+                    vortex.start();
+                }
+
+                // Initialize footer wave
+                const waveContainer = document.getElementById('wave');
+                if (waveContainer) {
+                    new WaveEffect(waveContainer);
+                }
+            } else {
+                // Static fallback
+                const waveContainer = document.getElementById('wave');
+                if (waveContainer) {
+                    waveContainer.textContent = '░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░';
+                    waveContainer.style.color = '#2a4a5a';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
