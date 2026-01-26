@@ -339,13 +339,22 @@ class _InterceptingBinaryMessenger implements BinaryMessenger {
 /// Searches both descendants AND ancestors since EditableTextState is a child.
 TextInputClient? _findTextInputClient() {
   final focusNode = FocusManager.instance.primaryFocus;
-  if (focusNode == null) return null;
+  print('🔍 [RuntimeAiDevTools] _findTextInputClient: primaryFocus=${focusNode?.debugLabel ?? focusNode?.runtimeType.toString() ?? 'null'}');
+
+  if (focusNode == null) {
+    // No focused element - try searching from root as last resort
+    return _findTextInputClientFromRoot();
+  }
 
   final context = focusNode.context;
-  if (context == null) return null;
+  if (context == null) {
+    print('🔍 [RuntimeAiDevTools] _findTextInputClient: focusNode has no context');
+    return _findTextInputClientFromRoot();
+  }
 
   // Check if focused element itself is TextInputClient
   if (context is StatefulElement && context.state is TextInputClient) {
+    print('🔍 [RuntimeAiDevTools] _findTextInputClient: found directly on focused element');
     return context.state as TextInputClient;
   }
 
@@ -361,7 +370,10 @@ TextInputClient? _findTextInputClient() {
   }
 
   (context as Element).visitChildren(visitChildren);
-  if (client != null) return client;
+  if (client != null) {
+    print('🔍 [RuntimeAiDevTools] _findTextInputClient: found in descendants');
+    return client;
+  }
 
   // Search ANCESTORS as fallback
   context.visitAncestorElements((element) {
@@ -372,6 +384,40 @@ TextInputClient? _findTextInputClient() {
     return true;
   });
 
+  if (client != null) {
+    print('🔍 [RuntimeAiDevTools] _findTextInputClient: found in ancestors');
+    return client;
+  }
+
+  print('🔍 [RuntimeAiDevTools] _findTextInputClient: not found near focus, trying root search');
+  return _findTextInputClientFromRoot();
+}
+
+/// Search the entire widget tree for an active TextInputClient.
+/// This is a last-resort fallback when focus-based search fails.
+TextInputClient? _findTextInputClientFromRoot() {
+  final rootElement = WidgetsBinding.instance.rootElement;
+  if (rootElement == null) return null;
+
+  TextInputClient? client;
+  void visit(Element element) {
+    if (client != null) return;
+    if (element is StatefulElement && element.state is TextInputClient) {
+      final candidate = element.state as TextInputClient;
+      // Only use clients that have an active connection (are currently editing)
+      if (candidate.currentTextEditingValue != null) {
+        client = candidate;
+        print('🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: found active TextInputClient');
+        return;
+      }
+    }
+    element.visitChildren(visit);
+  }
+
+  rootElement.visitChildren(visit);
+  if (client == null) {
+    print('🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: no active TextInputClient found');
+  }
   return client;
 }
 

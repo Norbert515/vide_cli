@@ -51,7 +51,6 @@ export 'src/services/claude_client_factory.dart';
 export 'src/services/claude_manager.dart';
 export 'src/services/initial_claude_client.dart';
 export 'src/services/team_framework_loader.dart';
-export 'src/services/team_framework_asset_initializer.dart';
 export 'src/services/trigger_service.dart';
 
 // Permissions

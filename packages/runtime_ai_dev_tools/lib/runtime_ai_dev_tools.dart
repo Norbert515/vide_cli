@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'src/actionable_elements_extension.dart';
 import 'src/screenshot_extension.dart';
 import 'src/tap_extension.dart';
 import 'src/type_extension.dart';
@@ -116,6 +117,7 @@ class RuntimeAiDevTools {
     registerScrollExtension();
     registerWidgetInfoExtension();
     registerCursorExtension();
+    registerActionableElementsExtension();
     print('✅ [RuntimeAiDevTools] Service extensions registered');
 
     _initialized = true;

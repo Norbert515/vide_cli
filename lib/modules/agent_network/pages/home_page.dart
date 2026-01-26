@@ -51,8 +51,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadTeams() async {
-    await TeamFrameworkAssetInitializer.initialize();
-
     final workingDir = Directory.current.path;
     final loader = TeamFrameworkLoader(workingDirectory: workingDir);
     final teams = await loader.loadTeams();

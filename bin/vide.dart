@@ -25,14 +25,6 @@ void main(List<String> args) async {
   }
   final configRoot = path.join(homeDir, '.vide');
 
-  // Sync team framework assets from package to ~/.vide/defaults/
-  // In development (running from source), always force sync to avoid stale assets
-  final isDevelopment = _isRunningFromSource();
-  await TeamFrameworkAssetInitializer.initialize(
-    videHome: configRoot,
-    forceSync: isDevelopment,
-  );
-
   // Create provider overrides for TUI
   final overrides = [
     // Override VideConfigManager with TUI-specific config root
@@ -44,13 +36,6 @@ void main(List<String> args) async {
   ];
 
   await app.main(args, overrides: overrides);
-}
-
-/// Check if we're running from source (development mode).
-/// Returns true if the package assets directory exists in the current path.
-bool _isRunningFromSource() {
-  final assetsDir = Directory('packages/vide_core/assets/team_framework');
-  return assetsDir.existsSync();
 }
 
 void _printHelp() {

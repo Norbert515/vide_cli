@@ -70,6 +70,7 @@ void _initRuntimeAiDevTools() {
   _registerScrollExtension();
   _registerCursorExtension();
   _registerWidgetInfoExtension();
+  _registerActionableElementsExtension();
 }
 
 void main() {

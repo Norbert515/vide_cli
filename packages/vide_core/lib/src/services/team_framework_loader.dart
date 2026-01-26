@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
+import '../generated/bundled_team_framework.dart';
 import '../models/team_framework/team_framework.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
@@ -302,14 +303,8 @@ $agentsList
     final results = <String, T>{};
 
     // Load in reverse precedence order (so higher precedence overwrites)
-    // 1. Vide defaults (lowest precedence)
-    await _loadFromDirectory(
-      path.join(_videHome, 'defaults', subdir),
-      parser,
-      getName,
-      results,
-      'defaults',
-    );
+    // 1. Bundled defaults (lowest precedence)
+    _loadFromBundled(subdir, parser, getName, results);
 
     // 2. User customizations
     await _loadFromDirectory(
@@ -330,6 +325,31 @@ $agentsList
     );
 
     return results;
+  }
+
+  /// Load definitions from bundled in-memory constants.
+  void _loadFromBundled<T>(
+    String subdir,
+    T Function(String content, String filePath) parser,
+    String Function(T) getName,
+    Map<String, T> results,
+  ) {
+    final bundledMap = switch (subdir) {
+      'teams' => bundledTeams,
+      'agents' => bundledAgents,
+      'etiquette' => bundledEtiquette,
+      _ => <String, String>{},
+    };
+
+    for (final entry in bundledMap.entries) {
+      try {
+        final definition = parser(entry.value, 'bundled://${entry.key}.md');
+        final name = getName(definition);
+        results[name] = definition;
+      } catch (e) {
+        print('Error loading bundled ${entry.key}: $e');
+      }
+    }
   }
 
   /// Load definitions from a single directory.

@@ -15,6 +15,7 @@ const _sourceFiles = [
   'lib/src/scroll_extension.dart',
   'lib/src/cursor_extension.dart',
   'lib/src/widget_info_extension.dart',
+  'lib/src/actionable_elements_extension.dart',
   'lib/src/debug_overlay_wrapper.dart',
   'lib/src/debug_binding.dart',
 ];
@@ -28,6 +29,7 @@ const _renames = {
   'registerScrollExtension': '_registerScrollExtension',
   'registerCursorExtension': '_registerCursorExtension',
   'registerWidgetInfoExtension': '_registerWidgetInfoExtension',
+  'registerActionableElementsExtension': '_registerActionableElementsExtension',
   'DebugOverlayWrapper': '_DebugOverlayWrapper',
   'DebugWidgetsFlutterBinding': '_DebugWidgetsFlutterBinding',
 };

@@ -48,10 +48,6 @@ class _TapVisualizationService {
   /// Get the current cursor position
   Offset? get cursorPosition => _cursorPosition;
 
-  /// Check if the overlay key is valid (has a current state).
-  /// This can become false after hot reload when the widget tree is rebuilt.
-  bool get hasValidOverlay => _overlayKey?.currentState != null;
-
   /// Sets the cursor position and shows a persistent cursor overlay (if overlay key is registered)
   /// This is the preferred method for service extensions as it doesn't require a BuildContext
   void setCursorPosition(double x, double y) {
@@ -88,31 +84,10 @@ class _TapVisualizationService {
     _cursorPosition = null;
   }
 
-  /// Register the overlay key from _DebugOverlayWrapper.
-  /// This is called during widget initialization and after hot reload
-  /// when the widget tree is rebuilt.
+  /// Register the overlay key from _DebugOverlayWrapper
   void setOverlayKey(GlobalKey<OverlayState> key) {
-    // If we're getting a new key (e.g., after hot reload), clear stale overlay entries
-    // that reference the old overlay state which is no longer valid.
-    if (_overlayKey != null && _overlayKey != key) {
-            _clearAllOverlayEntries();
-    }
     _overlayKey = key;
       }
-
-  /// Clear all overlay entries. Called when overlay key changes (e.g., after hot reload)
-  /// to prevent attempts to use stale OverlayEntry objects.
-  void _clearAllOverlayEntries() {
-    // Don't call .remove() on these entries - the overlay state they belonged to
-    // may already be disposed. Just null them out.
-    _currentOverlay = null;
-    _persistentCursorOverlay = null;
-    _scrollPathOverlay = null;
-    _scrollEndIndicatorOverlay = null;
-    _inspectionPulseOverlay = null;
-    _screenshotFlashOverlay = null;
-    // Keep cursor position - we might want to restore it
-  }
 
   /// Shows a tap visualization at the specified position
   void showTapAt(BuildContext context, double x, double y) {
@@ -1472,14 +1447,20 @@ class _InterceptingBinaryMessenger implements BinaryMessenger {
 /// Searches both descendants AND ancestors since EditableTextState is a child.
 TextInputClient? _findTextInputClient() {
   final focusNode = FocusManager.instance.primaryFocus;
-  if (focusNode == null) return null;
+  
+  if (focusNode == null) {
+    // No focused element - try searching from root as last resort
+    return _findTextInputClientFromRoot();
+  }
 
   final context = focusNode.context;
-  if (context == null) return null;
+  if (context == null) {
+        return _findTextInputClientFromRoot();
+  }
 
   // Check if focused element itself is TextInputClient
   if (context is StatefulElement && context.state is TextInputClient) {
-    return context.state as TextInputClient;
+        return context.state as TextInputClient;
   }
 
   // Search DESCENDANTS (EditableTextState is a child of Focus)
@@ -1494,7 +1475,9 @@ TextInputClient? _findTextInputClient() {
   }
 
   (context as Element).visitChildren(visitChildren);
-  if (client != null) return client;
+  if (client != null) {
+        return client;
+  }
 
   // Search ANCESTORS as fallback
   context.visitAncestorElements((element) {
@@ -1505,6 +1488,36 @@ TextInputClient? _findTextInputClient() {
     return true;
   });
 
+  if (client != null) {
+        return client;
+  }
+
+    return _findTextInputClientFromRoot();
+}
+
+/// Search the entire widget tree for an active TextInputClient.
+/// This is a last-resort fallback when focus-based search fails.
+TextInputClient? _findTextInputClientFromRoot() {
+  final rootElement = WidgetsBinding.instance.rootElement;
+  if (rootElement == null) return null;
+
+  TextInputClient? client;
+  void visit(Element element) {
+    if (client != null) return;
+    if (element is StatefulElement && element.state is TextInputClient) {
+      final candidate = element.state as TextInputClient;
+      // Only use clients that have an active connection (are currently editing)
+      if (candidate.currentTextEditingValue != null) {
+        client = candidate;
+                return;
+      }
+    }
+    element.visitChildren(visit);
+  }
+
+  rootElement.visitChildren(visit);
+  if (client == null) {
+      }
   return client;
 }
 
@@ -2649,9 +2662,9 @@ void _addWidgetSpecificInfo(Widget widget, Map<String, dynamic> info) {
 
 /// Registry of actionable elements for ID-based interaction.
 /// Elements are registered during tree traversal and can be looked up by ID.
-class _ActionableElementRegistry {
-  _ActionableElementRegistry._();
-  static final instance = _ActionableElementRegistry._();
+class ActionableElementRegistry {
+  ActionableElementRegistry._();
+  static final instance = ActionableElementRegistry._();
 
   final _elements = <String, _RegisteredElement>{};
 
@@ -2711,7 +2724,7 @@ void _registerActionableElementsExtension() {
         );
       }
 
-      final center = _ActionableElementRegistry.instance.getCenterForId(id);
+      final center = ActionableElementRegistry.instance.getCenterForId(id);
       if (center == null) {
         return developer.ServiceExtensionResponse.error(
           developer.ServiceExtensionResponse.extensionError,
@@ -2752,12 +2765,14 @@ Map<String, dynamic> _getActionableElements() {
   // Note: Semantics tree uses PHYSICAL pixels, so we need to scale screen bounds
   final renderView = binding.renderViews.firstOrNull;
   final screenSize = renderView?.size ?? Size.zero;
-  final dpr = binding.platformDispatcher.views.firstOrNull?.devicePixelRatio ?? 1.0;
+  final dpr =
+      binding.platformDispatcher.views.firstOrNull?.devicePixelRatio ?? 1.0;
   // Scale to physical pixels to match semantics tree coordinates
-  final screenBounds = Rect.fromLTWH(0, 0, screenSize.width * dpr, screenSize.height * dpr);
+  final screenBounds =
+      Rect.fromLTWH(0, 0, screenSize.width * dpr, screenSize.height * dpr);
 
   // Clear previous registry
-  _ActionableElementRegistry.instance.clear();
+  ActionableElementRegistry.instance.clear();
 
   // Build a map from SemanticsNode to Element for tap coordinate lookup
   final semanticsToElement = <SemanticsNode, Element>{};
@@ -2771,6 +2786,7 @@ Map<String, dynamic> _getActionableElements() {
     }
     element.visitChildren(buildSemanticsMap);
   }
+
   rootElement.visitChildren(buildSemanticsMap);
 
   // Try to get semantics from the render view
@@ -2790,7 +2806,8 @@ Map<String, dynamic> _getActionableElements() {
         return _getElementsFromWidgetTree(rootElement, screenBounds);
   }
 
-  return _getElementsFromSemantics(rootSemanticsNode, semanticsToElement, screenBounds, dpr);
+  return _getElementsFromSemantics(
+      rootSemanticsNode, semanticsToElement, screenBounds, dpr);
 }
 
 /// Traverse the semantics tree to find actionable elements.
@@ -2829,10 +2846,13 @@ Map<String, dynamic> _getElementsFromSemantics(
     }
 
     // Calculate global bounds using transform
-    final globalTransform = transform.multiplied(node.transform ?? Matrix4.identity());
+    final globalTransform =
+        transform.multiplied(node.transform ?? Matrix4.identity());
     final localRect = node.rect;
-    final topLeft = MatrixUtils.transformPoint(globalTransform, localRect.topLeft);
-    final bottomRight = MatrixUtils.transformPoint(globalTransform, localRect.bottomRight);
+    final topLeft =
+        MatrixUtils.transformPoint(globalTransform, localRect.topLeft);
+    final bottomRight =
+        MatrixUtils.transformPoint(globalTransform, localRect.bottomRight);
     final globalBounds = Rect.fromPoints(topLeft, bottomRight);
 
     // Skip if completely off-screen
@@ -2859,10 +2879,12 @@ Map<String, dynamic> _getElementsFromSemantics(
       // Register for tap lookup (use logical bounds)
       final element = semanticsToElement[node];
       if (element != null) {
-        _ActionableElementRegistry.instance.register(info['id'] as String, element, logicalBounds);
+        ActionableElementRegistry.instance
+            .register(info['id'] as String, element, logicalBounds);
       } else {
         // Register with bounds only (still tappable via coordinates)
-        _ActionableElementRegistry.instance._elements[info['id'] as String] = _RegisteredElement(
+        ActionableElementRegistry.instance._elements[info['id'] as String] =
+            _RegisteredElement(
           element: WidgetsBinding.instance.rootElement!,
           bounds: logicalBounds,
         );
@@ -2910,8 +2932,17 @@ Map<String, dynamic>? _extractFromSemanticsNode(
   final isLink = data.hasFlag(SemanticsFlag.isLink);
 
   // Skip non-actionable nodes
-  final isActionable = hasTap || hasLongPress || hasSetText || hasIncrease || hasDecrease ||
-      isButton || isTextField || isSlider || isToggled || isChecked || isLink;
+  final isActionable = hasTap ||
+      hasLongPress ||
+      hasSetText ||
+      hasIncrease ||
+      hasDecrease ||
+      isButton ||
+      isTextField ||
+      isSlider ||
+      isToggled ||
+      isChecked ||
+      isLink;
 
   if (!isActionable) return null;
 
@@ -2980,7 +3011,8 @@ Map<String, dynamic>? _extractFromSemanticsNode(
 
 /// Alternative: Get actionable elements by traversing just the widget tree.
 /// Used as a fallback when semantics isn't providing visibility info.
-Map<String, dynamic> _getElementsFromWidgetTree(Element rootElement, Rect screenBounds) {
+Map<String, dynamic> _getElementsFromWidgetTree(
+    Element rootElement, Rect screenBounds) {
   final counters = <String, int>{};
 
   String generateId(String type) {
@@ -3023,7 +3055,8 @@ Map<String, dynamic> _getElementsFromWidgetTree(Element rootElement, Rect screen
       return; // Don't traverse children of fully transparent render objects
     }
 
-    final info = _extractActionableInfoFromWidget(widget, element, generateId, screenBounds);
+    final info = _extractActionableInfoFromWidget(
+        widget, element, generateId, screenBounds);
 
     if (info != null) {
       elements.add(info);
@@ -3092,13 +3125,14 @@ Map<String, dynamic>? _extractActionableInfoFromWidget(
   info['id'] = id;
 
   // Register element for tapElement lookup
-  _ActionableElementRegistry.instance.register(id, element, bounds);
+  ActionableElementRegistry.instance.register(id, element, bounds);
 
   return info;
 }
 
 /// Match widget to actionable type and extract relevant info.
-Map<String, dynamic>? _matchWidget(Widget widget, Element element, Rect bounds) {
+Map<String, dynamic>? _matchWidget(
+    Widget widget, Element element, Rect bounds) {
   // Material Buttons
   if (widget is ElevatedButton ||
       widget is TextButton ||
@@ -3206,12 +3240,18 @@ Map<String, dynamic>? _matchWidget(Widget widget, Element element, Rect bounds) 
   }
 
   // Chip
-  if (widget is Chip || widget is ActionChip || widget is FilterChip || widget is ChoiceChip) {
+  if (widget is Chip ||
+      widget is ActionChip ||
+      widget is FilterChip ||
+      widget is ChoiceChip) {
     return {
       'type': 'chip',
       'label': _findChildText(element),
-      'selected': widget is FilterChip ? widget.selected :
-                  widget is ChoiceChip ? widget.selected : null,
+      'selected': widget is FilterChip
+          ? widget.selected
+          : widget is ChoiceChip
+              ? widget.selected
+              : null,
     };
   }
 
@@ -3344,14 +3384,6 @@ class _DebugOverlayWrapperState extends State<_DebugOverlayWrapper> {
     super.initState();
     // Register our overlay with the tap visualization service
     _TapVisualizationService().setOverlayKey(_overlayKey);
-  }
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    // Called during hot reload - re-register the overlay key since
-    // the widget tree has been rebuilt and the old references are stale.
-        _TapVisualizationService().setOverlayKey(_overlayKey);
   }
 
   @override
