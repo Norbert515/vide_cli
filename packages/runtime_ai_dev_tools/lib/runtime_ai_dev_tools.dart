@@ -4,6 +4,7 @@ import 'src/tap_extension.dart';
 import 'src/type_extension.dart';
 import 'src/scroll_extension.dart';
 import 'src/widget_info_extension.dart';
+import 'src/actionable_elements_extension.dart';
 import 'src/cursor_extension.dart';
 import 'src/debug_overlay_wrapper.dart';
 import 'src/debug_binding.dart';
@@ -115,6 +116,7 @@ class RuntimeAiDevTools {
     registerTypeExtension();
     registerScrollExtension();
     registerWidgetInfoExtension();
+    registerActionableElementsExtension();
     registerCursorExtension();
     print('✅ [RuntimeAiDevTools] Service extensions registered');
 
