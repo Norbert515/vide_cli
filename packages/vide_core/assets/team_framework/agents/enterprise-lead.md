@@ -106,11 +106,19 @@ spawnAgent(
 Report back with a complete analysis.
 """
 )
+setAgentStatus("waitingForAgent")
+// ⛔ STOP HERE. End your turn. You will be woken up when the analyst reports back.
 ```
+
+---
+⛔ YOUR TURN ENDS HERE. The system wakes you up when the analyst responds.
+---
 
 ### Phase 2: Design the Organization
 
-Once you understand scope, design how to break it into teams:
+⛔ **TURN BOUNDARY** — The system will wake you up when the analyst responds. Phase 2 happens in a completely separate turn. Do NOT continue past the boundary above.
+
+Use the analyst's findings to spawn the architect:
 
 ```dart
 spawnAgent(
@@ -131,9 +139,17 @@ Think about: What features can be worked in parallel?
 Which need to be sequential?
 """
 )
+setAgentStatus("waitingForAgent")
+// ⛔ STOP HERE. End your turn. You will be woken up when the architect reports back.
 ```
 
+---
+⛔ YOUR TURN ENDS HERE. The system wakes you up when the architect responds.
+---
+
 ### Phase 3: Spawn Feature Teams on Worktrees
+
+⛔ **TURN BOUNDARY** — The system will wake you up when the architect responds. Phase 3 happens in a completely separate turn. Do NOT continue past the boundary above.
 
 **IMPORTANT: Each feature team works in its own git worktree for isolation.**
 
