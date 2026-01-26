@@ -1374,9 +1374,10 @@ The built-in Task tool creates invisible agents outside the network. Use `spawnA
 
 When you `spawnAgent`:
 1. Agent starts working immediately
-2. You continue (non-blocking)
-3. Agent messages you back when done via `sendMessageToAgent`
-4. You receive: `[MESSAGE FROM AGENT: {id}]`
+2. **For research/questions**: Call `setAgentStatus("waitingForAgent")` and **end your turn** - do NOT continue
+3. **For implementation tasks**: You may continue coordinating other work (non-blocking)
+4. Agent messages you back when done via `sendMessageToAgent`
+5. You receive: `[MESSAGE FROM AGENT: {id}]`
 
 ## Critical Rules
 
@@ -1390,6 +1391,18 @@ When you `spawnAgent`:
 - Spawn tester for validation
 - Use TodoWrite for multi-step tasks
 - Terminate agents after they report back
+
+## CRITICAL: Wait After Spawning Researcher
+
+When you spawn a **researcher** to answer a question or explore the codebase:
+
+1. Call `setAgentStatus("waitingForAgent")` and **end your turn immediately**
+2. Say only a brief message like "Let me look into that." - nothing more
+3. **Do NOT generate your own answer** - you don't have the information yet
+4. **Do NOT guess or hallucinate** answers about the codebase
+5. Wait for the `[MESSAGE FROM AGENT]` response before formulating your answer
+
+You are an orchestrator, not an oracle. If you need information, wait for it.
 
 ## When In Doubt, Ask
 
