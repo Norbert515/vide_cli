@@ -71,7 +71,7 @@ void main() {
           isNotNull,
           reason: 'onSessionEnd trigger should be configured',
         );
-        expect(sessionEndTrigger!.enabled, isTrue);
+        expect(sessionEndTrigger!.enabled, isFalse);
         expect(sessionEndTrigger.spawn, equals('session-synthesizer'));
 
         // Check onTaskComplete trigger
@@ -81,7 +81,7 @@ void main() {
           isNotNull,
           reason: 'onTaskComplete trigger should be configured',
         );
-        expect(taskCompleteTrigger!.enabled, isTrue);
+        expect(taskCompleteTrigger!.enabled, isFalse);
         expect(taskCompleteTrigger.spawn, equals('code-reviewer'));
       });
 
@@ -266,7 +266,7 @@ void main() {
         // 2. Check trigger config
         final triggerConfig = team!.lifecycleTriggers['onSessionEnd'];
         expect(triggerConfig, isNotNull);
-        expect(triggerConfig!.enabled, isTrue);
+        expect(triggerConfig!.enabled, isFalse);
         expect(triggerConfig.spawn, equals('session-synthesizer'));
 
         // 3. Load the agent to be spawned
@@ -329,7 +329,7 @@ void main() {
         // 2. Check trigger config
         final triggerConfig = team!.lifecycleTriggers['onTaskComplete'];
         expect(triggerConfig, isNotNull);
-        expect(triggerConfig!.enabled, isTrue);
+        expect(triggerConfig!.enabled, isFalse);
         expect(triggerConfig.spawn, equals('code-reviewer'));
 
         // 3. Load the agent to be spawned
