@@ -478,6 +478,14 @@ Map<String, dynamic>? _extractActionableInfoFromWidget(
   final id = generateId(info['type'] as String);
   info['id'] = id;
 
+  // Add bounds to the info map (consistent with the semantics path)
+  info['bounds'] = {
+    'x': bounds.left.round(),
+    'y': bounds.top.round(),
+    'width': bounds.width.round(),
+    'height': bounds.height.round(),
+  };
+
   // Register element for tapElement lookup
   ActionableElementRegistry.instance.register(id, element, bounds);
 

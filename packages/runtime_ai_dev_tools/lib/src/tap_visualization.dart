@@ -10,11 +10,17 @@ class TapVisualizationService {
   TapVisualizationService._internal();
 
   OverlayEntry? _currentOverlay;
+  bool _currentOverlayInserted = false;
   OverlayEntry? _persistentCursorOverlay;
+  bool _persistentCursorOverlayInserted = false;
   OverlayEntry? _scrollPathOverlay;
+  bool _scrollPathOverlayInserted = false;
   OverlayEntry? _scrollEndIndicatorOverlay;
+  bool _scrollEndIndicatorOverlayInserted = false;
   OverlayEntry? _inspectionPulseOverlay;
+  bool _inspectionPulseOverlayInserted = false;
   OverlayEntry? _screenshotFlashOverlay;
+  bool _screenshotFlashOverlayInserted = false;
   GlobalKey<OverlayState>? _overlayKey;
 
   /// Current cursor position in logical pixels (null if no cursor set)
@@ -27,8 +33,9 @@ class TapVisualizationService {
   /// This is the preferred method for service extensions as it doesn't require a BuildContext
   void setCursorPosition(double x, double y) {
     // Clear any existing cursor overlay
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
 
     // Store the cursor position
     _cursorPosition = Offset(x, y);
@@ -44,6 +51,7 @@ class TapVisualizationService {
           if (_persistentCursorOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_persistentCursorOverlay!);
+            _persistentCursorOverlayInserted = true;
             print('✅ [TapVisualization] Cursor set at ($x, $y) with overlay');
           }
         } catch (e) {
@@ -58,8 +66,9 @@ class TapVisualizationService {
 
   /// Clears just the cursor position and overlay
   void clearCursorPosition() {
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
     _cursorPosition = null;
   }
 
@@ -72,8 +81,9 @@ class TapVisualizationService {
   /// Shows a tap visualization at the specified position
   void showTapAt(BuildContext context, double x, double y) {
     // Remove any existing overlay
-    _currentOverlay?.remove();
+    _safeRemove(_currentOverlay, _currentOverlayInserted);
     _currentOverlay = null;
+    _currentOverlayInserted = false;
 
     // Create new overlay entry
     _currentOverlay = OverlayEntry(
@@ -81,8 +91,11 @@ class TapVisualizationService {
         x: x,
         y: y,
         onComplete: () {
-          _currentOverlay?.remove();
+          if (_currentOverlayInserted) {
+            _currentOverlay?.remove();
+          }
           _currentOverlay = null;
+          _currentOverlayInserted = false;
         },
       ),
     );
@@ -94,6 +107,7 @@ class TapVisualizationService {
           // Use our custom overlay if available, otherwise fall back to context-based lookup
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_currentOverlay!);
+          _currentOverlayInserted = true;
           print('✅ [TapVisualization] Overlay inserted successfully');
         }
       } catch (e) {
@@ -104,8 +118,9 @@ class TapVisualizationService {
 
   /// Clears any active overlay
   void clear() {
-    _currentOverlay?.remove();
+    _safeRemove(_currentOverlay, _currentOverlayInserted);
     _currentOverlay = null;
+    _currentOverlayInserted = false;
   }
 
   /// Sets a persistent cursor at the specified position that stays visible until explicitly cleared
@@ -128,6 +143,7 @@ class TapVisualizationService {
         if (_persistentCursorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_persistentCursorOverlay!);
+          _persistentCursorOverlayInserted = true;
           print('✅ [TapVisualization] Persistent cursor set at ($x, $y)');
         }
       } catch (e) {
@@ -138,8 +154,9 @@ class TapVisualizationService {
 
   /// Clears the persistent cursor overlay and position
   void clearPersistentCursor() {
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
     _cursorPosition = null;
   }
 
@@ -147,8 +164,9 @@ class TapVisualizationService {
   void showScrollPath(
       BuildContext context, Offset start, Offset end, Duration duration) {
     // Remove any existing scroll path overlay
-    _scrollPathOverlay?.remove();
+    _safeRemove(_scrollPathOverlay, _scrollPathOverlayInserted);
     _scrollPathOverlay = null;
+    _scrollPathOverlayInserted = false;
 
     // Create new overlay entry for scroll path animation
     _scrollPathOverlay = OverlayEntry(
@@ -157,8 +175,11 @@ class TapVisualizationService {
         end: end,
         duration: duration,
         onComplete: () {
-          _scrollPathOverlay?.remove();
+          if (_scrollPathOverlayInserted) {
+            _scrollPathOverlay?.remove();
+          }
           _scrollPathOverlay = null;
+          _scrollPathOverlayInserted = false;
         },
       ),
     );
@@ -169,6 +190,7 @@ class TapVisualizationService {
         if (_scrollPathOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollPathOverlay!);
+          _scrollPathOverlayInserted = true;
           print(
               '✅ [TapVisualization] Scroll path overlay inserted successfully');
         }
@@ -194,6 +216,7 @@ class TapVisualizationService {
         if (_scrollEndIndicatorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollEndIndicatorOverlay!);
+          _scrollEndIndicatorOverlayInserted = true;
           print('✅ [TapVisualization] Scroll end indicator set');
         }
       } catch (e) {
@@ -205,22 +228,26 @@ class TapVisualizationService {
 
   /// Clears the scroll end indicator overlay
   void clearScrollEndIndicator() {
-    _scrollEndIndicatorOverlay?.remove();
+    _safeRemove(
+        _scrollEndIndicatorOverlay, _scrollEndIndicatorOverlayInserted);
     _scrollEndIndicatorOverlay = null;
+    _scrollEndIndicatorOverlayInserted = false;
   }
 
   /// Clears the scroll path overlay
   void clearScrollPath() {
-    _scrollPathOverlay?.remove();
+    _safeRemove(_scrollPathOverlay, _scrollPathOverlayInserted);
     _scrollPathOverlay = null;
+    _scrollPathOverlayInserted = false;
   }
 
   /// Shows an inspection pulse animation at the specified position
   /// This indicates that widget info is being retrieved at that location
   void showInspectionPulse(double x, double y) {
     // Remove any existing inspection pulse
-    _inspectionPulseOverlay?.remove();
+    _safeRemove(_inspectionPulseOverlay, _inspectionPulseOverlayInserted);
     _inspectionPulseOverlay = null;
+    _inspectionPulseOverlayInserted = false;
 
     // Try to show the inspection pulse if we have a registered overlay key
     if (_overlayKey?.currentState != null) {
@@ -229,8 +256,11 @@ class TapVisualizationService {
           x: x,
           y: y,
           onComplete: () {
-            _inspectionPulseOverlay?.remove();
+            if (_inspectionPulseOverlayInserted) {
+              _inspectionPulseOverlay?.remove();
+            }
             _inspectionPulseOverlay = null;
+            _inspectionPulseOverlayInserted = false;
           },
         ),
       );
@@ -240,6 +270,7 @@ class TapVisualizationService {
           if (_inspectionPulseOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_inspectionPulseOverlay!);
+            _inspectionPulseOverlayInserted = true;
             print('✅ [TapVisualization] Inspection pulse shown at ($x, $y)');
           }
         } catch (e) {
@@ -253,16 +284,20 @@ class TapVisualizationService {
   /// This provides visual feedback when a screenshot is being taken
   void showScreenshotFlash() {
     // Remove any existing screenshot flash
-    _screenshotFlashOverlay?.remove();
+    _safeRemove(_screenshotFlashOverlay, _screenshotFlashOverlayInserted);
     _screenshotFlashOverlay = null;
+    _screenshotFlashOverlayInserted = false;
 
     // Try to show the screenshot flash if we have a registered overlay key
     if (_overlayKey?.currentState != null) {
       _screenshotFlashOverlay = OverlayEntry(
         builder: (context) => _ScreenshotFlash(
           onComplete: () {
-            _screenshotFlashOverlay?.remove();
+            if (_screenshotFlashOverlayInserted) {
+              _screenshotFlashOverlay?.remove();
+            }
             _screenshotFlashOverlay = null;
+            _screenshotFlashOverlayInserted = false;
           },
         ),
       );
@@ -272,12 +307,22 @@ class TapVisualizationService {
           if (_screenshotFlashOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_screenshotFlashOverlay!);
+            _screenshotFlashOverlayInserted = true;
             print('✅ [TapVisualization] Screenshot flash shown');
           }
         } catch (e) {
           print('⚠️  [TapVisualization] Failed to show screenshot flash: $e');
         }
       });
+    }
+  }
+
+  /// Safely remove an overlay entry, only if it was actually inserted.
+  /// Calling remove() on an entry that was never inserted causes
+  /// '_overlay != null' assertion failures.
+  static void _safeRemove(OverlayEntry? entry, bool wasInserted) {
+    if (entry != null && wasInserted) {
+      entry.remove();
     }
   }
 }

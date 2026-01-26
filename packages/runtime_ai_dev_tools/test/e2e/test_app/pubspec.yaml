@@ -1,0 +1,15 @@
+name: e2e_test_app
+description: Dedicated test app for runtime_ai_dev_tools E2E tests
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  runtime_ai_dev_tools:
+    path: ../../../
+
+flutter:
+  uses-material-design: true
