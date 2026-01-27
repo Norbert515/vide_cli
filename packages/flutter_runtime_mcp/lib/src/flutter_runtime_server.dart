@@ -80,6 +80,11 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterGetErrors',
     'flutterSetDeviceSize',
     'flutterResetDeviceSize',
+    'flutterSetAnimationSpeed',
+    'flutterSetThemeMode',
+    'flutterGetThemeMode',
+    'flutterSetLocale',
+    'flutterResetLocale',
   ];
 
   @override
@@ -2593,6 +2598,384 @@ Breakpoints and MediaQuery will respond to the new size.''',
           return CallToolResult.fromContent(
             content: [
               TextContent(text: 'Error: Failed to reset device size: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Animation Speed - Control animation speed
+    server.tool(
+      'flutterSetAnimationSpeed',
+      description:
+          'Control the animation speed of the Flutter app. Use slow motion to observe animations or pause for static screenshots.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'speed': {
+            'type': 'string',
+            'description':
+                'Speed preset: normal (1x), slow (0.25x), very-slow (0.1x), paused',
+            'enum': ['normal', 'slow', 'very-slow', 'paused'],
+          },
+          'customFactor': {
+            'type': 'number',
+            'description':
+                'Custom time dilation factor. 1.0=normal, 4.0=4x slower, etc.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final speed = args['speed'] as String?;
+        final customFactor = (args['customFactor'] as num?)?.toDouble();
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        // Determine the factor to use
+        double factor;
+        if (customFactor != null) {
+          factor = customFactor;
+        } else if (speed != null) {
+          switch (speed) {
+            case 'normal':
+              factor = 1.0;
+            case 'slow':
+              factor = 4.0; // 0.25x speed
+            case 'very-slow':
+              factor = 10.0; // 0.1x speed
+            case 'paused':
+              factor = 1000000.0; // effectively paused
+            default:
+              factor = 1.0;
+          }
+        } else {
+          factor = 1.0;
+        }
+
+        try {
+          print(
+            '🎬 [FlutterRuntimeServer] Setting animation speed for instance $instanceId (factor: $factor)',
+          );
+
+          await instance.setTimeDilation(factor);
+
+          final description = customFactor != null
+              ? '${factor}x time dilation'
+              : speed ?? 'normal';
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Animation speed set to $description. Animations will now run ${factor > 1 ? "${factor}x slower" : "at normal speed"}.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetAnimationSpeed',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set animation speed: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Theme Mode - Switch between light/dark/system
+    server.tool(
+      'flutterSetThemeMode',
+      description:
+          'Switch between light and dark mode for testing. Useful for verifying UI appearance in both themes.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'mode': {
+            'type': 'string',
+            'description': 'Theme mode: light, dark, or system',
+            'enum': ['light', 'dark', 'system'],
+          },
+        },
+        required: ['instanceId', 'mode'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final mode = args['mode'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (mode == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: mode is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🎨 [FlutterRuntimeServer] Setting theme mode to $mode for instance $instanceId',
+          );
+
+          await instance.setThemeMode(mode);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Theme mode set to $mode. The app will now display with ${mode == "system" ? "system default" : mode} theme.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetThemeMode',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set theme mode: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Theme Mode - Get current theme mode
+    server.tool(
+      'flutterGetThemeMode',
+      description: 'Get the current theme mode (light, dark, or system).',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          final mode = await instance.getThemeMode();
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Current theme mode: $mode'),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetThemeMode',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to get theme mode: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Locale - Change app locale for i18n testing
+    server.tool(
+      'flutterSetLocale',
+      description:
+          'Change the app locale for internationalization testing. Test RTL layouts, text overflow in different languages, etc.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'locale': {
+            'type': 'string',
+            'description':
+                'Locale code in format "en-US", "ja-JP", "ar-SA", etc.',
+          },
+        },
+        required: ['instanceId', 'locale'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final locale = args['locale'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (locale == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: locale is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🌍 [FlutterRuntimeServer] Setting locale to $locale for instance $instanceId',
+          );
+
+          await instance.setLocale(locale);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Locale set to $locale. The app will now display with this locale if supported.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetLocale',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set locale: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Reset Locale - Reset to system locale
+    server.tool(
+      'flutterResetLocale',
+      description: 'Reset the locale to the system default.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🌍 [FlutterRuntimeServer] Resetting locale to system default for instance $instanceId',
+          );
+
+          await instance.resetLocale();
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Locale reset to system default. The app will now use the device locale.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterResetLocale',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to reset locale: $e'),
             ],
           );
         }

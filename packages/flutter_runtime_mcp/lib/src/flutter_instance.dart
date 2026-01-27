@@ -1431,6 +1431,273 @@ class FlutterInstance {
     throw Exception('clearErrors failed: ${json?['status']}');
   }
 
+  /// Set the animation speed by adjusting time dilation.
+  ///
+  /// [factor] controls the speed:
+  /// - 1.0 = normal speed
+  /// - 4.0 = 4x slower (0.25x speed)
+  /// - 10.0 = 10x slower (0.1x speed)
+  /// - 1000000.0 = effectively paused
+  ///
+  /// Returns true if successful.
+  Future<bool> setTimeDilation(double factor) async {
+    print('🎬 [FlutterInstance] Setting time dilation to $factor');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setTimeDilation',
+          isolateId: isolateId,
+          args: {'factor': factor.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setTimeDilation timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Time dilation set to ${json['factor']}');
+      return true;
+    }
+
+    throw Exception('setTimeDilation failed: ${json?['status']}');
+  }
+
+  /// Get the current time dilation factor.
+  ///
+  /// Returns the factor (1.0 = normal speed).
+  Future<double> getTimeDilation() async {
+    print('🔍 [FlutterInstance] Getting time dilation');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getTimeDilation',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getTimeDilation timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final factor = (json['factor'] as num).toDouble();
+      print('✅ [FlutterInstance] Time dilation is $factor');
+      return factor;
+    }
+
+    throw Exception('getTimeDilation failed: ${json?['status']}');
+  }
+
+  /// Set the theme mode for the app.
+  ///
+  /// [mode] can be 'light', 'dark', or 'system'.
+  ///
+  /// Returns true if successful.
+  Future<bool> setThemeMode(String mode) async {
+    print('🎨 [FlutterInstance] Setting theme mode to $mode');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setThemeMode',
+          isolateId: isolateId,
+          args: {'mode': mode},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setThemeMode timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Theme mode set to ${json['mode']}');
+      return true;
+    }
+
+    throw Exception('setThemeMode failed: ${json?['status']}');
+  }
+
+  /// Get the current theme mode.
+  ///
+  /// Returns the mode ('light', 'dark', or 'system').
+  Future<String> getThemeMode() async {
+    print('🔍 [FlutterInstance] Getting theme mode');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getThemeMode',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getThemeMode timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final mode = json['mode'] as String;
+      print('✅ [FlutterInstance] Theme mode is $mode');
+      return mode;
+    }
+
+    throw Exception('getThemeMode failed: ${json?['status']}');
+  }
+
+  /// Set the locale for the app.
+  ///
+  /// [locale] should be in format "en-US", "ja-JP", "ar-SA", etc.
+  ///
+  /// Returns true if successful.
+  Future<bool> setLocale(String locale) async {
+    print('🌍 [FlutterInstance] Setting locale to $locale');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setLocale',
+          isolateId: isolateId,
+          args: {'locale': locale},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale set to ${json['locale']}');
+      return true;
+    }
+
+    throw Exception('setLocale failed: ${json?['status']}');
+  }
+
+  /// Get the current locale.
+  ///
+  /// Returns a map containing 'locale', 'languageCode', 'countryCode', and 'isOverride'.
+  Future<Map<String, dynamic>> getLocale() async {
+    print('🔍 [FlutterInstance] Getting locale');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getLocale',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale is ${json['locale']}');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getLocale failed: ${json?['status']}');
+  }
+
+  /// Reset the locale to system default.
+  ///
+  /// Returns true if successful.
+  Future<bool> resetLocale() async {
+    print('🌍 [FlutterInstance] Resetting locale to system default');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.resetLocale',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'resetLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale reset to system default');
+      return true;
+    }
+
+    throw Exception('resetLocale failed: ${json?['status']}');
+  }
+
   /// Get a summary of the instance state
   Map<String, dynamic> toJson() {
     return {

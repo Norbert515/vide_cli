@@ -1,12 +1,18 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'device_size_state.dart';
 import 'tap_visualization.dart';
+import 'theme_extension.dart';
+import 'locale_extension.dart';
 
 /// Wraps the app with a custom overlay for tap visualization
 ///
 /// This widget creates its own overlay at the root of the widget tree,
 /// giving us full control over tap visualization without relying on
 /// Navigator's overlay or MaterialApp's overlay.
+///
+/// It also listens to device size, theme mode, and locale overrides,
+/// applying them via MediaQuery when set.
 class DebugOverlayWrapper extends StatefulWidget {
   final Widget child;
 
@@ -25,28 +31,74 @@ class _DebugOverlayWrapperState extends State<DebugOverlayWrapper> {
     // Register our overlay with the tap visualization service
     TapVisualizationService().setOverlayKey(_overlayKey);
     // Listen for device size changes
-    deviceSizeState.addListener(_onDeviceSizeChanged);
+    deviceSizeState.addListener(_onStateChanged);
+    // Listen to theme and locale changes
+    themeModeNotifier.addListener(_onStateChanged);
+    localeNotifier.addListener(_onStateChanged);
   }
 
   @override
   void dispose() {
-    deviceSizeState.removeListener(_onDeviceSizeChanged);
+    deviceSizeState.removeListener(_onStateChanged);
+    themeModeNotifier.removeListener(_onStateChanged);
+    localeNotifier.removeListener(_onStateChanged);
     super.dispose();
   }
 
-  void _onDeviceSizeChanged() {
+  void _onStateChanged() {
     setState(() {});
+  }
+
+  /// Build the brightness override based on theme mode
+  Brightness? _getBrightnessOverride() {
+    switch (themeModeNotifier.value) {
+      case ThemeModeOverride.light:
+        return Brightness.light;
+      case ThemeModeOverride.dark:
+        return Brightness.dark;
+      case ThemeModeOverride.system:
+        return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = deviceSizeState.settings;
 
+    Widget child = widget.child;
+
+    // Apply locale override if set
+    final localeOverride = localeNotifier.value;
+    if (localeOverride != null) {
+      child = Localizations.override(
+        context: context,
+        locale: Locale(localeOverride.languageCode, localeOverride.countryCode),
+        child: child,
+      );
+    }
+
+    // Apply brightness override via MediaQuery
+    final brightnessOverride = _getBrightnessOverride();
+    if (brightnessOverride != null) {
+      child = Builder(
+        builder: (context) {
+          // Get the existing MediaQuery data or create default
+          final existingData = MediaQuery.maybeOf(context) ??
+              MediaQueryData.fromView(ui.PlatformDispatcher.instance.views.first);
+
+          return MediaQuery(
+            data: existingData.copyWith(platformBrightness: brightnessOverride),
+            child: child,
+          );
+        },
+      );
+    }
+
     Widget content = Directionality(
       textDirection: TextDirection.ltr,
       child: Overlay(
         key: _overlayKey,
-        initialEntries: [OverlayEntry(builder: (context) => widget.child)],
+        initialEntries: [OverlayEntry(builder: (context) => child)],
       ),
     );
 
