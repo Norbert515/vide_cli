@@ -77,8 +77,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: HEAD
-      resolved-ref: "8cb49510415e1c6c969090fc184d880a1139926c"
+      ref: "348b1fcf8cd32b0e6747c4537e057fd3167bd479"
+      resolved-ref: "348b1fcf8cd32b0e6747c4537e057fd3167bd479"
       url: "https://github.com/Norbert515/bashboard-dart.git"
     source: git
     version: "0.1.0"
@@ -512,7 +512,7 @@ packages:
       path: "../nocterm"
       relative: true
     source: path
-    version: "0.4.3"
+    version: "0.4.4"
   nocterm_riverpod:
     dependency: "direct main"
     description:

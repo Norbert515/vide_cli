@@ -20,6 +20,7 @@ dependencies:
   bashboard:
     git:
       url: https://github.com/Norbert515/bashboard-dart.git
+      ref: 348b1fcf8cd32b0e6747c4537e057fd3167bd479
 
 assets:
   - assets/team_framework/teams/
