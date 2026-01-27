@@ -155,7 +155,9 @@ class BashCommandParser {
     return result;
   }
 
-  /// Split command by logical operators (&&, ||, ;)
+  /// Split command by logical operators (&&, ||, ;, &)
+  /// Note: Single & (background operator) is also handled as a separator
+  /// to ensure each command part is validated independently.
   static List<String> _splitByLogicalOperators(String command) {
     final parts = <String>[];
     final buffer = StringBuffer();
@@ -177,12 +179,22 @@ class BashCommandParser {
         if (char == ';') {
           parts.add(buffer.toString());
           buffer.clear();
-        } else if (char == '&' &&
-            i + 1 < command.length &&
-            command[i + 1] == '&') {
-          parts.add(buffer.toString());
-          buffer.clear();
-          i++; // Skip next &
+        } else if (char == '&') {
+          if (i + 1 < command.length && command[i + 1] == '&') {
+            // Handle && (AND operator)
+            parts.add(buffer.toString());
+            buffer.clear();
+            i++; // Skip next &
+          } else if (_isPartOfRedirection(command, i)) {
+            // This & is part of a redirection like >&, 2>&1, &>, etc.
+            // Not a background operator - keep it in the buffer
+            buffer.write(char);
+          } else {
+            // Handle single & (background operator)
+            // SECURITY: Must split here to validate each command independently
+            parts.add(buffer.toString());
+            buffer.clear();
+          }
         } else if (char == '|' &&
             i + 1 < command.length &&
             command[i + 1] == '|') {
@@ -241,6 +253,40 @@ class BashCommandParser {
     }
 
     return parts;
+  }
+
+  /// Check if the & at position i is part of a redirection operator
+  /// Common patterns:
+  /// - >&   : redirect stdout (e.g., >&2)
+  /// - 2>&1 : redirect stderr to stdout (digit before &)
+  /// - &>   : redirect both stdout and stderr
+  /// - &>>  : append both stdout and stderr
+  static bool _isPartOfRedirection(String command, int i) {
+    // Check if preceded by > (part of >&)
+    if (i > 0 && command[i - 1] == '>') {
+      return true;
+    }
+
+    // Check if preceded by digit and > (part of 2>&1, 1>&2, etc.)
+    if (i >= 2) {
+      final prevChar = command[i - 1];
+      final prevPrevChar = command[i - 2];
+      if (prevChar == '>' && _isDigit(prevPrevChar)) {
+        return true;
+      }
+    }
+
+    // Check if followed by > (part of &> or &>>)
+    if (i + 1 < command.length && command[i + 1] == '>') {
+      return true;
+    }
+
+    return false;
+  }
+
+  /// Check if a character is a digit
+  static bool _isDigit(String char) {
+    return char.length == 1 && char.codeUnitAt(0) >= 48 && char.codeUnitAt(0) <= 57;
   }
 
   /// Detect the type of command

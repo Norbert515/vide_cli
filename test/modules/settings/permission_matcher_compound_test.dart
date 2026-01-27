@@ -216,6 +216,121 @@ void main() {
     });
   });
 
+  group('PermissionMatcher background operator (&)', () {
+    test('splits command on single & (background operator)', () {
+      // SECURITY: Single & must split the command so each part is validated
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get & echo done'),
+        ),
+        isFalse, // echo does not match dart pub:*
+      );
+    });
+
+    test('validates both commands with background operator', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get & dart analyze'),
+        ),
+        isTrue, // Both commands match dart:*
+      );
+    });
+
+    test('rejects when first command before & does not match', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'rm -rf / & dart pub get'),
+        ),
+        isFalse, // rm -rf / does not match dart pub:*
+      );
+    });
+
+    test('rejects when second command after & does not match', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get & rm -rf /'),
+        ),
+        isFalse, // rm -rf / does not match dart pub:*
+      );
+    });
+
+    test('handles multiple & operators', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get & dart test & dart analyze'),
+        ),
+        isTrue, // All commands match dart:*
+      );
+    });
+
+    test('handles mix of & and && operators', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get && dart test & dart analyze'),
+        ),
+        isTrue, // All commands match dart:*
+      );
+    });
+
+    test('rejects mix of & and && when one command does not match', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart pub:*)',
+          'Bash',
+          BashToolInput(command: 'dart pub get && echo foo & dart pub deps'),
+        ),
+        isFalse, // echo does not match dart pub:*
+      );
+    });
+
+    test('handles & in quoted strings correctly', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(echo:*)',
+          'Bash',
+          BashToolInput(command: 'echo "run in background &" & echo done'),
+        ),
+        isTrue, // Both are echo commands
+      );
+    });
+
+    test('handles single & with cd', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart:*)',
+          'Bash',
+          BashToolInput(command: 'cd /project/sub & dart pub get'),
+          context: {'cwd': '/project'},
+        ),
+        isTrue, // cd within working dir is auto-approved, dart matches
+      );
+    });
+
+    test('rejects background command with cd outside working directory', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart:*)',
+          'Bash',
+          BashToolInput(command: 'cd /other & dart pub get'),
+          context: {'cwd': '/project'},
+        ),
+        isFalse, // cd outside working dir blocks the command
+      );
+    });
+  });
+
   group('PermissionMatcher backward compatibility', () {
     test('matches simple command without context', () {
       expect(
