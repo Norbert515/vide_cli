@@ -76,6 +76,8 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterScrollAt',
     'flutterMoveCursor',
     'flutterGetWidgetInfo',
+    'flutterSetDeviceSize',
+    'flutterResetDeviceSize',
   ];
 
   @override
@@ -102,6 +104,25 @@ class FlutterRuntimeServer extends McpServerBase {
             'description':
                 'REQUIRED: Pass your tool use ID here. This allows the UI to start streaming output immediately.',
           },
+          'devicePreset': {
+            'type': 'string',
+            'description':
+                'Optional device preset to simulate on startup. Options: iphone-se, iphone-14, iphone-14-pro-max, iphone-landscape, ipad-mini, ipad-pro-11, ipad-pro-12.9, pixel-7, pixel-fold, desktop-hd, desktop-full-hd, desktop-2k',
+            'enum': [
+              'iphone-se',
+              'iphone-14',
+              'iphone-14-pro-max',
+              'iphone-landscape',
+              'ipad-mini',
+              'ipad-pro-11',
+              'ipad-pro-12.9',
+              'pixel-7',
+              'pixel-fold',
+              'desktop-hd',
+              'desktop-full-hd',
+              'desktop-2k',
+            ],
+          },
         },
         required: ['command', 'instanceId'],
       ),
@@ -110,6 +131,7 @@ class FlutterRuntimeServer extends McpServerBase {
         final workingDirectory =
             args['workingDirectory'] as String? ?? Directory.current.path;
         final instanceId = args['instanceId'] as String? ?? _uuid.v4();
+        final devicePreset = args['devicePreset'] as String?;
 
         try {
           // Parse command into parts
@@ -227,6 +249,24 @@ class FlutterRuntimeServer extends McpServerBase {
           if (instance.deviceId != null) {
             outputBuffer.writeln('Device ID: ${instance.deviceId}');
           }
+
+          // Apply device preset if specified
+          if (devicePreset != null) {
+            try {
+              print(
+                '📱 [FlutterRuntimeServer] Applying device preset: $devicePreset',
+              );
+              final result = await instance.setDeviceSize(preset: devicePreset);
+              outputBuffer.writeln(
+                'Device Preset: $devicePreset (${result['width']}x${result['height']})',
+              );
+            } catch (e) {
+              outputBuffer.writeln(
+                'Warning: Failed to apply device preset $devicePreset: $e',
+              );
+            }
+          }
+
           outputBuffer.writeln();
           outputBuffer.writeln('=== Flutter Output ===');
           outputBuffer.writeln();
@@ -2187,6 +2227,208 @@ For example:
           return CallToolResult.fromContent(
             content: [
               TextContent(text: 'Error: Failed to get widget info: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Device Size - Override device size for responsive testing
+    server.tool(
+      'flutterSetDeviceSize',
+      description:
+          'Set a custom device size for responsive testing. Uses MediaQuery override so the app responds to breakpoints as if on the target device. Choose from presets (iphone-se, iphone-14, ipad-pro-11, pixel-7, desktop-hd, etc.) or specify custom width/height.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'preset': {
+            'type': 'string',
+            'description':
+                'Device preset name. Options: iphone-se, iphone-14, iphone-14-pro-max, iphone-landscape, ipad-mini, ipad-pro-11, ipad-pro-12.9, pixel-7, pixel-fold, desktop-hd, desktop-full-hd, desktop-2k',
+            'enum': [
+              'iphone-se',
+              'iphone-14',
+              'iphone-14-pro-max',
+              'iphone-landscape',
+              'ipad-mini',
+              'ipad-pro-11',
+              'ipad-pro-12.9',
+              'pixel-7',
+              'pixel-fold',
+              'desktop-hd',
+              'desktop-full-hd',
+              'desktop-2k',
+            ],
+          },
+          'width': {
+            'type': 'number',
+            'description':
+                'Custom width in logical pixels. Use instead of preset for custom sizes.',
+          },
+          'height': {
+            'type': 'number',
+            'description':
+                'Custom height in logical pixels. Use instead of preset for custom sizes.',
+          },
+          'devicePixelRatio': {
+            'type': 'number',
+            'description':
+                'Device pixel ratio (default 1.0). Higher values simulate higher DPI screens.',
+          },
+          'showFrame': {
+            'type': 'boolean',
+            'description':
+                'Whether to show a visual device frame around the app (default true)',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final preset = args['preset'] as String?;
+        final width = (args['width'] as num?)?.toDouble();
+        final height = (args['height'] as num?)?.toDouble();
+        final devicePixelRatio = (args['devicePixelRatio'] as num?)?.toDouble();
+        final showFrame = args['showFrame'] as bool? ?? true;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        // Validate that either preset or width+height is provided
+        if (preset == null && (width == null || height == null)) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Error: Either preset or both width and height must be provided',
+              ),
+            ],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '📱 [FlutterRuntimeServer] Setting device size for instance $instanceId',
+          );
+
+          final result = await instance.setDeviceSize(
+            preset: preset,
+            width: width,
+            height: height,
+            devicePixelRatio: devicePixelRatio,
+            showFrame: showFrame,
+          );
+
+          final appliedWidth = result['width'];
+          final appliedHeight = result['height'];
+          final appliedDpr = result['devicePixelRatio'];
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    '''Device size set successfully!
+
+Size: ${appliedWidth}x$appliedHeight @ ${appliedDpr}x
+Frame: ${result['showFrame']}
+
+The app is now running in a simulated ${preset ?? 'custom'} viewport.
+Breakpoints and MediaQuery will respond to the new size.''',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetDeviceSize',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set device size: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Reset Device Size - Reset to native device size
+    server.tool(
+      'flutterResetDeviceSize',
+      description:
+          'Reset the device size to native. Clears any device size override and returns to the actual device dimensions.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '📱 [FlutterRuntimeServer] Resetting device size for instance $instanceId',
+          );
+
+          await instance.resetDeviceSize();
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Device size reset to native. The app is now using the actual device dimensions.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterResetDeviceSize',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to reset device size: $e'),
             ],
           );
         }

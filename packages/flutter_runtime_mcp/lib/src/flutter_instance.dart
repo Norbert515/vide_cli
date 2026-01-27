@@ -1053,6 +1053,189 @@ class FlutterInstance {
     }
   }
 
+  /// Set the device size for responsive testing
+  ///
+  /// Uses MediaQuery override to simulate different device sizes.
+  /// The app will respond to breakpoints as if it was running on the target device.
+  ///
+  /// Parameters:
+  /// - width: Logical width in pixels
+  /// - height: Logical height in pixels
+  /// - devicePixelRatio: Device pixel ratio (optional, default 1.0)
+  /// - showFrame: Whether to show a visual device frame (default true)
+  /// - preset: Named preset (e.g., 'iphone-14', 'ipad-pro-11') - overrides width/height
+  ///
+  /// Returns the applied settings.
+  Future<Map<String, dynamic>> setDeviceSize({
+    double? width,
+    double? height,
+    double? devicePixelRatio,
+    bool showFrame = true,
+    String? preset,
+  }) async {
+    print('📱 [FlutterInstance] Setting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final args = <String, String>{
+      'showFrame': showFrame.toString(),
+    };
+
+    if (preset != null) {
+      args['preset'] = preset;
+      print('   Using preset: $preset');
+    } else if (width != null && height != null) {
+      args['width'] = width.toString();
+      args['height'] = height.toString();
+      if (devicePixelRatio != null) {
+        args['devicePixelRatio'] = devicePixelRatio.toString();
+      }
+      print('   Setting size to ${width}x$height @ ${devicePixelRatio ?? 1.0}x');
+    } else {
+      throw ArgumentError(
+        'Either preset or width+height must be provided',
+      );
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.setDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setDeviceSize',
+          isolateId: isolateId,
+          args: args,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from setDeviceSize',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('setDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Device size set successfully');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('setDeviceSize failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Reset the device size to native
+  ///
+  /// Clears any device size override and returns to the native device size.
+  Future<void> resetDeviceSize() async {
+    print('📱 [FlutterInstance] Resetting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.resetDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.resetDeviceSize',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'resetDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from resetDeviceSize',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('resetDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Device size reset to native');
+      return;
+    }
+
+    throw Exception(
+      'resetDeviceSize failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Get the current device size settings
+  ///
+  /// Returns the current device size settings, or null if using native size.
+  Future<Map<String, dynamic>> getDeviceSize() async {
+    print('📱 [FlutterInstance] Getting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getDeviceSize',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from getDeviceSize',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Got device size');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getDeviceSize failed: ${json['error'] ?? json['status']}');
+  }
+
   /// Get a summary of the instance state
   Map<String, dynamic> toJson() {
     return {

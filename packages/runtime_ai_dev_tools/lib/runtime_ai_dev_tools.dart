@@ -7,6 +7,7 @@ import 'src/scroll_extension.dart';
 import 'src/widget_info_extension.dart';
 import 'src/actionable_elements_extension.dart';
 import 'src/cursor_extension.dart';
+import 'src/device_size_extension.dart';
 import 'src/debug_overlay_wrapper.dart';
 import 'src/debug_binding.dart';
 
@@ -119,7 +120,7 @@ class RuntimeAiDevTools {
     registerWidgetInfoExtension();
     registerActionableElementsExtension();
     registerCursorExtension();
-    registerActionableElementsExtension();
+    registerDeviceSizeExtension();
     print('✅ [RuntimeAiDevTools] Service extensions registered');
 
     _initialized = true;
