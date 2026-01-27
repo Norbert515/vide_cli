@@ -9,9 +9,11 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -35,11 +37,17 @@ class _TapVisualizationService {
   _TapVisualizationService._internal();
 
   OverlayEntry? _currentOverlay;
+  bool _currentOverlayInserted = false;
   OverlayEntry? _persistentCursorOverlay;
+  bool _persistentCursorOverlayInserted = false;
   OverlayEntry? _scrollPathOverlay;
+  bool _scrollPathOverlayInserted = false;
   OverlayEntry? _scrollEndIndicatorOverlay;
+  bool _scrollEndIndicatorOverlayInserted = false;
   OverlayEntry? _inspectionPulseOverlay;
+  bool _inspectionPulseOverlayInserted = false;
   OverlayEntry? _screenshotFlashOverlay;
+  bool _screenshotFlashOverlayInserted = false;
   GlobalKey<OverlayState>? _overlayKey;
 
   /// Current cursor position in logical pixels (null if no cursor set)
@@ -52,8 +60,9 @@ class _TapVisualizationService {
   /// This is the preferred method for service extensions as it doesn't require a BuildContext
   void setCursorPosition(double x, double y) {
     // Clear any existing cursor overlay
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
 
     // Store the cursor position
     _cursorPosition = Offset(x, y);
@@ -69,6 +78,7 @@ class _TapVisualizationService {
           if (_persistentCursorOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_persistentCursorOverlay!);
+            _persistentCursorOverlayInserted = true;
                       }
         } catch (e) {
                   }
@@ -79,8 +89,9 @@ class _TapVisualizationService {
 
   /// Clears just the cursor position and overlay
   void clearCursorPosition() {
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
     _cursorPosition = null;
   }
 
@@ -92,8 +103,9 @@ class _TapVisualizationService {
   /// Shows a tap visualization at the specified position
   void showTapAt(BuildContext context, double x, double y) {
     // Remove any existing overlay
-    _currentOverlay?.remove();
+    _safeRemove(_currentOverlay, _currentOverlayInserted);
     _currentOverlay = null;
+    _currentOverlayInserted = false;
 
     // Create new overlay entry
     _currentOverlay = OverlayEntry(
@@ -101,8 +113,11 @@ class _TapVisualizationService {
         x: x,
         y: y,
         onComplete: () {
-          _currentOverlay?.remove();
+          if (_currentOverlayInserted) {
+            _currentOverlay?.remove();
+          }
           _currentOverlay = null;
+          _currentOverlayInserted = false;
         },
       ),
     );
@@ -114,6 +129,7 @@ class _TapVisualizationService {
           // Use our custom overlay if available, otherwise fall back to context-based lookup
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_currentOverlay!);
+          _currentOverlayInserted = true;
                   }
       } catch (e) {
               }
@@ -122,8 +138,9 @@ class _TapVisualizationService {
 
   /// Clears any active overlay
   void clear() {
-    _currentOverlay?.remove();
+    _safeRemove(_currentOverlay, _currentOverlayInserted);
     _currentOverlay = null;
+    _currentOverlayInserted = false;
   }
 
   /// Sets a persistent cursor at the specified position that stays visible until explicitly cleared
@@ -146,6 +163,7 @@ class _TapVisualizationService {
         if (_persistentCursorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_persistentCursorOverlay!);
+          _persistentCursorOverlayInserted = true;
                   }
       } catch (e) {
               }
@@ -154,8 +172,9 @@ class _TapVisualizationService {
 
   /// Clears the persistent cursor overlay and position
   void clearPersistentCursor() {
-    _persistentCursorOverlay?.remove();
+    _safeRemove(_persistentCursorOverlay, _persistentCursorOverlayInserted);
     _persistentCursorOverlay = null;
+    _persistentCursorOverlayInserted = false;
     _cursorPosition = null;
   }
 
@@ -163,8 +182,9 @@ class _TapVisualizationService {
   void showScrollPath(
       BuildContext context, Offset start, Offset end, Duration duration) {
     // Remove any existing scroll path overlay
-    _scrollPathOverlay?.remove();
+    _safeRemove(_scrollPathOverlay, _scrollPathOverlayInserted);
     _scrollPathOverlay = null;
+    _scrollPathOverlayInserted = false;
 
     // Create new overlay entry for scroll path animation
     _scrollPathOverlay = OverlayEntry(
@@ -173,8 +193,11 @@ class _TapVisualizationService {
         end: end,
         duration: duration,
         onComplete: () {
-          _scrollPathOverlay?.remove();
+          if (_scrollPathOverlayInserted) {
+            _scrollPathOverlay?.remove();
+          }
           _scrollPathOverlay = null;
+          _scrollPathOverlayInserted = false;
         },
       ),
     );
@@ -185,6 +208,7 @@ class _TapVisualizationService {
         if (_scrollPathOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollPathOverlay!);
+          _scrollPathOverlayInserted = true;
                   }
       } catch (e) {
               }
@@ -206,6 +230,7 @@ class _TapVisualizationService {
         if (_scrollEndIndicatorOverlay != null) {
           final overlayState = _overlayKey?.currentState ?? Overlay.of(context);
           overlayState.insert(_scrollEndIndicatorOverlay!);
+          _scrollEndIndicatorOverlayInserted = true;
                   }
       } catch (e) {
               }
@@ -214,22 +239,26 @@ class _TapVisualizationService {
 
   /// Clears the scroll end indicator overlay
   void clearScrollEndIndicator() {
-    _scrollEndIndicatorOverlay?.remove();
+    _safeRemove(
+        _scrollEndIndicatorOverlay, _scrollEndIndicatorOverlayInserted);
     _scrollEndIndicatorOverlay = null;
+    _scrollEndIndicatorOverlayInserted = false;
   }
 
   /// Clears the scroll path overlay
   void clearScrollPath() {
-    _scrollPathOverlay?.remove();
+    _safeRemove(_scrollPathOverlay, _scrollPathOverlayInserted);
     _scrollPathOverlay = null;
+    _scrollPathOverlayInserted = false;
   }
 
   /// Shows an inspection pulse animation at the specified position
   /// This indicates that widget info is being retrieved at that location
   void showInspectionPulse(double x, double y) {
     // Remove any existing inspection pulse
-    _inspectionPulseOverlay?.remove();
+    _safeRemove(_inspectionPulseOverlay, _inspectionPulseOverlayInserted);
     _inspectionPulseOverlay = null;
+    _inspectionPulseOverlayInserted = false;
 
     // Try to show the inspection pulse if we have a registered overlay key
     if (_overlayKey?.currentState != null) {
@@ -238,8 +267,11 @@ class _TapVisualizationService {
           x: x,
           y: y,
           onComplete: () {
-            _inspectionPulseOverlay?.remove();
+            if (_inspectionPulseOverlayInserted) {
+              _inspectionPulseOverlay?.remove();
+            }
             _inspectionPulseOverlay = null;
+            _inspectionPulseOverlayInserted = false;
           },
         ),
       );
@@ -249,6 +281,7 @@ class _TapVisualizationService {
           if (_inspectionPulseOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_inspectionPulseOverlay!);
+            _inspectionPulseOverlayInserted = true;
                       }
         } catch (e) {
                   }
@@ -260,16 +293,20 @@ class _TapVisualizationService {
   /// This provides visual feedback when a screenshot is being taken
   void showScreenshotFlash() {
     // Remove any existing screenshot flash
-    _screenshotFlashOverlay?.remove();
+    _safeRemove(_screenshotFlashOverlay, _screenshotFlashOverlayInserted);
     _screenshotFlashOverlay = null;
+    _screenshotFlashOverlayInserted = false;
 
     // Try to show the screenshot flash if we have a registered overlay key
     if (_overlayKey?.currentState != null) {
       _screenshotFlashOverlay = OverlayEntry(
         builder: (context) => _ScreenshotFlash(
           onComplete: () {
-            _screenshotFlashOverlay?.remove();
+            if (_screenshotFlashOverlayInserted) {
+              _screenshotFlashOverlay?.remove();
+            }
             _screenshotFlashOverlay = null;
+            _screenshotFlashOverlayInserted = false;
           },
         ),
       );
@@ -279,10 +316,20 @@ class _TapVisualizationService {
           if (_screenshotFlashOverlay != null &&
               _overlayKey?.currentState != null) {
             _overlayKey!.currentState!.insert(_screenshotFlashOverlay!);
+            _screenshotFlashOverlayInserted = true;
                       }
         } catch (e) {
                   }
       });
+    }
+  }
+
+  /// Safely remove an overlay entry, only if it was actually inserted.
+  /// Calling remove() on an entry that was never inserted causes
+  /// '_overlay != null' assertion failures.
+  static void _safeRemove(OverlayEntry? entry, bool wasInserted) {
+    if (entry != null && wasInserted) {
+      entry.remove();
     }
   }
 }
@@ -3124,6 +3171,14 @@ Map<String, dynamic>? _extractActionableInfoFromWidget(
   final id = generateId(info['type'] as String);
   info['id'] = id;
 
+  // Add bounds to the info map (consistent with the semantics path)
+  info['bounds'] = {
+    'x': bounds.left.round(),
+    'y': bounds.top.round(),
+    'width': bounds.width.round(),
+    'height': bounds.height.round(),
+  };
+
   // Register element for tapElement lookup
   ActionableElementRegistry.instance.register(id, element, bounds);
 
@@ -3356,6 +3411,1061 @@ String? _getListTileSubtitle(ListTile widget) {
 }
 
 // ============================================================================
+// navigation_extension.dart
+// ============================================================================
+
+/// Registers the navigation state service extension
+///
+/// This extension provides information about the current navigation state,
+/// including the current route, route stack, and modal route count.
+void _registerNavigationExtension() {
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getNavigationState',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final result = _getNavigationState();
+        return developer.ServiceExtensionResponse.result(json.encode(result));
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to get navigation state: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+}
+
+/// Get the current navigation state from the widget tree
+Map<String, dynamic> _getNavigationState() {
+  
+  final binding = WidgetsBinding.instance;
+  final rootElement = binding.rootElement;
+
+  if (rootElement == null) {
+        return {
+      'status': 'error',
+      'error': 'No root element available',
+    };
+  }
+
+  // Find NavigatorState instances in the widget tree
+  final navigatorStates = <NavigatorState>[];
+  _findNavigatorStates(rootElement, navigatorStates);
+
+  if (navigatorStates.isEmpty) {
+        return {
+      'status': 'success',
+      'currentRoute': null,
+      'routeStack': <String>[],
+      'canGoBack': false,
+      'modalRoutes': 0,
+    };
+  }
+
+  // Use the first (typically root) navigator for main navigation info
+  final navigator = navigatorStates.first;
+
+  // Extract route information
+  final routeStack = <String>[];
+  var modalRouteCount = 0;
+  String? currentRoute;
+
+  // Try to access routes via the overlay (Navigator uses an Overlay internally)
+  // We'll traverse the navigator's context to find route information
+  navigator.context.visitChildElements((element) {
+    _extractRoutesFromElement(element, routeStack, (isModal) {
+      if (isModal) modalRouteCount++;
+    });
+  });
+
+  // Get the current route name from the topmost route
+  if (routeStack.isNotEmpty) {
+    currentRoute = routeStack.last;
+  }
+
+  // Check if we can go back (more than one route in stack)
+  final canGoBack = navigator.canPop();
+
+          
+  return {
+    'status': 'success',
+    'currentRoute': currentRoute,
+    'routeStack': routeStack,
+    'canGoBack': canGoBack,
+    'modalRoutes': modalRouteCount,
+  };
+}
+
+/// Recursively find NavigatorState instances in the element tree
+void _findNavigatorStates(Element element, List<NavigatorState> states) {
+  if (element is StatefulElement && element.state is NavigatorState) {
+    states.add(element.state as NavigatorState);
+  }
+  element.visitChildren((child) => _findNavigatorStates(child, states));
+}
+
+/// Extract route information from overlay entries
+void _extractRoutesFromElement(
+  Element element,
+  List<String> routeStack,
+  void Function(bool isModal) onRouteFound,
+) {
+  // Check if this element is associated with a route
+  final widget = element.widget;
+
+  // Look for ModalRoute in the element's ancestors
+  final modalRoute = ModalRoute.of(element);
+  if (modalRoute != null) {
+    final routeName = _getRouteName(modalRoute);
+    if (!routeStack.contains(routeName)) {
+      routeStack.add(routeName);
+      onRouteFound(modalRoute is PopupRoute);
+    }
+  }
+
+  // Also check for route-specific widgets that indicate navigation
+  if (widget is Navigator) {
+    // Found a nested navigator, get its routes
+    final navigatorState = (element as StatefulElement).state as NavigatorState;
+    _extractRoutesFromNavigator(navigatorState, routeStack, onRouteFound);
+  }
+
+  element.visitChildren((child) {
+    _extractRoutesFromElement(child, routeStack, onRouteFound);
+  });
+}
+
+/// Extract routes from a NavigatorState
+void _extractRoutesFromNavigator(
+  NavigatorState navigator,
+  List<String> routeStack,
+  void Function(bool isModal) onRouteFound,
+) {
+  // Use the navigator's overlay to access route entries
+  final overlay = navigator.overlay;
+  if (overlay == null) return;
+
+  final overlayState = overlay;
+
+  // The overlay contains OverlayEntry objects that correspond to routes
+  // We need to check the widget tree under the overlay
+  overlayState.context.visitChildElements((element) {
+    final modalRoute = ModalRoute.of(element);
+    if (modalRoute != null) {
+      final routeName = _getRouteName(modalRoute);
+      if (!routeStack.contains(routeName)) {
+        routeStack.add(routeName);
+        onRouteFound(modalRoute is PopupRoute);
+      }
+    }
+  });
+}
+
+/// Get a displayable name for a route
+String _getRouteName(Route<dynamic> route) {
+  // Try to get the route name from settings
+  final settings = route.settings;
+  if (settings.name != null && settings.name!.isNotEmpty) {
+    return settings.name!;
+  }
+
+  // Fall back to the route type name
+  return route.runtimeType.toString();
+}
+
+// ============================================================================
+// error_extension.dart
+// ============================================================================
+
+/// Maximum number of errors to buffer to prevent memory issues
+const int _maxErrorBufferSize = 100;
+
+/// Error capture state singleton
+class _ErrorCaptureState {
+  _ErrorCaptureState._();
+  static final instance = _ErrorCaptureState._();
+
+  bool _enabled = false;
+  final List<Map<String, dynamic>> _errors = [];
+
+  /// Original Flutter error handler (chained)
+  FlutterExceptionHandler? _originalFlutterOnError;
+
+  /// Original platform dispatcher error handler (chained)
+  ErrorCallback? _originalPlatformOnError;
+
+  bool get isEnabled => _enabled;
+
+  void enable() {
+    if (_enabled) return;
+
+    // Chain with existing Flutter error handler
+    _originalFlutterOnError = FlutterError.onError;
+    FlutterError.onError = (FlutterErrorDetails details) {
+      _captureFlutterError(details);
+      // Call the original handler
+      _originalFlutterOnError?.call(details);
+    };
+
+    // Chain with existing platform dispatcher error handler (async errors)
+    _originalPlatformOnError = PlatformDispatcher.instance.onError;
+    PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+      _capturePlatformError(error, stack);
+      // Call the original handler if it exists, return its result
+      // If no original handler, return false to allow the error to propagate
+      return _originalPlatformOnError?.call(error, stack) ?? false;
+    };
+
+    _enabled = true;
+      }
+
+  void disable() {
+    if (!_enabled) return;
+
+    // Restore original handlers
+    FlutterError.onError = _originalFlutterOnError;
+    PlatformDispatcher.instance.onError = _originalPlatformOnError;
+
+    _originalFlutterOnError = null;
+    _originalPlatformOnError = null;
+    _enabled = false;
+      }
+
+  void _captureFlutterError(FlutterErrorDetails details) {
+    final errorInfo = <String, dynamic>{
+      'type': 'FlutterError',
+      'message': details.exceptionAsString(),
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'stackTrace': details.stack?.toString() ?? '',
+    };
+
+    // Add context if available
+    if (details.context != null) {
+      errorInfo['context'] = details.context!.toDescription();
+    }
+
+    // Add library if available
+    if (details.library != null) {
+      errorInfo['library'] = details.library;
+    }
+
+    _addError(errorInfo);
+  }
+
+  void _capturePlatformError(Object error, StackTrace stack) {
+    final errorInfo = <String, dynamic>{
+      'type': 'AsyncError',
+      'message': error.toString(),
+      'timestamp': DateTime.now().toUtc().toIso8601String(),
+      'stackTrace': stack.toString(),
+    };
+
+    _addError(errorInfo);
+  }
+
+  void _addError(Map<String, dynamic> errorInfo) {
+    // Enforce max buffer size
+    if (_errors.length >= _maxErrorBufferSize) {
+      _errors.removeAt(0); // Remove oldest error
+    }
+    _errors.add(errorInfo);
+      }
+
+  List<Map<String, dynamic>> getErrors({bool clear = true}) {
+    final result = List<Map<String, dynamic>>.from(_errors);
+    if (clear) {
+      _errors.clear();
+    }
+    return result;
+  }
+
+  int clearErrors() {
+    final count = _errors.length;
+    _errors.clear();
+    return count;
+  }
+
+  int get errorCount => _errors.length;
+}
+
+/// Registers the error capture service extensions
+///
+/// This registers three extensions:
+/// - ext.runtime_ai_dev_tools.enableErrorCapture - Enable/disable error capture
+/// - ext.runtime_ai_dev_tools.getErrors - Get captured errors
+/// - ext.runtime_ai_dev_tools.clearErrors - Clear the error buffer
+void _registerErrorExtension() {
+  
+  // Enable/disable error capture
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.enableErrorCapture',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final enabledStr = parameters['enabled'] ?? 'true';
+        final enabled = enabledStr.toLowerCase() == 'true';
+
+        if (enabled) {
+          _ErrorCaptureState.instance.enable();
+        } else {
+          _ErrorCaptureState.instance.disable();
+        }
+
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'enabled': _ErrorCaptureState.instance.isEnabled,
+          }),
+        );
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to enable/disable error capture: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+
+  // Get captured errors
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getErrors',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final clearStr = parameters['clear'] ?? 'true';
+        final clear = clearStr.toLowerCase() == 'true';
+
+        final errors = _ErrorCaptureState.instance.getErrors(clear: clear);
+
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'errors': errors,
+            'count': errors.length,
+          }),
+        );
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to get errors: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+
+  // Clear error buffer
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.clearErrors',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final cleared = _ErrorCaptureState.instance.clearErrors();
+
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'cleared': cleared,
+          }),
+        );
+      } catch (e, stackTrace) {
+                        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to clear errors: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+}
+
+// ============================================================================
+// device_presets.dart
+// ============================================================================
+
+/// Device size presets for responsive testing
+class DevicePreset {
+  final String name;
+  final double width;
+  final double height;
+  final double devicePixelRatio;
+
+  const DevicePreset({
+    required this.name,
+    required this.width,
+    required this.height,
+    required this.devicePixelRatio,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'width': width,
+    'height': height,
+    'devicePixelRatio': devicePixelRatio,
+  };
+}
+
+/// Standard device presets for common devices
+class DevicePresets {
+  DevicePresets._();
+
+  static const iphoneSe = DevicePreset(
+    name: 'iphone-se',
+    width: 375,
+    height: 667,
+    devicePixelRatio: 2.0,
+  );
+
+  static const iphone14 = DevicePreset(
+    name: 'iphone-14',
+    width: 390,
+    height: 844,
+    devicePixelRatio: 3.0,
+  );
+
+  static const iphone14ProMax = DevicePreset(
+    name: 'iphone-14-pro-max',
+    width: 430,
+    height: 932,
+    devicePixelRatio: 3.0,
+  );
+
+  static const iphoneLandscape = DevicePreset(
+    name: 'iphone-landscape',
+    width: 844,
+    height: 390,
+    devicePixelRatio: 3.0,
+  );
+
+  static const ipadMini = DevicePreset(
+    name: 'ipad-mini',
+    width: 744,
+    height: 1133,
+    devicePixelRatio: 2.0,
+  );
+
+  static const ipadPro11 = DevicePreset(
+    name: 'ipad-pro-11',
+    width: 834,
+    height: 1194,
+    devicePixelRatio: 2.0,
+  );
+
+  static const ipadPro129 = DevicePreset(
+    name: 'ipad-pro-12.9',
+    width: 1024,
+    height: 1366,
+    devicePixelRatio: 2.0,
+  );
+
+  static const pixel7 = DevicePreset(
+    name: 'pixel-7',
+    width: 412,
+    height: 915,
+    devicePixelRatio: 2.625,
+  );
+
+  static const pixelFold = DevicePreset(
+    name: 'pixel-fold',
+    width: 841,
+    height: 701,
+    devicePixelRatio: 2.625,
+  );
+
+  static const desktopHd = DevicePreset(
+    name: 'desktop-hd',
+    width: 1280,
+    height: 720,
+    devicePixelRatio: 1.0,
+  );
+
+  static const desktopFullHd = DevicePreset(
+    name: 'desktop-full-hd',
+    width: 1920,
+    height: 1080,
+    devicePixelRatio: 1.0,
+  );
+
+  static const desktop2k = DevicePreset(
+    name: 'desktop-2k',
+    width: 2560,
+    height: 1440,
+    devicePixelRatio: 1.0,
+  );
+
+  /// All available presets
+  static const List<DevicePreset> all = [
+    iphoneSe,
+    iphone14,
+    iphone14ProMax,
+    iphoneLandscape,
+    ipadMini,
+    ipadPro11,
+    ipadPro129,
+    pixel7,
+    pixelFold,
+    desktopHd,
+    desktopFullHd,
+    desktop2k,
+  ];
+
+  /// Get a preset by name, returns null if not found
+  static DevicePreset? byName(String name) {
+    for (final preset in all) {
+      if (preset.name == name) {
+        return preset;
+      }
+    }
+    return null;
+  }
+
+  /// List of all preset names
+  static List<String> get names => all.map((p) => p.name).toList();
+}
+
+// ============================================================================
+// device_size_state.dart
+// ============================================================================
+
+/// Settings for device size override
+class _DeviceSizeSettings {
+  final double width;
+  final double height;
+  final double devicePixelRatio;
+  final bool showFrame;
+
+  const _DeviceSizeSettings({
+    required this.width,
+    required this.height,
+    required this.devicePixelRatio,
+    this.showFrame = true,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'width': width,
+    'height': height,
+    'devicePixelRatio': devicePixelRatio,
+    'showFrame': showFrame,
+  };
+}
+
+/// Global state notifier for device size settings
+///
+/// This allows service extensions to update the device size
+/// and the widget tree to listen for changes.
+class DeviceSizeStateNotifier extends ChangeNotifier {
+  _DeviceSizeSettings? _settings;
+
+  /// Current device size settings, null if using native size
+  _DeviceSizeSettings? get settings => _settings;
+
+  /// Whether a custom device size is currently active
+  bool get hasOverride => _settings != null;
+
+  /// Set a custom device size
+  void setDeviceSize({
+    required double width,
+    required double height,
+    double? devicePixelRatio,
+    bool showFrame = true,
+  }) {
+    _settings = _DeviceSizeSettings(
+      width: width,
+      height: height,
+      devicePixelRatio: devicePixelRatio ?? 1.0,
+      showFrame: showFrame,
+    );
+    notifyListeners();
+  }
+
+  /// Reset to native device size
+  void resetDeviceSize() {
+    _settings = null;
+    notifyListeners();
+  }
+}
+
+/// Global instance of the device size state notifier
+///
+/// This singleton allows service extensions to update the state
+/// from anywhere in the codebase.
+final _deviceSizeState = DeviceSizeStateNotifier();
+
+// ============================================================================
+// device_size_extension.dart
+// ============================================================================
+
+/// Registers the device size service extensions
+void _registerDeviceSizeExtension() {
+      
+  // ext.runtime_ai_dev_tools.setDeviceSize
+  developer.registerExtension('ext.runtime_ai_dev_tools.setDeviceSize', (
+    String method,
+    Map<String, String> parameters,
+  ) async {
+            
+    try {
+      // Check for preset first
+      final presetName = parameters['preset'];
+      double? width;
+      double? height;
+      double? devicePixelRatio;
+
+      if (presetName != null) {
+        final preset = DevicePresets.byName(presetName);
+        if (preset == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Unknown preset: $presetName. Available presets: ${DevicePresets.names.join(", ")}',
+          );
+        }
+        width = preset.width;
+        height = preset.height;
+        devicePixelRatio = preset.devicePixelRatio;
+      } else {
+        // Use explicit width/height
+        final widthStr = parameters['width'];
+        final heightStr = parameters['height'];
+
+        if (widthStr == null || heightStr == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameters: either preset, or width and height',
+          );
+        }
+
+        width = double.tryParse(widthStr);
+        height = double.tryParse(heightStr);
+
+        if (width == null || height == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Invalid width or height value',
+          );
+        }
+
+        final dprStr = parameters['devicePixelRatio'];
+        if (dprStr != null) {
+          devicePixelRatio = double.tryParse(dprStr);
+        }
+      }
+
+      final showFrameStr = parameters['showFrame'];
+      final showFrame = showFrameStr != 'false';
+
+      _deviceSizeState.setDeviceSize(
+        width: width,
+        height: height,
+        devicePixelRatio: devicePixelRatio,
+        showFrame: showFrame,
+      );
+
+      
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'width': width,
+          'height': height,
+          'devicePixelRatio': devicePixelRatio,
+          'showFrame': showFrame,
+        }),
+      );
+    } catch (e, stackTrace) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        'Failed to set device size: $e\n$stackTrace',
+      );
+    }
+  });
+
+  // ext.runtime_ai_dev_tools.resetDeviceSize
+  developer.registerExtension('ext.runtime_ai_dev_tools.resetDeviceSize', (
+    String method,
+    Map<String, String> parameters,
+  ) async {
+    
+    try {
+      _deviceSizeState.resetDeviceSize();
+      
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'message': 'Device size reset to native',
+        }),
+      );
+    } catch (e, stackTrace) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        'Failed to reset device size: $e\n$stackTrace',
+      );
+    }
+  });
+
+  // ext.runtime_ai_dev_tools.getDeviceSize
+  developer.registerExtension('ext.runtime_ai_dev_tools.getDeviceSize', (
+    String method,
+    Map<String, String> parameters,
+  ) async {
+    
+    try {
+      final settings = _deviceSizeState.settings;
+
+      if (settings == null) {
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'override': false,
+            'message': 'Using native device size',
+          }),
+        );
+      }
+
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'override': true,
+          ...settings.toJson(),
+        }),
+      );
+    } catch (e, stackTrace) {
+      return developer.ServiceExtensionResponse.error(
+        developer.ServiceExtensionResponse.extensionError,
+        'Failed to get device size: $e\n$stackTrace',
+      );
+    }
+  });
+}
+
+// ============================================================================
+// animation_extension.dart
+// ============================================================================
+
+/// Registers the animation control service extension
+///
+/// This extension allows controlling animation speed by setting Flutter's
+/// global timeDilation value.
+void _registerAnimationExtension() {
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.setTimeDilation',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final factorStr = parameters['factor'];
+
+        if (factorStr == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameter: factor',
+          );
+        }
+
+        final factor = double.tryParse(factorStr);
+
+        if (factor == null || factor < 0) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Invalid factor: must be a non-negative number',
+          );
+        }
+
+        // Set the time dilation
+        // 1.0 = normal speed
+        // > 1.0 = slower animations
+        // 0.0 would pause, but we use a very large number instead to avoid
+        // potential division-by-zero issues
+        timeDilation = factor;
+
+        
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'factor': factor,
+          }),
+        );
+      } catch (e, stackTrace) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to set time dilation: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+
+  // Also register a getter for the current time dilation
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getTimeDilation',
+    (String method, Map<String, String> parameters) async {
+      
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'factor': timeDilation,
+        }),
+      );
+    },
+  );
+}
+
+// ============================================================================
+// theme_extension.dart
+// ============================================================================
+
+/// The current theme mode override.
+///
+/// This is a global notifier that the _DebugOverlayWrapper listens to.
+/// When the value changes, the UI rebuilds with the new theme mode.
+final ValueNotifier<_ThemeModeOverride> _themeModeNotifier =
+    ValueNotifier(_ThemeModeOverride.system);
+
+/// Theme mode override values
+enum _ThemeModeOverride {
+  /// Use system theme (no override)
+  system,
+
+  /// Force light theme
+  light,
+
+  /// Force dark theme
+  dark,
+}
+
+/// Parse a string to _ThemeModeOverride
+_ThemeModeOverride? _parseThemeMode(String? value) {
+  if (value == null) return null;
+  switch (value.toLowerCase()) {
+    case 'light':
+      return _ThemeModeOverride.light;
+    case 'dark':
+      return _ThemeModeOverride.dark;
+    case 'system':
+      return _ThemeModeOverride.system;
+    default:
+      return null;
+  }
+}
+
+/// Convert _ThemeModeOverride to string
+String _themeModeToString(_ThemeModeOverride mode) {
+  switch (mode) {
+    case _ThemeModeOverride.light:
+      return 'light';
+    case _ThemeModeOverride.dark:
+      return 'dark';
+    case _ThemeModeOverride.system:
+      return 'system';
+  }
+}
+
+/// Registers the theme switching service extensions
+///
+/// This extension allows switching between light, dark, and system theme modes
+/// by wrapping the app with a MediaQuery override.
+void _registerThemeExtension() {
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.setThemeMode',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final modeStr = parameters['mode'];
+
+        if (modeStr == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameter: mode',
+          );
+        }
+
+        final mode = _parseThemeMode(modeStr);
+
+        if (mode == null) {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Invalid mode: "$modeStr". Must be one of: light, dark, system',
+          );
+        }
+
+        // Update the theme mode notifier
+        _themeModeNotifier.value = mode;
+
+        
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'mode': _themeModeToString(mode),
+          }),
+        );
+      } catch (e, stackTrace) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to set theme mode: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getThemeMode',
+    (String method, Map<String, String> parameters) async {
+      
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'mode': _themeModeToString(_themeModeNotifier.value),
+        }),
+      );
+    },
+  );
+}
+
+// ============================================================================
+// locale_extension.dart
+// ============================================================================
+
+/// The current locale override.
+///
+/// This is a global notifier that the _DebugOverlayWrapper listens to.
+/// When the value changes, the UI rebuilds with the new locale.
+/// A null value means use the system locale.
+final ValueNotifier<ui.Locale?> _localeNotifier = ValueNotifier(null);
+
+/// Parse a locale string like "en-US" or "ja" into a Locale
+ui.Locale? _parseLocale(String? value) {
+  if (value == null || value.isEmpty) return null;
+
+  // Handle formats like "en-US", "en_US", "en"
+  final parts = value.split(RegExp(r'[-_]'));
+  if (parts.isEmpty) return null;
+
+  final languageCode = parts[0].toLowerCase();
+  final countryCode = parts.length > 1 ? parts[1].toUpperCase() : null;
+
+  return ui.Locale(languageCode, countryCode);
+}
+
+/// Convert a Locale to string format
+String _localeToString(ui.Locale locale) {
+  if (locale.countryCode != null && locale.countryCode!.isNotEmpty) {
+    return '${locale.languageCode}-${locale.countryCode}';
+  }
+  return locale.languageCode;
+}
+
+/// Registers the locale switching service extensions
+///
+/// This extension allows switching the app's locale for testing
+/// localization without changing system settings.
+void _registerLocaleExtension() {
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.setLocale',
+    (String method, Map<String, String> parameters) async {
+                  
+      try {
+        final languageCode = parameters['languageCode'];
+        final countryCode = parameters['countryCode'];
+        final localeString = parameters['locale'];
+
+        ui.Locale? locale;
+
+        // Support both "locale" parameter (e.g., "en-US") and separate parameters
+        if (localeString != null && localeString.isNotEmpty) {
+          locale = _parseLocale(localeString);
+          if (locale == null) {
+            return developer.ServiceExtensionResponse.error(
+              developer.ServiceExtensionResponse.invalidParams,
+              'Invalid locale format: "$localeString". Use format like "en-US" or "ja"',
+            );
+          }
+        } else if (languageCode != null && languageCode.isNotEmpty) {
+          locale = ui.Locale(
+            languageCode.toLowerCase(),
+            countryCode?.toUpperCase(),
+          );
+        } else {
+          return developer.ServiceExtensionResponse.error(
+            developer.ServiceExtensionResponse.invalidParams,
+            'Missing required parameter: locale or languageCode',
+          );
+        }
+
+        // Update the locale notifier
+        _localeNotifier.value = locale;
+
+        
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'locale': _localeToString(locale),
+            'languageCode': locale.languageCode,
+            'countryCode': locale.countryCode,
+          }),
+        );
+      } catch (e, stackTrace) {
+        return developer.ServiceExtensionResponse.error(
+          developer.ServiceExtensionResponse.extensionError,
+          'Failed to set locale: $e\n$stackTrace',
+        );
+      }
+    },
+  );
+
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.getLocale',
+    (String method, Map<String, String> parameters) async {
+      
+      final locale = _localeNotifier.value;
+
+      if (locale == null) {
+        // Return the system locale when no override is set
+        final systemLocale = ui.PlatformDispatcher.instance.locale;
+        return developer.ServiceExtensionResponse.result(
+          json.encode({
+            'status': 'success',
+            'locale': _localeToString(systemLocale),
+            'languageCode': systemLocale.languageCode,
+            'countryCode': systemLocale.countryCode,
+            'isOverride': false,
+          }),
+        );
+      }
+
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'locale': _localeToString(locale),
+          'languageCode': locale.languageCode,
+          'countryCode': locale.countryCode,
+          'isOverride': true,
+        }),
+      );
+    },
+  );
+
+  
+  developer.registerExtension(
+    'ext.runtime_ai_dev_tools.resetLocale',
+    (String method, Map<String, String> parameters) async {
+      
+      // Reset to system locale
+      _localeNotifier.value = null;
+
+      
+      return developer.ServiceExtensionResponse.result(
+        json.encode({
+          'status': 'success',
+          'message': 'Locale reset to system default',
+        }),
+      );
+    },
+  );
+}
+
+// ============================================================================
 // debug_overlay_wrapper.dart
 // ============================================================================
 
@@ -3364,13 +4474,13 @@ String? _getListTileSubtitle(ListTile widget) {
 /// This widget creates its own overlay at the root of the widget tree,
 /// giving us full control over tap visualization without relying on
 /// Navigator's overlay or MaterialApp's overlay.
+///
+/// It also listens to device size, theme mode, and locale overrides,
+/// applying them via MediaQuery when set.
 class _DebugOverlayWrapper extends StatefulWidget {
   final Widget child;
 
-  const _DebugOverlayWrapper({
-    super.key,
-    required this.child,
-  });
+  const _DebugOverlayWrapper({super.key, required this.child});
 
   @override
   State<_DebugOverlayWrapper> createState() => _DebugOverlayWrapperState();
@@ -3384,20 +4494,183 @@ class _DebugOverlayWrapperState extends State<_DebugOverlayWrapper> {
     super.initState();
     // Register our overlay with the tap visualization service
     _TapVisualizationService().setOverlayKey(_overlayKey);
+    // Listen for device size changes
+    _deviceSizeState.addListener(_onStateChanged);
+    // Listen to theme and locale changes
+    _themeModeNotifier.addListener(_onStateChanged);
+    _localeNotifier.addListener(_onStateChanged);
+  }
+
+  @override
+  void dispose() {
+    _deviceSizeState.removeListener(_onStateChanged);
+    _themeModeNotifier.removeListener(_onStateChanged);
+    _localeNotifier.removeListener(_onStateChanged);
+    super.dispose();
+  }
+
+  void _onStateChanged() {
+    setState(() {});
+  }
+
+  /// Build the brightness override based on theme mode
+  Brightness? _getBrightnessOverride() {
+    switch (_themeModeNotifier.value) {
+      case _ThemeModeOverride.light:
+        return Brightness.light;
+      case _ThemeModeOverride.dark:
+        return Brightness.dark;
+      case _ThemeModeOverride.system:
+        return null;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
+    final settings = _deviceSizeState.settings;
+
+    Widget child = widget.child;
+
+    // Apply locale override if set
+    final localeOverride = _localeNotifier.value;
+    if (localeOverride != null) {
+      child = Localizations.override(
+        context: context,
+        locale: Locale(localeOverride.languageCode, localeOverride.countryCode),
+        child: child,
+      );
+    }
+
+    // Apply brightness override via MediaQuery
+    final brightnessOverride = _getBrightnessOverride();
+    if (brightnessOverride != null) {
+      child = Builder(
+        builder: (context) {
+          // Get the existing MediaQuery data or create default
+          final existingData = MediaQuery.maybeOf(context) ??
+              MediaQueryData.fromView(ui.PlatformDispatcher.instance.views.first);
+
+          return MediaQuery(
+            data: existingData.copyWith(platformBrightness: brightnessOverride),
+            child: child,
+          );
+        },
+      );
+    }
+
+    Widget content = Directionality(
       textDirection: TextDirection.ltr,
       child: Overlay(
         key: _overlayKey,
-        initialEntries: [
-          OverlayEntry(
-            builder: (context) => widget.child,
-          ),
-        ],
+        initialEntries: [OverlayEntry(builder: (context) => child)],
       ),
+    );
+
+    // If we have device size settings, wrap with MediaQuery override
+    if (settings != null) {
+      content = _DeviceSizeOverride(
+        width: settings.width,
+        height: settings.height,
+        devicePixelRatio: settings.devicePixelRatio,
+        showFrame: settings.showFrame,
+        child: content,
+      );
+    }
+
+    return content;
+  }
+}
+
+/// Widget that overrides MediaQuery to simulate a specific device size
+///
+/// Uses MediaQuery override instead of FittedBox to ensure breakpoints
+/// actually respond to the logical size, not just scale the pixels.
+class _DeviceSizeOverride extends StatelessWidget {
+  final double width;
+  final double height;
+  final double devicePixelRatio;
+  final bool showFrame;
+  final Widget child;
+
+  const _DeviceSizeOverride({
+    required this.width,
+    required this.height,
+    required this.devicePixelRatio,
+    required this.showFrame,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Get the actual screen size
+    final actualSize = MediaQuery.of(context).size;
+
+    // Calculate scale to fit the device preview in the actual screen
+    // Leave some margin if showing frame
+    final marginFactor = showFrame ? 0.9 : 1.0;
+    final scaleX = (actualSize.width * marginFactor) / width;
+    final scaleY = (actualSize.height * marginFactor) / height;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    // Don't scale up, only scale down
+    final finalScale = scale > 1.0 ? 1.0 : scale;
+
+    // Create the simulated MediaQueryData
+    final simulatedMediaQuery = MediaQueryData(
+      size: Size(width, height),
+      devicePixelRatio: devicePixelRatio,
+      // Scale padding proportionally to the device size
+      padding: EdgeInsets.zero,
+      viewPadding: EdgeInsets.zero,
+      viewInsets: EdgeInsets.zero,
+      textScaler: MediaQuery.of(context).textScaler,
+      platformBrightness: MediaQuery.of(context).platformBrightness,
+      highContrast: MediaQuery.of(context).highContrast,
+      accessibleNavigation: MediaQuery.of(context).accessibleNavigation,
+      invertColors: MediaQuery.of(context).invertColors,
+      disableAnimations: MediaQuery.of(context).disableAnimations,
+      boldText: MediaQuery.of(context).boldText,
+    );
+
+    Widget deviceContent = MediaQuery(
+      data: simulatedMediaQuery,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: ClipRect(child: child),
+      ),
+    );
+
+    // Add visual device frame if requested
+    if (showFrame) {
+      deviceContent = Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFF333333), width: 3),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: deviceContent,
+        ),
+      );
+    }
+
+    // Scale the device preview to fit the actual screen
+    if (finalScale < 1.0) {
+      deviceContent = Transform.scale(scale: finalScale, child: deviceContent);
+    }
+
+    // Center in the available space with a background
+    return ColoredBox(
+      color: const Color(0xFF1A1A1A),
+      child: Center(child: deviceContent),
     );
   }
 }
