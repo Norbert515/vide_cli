@@ -76,6 +76,8 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterScrollAt',
     'flutterMoveCursor',
     'flutterGetWidgetInfo',
+    'flutterGetNavigationState',
+    'flutterGetErrors',
   ];
 
   @override
@@ -2188,6 +2190,206 @@ For example:
             content: [
               TextContent(text: 'Error: Failed to get widget info: $e'),
             ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Navigation State - Get current navigation state
+    server.tool(
+      'flutterGetNavigationState',
+      description:
+          'Get the current navigation state of a Flutter app. Returns the current route, route stack, whether back navigation is possible, and count of modal routes. Useful for understanding the navigation context.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          final result = await instance.getNavigationState();
+
+          // Format the response
+          final buffer = StringBuffer();
+          buffer.writeln('Navigation State:');
+          buffer.writeln('');
+          buffer.writeln('Current Route: ${result['currentRoute'] ?? '(none)'}');
+          buffer.writeln('Can Go Back: ${result['canGoBack']}');
+          buffer.writeln('Modal Routes: ${result['modalRoutes']}');
+          buffer.writeln('');
+
+          final routeStack = result['routeStack'] as List<dynamic>? ?? [];
+          if (routeStack.isNotEmpty) {
+            buffer.writeln('Route Stack:');
+            for (var i = 0; i < routeStack.length; i++) {
+              final prefix = i == routeStack.length - 1 ? '→ ' : '  ';
+              buffer.writeln('$prefix${routeStack[i]}');
+            }
+          } else {
+            buffer.writeln('Route Stack: (empty)');
+          }
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: buffer.toString())],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetNavigationState',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to get navigation state: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Errors - Get captured errors from the app
+    server.tool(
+      'flutterGetErrors',
+      description:
+          'Get captured errors from a running Flutter app. Error capture must be enabled first via this tool. Returns Flutter framework errors and async errors with timestamps, messages, and stack traces. Use this to diagnose issues during testing.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'enable': {
+            'type': 'boolean',
+            'description':
+                'Set to true to enable error capture, false to disable. If not specified, just retrieves errors.',
+          },
+          'clear': {
+            'type': 'boolean',
+            'description':
+                'Whether to clear the error buffer after retrieval. Defaults to true.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final enable = args['enable'] as bool?;
+        final clear = args['clear'] as bool? ?? true;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          // Handle enable/disable if specified
+          if (enable != null) {
+            await instance.enableErrorCapture(enabled: enable);
+            if (!enable) {
+              return CallToolResult.fromContent(
+                content: [TextContent(text: 'Error capture disabled.')],
+              );
+            }
+          }
+
+          // Get errors
+          final result = await instance.getErrors(clear: clear);
+          final errors = result['errors'] as List<dynamic>? ?? [];
+          final count = result['count'] as int? ?? 0;
+
+          // Format the response
+          final buffer = StringBuffer();
+          if (enable == true) {
+            buffer.writeln('Error capture enabled.');
+            buffer.writeln('');
+          }
+          buffer.writeln('Captured Errors: $count');
+          buffer.writeln('');
+
+          if (errors.isEmpty) {
+            buffer.writeln('No errors captured.');
+          } else {
+            for (var i = 0; i < errors.length; i++) {
+              final error = errors[i] as Map<String, dynamic>;
+              buffer.writeln('--- Error ${i + 1} ---');
+              buffer.writeln('Type: ${error['type']}');
+              buffer.writeln('Time: ${error['timestamp']}');
+              buffer.writeln('Message: ${error['message']}');
+              if (error['context'] != null) {
+                buffer.writeln('Context: ${error['context']}');
+              }
+              if (error['library'] != null) {
+                buffer.writeln('Library: ${error['library']}');
+              }
+              if (error['stackTrace'] != null &&
+                  (error['stackTrace'] as String).isNotEmpty) {
+                buffer.writeln('Stack Trace:');
+                // Limit stack trace to first 10 lines
+                final stackLines =
+                    (error['stackTrace'] as String).split('\n').take(10);
+                for (final line in stackLines) {
+                  buffer.writeln('  $line');
+                }
+                if ((error['stackTrace'] as String).split('\n').length > 10) {
+                  buffer.writeln('  ... (truncated)');
+                }
+              }
+              buffer.writeln('');
+            }
+          }
+
+          if (clear && count > 0) {
+            buffer.writeln('(Error buffer cleared)');
+          }
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: buffer.toString())],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetErrors',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to get errors: $e')],
           );
         }
       },

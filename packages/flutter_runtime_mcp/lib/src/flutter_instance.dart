@@ -1053,6 +1053,201 @@ class FlutterInstance {
     }
   }
 
+  /// Get the current navigation state from the running Flutter app
+  ///
+  /// Returns information about routes, navigation stack, and modal routes.
+  /// Requires runtime_ai_dev_tools to be injected into the app.
+  Future<Map<String, dynamic>> getNavigationState() async {
+    print('🔍 [FlutterInstance] Getting navigation state for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getNavigationState',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getNavigationState',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getNavigationState timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.getNavigationState',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getNavigationState returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Navigation state retrieved successfully');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception(
+      'getNavigationState failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Enable or disable error capture in the running Flutter app
+  ///
+  /// When enabled, Flutter framework errors and async errors are captured
+  /// and can be retrieved via [getErrors].
+  Future<bool> enableErrorCapture({bool enabled = true}) async {
+    print(
+      '🔧 [FlutterInstance] ${enabled ? "Enabling" : "Disabling"} error capture for instance $id',
+    );
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.enableErrorCapture',
+          isolateId: isolateId,
+          args: {'enabled': enabled.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'enableErrorCapture timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print(
+        '✅ [FlutterInstance] Error capture ${enabled ? "enabled" : "disabled"}',
+      );
+      return json['enabled'] as bool? ?? enabled;
+    }
+
+    throw Exception('enableErrorCapture failed: ${json?['status']}');
+  }
+
+  /// Get captured errors from the running Flutter app
+  ///
+  /// Returns a list of errors that have been captured since error capture
+  /// was enabled. By default, clears the error buffer after retrieval.
+  Future<Map<String, dynamic>> getErrors({bool clear = true}) async {
+    print('🔍 [FlutterInstance] Getting errors for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getErrors',
+          isolateId: isolateId,
+          args: {'clear': clear.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getErrors timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final count = json['count'] as int? ?? 0;
+      print('✅ [FlutterInstance] Retrieved $count errors');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getErrors failed: ${json?['status']}');
+  }
+
+  /// Clear the error buffer in the running Flutter app
+  Future<int> clearErrors() async {
+    print('🔍 [FlutterInstance] Clearing errors for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.clearErrors',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'clearErrors timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final cleared = json['cleared'] as int? ?? 0;
+      print('✅ [FlutterInstance] Cleared $cleared errors');
+      return cleared;
+    }
+
+    throw Exception('clearErrors failed: ${json?['status']}');
+  }
+
   /// Get a summary of the instance state
   Map<String, dynamic> toJson() {
     return {
