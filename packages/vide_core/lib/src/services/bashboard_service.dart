@@ -12,40 +12,50 @@ class BashboardService {
   static const String _apiKey = 'bb_Ea9k4WNNxcATHZi4eUeZ2pZuGrIHRkTx';
 
   static bool _initialized = false;
+  static bool _initializing = false;
 
-  /// Initialize Bashboard service.
-  /// Loads or generates the anonymous distinct ID.
+  /// Initialize Bashboard service (non-blocking).
+  /// Starts async initialization in the background and tracks app_started when ready.
   /// Safe to call multiple times.
   ///
   /// The [configManager] parameter provides access to the config directory for storing the distinct ID.
-  static Future<void> init(VideConfigManager configManager) async {
-    if (_initialized) return;
+  static void init(VideConfigManager configManager) {
+    if (_initialized || _initializing) return;
+    _initializing = true;
 
-    try {
-      final distinctId = await _loadOrCreateDistinctId(configManager);
+    // Fire-and-forget async initialization
+    Future<void>(() async {
+      try {
+        final distinctId = await _loadOrCreateDistinctId(configManager);
 
-      Bashboard.init(
-        apiKey: _apiKey,
-        config: BashboardConfig(
-          cliName: 'vide',
-          cliVersion: '1.0.0',
-          respectDoNotTrack: true,
-          // Flush every 10 seconds
-          flushInterval: Duration(seconds: 10),
-        ),
-      );
+        Bashboard.init(
+          apiKey: _apiKey,
+          config: BashboardConfig(
+            cliName: 'vide',
+            cliVersion: '1.0.0',
+            respectDoNotTrack: true,
+            // Flush every 10 seconds
+            flushInterval: Duration(seconds: 10),
+          ),
+        );
 
-      // Identify the user with their anonymous ID
-      Bashboard.identify(distinctId);
+        // Identify the user with their anonymous ID
+        Bashboard.identify(distinctId);
 
-      // Start a session
-      Bashboard.startSession();
+        // Start a session
+        Bashboard.startSession();
 
-      _initialized = true;
-    } catch (e) {
-      // Fail silently - analytics should never crash the app
-      _initialized = false;
-    }
+        _initialized = true;
+
+        // Track app started now that we're initialized
+        appStarted();
+      } catch (e) {
+        // Fail silently - analytics should never crash the app
+        _initialized = false;
+      } finally {
+        _initializing = false;
+      }
+    });
   }
 
   /// Load existing distinct ID or create a new one.

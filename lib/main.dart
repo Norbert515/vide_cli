@@ -127,10 +127,9 @@ Future<void> main(
   // Create VideCore from the existing container (enables public API usage)
   videCore = VideCore.fromContainer(container);
 
-  // Initialize Bashboard analytics
+  // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
   final configManager = container.read(videConfigManagerProvider);
-  await BashboardService.init(configManager);
-  BashboardService.appStarted();
+  BashboardService.init(configManager);
 
   // Note: Pending updates are applied by the wrapper script at ~/.local/bin/vide
   // before launching the actual binary. The version indicator shows "ready" when
