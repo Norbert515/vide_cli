@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'device_size_state.dart';
 import 'tap_visualization.dart';
 
 /// Wraps the app with a custom overlay for tap visualization
@@ -9,10 +10,7 @@ import 'tap_visualization.dart';
 class DebugOverlayWrapper extends StatefulWidget {
   final Widget child;
 
-  const DebugOverlayWrapper({
-    super.key,
-    required this.child,
-  });
+  const DebugOverlayWrapper({super.key, required this.child});
 
   @override
   State<DebugOverlayWrapper> createState() => _DebugOverlayWrapperState();
@@ -26,20 +24,137 @@ class _DebugOverlayWrapperState extends State<DebugOverlayWrapper> {
     super.initState();
     // Register our overlay with the tap visualization service
     TapVisualizationService().setOverlayKey(_overlayKey);
+    // Listen for device size changes
+    deviceSizeState.addListener(_onDeviceSizeChanged);
+  }
+
+  @override
+  void dispose() {
+    deviceSizeState.removeListener(_onDeviceSizeChanged);
+    super.dispose();
+  }
+
+  void _onDeviceSizeChanged() {
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
+    final settings = deviceSizeState.settings;
+
+    Widget content = Directionality(
       textDirection: TextDirection.ltr,
       child: Overlay(
         key: _overlayKey,
-        initialEntries: [
-          OverlayEntry(
-            builder: (context) => widget.child,
-          ),
-        ],
+        initialEntries: [OverlayEntry(builder: (context) => widget.child)],
       ),
+    );
+
+    // If we have device size settings, wrap with MediaQuery override
+    if (settings != null) {
+      content = _DeviceSizeOverride(
+        width: settings.width,
+        height: settings.height,
+        devicePixelRatio: settings.devicePixelRatio,
+        showFrame: settings.showFrame,
+        child: content,
+      );
+    }
+
+    return content;
+  }
+}
+
+/// Widget that overrides MediaQuery to simulate a specific device size
+///
+/// Uses MediaQuery override instead of FittedBox to ensure breakpoints
+/// actually respond to the logical size, not just scale the pixels.
+class _DeviceSizeOverride extends StatelessWidget {
+  final double width;
+  final double height;
+  final double devicePixelRatio;
+  final bool showFrame;
+  final Widget child;
+
+  const _DeviceSizeOverride({
+    required this.width,
+    required this.height,
+    required this.devicePixelRatio,
+    required this.showFrame,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Get the actual screen size
+    final actualSize = MediaQuery.of(context).size;
+
+    // Calculate scale to fit the device preview in the actual screen
+    // Leave some margin if showing frame
+    final marginFactor = showFrame ? 0.9 : 1.0;
+    final scaleX = (actualSize.width * marginFactor) / width;
+    final scaleY = (actualSize.height * marginFactor) / height;
+    final scale = scaleX < scaleY ? scaleX : scaleY;
+
+    // Don't scale up, only scale down
+    final finalScale = scale > 1.0 ? 1.0 : scale;
+
+    // Create the simulated MediaQueryData
+    final simulatedMediaQuery = MediaQueryData(
+      size: Size(width, height),
+      devicePixelRatio: devicePixelRatio,
+      // Scale padding proportionally to the device size
+      padding: EdgeInsets.zero,
+      viewPadding: EdgeInsets.zero,
+      viewInsets: EdgeInsets.zero,
+      textScaler: MediaQuery.of(context).textScaler,
+      platformBrightness: MediaQuery.of(context).platformBrightness,
+      highContrast: MediaQuery.of(context).highContrast,
+      accessibleNavigation: MediaQuery.of(context).accessibleNavigation,
+      invertColors: MediaQuery.of(context).invertColors,
+      disableAnimations: MediaQuery.of(context).disableAnimations,
+      boldText: MediaQuery.of(context).boldText,
+    );
+
+    Widget deviceContent = MediaQuery(
+      data: simulatedMediaQuery,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: ClipRect(child: child),
+      ),
+    );
+
+    // Add visual device frame if requested
+    if (showFrame) {
+      deviceContent = Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: const Color(0xFF333333), width: 3),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(9),
+          child: deviceContent,
+        ),
+      );
+    }
+
+    // Scale the device preview to fit the actual screen
+    if (finalScale < 1.0) {
+      deviceContent = Transform.scale(scale: finalScale, child: deviceContent);
+    }
+
+    // Center in the available space with a background
+    return ColoredBox(
+      color: const Color(0xFF1A1A1A),
+      child: Center(child: deviceContent),
     );
   }
 }
