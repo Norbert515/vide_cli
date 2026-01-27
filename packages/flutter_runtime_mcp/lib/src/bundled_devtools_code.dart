@@ -3457,7 +3457,6 @@ Map<String, dynamic> _getNavigationState() {
   if (navigatorStates.isEmpty) {
         return {
       'status': 'success',
-      'currentRoute': null,
       'routeStack': <String>[],
       'canGoBack': false,
       'modalRoutes': 0,
@@ -3491,7 +3490,7 @@ Map<String, dynamic> _getNavigationState() {
           
   return {
     'status': 'success',
-    'currentRoute': currentRoute,
+    if (currentRoute != null) 'currentRoute': currentRoute,
     'routeStack': routeStack,
     'canGoBack': canGoBack,
     'modalRoutes': modalRouteCount,
@@ -3594,7 +3593,8 @@ class _ErrorCaptureState {
   FlutterExceptionHandler? _originalFlutterOnError;
 
   /// Original platform dispatcher error handler (chained)
-  ErrorCallback? _originalPlatformOnError;
+  /// Type: (Object error, StackTrace stack) -> bool
+  bool Function(Object, StackTrace)? _originalPlatformOnError;
 
   bool get isEnabled => _enabled;
 
@@ -4066,7 +4066,7 @@ void _registerDeviceSizeExtension() {
           'status': 'success',
           'width': width,
           'height': height,
-          'devicePixelRatio': devicePixelRatio,
+          if (devicePixelRatio != null) 'devicePixelRatio': devicePixelRatio,
           'showFrame': showFrame,
         }),
       );
@@ -4401,7 +4401,8 @@ void _registerLocaleExtension() {
             'status': 'success',
             'locale': _localeToString(locale),
             'languageCode': locale.languageCode,
-            'countryCode': locale.countryCode,
+            if (locale.countryCode != null && locale.countryCode!.isNotEmpty)
+              'countryCode': locale.countryCode,
           }),
         );
       } catch (e, stackTrace) {
@@ -4428,7 +4429,9 @@ void _registerLocaleExtension() {
             'status': 'success',
             'locale': _localeToString(systemLocale),
             'languageCode': systemLocale.languageCode,
-            'countryCode': systemLocale.countryCode,
+            if (systemLocale.countryCode != null &&
+                systemLocale.countryCode!.isNotEmpty)
+              'countryCode': systemLocale.countryCode,
             'isOverride': false,
           }),
         );
@@ -4439,7 +4442,8 @@ void _registerLocaleExtension() {
           'status': 'success',
           'locale': _localeToString(locale),
           'languageCode': locale.languageCode,
-          'countryCode': locale.countryCode,
+          if (locale.countryCode != null && locale.countryCode!.isNotEmpty)
+            'countryCode': locale.countryCode,
           'isOverride': true,
         }),
       );

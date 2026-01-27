@@ -89,7 +89,7 @@ void registerDeviceSizeExtension() {
           'status': 'success',
           'width': width,
           'height': height,
-          'devicePixelRatio': devicePixelRatio,
+          if (devicePixelRatio != null) 'devicePixelRatio': devicePixelRatio,
           'showFrame': showFrame,
         }),
       );

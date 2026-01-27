@@ -18,7 +18,8 @@ class _ErrorCaptureState {
   FlutterExceptionHandler? _originalFlutterOnError;
 
   /// Original platform dispatcher error handler (chained)
-  ErrorCallback? _originalPlatformOnError;
+  /// Type: (Object error, StackTrace stack) -> bool
+  bool Function(Object, StackTrace)? _originalPlatformOnError;
 
   bool get isEnabled => _enabled;
 

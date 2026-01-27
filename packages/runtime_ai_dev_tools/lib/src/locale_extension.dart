@@ -86,7 +86,8 @@ void registerLocaleExtension() {
             'status': 'success',
             'locale': _localeToString(locale),
             'languageCode': locale.languageCode,
-            'countryCode': locale.countryCode,
+            if (locale.countryCode != null && locale.countryCode!.isNotEmpty)
+              'countryCode': locale.countryCode,
           }),
         );
       } catch (e, stackTrace) {
@@ -117,7 +118,9 @@ void registerLocaleExtension() {
             'status': 'success',
             'locale': _localeToString(systemLocale),
             'languageCode': systemLocale.languageCode,
-            'countryCode': systemLocale.countryCode,
+            if (systemLocale.countryCode != null &&
+                systemLocale.countryCode!.isNotEmpty)
+              'countryCode': systemLocale.countryCode,
             'isOverride': false,
           }),
         );
@@ -128,7 +131,8 @@ void registerLocaleExtension() {
           'status': 'success',
           'locale': _localeToString(locale),
           'languageCode': locale.languageCode,
-          'countryCode': locale.countryCode,
+          if (locale.countryCode != null && locale.countryCode!.isNotEmpty)
+            'countryCode': locale.countryCode,
           'isOverride': true,
         }),
       );

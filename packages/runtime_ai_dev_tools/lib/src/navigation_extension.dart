@@ -55,7 +55,6 @@ Map<String, dynamic> _getNavigationState() {
     print('   ⚠️  No Navigator found in widget tree');
     return {
       'status': 'success',
-      'currentRoute': null,
       'routeStack': <String>[],
       'canGoBack': false,
       'modalRoutes': 0,
@@ -94,7 +93,7 @@ Map<String, dynamic> _getNavigationState() {
 
   return {
     'status': 'success',
-    'currentRoute': currentRoute,
+    if (currentRoute != null) 'currentRoute': currentRoute,
     'routeStack': routeStack,
     'canGoBack': canGoBack,
     'modalRoutes': modalRouteCount,
