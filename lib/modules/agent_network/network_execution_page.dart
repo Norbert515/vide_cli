@@ -466,26 +466,24 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    // Send the response - use session for remote requests, local service for local
-    if (request.isRemote) {
-      // Remote/daemon mode - respond via session
-      final session = context.read(currentVideSessionProvider);
-      session?.respondToPermission(
-        request.requestId,
-        allow: granted,
-        message: reason,
-      );
-    } else {
-      // Local mode - respond via permission service
-      permissionService.respondToPermission(
-        request.requestId,
-        PermissionResponse(
-          decision: granted ? 'allow' : 'deny',
-          reason: reason,
-          remember: remember,
-        ),
-      );
-    }
+    // Send the response to BOTH mechanisms - the one that owns the completer
+    // will handle it, the other will be a no-op. This allows a single code path
+    // for both local and remote/daemon sessions.
+    final session = context.read(currentVideSessionProvider);
+    session?.respondToPermission(
+      request.requestId,
+      allow: granted,
+      message: reason,
+    );
+
+    permissionService.respondToPermission(
+      request.requestId,
+      PermissionResponse(
+        decision: granted ? 'allow' : 'deny',
+        reason: reason,
+        remember: remember,
+      ),
+    );
 
     // Dequeue the current request to show the next one
     context.read(permissionStateProvider.notifier).dequeueRequest();
