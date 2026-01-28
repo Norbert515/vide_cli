@@ -80,9 +80,10 @@ class _AgentSidebarState extends State<AgentSidebar>
 
     // When sidebar gains focus, ensure selection is on a valid selectable item
     if (component.focused && !old.focused) {
-      final networkState = context.read(agentNetworkManagerProvider);
+      final session = context.read(currentVideSessionProvider);
+      final agents = session?.agents ?? [];
       final teamDef = context.read(currentTeamDefinitionProvider).valueOrNull;
-      final items = _buildItems(networkState.agents, teamDef);
+      final items = _buildItems(agents, teamDef);
 
       // If current selection is on a header, move to first selectable item
       if (items.isNotEmpty &&
@@ -112,7 +113,7 @@ class _AgentSidebarState extends State<AgentSidebar>
 
   /// Build the list of sidebar items from current state
   List<_SidebarItem> _buildItems(
-    List<AgentMetadata> spawnedAgents,
+    List<VideAgent> spawnedAgents,
     TeamDefinition? teamDef,
   ) {
     final items = <_SidebarItem>[];
@@ -190,9 +191,9 @@ class _AgentSidebarState extends State<AgentSidebar>
     final teamDefAsync = context.watch(currentTeamDefinitionProvider);
     final teamDef = teamDefAsync.valueOrNull;
 
-    // Watch for agent changes at top level to trigger rebuild
-    final networkState = context.watch(agentNetworkManagerProvider);
-    final spawnedAgents = networkState.agents;
+    // Watch for agent changes - unified for both local and remote modes
+    final session = context.watch(currentVideSessionProvider);
+    final spawnedAgents = session?.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);
@@ -266,7 +267,7 @@ class _AgentSidebarState extends State<AgentSidebar>
     VideThemeData theme,
     String currentTeam,
     TeamDefinition? teamDef,
-    List<AgentMetadata> spawnedAgents,
+    List<VideAgent> spawnedAgents,
   ) {
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
@@ -447,7 +448,7 @@ class _AgentSidebarState extends State<AgentSidebar>
 
   Component _buildAgentRow(
     int index,
-    AgentMetadata agent,
+    VideAgent agent,
     bool isSelected,
     bool isSelectedById,
     bool isHovered,
@@ -474,7 +475,7 @@ class _AgentSidebarState extends State<AgentSidebar>
 
 /// Stateful widget for individual agent rows with animated spinner
 class _AgentRowItem extends StatefulComponent {
-  final AgentMetadata agent;
+  final VideAgent agent;
   final bool isSelected;
   final bool isSelectedById;
   final bool isHovered;
@@ -672,7 +673,7 @@ class _AgentRowItemState extends State<_AgentRowItem>
 
 /// Helper class for sidebar items
 class _SidebarItem {
-  final AgentMetadata? agent;
+  final VideAgent? agent;
   final String? headerText;
   final bool isHeader;
 

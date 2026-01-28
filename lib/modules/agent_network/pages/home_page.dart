@@ -17,6 +17,9 @@ import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
+import 'package:vide_cli/modules/remote/remote_vide_session.dart';
+import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
+import 'package:vide_daemon/vide_daemon.dart';
 
 class HomePage extends StatefulComponent {
   const HomePage({super.key});
@@ -30,7 +33,7 @@ class _HomePageState extends State<HomePage> {
   String? _commandResult;
   bool _commandResultIsError = false;
 
-  // Focus state: 'textField', 'teamSelector', or 'networksList'
+  // Focus state: 'textField', 'teamSelector', 'daemonIndicator', or 'networksList'
   String _focusState = 'textField';
 
   // Team selector state
@@ -42,12 +45,94 @@ class _HomePageState extends State<HomePage> {
   int? _pendingDeleteIndex;
   final _scrollController = ScrollController();
 
+  // Daemon mode state
+  DaemonClient? _daemonClient;
+  String? _daemonError;
+  bool _daemonConnecting = false;
+  String? _lastDaemonHost;
+  int? _lastDaemonPort;
+
   @override
   void initState() {
     super.initState();
     _loadProjectInfo();
     _initializeClaude();
     _loadTeams();
+    _initDaemonIfNeeded();
+  }
+
+  @override
+  void dispose() {
+    _daemonClient?.close();
+    super.dispose();
+  }
+
+  /// Initialize daemon client if daemon mode is enabled.
+  /// Can be called multiple times - will reinitialize if settings changed.
+  Future<void> _initDaemonIfNeeded() async {
+    final daemonEnabled = context.read(daemonModeEnabledProvider);
+    final configManager = context.read(videConfigManagerProvider);
+    final settings = configManager.readGlobalSettings();
+
+    // If daemon mode is disabled, clean up
+    if (!daemonEnabled) {
+      if (_daemonClient != null) {
+        _daemonClient?.close();
+        _daemonClient = null;
+        _daemonError = null;
+        _lastDaemonHost = null;
+        _lastDaemonPort = null;
+      }
+      return;
+    }
+
+    // If settings haven't changed and we already have a client, skip
+    if (_daemonClient != null &&
+        _lastDaemonHost == settings.daemonHost &&
+        _lastDaemonPort == settings.daemonPort &&
+        _daemonError == null) {
+      return;
+    }
+
+    // Close existing client if settings changed
+    _daemonClient?.close();
+
+    setState(() {
+      _daemonConnecting = true;
+      _daemonError = null;
+    });
+
+    _lastDaemonHost = settings.daemonHost;
+    _lastDaemonPort = settings.daemonPort;
+
+    _daemonClient = DaemonClient(
+      host: settings.daemonHost,
+      port: settings.daemonPort,
+    );
+
+    try {
+      final healthy = await _daemonClient!.isHealthy();
+      if (!healthy) {
+        if (mounted) {
+          setState(() {
+            _daemonError =
+                'Daemon not responding at ${settings.daemonHost}:${settings.daemonPort}';
+            _daemonConnecting = false;
+          });
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() => _daemonConnecting = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _daemonError = 'Failed to connect to daemon: $e';
+          _daemonConnecting = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadTeams() async {
@@ -98,6 +183,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleSubmit(Message message) async {
+    final daemonEnabled = context.read(daemonModeEnabledProvider);
+
+    if (daemonEnabled && _daemonClient != null && _daemonError == null) {
+      // Daemon mode: create session on daemon
+      await _handleDaemonSubmit(message);
+    } else {
+      // Local mode: create session locally
+      await _handleLocalSubmit(message);
+    }
+  }
+
+  Future<void> _handleLocalSubmit(Message message) async {
     // Start a new agent network with the full message (preserves attachments)
     // This returns immediately - client creation happens in background
     // Use the repo path override if user selected a worktree before starting
@@ -114,6 +211,48 @@ class _HomePageState extends State<HomePage> {
 
     // Navigate to the execution page immediately
     await NetworkExecutionPage.push(context, network.id);
+  }
+
+  Future<void> _handleDaemonSubmit(Message message) async {
+    try {
+      // Create session on daemon
+      final response = await _daemonClient!.createSession(
+        initialMessage: message.text,
+        workingDirectory: Directory.current.path,
+        permissionMode: 'ask',
+      );
+
+      // Get session details for WebSocket URL
+      final details = await _daemonClient!.getSession(response.sessionId);
+
+      // Create and connect the remote session
+      final remoteSession = RemoteVideSession(
+        sessionId: response.sessionId,
+        wsUrl: details.wsUrl,
+      );
+
+      await remoteSession.connect();
+
+      // Store in provider for the rest of the app
+      context.read(remoteVideSessionProvider.notifier).state = remoteSession;
+
+      // Navigate to the execution page
+      await NetworkExecutionPage.push(context, response.sessionId);
+    } catch (e) {
+      setState(() {
+        _commandResult = 'Failed to create daemon session: $e';
+        _commandResultIsError = true;
+      });
+
+      // Auto-clear after 5 seconds
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted) {
+          setState(() {
+            _commandResult = null;
+          });
+        }
+      });
+    }
   }
 
   Future<void> _handleCommand(String commandInput) async {
@@ -175,6 +314,29 @@ class _HomePageState extends State<HomePage> {
     }).toList();
   }
 
+  /// Handle key events when the daemon indicator is focused.
+  /// Returns true if the event was handled.
+  bool _handleDaemonIndicatorKeyEvent(KeyboardEvent event) {
+    final daemonEnabled = context.read(daemonModeEnabledProvider);
+    if (!daemonEnabled) return false;
+
+    if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.escape) {
+      // Go to team selector or text field
+      if (_availableTeams.isNotEmpty) {
+        setState(() => _focusState = 'teamSelector');
+      } else {
+        setState(() => _focusState = 'textField');
+      }
+      return true;
+    } else if (event.logicalKey == LogicalKey.enter) {
+      // Open daemon sessions dialog
+      DaemonSessionsDialog.show(context);
+      return true;
+    }
+    return false;
+  }
+
   /// Handle key events when the team selector is focused.
   /// Returns true if the event was handled.
   bool _handleTeamSelectorKeyEvent(KeyboardEvent event) {
@@ -196,6 +358,15 @@ class _HomePageState extends State<HomePage> {
           _selectedTeamIndex = 0;
       });
       return true;
+    } else if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
+      // Navigate up to daemon indicator if daemon mode is enabled
+      final daemonEnabled = context.read(daemonModeEnabledProvider);
+      if (daemonEnabled) {
+        setState(() => _focusState = 'daemonIndicator');
+        return true;
+      }
+      return false;
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.enter ||
         event.logicalKey == LogicalKey.escape) {
@@ -307,6 +478,23 @@ class _HomePageState extends State<HomePage> {
     // Watch sidebar focus state from app-level provider
     final sidebarFocused = context.watch(sidebarFocusProvider);
 
+    // Watch daemon mode - reinitialize client if settings changed
+    final daemonEnabled = context.watch(daemonModeEnabledProvider);
+    final configManager = context.read(videConfigManagerProvider);
+    final daemonSettings = configManager.readGlobalSettings();
+
+    // Check if daemon settings changed and reinitialize if needed
+    if (daemonEnabled &&
+        (_lastDaemonHost != daemonSettings.daemonHost ||
+         _lastDaemonPort != daemonSettings.daemonPort ||
+         _daemonClient == null)) {
+      // Schedule reinitialization after build
+      Future.microtask(() => _initDaemonIfNeeded());
+    } else if (!daemonEnabled && _daemonClient != null) {
+      // Clean up if daemon mode was disabled
+      Future.microtask(() => _initDaemonIfNeeded());
+    }
+
     // Get networks list
     final networks = context.watch(agentNetworksStateNotifierProvider).networks;
 
@@ -328,7 +516,9 @@ class _HomePageState extends State<HomePage> {
         }
 
         // Handle events based on current focus state
-        if (_focusState == 'teamSelector') {
+        if (_focusState == 'daemonIndicator') {
+          return _handleDaemonIndicatorKeyEvent(event);
+        } else if (_focusState == 'teamSelector') {
           return _handleTeamSelectorKeyEvent(event);
         } else if (_focusState == 'networksList' && networks.isNotEmpty) {
           return _handleNetworkListKeyEvent(event, networks);
@@ -343,7 +533,9 @@ class _HomePageState extends State<HomePage> {
           // When text field is focused: only reserve space for the hint line (~3 lines)
           // When networks list is focused: reserve full space for the list
           final textFieldFocused =
-              _focusState == 'textField' || _focusState == 'teamSelector';
+              _focusState == 'textField' ||
+              _focusState == 'teamSelector' ||
+              _focusState == 'daemonIndicator';
           final networksHeight = networks.isNotEmpty && !textFieldFocused
               ? (totalHeight * 0.4).clamp(8.0, 20.0)
               : 0.0;
@@ -411,6 +603,94 @@ class _HomePageState extends State<HomePage> {
                           ),
                           GitBranchIndicator(repoPath: currentDir),
                         ],
+                      ),
+                      // Daemon mode indicator
+                      Builder(
+                        builder: (context) {
+                          final daemonEnabled = context.watch(daemonModeEnabledProvider);
+                          if (!daemonEnabled) return const SizedBox.shrink();
+
+                          final configManager = context.read(videConfigManagerProvider);
+                          final settings = configManager.readGlobalSettings();
+                          final daemonIndicatorFocused = _focusState == 'daemonIndicator';
+
+                          return Padding(
+                            padding: EdgeInsets.only(top: 1),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_daemonConnecting)
+                                  Text(
+                                    '⟳ Connecting to daemon...',
+                                    style: TextStyle(
+                                      color: theme.base.onSurface.withOpacity(
+                                        TextOpacity.tertiary,
+                                      ),
+                                    ),
+                                  )
+                                else if (_daemonError != null)
+                                  Text(
+                                    '⚠ $_daemonError',
+                                    style: TextStyle(color: theme.base.error),
+                                  )
+                                else
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '◉ ',
+                                        style: TextStyle(
+                                          color: theme.status.idle,
+                                        ),
+                                      ),
+                                      if (daemonIndicatorFocused)
+                                        Text(
+                                          ' daemon ${settings.daemonHost}:${settings.daemonPort} ',
+                                          style: TextStyle(
+                                            color: theme.base.background,
+                                            backgroundColor: theme.base.primary,
+                                          ),
+                                        )
+                                      else ...[
+                                        Text(
+                                          'daemon ',
+                                          style: TextStyle(
+                                            color: theme.base.onSurface.withOpacity(
+                                              TextOpacity.secondary,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          '${settings.daemonHost}:${settings.daemonPort}',
+                                          style: TextStyle(
+                                            color: theme.base.onSurface.withOpacity(
+                                              TextOpacity.tertiary,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      if (daemonIndicatorFocused)
+                                        Text(
+                                          '  ⏎ sessions',
+                                          style: TextStyle(
+                                            color: theme.base.primary,
+                                          ),
+                                        )
+                                      else
+                                        Text(
+                                          '  ↑ sessions',
+                                          style: TextStyle(
+                                            color: theme.base.onSurface.withOpacity(
+                                              TextOpacity.disabled,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 1),
                       // Team selector (inline with all teams visible)
