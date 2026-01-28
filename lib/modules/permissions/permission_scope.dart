@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'permission_service.dart';
 
 /// State for permission requests - includes queue and current request
@@ -47,9 +48,28 @@ final permissionStateProvider =
       (ref) => PermissionStateNotifier(),
     );
 
+/// UI request wrapper for AskUserQuestion events
+class AskUserQuestionUIRequest {
+  final String requestId;
+  final List<AskUserQuestionData> questions;
+
+  const AskUserQuestionUIRequest({
+    required this.requestId,
+    required this.questions,
+  });
+
+  /// Create from a session event
+  factory AskUserQuestionUIRequest.fromEvent(AskUserQuestionEvent event) {
+    return AskUserQuestionUIRequest(
+      requestId: event.requestId,
+      questions: event.questions,
+    );
+  }
+}
+
 /// State for AskUserQuestion requests - includes queue and current request
 class AskUserQuestionQueueState {
-  final AskUserQuestionRequest? current;
+  final AskUserQuestionUIRequest? current;
   final int queueLength;
 
   AskUserQuestionQueueState({this.current, this.queueLength = 0});
@@ -58,12 +78,13 @@ class AskUserQuestionQueueState {
 /// State notifier for AskUserQuestion requests with queue support
 class AskUserQuestionStateNotifier
     extends StateNotifier<AskUserQuestionQueueState> {
-  final Queue<AskUserQuestionRequest> _queue = Queue<AskUserQuestionRequest>();
+  final Queue<AskUserQuestionUIRequest> _queue =
+      Queue<AskUserQuestionUIRequest>();
 
   AskUserQuestionStateNotifier() : super(AskUserQuestionQueueState());
 
   /// Add a request to the queue
-  void enqueueRequest(AskUserQuestionRequest request) {
+  void enqueueRequest(AskUserQuestionUIRequest request) {
     _queue.add(request);
     _updateState();
   }
@@ -91,7 +112,10 @@ final askUserQuestionStateProvider =
       AskUserQuestionQueueState
     >((ref) => AskUserQuestionStateNotifier());
 
-/// A widget that manages permission requests by listening to the PermissionService.
+/// A widget that manages permission requests by listening to VideSession events.
+///
+/// All permission requests (both local and remote) flow through the session's
+/// event stream as [PermissionRequestEvent] and [AskUserQuestionEvent].
 class PermissionScope extends StatefulComponent {
   final Component child;
 
@@ -102,9 +126,8 @@ class PermissionScope extends StatefulComponent {
 }
 
 class _PermissionScopeState extends State<PermissionScope> {
-  StreamSubscription<PermissionRequest>? _permissionSub;
-  StreamSubscription<AskUserQuestionRequest>? _askUserQuestionSub;
-  bool _listenerSetup = false;
+  StreamSubscription<VideEvent>? _sessionEventSub;
+  String? _currentSessionId;
 
   @override
   void initState() {
@@ -112,35 +135,57 @@ class _PermissionScopeState extends State<PermissionScope> {
     // Can't access context.read in initState - will set up in build
   }
 
-  void _setupPermissionHandling(BuildContext context) {
-    final permissionService = context.read(permissionServiceProvider);
-    final askUserQuestionService = context.read(askUserQuestionServiceProvider);
-
-    // Set up listeners only once
-    if (!_listenerSetup) {
-      _listenerSetup = true;
-      _permissionSub = permissionService.requests.listen((request) {
-        context.read(permissionStateProvider.notifier).enqueueRequest(request);
-      });
-      _askUserQuestionSub = askUserQuestionService.requests.listen((request) {
-        context
-            .read(askUserQuestionStateProvider.notifier)
-            .enqueueRequest(request);
-      });
+  /// Sets up listening to session events for permission requests.
+  ///
+  /// All permission requests flow through the session's event stream,
+  /// unifying local and remote/daemon modes.
+  void _setupSessionEventHandling(BuildContext context, VideSession? session) {
+    // If session changed, cancel old subscription
+    if (session?.id != _currentSessionId) {
+      _sessionEventSub?.cancel();
+      _sessionEventSub = null;
+      _currentSessionId = session?.id;
     }
+
+    // If no session or already subscribed, skip
+    if (session == null || _sessionEventSub != null) return;
+
+    // Subscribe to session events for both permission types
+    _sessionEventSub = session.events.listen((event) {
+      switch (event) {
+        case PermissionRequestEvent():
+          // Convert to UI PermissionRequest
+          final request = PermissionRequest.fromEvent(
+            event,
+            session.workingDirectory,
+          );
+          context.read(permissionStateProvider.notifier).enqueueRequest(request);
+
+        case AskUserQuestionEvent():
+          // Convert to UI request
+          final request = AskUserQuestionUIRequest.fromEvent(event);
+          context
+              .read(askUserQuestionStateProvider.notifier)
+              .enqueueRequest(request);
+
+        default:
+          // Ignore other events
+          break;
+      }
+    });
   }
 
   @override
   void dispose() {
-    _permissionSub?.cancel();
-    _askUserQuestionSub?.cancel();
+    _sessionEventSub?.cancel();
     super.dispose();
   }
 
   @override
   Component build(BuildContext context) {
-    // Set up permission handling (subscribes to requests stream)
-    _setupPermissionHandling(context);
+    // Watch for session changes to handle permission requests
+    final session = context.watch(currentVideSessionProvider);
+    _setupSessionEventHandling(context, session);
 
     // Just return the child - no more Stack overlay
     return component.child;

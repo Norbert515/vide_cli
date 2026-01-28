@@ -4,6 +4,7 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider for the VideCore instance.
@@ -13,10 +14,26 @@ final videoCoreProvider = Provider<VideCore>((ref) {
   throw UnimplementedError('videoCoreProvider must be overridden in main.dart');
 });
 
+/// Provider for a remote VideSession when connected to a daemon.
+///
+/// This is set by [SessionPickerPage] when connecting to a remote session.
+/// When set, [currentVideSessionProvider] will return this instead of the local session.
+final remoteVideSessionProvider = StateProvider<RemoteVideSession?>(
+  (ref) => null,
+);
+
 /// Provider for the current VideSession based on the active network.
 ///
 /// Returns null if no network is currently active.
+/// In remote mode, returns the [RemoteVideSession] instead.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
+  // Check if we're in remote mode first
+  final remoteSession = ref.watch(remoteVideSessionProvider);
+  if (remoteSession != null) {
+    return remoteSession;
+  }
+
+  // Local mode - use VideCore
   final core = ref.watch(videoCoreProvider);
   final networkState = ref.watch(agentNetworkManagerProvider);
   final currentNetwork = networkState.currentNetwork;

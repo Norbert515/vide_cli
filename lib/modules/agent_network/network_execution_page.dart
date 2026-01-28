@@ -66,7 +66,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   Component _buildAgentChat(
     BuildContext context,
-    AgentNetworkState networkState,
+    List<String> agentIds,
   ) {
     // Get selected agent ID from provider, or use the first agent
     final selectedAgentIdNotifier = context.read(
@@ -76,13 +76,11 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
     // Find the selected agent, or default to the first agent
     String agentId =
-        selectedAgentId ??
-        (networkState.agentIds.isNotEmpty ? networkState.agentIds[0] : '');
+        selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
 
     // Ensure selected agent is still valid
-    if (!networkState.agentIds.contains(agentId) &&
-        networkState.agentIds.isNotEmpty) {
-      agentId = networkState.agentIds[0];
+    if (!agentIds.contains(agentId) && agentIds.isNotEmpty) {
+      agentId = agentIds[0];
       selectedAgentIdNotifier.state = agentId;
     }
 
@@ -156,14 +154,15 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   @override
   Component build(BuildContext context) {
+    // Get session (works for both local and remote modes)
+    final session = context.watch(currentVideSessionProvider);
+    final agentIds = session?.agentIds ?? [];
+    final workingDirectory = session?.workingDirectory ?? '';
+
+    // Get goal text from network state (only available in local mode)
     final networkState = context.watch(agentNetworkManagerProvider);
     final currentNetwork = networkState.currentNetwork;
-    final workingDirectory = context
-        .read(agentNetworkManagerProvider.notifier)
-        .effectiveWorkingDirectory;
-
-    // Display the network goal
-    final goalText = currentNetwork?.goal ?? 'Loading...';
+    final goalText = currentNetwork?.goal ?? 'Session';
 
     // Build the main content column
     final content = Container(
@@ -184,10 +183,10 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
             ],
           ),
           Divider(),
-          if (networkState.agentIds.isEmpty)
+          if (agentIds.isEmpty)
             Center(child: Text('No agents'))
           else
-            _buildAgentChat(context, networkState),
+            _buildAgentChat(context, agentIds),
         ],
       ),
     );
@@ -428,7 +427,7 @@ class _AgentChatState extends State<_AgentChat> {
     String? patternOverride,
     String? denyReason,
   }) async {
-    final permissionService = context.read(permissionServiceProvider);
+    final session = context.read(currentVideSessionProvider);
 
     // If remember and granted, decide where to store based on tool type
     if (remember && granted) {
@@ -446,7 +445,7 @@ class _AgentChatState extends State<_AgentChat> {
         // Add to session cache (in-memory only) using inferred pattern
         final pattern =
             patternOverride ?? PatternInference.inferPattern(toolName, input);
-        permissionService.addSessionPattern(pattern);
+        session?.addSessionPermissionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
         final settingsManager = ClaudeSettingsManager(projectRoot: request.cwd);
@@ -467,13 +466,11 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    permissionService.respondToPermission(
+    // Send the response through the session (unified path for local and remote)
+    session?.respondToPermission(
       request.requestId,
-      PermissionResponse(
-        decision: granted ? 'allow' : 'deny',
-        reason: reason,
-        remember: remember,
-      ),
+      allow: granted,
+      message: reason,
     );
 
     // Dequeue the current request to show the next one
@@ -481,15 +478,15 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _handleAskUserQuestionResponse(
-    AskUserQuestionRequest request,
+    AskUserQuestionUIRequest request,
     Map<String, String> answers,
   ) {
-    final askUserQuestionService = context.read(askUserQuestionServiceProvider);
+    final session = context.read(currentVideSessionProvider);
 
-    // Send the response back to the MCP tool
-    askUserQuestionService.respondToRequest(
+    // Send the response through the session (unified path for local and remote)
+    session?.respondToAskUserQuestion(
       request.requestId,
-      AskUserQuestionResponse(answers: answers),
+      answers: answers,
     );
 
     // Dequeue the current request to show the next one

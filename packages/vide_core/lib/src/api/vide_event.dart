@@ -312,3 +312,54 @@ final class ErrorEvent extends VideEvent {
   @override
   String toString() => 'ErrorEvent($message, code=$code)';
 }
+
+/// Agent needs to ask the user a question (AskUserQuestion tool).
+///
+/// Call [VideSession.respondToAskUserQuestion] to provide answers.
+final class AskUserQuestionEvent extends VideEvent {
+  /// Unique ID for this request.
+  final String requestId;
+
+  /// The questions to ask the user.
+  final List<AskUserQuestionData> questions;
+
+  AskUserQuestionEvent({
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.requestId,
+    required this.questions,
+  });
+
+  @override
+  String toString() =>
+      'AskUserQuestionEvent($requestId, ${questions.length} questions)';
+}
+
+/// Data for a single question in AskUserQuestionEvent.
+class AskUserQuestionData {
+  final String question;
+  final String? header;
+  final bool multiSelect;
+  final List<AskUserQuestionOptionData> options;
+
+  const AskUserQuestionData({
+    required this.question,
+    this.header,
+    this.multiSelect = false,
+    required this.options,
+  });
+}
+
+/// Data for a single option in AskUserQuestionData.
+class AskUserQuestionOptionData {
+  final String label;
+  final String description;
+
+  const AskUserQuestionOptionData({
+    required this.label,
+    required this.description,
+  });
+}

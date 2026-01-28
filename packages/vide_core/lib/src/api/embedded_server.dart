@@ -411,6 +411,27 @@ class VideEmbeddedServer {
           'tool_input': e.toolInput,
         };
 
+      case AskUserQuestionEvent e:
+        return {
+          ...base,
+          'type': 'ask_user_question',
+          'request_id': e.requestId,
+          'questions': e.questions
+              .map(
+                (q) => {
+                  'question': q.question,
+                  'header': q.header,
+                  'multi_select': q.multiSelect,
+                  'options': q.options
+                      .map(
+                        (o) => {'label': o.label, 'description': o.description},
+                      )
+                      .toList(),
+                },
+              )
+              .toList(),
+        };
+
       case ErrorEvent e:
         return {...base, 'type': 'error', 'message': e.message, 'code': e.code};
     }

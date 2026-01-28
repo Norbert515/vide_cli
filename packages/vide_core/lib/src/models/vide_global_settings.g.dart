@@ -16,6 +16,9 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       dangerouslySkipPermissions:
           json['dangerouslySkipPermissions'] as bool? ?? false,
       gitSidebarEnabled: json['gitSidebarEnabled'] as bool? ?? true,
+      daemonModeEnabled: json['daemonModeEnabled'] as bool? ?? false,
+      daemonHost: json['daemonHost'] as String? ?? '127.0.0.1',
+      daemonPort: (json['daemonPort'] as num?)?.toInt() ?? 8080,
     );
 
 Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
@@ -27,4 +30,7 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'ideModeEnabled': instance.ideModeEnabled,
       'dangerouslySkipPermissions': instance.dangerouslySkipPermissions,
       'gitSidebarEnabled': instance.gitSidebarEnabled,
+      'daemonModeEnabled': instance.daemonModeEnabled,
+      'daemonHost': instance.daemonHost,
+      'daemonPort': instance.daemonPort,
     };

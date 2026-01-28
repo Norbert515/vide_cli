@@ -1,10 +1,11 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/modules/permissions/permission_scope.dart';
 
 /// Dialog for displaying structured multiple-choice questions to the user
 /// Styled to match Claude Code's native askUserQuestion UI
 class AskUserQuestionDialog extends StatefulComponent {
-  final AskUserQuestionRequest request;
+  final AskUserQuestionUIRequest request;
   final Function(Map<String, String> answers) onSubmit;
 
   const AskUserQuestionDialog({
@@ -35,7 +36,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
   /// Controller for custom text input
   final _textController = TextEditingController();
 
-  AskUserQuestion get _currentQuestion =>
+  AskUserQuestionData get _currentQuestion =>
       component.request.questions[_currentQuestionIndex];
   bool get _isLastQuestion =>
       _currentQuestionIndex >= component.request.questions.length - 1;
@@ -287,7 +288,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
 
   Component _buildOption(
     int index,
-    AskUserQuestionOption option,
+    AskUserQuestionOptionData option,
     bool isMultiSelect,
   ) {
     final isSelected = index == _selectedOptionIndex;

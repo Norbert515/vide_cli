@@ -44,6 +44,20 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool gitSidebarEnabled;
 
+  /// Whether daemon mode is enabled.
+  /// When true, sessions run on a persistent daemon process.
+  /// When false, sessions run locally in the TUI process.
+  @JsonKey(defaultValue: false)
+  final bool daemonModeEnabled;
+
+  /// Host for the daemon when daemon mode is enabled.
+  @JsonKey(defaultValue: '127.0.0.1')
+  final String daemonHost;
+
+  /// Port for the daemon when daemon mode is enabled.
+  @JsonKey(defaultValue: 8080)
+  final int daemonPort;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -52,6 +66,9 @@ class VideGlobalSettings {
     this.ideModeEnabled = false,
     this.dangerouslySkipPermissions = false,
     this.gitSidebarEnabled = true,
+    this.daemonModeEnabled = false,
+    this.daemonHost = '127.0.0.1',
+    this.daemonPort = 8080,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -69,6 +86,9 @@ class VideGlobalSettings {
     bool? ideModeEnabled,
     bool? dangerouslySkipPermissions,
     bool? gitSidebarEnabled,
+    bool? daemonModeEnabled,
+    String? daemonHost,
+    int? daemonPort,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -79,6 +99,9 @@ class VideGlobalSettings {
       dangerouslySkipPermissions:
           dangerouslySkipPermissions ?? this.dangerouslySkipPermissions,
       gitSidebarEnabled: gitSidebarEnabled ?? this.gitSidebarEnabled,
+      daemonModeEnabled: daemonModeEnabled ?? this.daemonModeEnabled,
+      daemonHost: daemonHost ?? this.daemonHost,
+      daemonPort: daemonPort ?? this.daemonPort,
     );
   }
 }

@@ -10,7 +10,7 @@ class RunningAgentsBar extends StatelessComponent {
     this.selectedIndex = 0,
   });
 
-  final List<AgentMetadata> agents;
+  final List<VideAgent> agents;
   final int selectedIndex;
 
   @override
@@ -28,7 +28,7 @@ class RunningAgentsBar extends StatelessComponent {
 }
 
 class _RunningAgentBarItem extends StatefulComponent {
-  final AgentMetadata agent;
+  final VideAgent agent;
   final bool isSelected;
 
   const _RunningAgentBarItem({required this.agent, required this.isSelected});
@@ -119,7 +119,7 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
     };
   }
 
-  String _buildAgentDisplayName(AgentMetadata agent) {
+  String _buildAgentDisplayName(VideAgent agent) {
     if (agent.taskName != null && agent.taskName!.isNotEmpty) {
       return '${agent.name} - ${agent.taskName}';
     }
