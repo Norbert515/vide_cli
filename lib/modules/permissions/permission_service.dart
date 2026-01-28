@@ -7,7 +7,7 @@ import 'package:vide_core/vide_core.dart';
 // Data Classes
 // =============================================================================
 
-/// Permission request from Claude Code hook
+/// Permission request from Claude Code hook or daemon WebSocket
 class PermissionRequest {
   final String requestId;
   final String toolName;
@@ -16,6 +16,10 @@ class PermissionRequest {
   final DateTime timestamp;
   final String? inferredPattern;
 
+  /// If true, this request came from a remote/daemon session and should be
+  /// responded to via the session's respondToPermission method.
+  final bool isRemote;
+
   PermissionRequest({
     required this.requestId,
     required this.toolName,
@@ -23,6 +27,7 @@ class PermissionRequest {
     required this.cwd,
     DateTime? timestamp,
     this.inferredPattern,
+    this.isRemote = false,
   }) : timestamp = timestamp ?? DateTime.now();
 
   PermissionRequest copyWith({String? requestId, String? inferredPattern}) {
@@ -33,6 +38,18 @@ class PermissionRequest {
       cwd: cwd,
       timestamp: timestamp,
       inferredPattern: inferredPattern ?? this.inferredPattern,
+      isRemote: isRemote,
+    );
+  }
+
+  /// Create a permission request from a remote/daemon PermissionRequestEvent
+  factory PermissionRequest.fromEvent(PermissionRequestEvent event, String cwd) {
+    return PermissionRequest(
+      requestId: event.requestId,
+      toolName: event.toolName,
+      toolInput: event.toolInput,
+      cwd: cwd,
+      isRemote: true,
     );
   }
 

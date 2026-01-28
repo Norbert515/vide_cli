@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'permission_service.dart';
 
 /// State for permission requests - includes queue and current request
@@ -104,7 +105,9 @@ class PermissionScope extends StatefulComponent {
 class _PermissionScopeState extends State<PermissionScope> {
   StreamSubscription<PermissionRequest>? _permissionSub;
   StreamSubscription<AskUserQuestionRequest>? _askUserQuestionSub;
+  StreamSubscription<VideEvent>? _sessionEventSub;
   bool _listenerSetup = false;
+  String? _currentSessionId;
 
   @override
   void initState() {
@@ -130,17 +133,47 @@ class _PermissionScopeState extends State<PermissionScope> {
     }
   }
 
+  /// Sets up listening to session events for remote/daemon permission requests.
+  void _setupSessionEventHandling(BuildContext context, VideSession? session) {
+    // If session changed, cancel old subscription
+    if (session?.id != _currentSessionId) {
+      _sessionEventSub?.cancel();
+      _sessionEventSub = null;
+      _currentSessionId = session?.id;
+    }
+
+    // If no session or already subscribed, skip
+    if (session == null || _sessionEventSub != null) return;
+
+    // Subscribe to session events for permission requests
+    _sessionEventSub = session.events.listen((event) {
+      if (event is PermissionRequestEvent) {
+        // Convert to UI PermissionRequest
+        final request = PermissionRequest.fromEvent(
+          event,
+          session.workingDirectory,
+        );
+        context.read(permissionStateProvider.notifier).enqueueRequest(request);
+      }
+    });
+  }
+
   @override
   void dispose() {
     _permissionSub?.cancel();
     _askUserQuestionSub?.cancel();
+    _sessionEventSub?.cancel();
     super.dispose();
   }
 
   @override
   Component build(BuildContext context) {
-    // Set up permission handling (subscribes to requests stream)
+    // Set up permission handling (subscribes to local service requests stream)
     _setupPermissionHandling(context);
+
+    // Watch for session changes to handle remote/daemon permission requests
+    final session = context.watch(currentVideSessionProvider);
+    _setupSessionEventHandling(context, session);
 
     // Just return the child - no more Stack overlay
     return component.child;

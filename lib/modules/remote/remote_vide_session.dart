@@ -343,6 +343,114 @@ class RemoteVideSession implements VideSession {
     _getOrCreateConversationController(agentId).add(conversation);
   }
 
+  /// Updates conversation state with a tool use event.
+  void _updateConversationWithToolUse({
+    required String agentId,
+    required String toolUseId,
+    required String toolName,
+    required Map<String, dynamic> toolInput,
+  }) {
+    var conversation = _conversations[agentId] ?? Conversation.empty();
+    final messages = List<ConversationMessage>.from(conversation.messages);
+
+    // Add a tool use message
+    messages.add(
+      ConversationMessage(
+        id: toolUseId,
+        role: MessageRole.assistant,
+        content: '', // Tool uses don't have text content
+        timestamp: DateTime.now(),
+        responses: [
+          ToolUseResponse(
+            id: toolUseId,
+            timestamp: DateTime.now(),
+            toolName: toolName,
+            parameters: toolInput,
+            toolUseId: toolUseId,
+          ),
+        ],
+        isStreaming: true, // Mark as streaming until result arrives
+        isComplete: false,
+        messageType: MessageType.toolUse,
+      ),
+    );
+
+    // Track the message index for later result matching
+    _pendingToolUseMessageIndex[toolUseId] = messages.length - 1;
+
+    conversation = conversation.copyWith(
+      messages: messages,
+      state: ConversationState.processing,
+    );
+    _conversations[agentId] = conversation;
+
+    // Notify listeners
+    _getOrCreateConversationController(agentId).add(conversation);
+  }
+
+  /// Updates conversation state with a tool result event.
+  void _updateConversationWithToolResult({
+    required String agentId,
+    required String toolUseId,
+    required String result,
+    required bool isError,
+  }) {
+    var conversation = _conversations[agentId] ?? Conversation.empty();
+    final messages = List<ConversationMessage>.from(conversation.messages);
+
+    // Find the tool use message to update
+    final messageIndex = _pendingToolUseMessageIndex.remove(toolUseId);
+
+    if (messageIndex != null && messageIndex < messages.length) {
+      // Update the existing tool use message to mark it complete
+      final toolUseMessage = messages[messageIndex];
+      messages[messageIndex] = ConversationMessage(
+        id: toolUseMessage.id,
+        role: toolUseMessage.role,
+        content: toolUseMessage.content,
+        timestamp: toolUseMessage.timestamp,
+        responses: toolUseMessage.responses,
+        isStreaming: false,
+        isComplete: true,
+        messageType: toolUseMessage.messageType,
+      );
+    }
+
+    // Add a tool result message
+    messages.add(
+      ConversationMessage(
+        id: '${toolUseId}_result',
+        role: MessageRole.user, // Tool results are treated as user messages
+        content: result,
+        timestamp: DateTime.now(),
+        responses: [
+          ToolResultResponse(
+            id: '${toolUseId}_result',
+            timestamp: DateTime.now(),
+            toolUseId: toolUseId,
+            content: result,
+            isError: isError,
+          ),
+        ],
+        isStreaming: false,
+        isComplete: true,
+        messageType: MessageType.toolResult,
+      ),
+    );
+
+    conversation = conversation.copyWith(
+      messages: messages,
+      state: ConversationState.receivingResponse,
+    );
+    _conversations[agentId] = conversation;
+
+    // Notify listeners
+    _getOrCreateConversationController(agentId).add(conversation);
+  }
+
+  /// Tracks pending tool use message indices for result matching.
+  final Map<String, int> _pendingToolUseMessageIndex = {};
+
   StreamController<Conversation> _getOrCreateConversationController(
     String agentId,
   ) {
@@ -360,6 +468,17 @@ class RemoteVideSession implements VideSession {
     final agentId = json['agent-id'] as String;
     final agentInfo = _agents[agentId];
     final data = json['data'] as Map<String, dynamic>? ?? {};
+    final toolUseId = data['tool-use-id'] as String? ?? const Uuid().v4();
+    final toolName = data['tool-name'] as String? ?? 'unknown';
+    final toolInput = data['tool-input'] as Map<String, dynamic>? ?? {};
+
+    // Update conversation state with tool use
+    _updateConversationWithToolUse(
+      agentId: agentId,
+      toolUseId: toolUseId,
+      toolName: toolName,
+      toolInput: toolInput,
+    );
 
     _eventController.add(
       ToolUseEvent(
@@ -368,9 +487,9 @@ class RemoteVideSession implements VideSession {
             agentInfo?.type ?? json['agent-type'] as String? ?? 'unknown',
         agentName: agentInfo?.name ?? json['agent-name'] as String?,
         taskName: json['task-name'] as String?,
-        toolUseId: data['tool-use-id'] as String? ?? const Uuid().v4(),
-        toolName: data['tool-name'] as String? ?? 'unknown',
-        toolInput: data['tool-input'] as Map<String, dynamic>? ?? {},
+        toolUseId: toolUseId,
+        toolName: toolName,
+        toolInput: toolInput,
       ),
     );
   }
@@ -383,6 +502,18 @@ class RemoteVideSession implements VideSession {
     final agentId = json['agent-id'] as String;
     final agentInfo = _agents[agentId];
     final data = json['data'] as Map<String, dynamic>? ?? {};
+    final toolUseId = data['tool-use-id'] as String? ?? '';
+    final toolName = data['tool-name'] as String? ?? 'unknown';
+    final result = data['result'];
+    final isError = data['is-error'] as bool? ?? false;
+
+    // Update conversation state with tool result
+    _updateConversationWithToolResult(
+      agentId: agentId,
+      toolUseId: toolUseId,
+      result: result is String ? result : (result?.toString() ?? ''),
+      isError: isError,
+    );
 
     _eventController.add(
       ToolResultEvent(
@@ -391,10 +522,10 @@ class RemoteVideSession implements VideSession {
             agentInfo?.type ?? json['agent-type'] as String? ?? 'unknown',
         agentName: agentInfo?.name ?? json['agent-name'] as String?,
         taskName: json['task-name'] as String?,
-        toolUseId: data['tool-use-id'] as String? ?? '',
-        toolName: data['tool-name'] as String? ?? 'unknown',
-        result: data['result'],
-        isError: data['is-error'] as bool? ?? false,
+        toolUseId: toolUseId,
+        toolName: toolName,
+        result: result,
+        isError: isError,
       ),
     );
   }
