@@ -8,10 +8,13 @@ import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart
 import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
+import 'package:vide_cli/modules/remote/remote_config.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
+
+export 'package:vide_cli/modules/remote/remote_config.dart';
 
 /// Provider for left sidebar focus state, shared across the app.
 /// Pages can update this to give focus to the sidebar.
@@ -34,6 +37,13 @@ final ideModeEnabledProvider = StateProvider<bool>((ref) {
 final gitSidebarEnabledProvider = StateProvider<bool>((ref) {
   final configManager = ref.read(videConfigManagerProvider);
   return configManager.readGlobalSettings().gitSidebarEnabled;
+});
+
+/// Provider for daemon mode setting. When true, sessions run on a persistent daemon.
+/// Initialized from global settings and can be toggled in settings.
+final daemonModeEnabledProvider = StateProvider<bool>((ref) {
+  final configManager = ref.read(videConfigManagerProvider);
+  return configManager.readGlobalSettings().daemonModeEnabled;
 });
 
 /// Provider that checks if the current repo path is a git repository.
@@ -105,9 +115,21 @@ final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider
       };
     });
 
+/// Provider for remote configuration. When set, TUI operates in remote mode.
+final remoteConfigProvider = StateProvider<RemoteConfig?>((ref) => null);
+
+/// Provider for force local mode flag.
+final forceLocalModeProvider = StateProvider<bool>((ref) => false);
+
+/// Provider for force daemon mode flag.
+final forceDaemonModeProvider = StateProvider<bool>((ref) => false);
+
 Future<void> main(
   List<String> args, {
   List<Override> overrides = const [],
+  RemoteConfig? remoteConfig,
+  bool forceLocal = false,
+  bool forceDaemon = false,
 }) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
@@ -120,6 +142,11 @@ Future<void> main(
       _canUseToolCallbackFactoryOverride,
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
+      // Remote mode configuration
+      if (remoteConfig != null)
+        remoteConfigProvider.overrideWith((ref) => remoteConfig),
+      if (forceLocal) forceLocalModeProvider.overrideWith((ref) => true),
+      if (forceDaemon) forceDaemonModeProvider.overrideWith((ref) => true),
       ...overrides,
     ],
   );
@@ -180,6 +207,7 @@ class _VideAppContent extends StatelessComponent {
   Component build(BuildContext context) {
     // Navigator at top level so dialogs render on top of everything.
     // Each page wraps itself with VideScaffold as needed.
+    // HomePage now handles both local and daemon modes.
     return WelcomeScope(
       child: SetupScope(
         child: Navigator(
