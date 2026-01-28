@@ -427,7 +427,7 @@ class _AgentChatState extends State<_AgentChat> {
     String? patternOverride,
     String? denyReason,
   }) async {
-    final permissionService = context.read(permissionServiceProvider);
+    final session = context.read(currentVideSessionProvider);
 
     // If remember and granted, decide where to store based on tool type
     if (remember && granted) {
@@ -445,7 +445,7 @@ class _AgentChatState extends State<_AgentChat> {
         // Add to session cache (in-memory only) using inferred pattern
         final pattern =
             patternOverride ?? PatternInference.inferPattern(toolName, input);
-        permissionService.addSessionPattern(pattern);
+        session?.addSessionPermissionPattern(pattern);
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
         final settingsManager = ClaudeSettingsManager(projectRoot: request.cwd);
@@ -466,23 +466,11 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    // Send the response to BOTH mechanisms - the one that owns the completer
-    // will handle it, the other will be a no-op. This allows a single code path
-    // for both local and remote/daemon sessions.
-    final session = context.read(currentVideSessionProvider);
+    // Send the response through the session (unified path for local and remote)
     session?.respondToPermission(
       request.requestId,
       allow: granted,
       message: reason,
-    );
-
-    permissionService.respondToPermission(
-      request.requestId,
-      PermissionResponse(
-        decision: granted ? 'allow' : 'deny',
-        reason: reason,
-        remember: remember,
-      ),
     );
 
     // Dequeue the current request to show the next one
@@ -490,15 +478,15 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _handleAskUserQuestionResponse(
-    AskUserQuestionRequest request,
+    AskUserQuestionUIRequest request,
     Map<String, String> answers,
   ) {
-    final askUserQuestionService = context.read(askUserQuestionServiceProvider);
+    final session = context.read(currentVideSessionProvider);
 
-    // Send the response back to the MCP tool
-    askUserQuestionService.respondToRequest(
+    // Send the response through the session (unified path for local and remote)
+    session?.respondToAskUserQuestion(
       request.requestId,
-      AskUserQuestionResponse(answers: answers),
+      answers: answers,
     );
 
     // Dequeue the current request to show the next one

@@ -7,6 +7,36 @@ import '../mcp/mcp_provider.dart';
 import 'permission_provider.dart';
 import 'vide_config_manager.dart';
 
+/// Creates a session-aware permission callback.
+///
+/// This callback uses late-binding to resolve the session at invocation time,
+/// solving the chicken-egg problem where callbacks are created before sessions exist.
+CanUseToolCallback createSessionAwarePermissionCallback(
+  PermissionCallbackContext ctx,
+) {
+  return (toolName, input, context) async {
+    // Look up the session at invocation time (late binding)
+    final session =
+        ctx.networkId != null && ctx.sessionLookup != null
+            ? ctx.sessionLookup!(ctx.networkId!)
+            : null;
+
+    if (session != null) {
+      // Use the session's permission callback
+      final callback = session.createPermissionCallback(
+        agentId: ctx.agentId.toString(),
+        agentName: ctx.agentName,
+        agentType: ctx.agentType,
+        cwd: ctx.cwd,
+      );
+      return callback(toolName, input, context);
+    }
+
+    // Fallback: no session means auto-allow (this shouldn't happen in practice)
+    return const PermissionResultAllow();
+  };
+}
+
 /// Factory for creating ClaudeClient instances with proper configuration.
 ///
 /// This separates client creation from network orchestration, making
@@ -121,16 +151,13 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
             .toList() ??
         [];
 
-    final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(
-      PermissionCallbackContext(
-        cwd: cwd,
-        agentId: agentId,
-        agentName: config.name,
-        agentType: agentType,
-        permissionMode: config.permissionMode,
-        networkId: networkId,
-      ),
+    final canUseTool = _createPermissionCallback(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
     );
 
     final client = ClaudeClient.createNonBlocking(
@@ -174,16 +201,13 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
             .toList() ??
         [];
 
-    final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(
-      PermissionCallbackContext(
-        cwd: cwd,
-        agentId: agentId,
-        agentName: config.name,
-        agentType: agentType,
-        permissionMode: config.permissionMode,
-        networkId: networkId,
-      ),
+    final canUseTool = _createPermissionCallback(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
     );
 
     final client = await ClaudeClient.create(
@@ -237,16 +261,13 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
             .toList() ??
         [];
 
-    final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
-    final canUseTool = callbackFactory?.call(
-      PermissionCallbackContext(
-        cwd: cwd,
-        agentId: agentId,
-        agentName: config.name,
-        agentType: agentType,
-        permissionMode: config.permissionMode,
-        networkId: networkId,
-      ),
+    final canUseTool = _createPermissionCallback(
+      cwd: cwd,
+      agentId: agentId,
+      agentName: config.name,
+      agentType: agentType,
+      permissionMode: config.permissionMode,
+      networkId: networkId,
     );
 
     // Use createNonBlocking to avoid hanging on init
@@ -259,5 +280,54 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     );
 
     return client;
+  }
+
+  /// Creates a permission callback for the given agent context.
+  ///
+  /// This first checks if there's a custom callback factory (for backwards compatibility
+  /// or custom implementations), otherwise uses session-based permission checking.
+  CanUseToolCallback? _createPermissionCallback({
+    required String cwd,
+    required AgentId agentId,
+    required String? agentName,
+    required String? agentType,
+    required String? permissionMode,
+    required String? networkId,
+  }) {
+    // Check for custom callback factory first (backwards compatibility)
+    final callbackFactory = _ref.read(canUseToolCallbackFactoryProvider);
+    if (callbackFactory != null) {
+      final sessionLookup = _ref.read(sessionLookupProvider);
+      return callbackFactory(
+        PermissionCallbackContext(
+          cwd: cwd,
+          agentId: agentId,
+          agentName: agentName,
+          agentType: agentType,
+          permissionMode: permissionMode,
+          networkId: networkId,
+          sessionLookup: sessionLookup,
+        ),
+      );
+    }
+
+    // Use default session-aware callback if we have a session lookup
+    final sessionLookup = _ref.read(sessionLookupProvider);
+    if (sessionLookup != null && networkId != null) {
+      return createSessionAwarePermissionCallback(
+        PermissionCallbackContext(
+          cwd: cwd,
+          agentId: agentId,
+          agentName: agentName,
+          agentType: agentType,
+          permissionMode: permissionMode,
+          networkId: networkId,
+          sessionLookup: sessionLookup,
+        ),
+      );
+    }
+
+    // No permission checking
+    return null;
   }
 }
