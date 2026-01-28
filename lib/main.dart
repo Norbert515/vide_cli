@@ -7,7 +7,6 @@ import 'package:vide_cli/modules/agent_network/state/console_title_provider.dart
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
-import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/remote/remote_config.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
@@ -96,24 +95,17 @@ final currentRepoPathProvider = Provider<String>((ref) {
   return networkManager.effectiveWorkingDirectory;
 });
 
-/// Provider override for canUseToolCallbackFactory that bridges PermissionService to ClaudeClient.
+/// Provider override for sessionLookup that enables session-based permission checking.
 ///
-/// This provider creates callbacks that can be passed to ClaudeClient.create() for
-/// permission checking via the control protocol.
-final _canUseToolCallbackFactoryOverride = canUseToolCallbackFactoryProvider
-    .overrideWith((ref) {
-      final permissionService = ref.read(permissionServiceProvider);
-      return (PermissionCallbackContext ctx) {
-        return (toolName, input, context) async {
-          return permissionService.checkToolPermission(
-            toolName,
-            input,
-            context,
-            cwd: ctx.cwd,
-          );
-        };
-      };
-    });
+/// This allows the ClaudeClientFactory to resolve sessions at callback invocation time
+/// (late binding), enabling unified permission handling through VideSession.
+late final _sessionLookupOverride = sessionLookupProvider.overrideWith((ref) {
+  return (String networkId) {
+    // Look up the session from VideCore
+    final core = ref.read(videoCoreProvider);
+    return core.getSessionForNetwork(networkId);
+  };
+});
 
 /// Provider for remote configuration. When set, TUI operates in remote mode.
 final remoteConfigProvider = StateProvider<RemoteConfig?>((ref) => null);
@@ -139,9 +131,10 @@ Future<void> main(
   late final VideCore videCore;
   final container = ProviderContainer(
     overrides: [
-      _canUseToolCallbackFactoryOverride,
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
+      // Session lookup for permission callbacks (enables unified permission flow)
+      _sessionLookupOverride,
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),

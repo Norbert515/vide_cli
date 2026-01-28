@@ -1,17 +1,14 @@
-import 'dart:async';
 import 'package:riverpod/riverpod.dart';
-import 'package:uuid/uuid.dart';
 import 'package:vide_core/vide_core.dart';
 
 // =============================================================================
 // Data Classes
 // =============================================================================
 
-/// Permission request from Claude Code hook or daemon WebSocket.
+/// Permission request for display in the UI.
 ///
-/// Both local and remote permission requests are converted to this type
-/// for display in the UI. The response is routed to both PermissionService
-/// and VideSession - the one that owns the completer will handle it.
+/// All permission requests (local and remote) flow through VideSession.events
+/// as PermissionRequestEvent. This class is the UI-friendly wrapper.
 class PermissionRequest {
   final String requestId;
   final String toolName;
@@ -41,13 +38,16 @@ class PermissionRequest {
   }
 
   /// Create a permission request from a PermissionRequestEvent.
-  /// Works for both local (via session.events) and remote sessions.
-  factory PermissionRequest.fromEvent(PermissionRequestEvent event, String cwd) {
+  factory PermissionRequest.fromEvent(
+    PermissionRequestEvent event,
+    String cwd,
+  ) {
     return PermissionRequest(
       requestId: event.requestId,
       toolName: event.toolName,
       toolInput: event.toolInput,
       cwd: cwd,
+      inferredPattern: event.inferredPattern,
     );
   }
 
@@ -71,172 +71,22 @@ class PermissionRequest {
   }
 }
 
-/// Permission response to Claude Code hook
-class PermissionResponse {
-  final String decision;
-  final String? reason;
-  final bool remember;
-
-  PermissionResponse({
-    required this.decision,
-    this.reason,
-    required this.remember,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'decision': decision,
-    if (reason != null) 'reason': reason,
-    'remember': remember,
-  };
-}
-
+/// Provider for permission service (now just a placeholder for backwards compat).
+///
+/// Permission checking and response handling now flows through VideSession.
+/// This provider is kept for any remaining references but may be removed.
 final permissionServiceProvider = Provider<PermissionService>((ref) {
-  final askUserQuestionService = ref.watch(askUserQuestionServiceProvider);
-  final service = PermissionService(
-    askUserQuestionService: askUserQuestionService,
-  );
-  ref.onDispose(() => service.dispose());
-  return service;
+  return PermissionService();
 });
 
+/// Permission service - now a minimal utility class.
+///
+/// Previously this handled the full permission request/response flow,
+/// but that has been unified into VideSession. This class is kept for
+/// backwards compatibility and potential future utility methods.
 class PermissionService {
-  final PermissionChecker _checker = PermissionChecker();
-  final AskUserQuestionService _askUserQuestionService;
+  PermissionService();
 
-  final _requestController = StreamController<PermissionRequest>.broadcast();
-  final Map<String, Completer<PermissionResponse>> _pendingRequests = {};
-
-  PermissionService({required AskUserQuestionService askUserQuestionService})
-    : _askUserQuestionService = askUserQuestionService;
-
-  /// Stream of permission requests for the UI
-  Stream<PermissionRequest> get requests => _requestController.stream;
-
-  /// Respond to a permission request
-  void respondToPermission(String requestId, PermissionResponse response) {
-    _pendingRequests[requestId]?.complete(response);
-  }
-
-  /// Delegate to checker
-  bool isAllowedBySessionCache(
-    String toolName,
-    Map<String, dynamic> toolInput,
-  ) {
-    final input = ToolInput.fromJson(toolName, toolInput);
-    return _checker.isAllowedBySessionCache(toolName, input);
-  }
-
-  void addSessionPattern(String pattern) {
-    _checker.addSessionPattern(pattern);
-  }
-
-  void clearSessionCache() {
-    _checker.clearSessionCache();
-  }
-
-  /// Check permission for a tool use via control protocol callback.
-  /// This method is designed to be passed as the `canUseTool` callback to ClaudeClient.create().
-  ///
-  /// [toolName] - The name of the tool being invoked
-  /// [toolInput] - The input parameters for the tool
-  /// [context] - Additional context from the control protocol
-  /// [cwd] - The current working directory (needed for settings lookup)
-  Future<PermissionResult> checkToolPermission(
-    String toolName,
-    Map<String, dynamic> toolInput,
-    ToolPermissionContext context, {
-    required String cwd,
-  }) async {
-    // Special handling for built-in AskUserQuestion tool
-    // We intercept it and show our own UI, then pass the answers back
-    if (toolName == 'AskUserQuestion') {
-      return _handleAskUserQuestion(toolInput);
-    }
-
-    // Convert raw map to type-safe ToolInput
-    final input = ToolInput.fromJson(toolName, toolInput);
-
-    final result = await _checker.checkPermission(
-      toolName: toolName,
-      input: input,
-      cwd: cwd,
-    );
-
-    switch (result) {
-      case PermissionAllow():
-        return const PermissionResultAllow();
-      case PermissionDeny(reason: final reason):
-        return PermissionResultDeny(message: reason);
-      case PermissionAskUser(inferredPattern: final inferredPattern):
-        // Create completer for user response
-        final requestId = const Uuid().v4();
-        final completer = Completer<PermissionResponse>();
-        _pendingRequests[requestId] = completer;
-
-        // Create a PermissionRequest for the UI
-        final permissionRequest = PermissionRequest(
-          requestId: requestId,
-          toolName: toolName,
-          toolInput: toolInput,
-          cwd: cwd,
-          inferredPattern: inferredPattern,
-        );
-
-        // Emit request to UI
-        _requestController.add(permissionRequest);
-
-        // Wait for user response
-        final response = await completer.future;
-        _pendingRequests.remove(requestId);
-
-        if (response.decision == 'allow') {
-          return const PermissionResultAllow();
-        } else {
-          return PermissionResultDeny(
-            message: response.reason ?? 'Permission denied by user',
-          );
-        }
-    }
-  }
-
-  /// Handle built-in AskUserQuestion tool by showing our custom UI
-  /// and returning the answers via updatedInput
-  Future<PermissionResult> _handleAskUserQuestion(
-    Map<String, dynamic> toolInput,
-  ) async {
-    try {
-      // Parse questions from tool input
-      final questionsJson = toolInput['questions'] as List<dynamic>?;
-      if (questionsJson == null || questionsJson.isEmpty) {
-        // No questions, just allow
-        return const PermissionResultAllow();
-      }
-
-      // Convert to our AskUserQuestion types
-      final questions = questionsJson.map((q) {
-        final qMap = q as Map<String, dynamic>;
-        return AskUserQuestion.fromJson(qMap);
-      }).toList();
-
-      // Use the AskUserQuestionService to show our UI and get answers
-      final answers = await _askUserQuestionService.askQuestions(questions);
-
-      // Return allow with the answers included in updatedInput
-      // Claude Code should see the pre-filled answers and skip its UI
-      return PermissionResultAllow(
-        updatedInput: {...toolInput, 'answers': answers},
-      );
-    } catch (e) {
-      // If parsing fails, deny with error message
-      return PermissionResultDeny(
-        message: 'Failed to parse AskUserQuestion: $e',
-      );
-    }
-  }
-
-  /// Dispose all resources
-  Future<void> dispose() async {
-    _checker.dispose();
-    await _requestController.close();
-  }
+  /// Dispose resources (currently a no-op)
+  void dispose() {}
 }

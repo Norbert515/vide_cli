@@ -14,6 +14,8 @@ import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
 import '../services/agent_network_manager.dart';
 import '../services/claude_manager.dart';
+import '../services/permissions/permission_checker.dart';
+import '../services/permissions/tool_input.dart';
 import '../state/agent_status_manager.dart';
 import 'conversation_state.dart';
 import 'vide_agent.dart';
@@ -65,6 +67,13 @@ class VideSession {
   /// Pending permission completers by request ID.
   final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
 
+  /// Pending AskUserQuestion completers by request ID.
+  final Map<String, Completer<Map<String, String>>> _pendingAskUserQuestions =
+      {};
+
+  /// Permission checker for business logic (allow lists, deny lists, etc.).
+  late final PermissionChecker _permissionChecker;
+
   /// Conversation state manager that accumulates events from the start.
   ///
   /// This is created immediately when the session is created, so no events are missed.
@@ -76,9 +85,15 @@ class VideSession {
   VideSession._({
     required String networkId,
     required ProviderContainer container,
+    PermissionCheckerConfig? permissionConfig,
   }) : _networkId = networkId,
        _container = container,
        _eventController = StreamController<VideEvent>.broadcast() {
+    // Create permission checker for this session
+    _permissionChecker = PermissionChecker(
+      config: permissionConfig ?? PermissionCheckerConfig.tui,
+    );
+
     // Create conversation state manager immediately and subscribe to events
     _conversationStateManager = ConversationStateManager();
     _eventController.stream.listen((event) {
@@ -89,11 +104,17 @@ class VideSession {
   /// Creates a new VideSession for an existing network.
   ///
   /// This is called internally by [VideCore.startSession] and [VideCore.resumeSession].
+  /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
   static VideSession create({
     required String networkId,
     required ProviderContainer container,
+    PermissionCheckerConfig? permissionConfig,
   }) {
-    final session = VideSession._(networkId: networkId, container: container);
+    final session = VideSession._(
+      networkId: networkId,
+      container: container,
+      permissionConfig: permissionConfig,
+    );
     session._initialize();
     return session;
   }
@@ -468,10 +489,19 @@ class VideSession {
     }
     _pendingPermissions.clear();
 
+    // Complete any pending AskUserQuestion with empty answers
+    for (final completer in _pendingAskUserQuestions.values) {
+      if (!completer.isCompleted) {
+        completer.completeError(StateError('Session disposed'));
+      }
+    }
+    _pendingAskUserQuestions.clear();
+
     // Clear agent states
     _agentStates.clear();
 
-    // Dispose conversation state manager
+    // Dispose permission checker and conversation state manager
+    _permissionChecker.dispose();
     _conversationStateManager.dispose();
 
     // Close the event stream
@@ -790,54 +820,199 @@ class VideSession {
     state.lastResponseCount = responses.length;
   }
 
-  /// Creates a permission callback that emits [PermissionRequestEvent]
-  /// and waits for [respondToPermission] to be called.
+  /// Creates a permission callback that integrates with [PermissionChecker]
+  /// and emits [PermissionRequestEvent] when user approval is needed.
+  ///
+  /// The callback:
+  /// 1. Checks if the tool is auto-allowed/denied by PermissionChecker
+  /// 2. If user approval is needed, emits PermissionRequestEvent
+  /// 3. Waits for [respondToPermission] to be called
+  ///
+  /// Special handling for AskUserQuestion tool: emits [AskUserQuestionEvent]
+  /// and waits for [respondToAskUserQuestion] instead.
   CanUseToolCallback createPermissionCallback({
     required String agentId,
     required String? agentName,
     required String? agentType,
+    required String cwd,
   }) {
     return (
       String toolName,
       Map<String, dynamic> input,
       ToolPermissionContext context,
     ) async {
-      final requestId = const Uuid().v4();
-      final completer = Completer<PermissionResult>();
-      _pendingPermissions[requestId] = completer;
-
       // Get current task name
       final state = _agentStates[agentId];
 
-      // Emit permission request event
+      // Special handling for AskUserQuestion tool
+      if (toolName == 'AskUserQuestion') {
+        return _handleAskUserQuestion(
+          agentId: agentId,
+          agentName: agentName,
+          agentType: agentType,
+          taskName: state?.taskName,
+          toolInput: input,
+        );
+      }
+
+      // Convert raw map to type-safe ToolInput for PermissionChecker
+      final typedInput = ToolInput.fromJson(toolName, input);
+
+      // Check with PermissionChecker first (allow lists, deny lists, etc.)
+      final checkResult = await _permissionChecker.checkPermission(
+        toolName: toolName,
+        input: typedInput,
+        cwd: cwd,
+      );
+
+      // Handle the result from PermissionChecker
+      switch (checkResult) {
+        case PermissionAllow():
+          return const PermissionResultAllow();
+
+        case PermissionDeny(reason: final reason):
+          return PermissionResultDeny(message: reason);
+
+        case PermissionAskUser(inferredPattern: final inferredPattern):
+          // Need to ask the user - emit event and wait
+          final requestId = const Uuid().v4();
+          final completer = Completer<PermissionResult>();
+          _pendingPermissions[requestId] = completer;
+
+          // Emit permission request event
+          _eventController.add(
+            PermissionRequestEvent(
+              agentId: agentId,
+              agentType: agentType ?? 'unknown',
+              agentName: agentName,
+              taskName: state?.taskName,
+              requestId: requestId,
+              toolName: toolName,
+              toolInput: input,
+              inferredPattern: inferredPattern,
+            ),
+          );
+
+          // Wait for response (with timeout)
+          try {
+            return await completer.future.timeout(
+              const Duration(seconds: 60),
+              onTimeout: () {
+                _pendingPermissions.remove(requestId);
+                return const PermissionResultDeny(
+                  message: 'Permission request timed out',
+                );
+              },
+            );
+          } catch (e) {
+            _pendingPermissions.remove(requestId);
+            return PermissionResultDeny(message: 'Error: $e');
+          }
+      }
+    };
+  }
+
+  /// Handles AskUserQuestion tool by emitting event and waiting for response.
+  Future<PermissionResult> _handleAskUserQuestion({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String? taskName,
+    required Map<String, dynamic> toolInput,
+  }) async {
+    try {
+      // Parse questions from tool input
+      final questionsJson = toolInput['questions'] as List<dynamic>?;
+      if (questionsJson == null || questionsJson.isEmpty) {
+        // No questions, just allow
+        return const PermissionResultAllow();
+      }
+
+      // Convert to event data format
+      final questions = questionsJson.map((q) {
+        final qMap = q as Map<String, dynamic>;
+        final optionsList = qMap['options'] as List<dynamic>? ?? [];
+        return AskUserQuestionData(
+          question: qMap['question'] as String,
+          header: qMap['header'] as String?,
+          multiSelect: qMap['multiSelect'] as bool? ?? false,
+          options: optionsList.map((o) {
+            final oMap = o as Map<String, dynamic>;
+            return AskUserQuestionOptionData(
+              label: oMap['label'] as String,
+              description: oMap['description'] as String? ?? '',
+            );
+          }).toList(),
+        );
+      }).toList();
+
+      // Create completer and emit event
+      final requestId = const Uuid().v4();
+      final completer = Completer<Map<String, String>>();
+      _pendingAskUserQuestions[requestId] = completer;
+
       _eventController.add(
-        PermissionRequestEvent(
+        AskUserQuestionEvent(
           agentId: agentId,
           agentType: agentType ?? 'unknown',
           agentName: agentName,
-          taskName: state?.taskName,
+          taskName: taskName,
           requestId: requestId,
-          toolName: toolName,
-          toolInput: input,
+          questions: questions,
         ),
       );
 
       // Wait for response (with timeout)
-      try {
-        return await completer.future.timeout(
-          const Duration(seconds: 60),
-          onTimeout: () {
-            _pendingPermissions.remove(requestId);
-            return const PermissionResultDeny(
-              message: 'Permission request timed out',
-            );
-          },
-        );
-      } catch (e) {
-        _pendingPermissions.remove(requestId);
-        return PermissionResultDeny(message: 'Error: $e');
-      }
-    };
+      final answers = await completer.future.timeout(
+        const Duration(minutes: 5), // Longer timeout for user questions
+        onTimeout: () {
+          _pendingAskUserQuestions.remove(requestId);
+          throw TimeoutException('AskUserQuestion request timed out');
+        },
+      );
+
+      // Return allow with the answers included in updatedInput
+      return PermissionResultAllow(
+        updatedInput: {...toolInput, 'answers': answers},
+      );
+    } catch (e) {
+      return PermissionResultDeny(
+        message: 'Failed to process AskUserQuestion: $e',
+      );
+    }
+  }
+
+  /// Respond to an AskUserQuestion request.
+  ///
+  /// [requestId] is the ID from the [AskUserQuestionEvent].
+  /// [answers] is a map of question text -> selected answer(s).
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    _checkNotDisposed();
+    final completer = _pendingAskUserQuestions.remove(requestId);
+    completer?.complete(answers);
+  }
+
+  /// Add a pattern to the session permission cache.
+  ///
+  /// Used when user selects "remember" for write operations.
+  void addSessionPermissionPattern(String pattern) {
+    _permissionChecker.addSessionPattern(pattern);
+  }
+
+  /// Check if a tool is allowed by the session cache.
+  ///
+  /// Used by UI to check if permission dialog should be shown.
+  bool isAllowedBySessionCache(String toolName, Map<String, dynamic> input) {
+    final typedInput = ToolInput.fromJson(toolName, input);
+    return _permissionChecker.isAllowedBySessionCache(toolName, typedInput);
+  }
+
+  /// Clear the session permission cache.
+  void clearSessionPermissionCache() {
+    _permissionChecker.clearSessionCache();
   }
 
   VideAgent _mapAgent(AgentMetadata agent) {

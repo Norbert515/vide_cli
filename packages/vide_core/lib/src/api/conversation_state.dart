@@ -280,6 +280,9 @@ class ConversationStateManager {
       case PermissionRequestEvent _:
         // Permissions are handled separately by UI
         break;
+      case AskUserQuestionEvent _:
+        // AskUserQuestion is handled separately by UI
+        break;
       case ErrorEvent _:
         // Errors can be handled by UI directly from event stream
         break;

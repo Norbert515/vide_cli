@@ -915,11 +915,44 @@ class RemoteVideSession implements VideSession {
     required String agentId,
     required String? agentName,
     required String? agentType,
+    required String cwd,
   }) {
     // Permissions are handled via WebSocket events in remote mode
     throw UnimplementedError(
       'createPermissionCallback not used in remote mode',
     );
+  }
+
+  @override
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    // AskUserQuestion responses are handled via WebSocket in remote mode
+    _checkNotDisposed();
+    _channel?.sink.add(
+      jsonEncode({
+        'type': 'ask-user-question-response',
+        'request-id': requestId,
+        'answers': answers,
+      }),
+    );
+  }
+
+  @override
+  void addSessionPermissionPattern(String pattern) {
+    // Session patterns are managed server-side in remote mode
+  }
+
+  @override
+  bool isAllowedBySessionCache(String toolName, Map<String, dynamic> input) {
+    // Session cache is managed server-side in remote mode
+    return false;
+  }
+
+  @override
+  void clearSessionPermissionCache() {
+    // Session cache is managed server-side in remote mode
   }
 }
 
