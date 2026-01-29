@@ -159,7 +159,7 @@
             width: 100vw;
             height: 100vh;
             min-height: 500px;
-            background: var(--bg-dark);
+            background: transparent;
             overflow: hidden;
         }
 
@@ -168,7 +168,25 @@
             top: 0;
             left: 0;
             width: 100%;
-            height: 100%;
+            z-index: -1;
+            /* Height set dynamically by JS to cover full document */
+        }
+
+        /* VIDE Logo - centered in hero section */
+        .vide-logo {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            line-height: 1.1;
+            white-space: pre;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0, 212, 255, 0.6),
+                         0 0 40px rgba(0, 212, 255, 0.3);
+            pointer-events: none;
+            user-select: none;
         }
 
         /* Floating content over vortex */
@@ -371,6 +389,62 @@
         .feature-card p {
             color: var(--text-muted);
             font-size: 0.75rem;
+        }
+
+        /* ============================================
+           Flutter Logo Section
+           ============================================ */
+
+        .flutter-section {
+            position: relative;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-default);
+            padding: 0;
+            overflow: hidden;
+            height: 500px;
+        }
+
+        .flutter-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .flutter-overlay {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .flutter-tagline {
+            background: rgba(8, 8, 16, 0.85);
+            border: 1px solid var(--border-default);
+            padding: 12px 16px;
+            pointer-events: auto;
+        }
+
+        .flutter-tagline h3 {
+            color: var(--text-bright);
+            font-size: 0.9rem;
+            margin: 0 0 4px 0;
+        }
+
+        .flutter-tagline p {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin: 0;
+        }
+
+        .flutter-tagline .flutter-highlight {
+            color: #54C5F8;
         }
 
         /* ============================================
@@ -874,6 +948,9 @@
     </style>
 </head>
 <body>
+    <!-- Full-page background canvas -->
+    <canvas id="vortex-canvas" class="vortex-canvas" aria-hidden="true"></canvas>
+
     <main class="terminal-container">
         <!-- Top Navbar -->
         <header class="site-header">
@@ -891,7 +968,14 @@
         <!-- Hero Section - Full Viewport Vortex -->
         <section class="hero-section">
             <h1 class="sr-only">Vide - The development team that never sleeps</h1>
-            <canvas id="vortex-canvas" class="vortex-canvas" aria-hidden="true"></canvas>
+
+            <!-- VIDE Logo -->
+            <div class="vide-logo" aria-hidden="true">██╗   ██╗██╗██████╗ ███████╗
+██║   ██║██║██╔══██╗██╔════╝
+██║   ██║██║██║  ██║█████╗
+╚██╗ ██╔╝██║██║  ██║██╔══╝
+ ╚████╔╝ ██║██████╔╝███████╗
+  ╚═══╝  ╚═╝╚═════╝ ╚══════╝</div>
             <div class="hero-overlay">
                 <div class="hero-tagline-box">
                     <p class="hero-tagline">The development team that never sleeps</p>
@@ -913,6 +997,17 @@
 
         <!-- Content below hero -->
         <div class="content-wrapper">
+
+        <!-- Flutter Logo Section -->
+        <section class="flutter-section">
+            <canvas id="flutter-canvas" class="flutter-canvas" aria-hidden="true"></canvas>
+            <div class="flutter-overlay">
+                <div class="flutter-tagline">
+                    <h3>Built for <span class="flutter-highlight">Flutter</span></h3>
+                    <p>Hot reload • Vision testing • Widget tree analysis</p>
+                </div>
+            </div>
+        </section>
 
         <!-- Stats Row -->
         <div class="stats-row">
@@ -1110,7 +1205,8 @@
 
     <script>
         // ============================================
-        // ASCII Vortex Effect with "VIDE" at center
+        // ASCII Vortex Effect with Scroll-Based Morphing
+        // Patterns: Vortex → Matrix Rain → Wave → Particles → Neural Network
         // ============================================
 
         class AsciiVortex {
@@ -1121,19 +1217,8 @@
                 this.animationId = null;
                 this.isVisible = true;
 
-                // Character sets for different intensities
-                this.chars = ' .·:;+*#%@█';
+                // Character set for the vortex
                 this.vortexChars = '░▒▓█▓▒░';
-
-                // VIDE ASCII art (will be rendered at center)
-                this.videArt = [
-                    '██╗   ██╗██╗██████╗ ███████╗',
-                    '██║   ██║██║██╔══██╗██╔════╝',
-                    '██║   ██║██║██║  ██║█████╗  ',
-                    '╚██╗ ██╔╝██║██║  ██║██╔══╝  ',
-                    ' ╚████╔╝ ██║██████╔╝███████╗',
-                    '  ╚═══╝  ╚═╝╚═════╝ ╚══════╝'
-                ];
 
                 this.charWidth = 10;
                 this.charHeight = 16;
@@ -1146,6 +1231,226 @@
                 window.addEventListener('resize', () => this.resize());
 
                 // Visibility handling
+                document.addEventListener('visibilitychange', () => {
+                    this.isVisible = !document.hidden;
+                    if (this.isVisible && !this.animationId) {
+                        this.animate();
+                    }
+                });
+
+                this.isVisible = true;
+            }
+
+            resize() {
+                // Use full document dimensions
+                const width = window.innerWidth;
+                const height = document.documentElement.scrollHeight;
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                this.canvas.width = width * dpr;
+                this.canvas.height = height * dpr;
+                this.canvas.style.width = width + 'px';
+                this.canvas.style.height = height + 'px';
+
+                // Get fresh context after resizing (setting width/height resets context)
+                this.ctx = this.canvas.getContext('2d');
+                this.ctx.scale(dpr, dpr);
+                this.width = width;
+                this.height = height;
+
+                this.cols = Math.ceil(this.width / this.charWidth);
+                this.rows = Math.ceil(this.height / this.charHeight);
+                this.centerX = this.cols / 2;
+
+                // Store viewport height for section calculations
+                this.viewportHeight = window.innerHeight;
+                this.viewportRows = Math.ceil(this.viewportHeight / this.charHeight);
+            }
+
+            // Linear interpolation
+            lerp(a, b, t) {
+                return a + (b - a) * t;
+            }
+
+            // Get parameters that evolve after the fold (first viewport stays original)
+            getParamsAtY(yPixel) {
+                // First viewport (hero) uses original parameters exactly
+                // After that, slowly evolve
+                const vh = this.viewportHeight;
+
+                if (yPixel < vh) {
+                    // Hero section: exact original parameters
+                    return {
+                        spiralTightness: 0.08,
+                        rotationSpeed: 0.4,
+                        waveFreq: 0.2,
+                        radialWeight: 0.3,
+                        colorR: 0,
+                        colorG: 60,
+                        colorB: 100
+                    };
+                }
+
+                // Below the fold: gradually evolve from original
+                // t goes from 0 (just below fold) to 1 (bottom of page)
+                const belowFold = yPixel - vh;
+                const remainingHeight = this.height - vh;
+                const t = Math.min(1, Math.max(0, belowFold / remainingHeight));
+
+                return {
+                    spiralTightness: this.lerp(0.08, 0.05, t),
+                    rotationSpeed: this.lerp(0.4, 0.3, t),
+                    waveFreq: this.lerp(0.2, 0.28, t),
+                    radialWeight: this.lerp(0.3, 0.45, t),
+                    // Subtle color shift: cyan -> slightly more teal/blue
+                    colorR: this.lerp(0, 20, t),
+                    colorG: this.lerp(60, 50, t),
+                    colorB: this.lerp(100, 130, t)
+                };
+            }
+
+            getVortexChar(x, y, time) {
+                const yPixel = y * this.charHeight;
+
+                // Single center point at middle of hero (first viewport)
+                // The vortex radiates continuously from this point
+                const heroCenterY = this.viewportRows / 2;
+
+                const dx = x - this.centerX;
+                const dy = (y - heroCenterY) * 1.8; // Adjust for char aspect ratio
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+
+                // Get parameters (original for hero, evolving below)
+                const params = this.getParamsAtY(yPixel);
+
+                // Original spiral formula - continuous from hero center
+                const spiralAngle = angle + dist * params.spiralTightness - time * params.rotationSpeed;
+                const spiralValue = Math.sin(spiralAngle * 2) * 0.5 + 0.5;
+
+                // Radial wave - continuous
+                const radialWave = Math.sin(dist * params.waveFreq - time * 0.6) * 0.5 + 0.5;
+
+                // Combine effects
+                const intensity = spiralValue * (1 - params.radialWeight) + radialWave * params.radialWeight;
+
+                // Distance-based fade from hero center
+                const maxDist = Math.max(this.centerX, this.rows / 2) * 1.2;
+                const distFade = 1 - Math.min(dist / maxDist, 1);
+                const finalIntensity = intensity * (0.15 + distFade * 0.6);
+
+                // Pick character based on intensity
+                const charIndex = Math.floor(finalIntensity * (this.vortexChars.length - 1));
+                return {
+                    char: this.vortexChars[Math.max(0, Math.min(charIndex, this.vortexChars.length - 1))],
+                    intensity: finalIntensity,
+                    dist: dist,
+                    params: params
+                };
+            }
+
+            getColor(intensity, dist, time, params) {
+                const maxDist = Math.max(this.centerX, this.rows / 2) * 1.2;
+                const normalizedDist = Math.min(dist / maxDist, 1);
+
+                // Use parameters for color
+                let r = params.colorR;
+                let g = params.colorG + intensity * 80;
+                let b = params.colorB + intensity * 100;
+
+                // Subtle color variation over time
+                const colorShift = Math.sin(time * 0.5 + dist * 0.05) * 15;
+                g = Math.max(30, Math.min(180, g + colorShift));
+
+                // Gentle brightening toward center
+                if (normalizedDist < 0.25) {
+                    const centerBoost = (0.25 - normalizedDist) / 0.25;
+                    r = Math.floor(r + centerBoost * 40);
+                    g = Math.floor(g + centerBoost * 30);
+                    b = Math.floor(b + centerBoost * 20);
+                }
+
+                const alpha = 0.15 + intensity * 0.5 * (1 - normalizedDist * 0.7);
+
+                return `rgba(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)}, ${alpha})`;
+            }
+
+            render() {
+                const ctx = this.ctx;
+
+                // Clear with dark background
+                ctx.fillStyle = '#080810';
+                ctx.fillRect(0, 0, this.width, this.height);
+
+                ctx.font = `${this.charHeight - 2}px "JetBrains Mono", monospace`;
+                ctx.textBaseline = 'top';
+
+                // Draw vortex characters - continuous across full page
+                for (let y = 0; y < this.rows; y++) {
+                    for (let x = 0; x < this.cols; x++) {
+                        const vortex = this.getVortexChar(x, y, this.time);
+                        if (vortex.char !== ' ' && vortex.intensity > 0.05) {
+                            ctx.fillStyle = this.getColor(vortex.intensity, vortex.dist, this.time, vortex.params);
+                            ctx.fillText(vortex.char, x * this.charWidth, y * this.charHeight);
+                        }
+                    }
+                }
+
+                // Single subtle radial gradient overlay from hero center
+                const gradient = ctx.createRadialGradient(
+                    this.width / 2, this.viewportHeight / 2, 0,
+                    this.width / 2, this.viewportHeight / 2, Math.max(this.width, this.height)
+                );
+                gradient.addColorStop(0, 'rgba(0, 212, 255, 0.05)');
+                gradient.addColorStop(0.3, 'transparent');
+                gradient.addColorStop(1, 'rgba(8, 8, 16, 0.2)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, this.width, this.height);
+            }
+
+            animate() {
+                if (!this.isVisible) {
+                    this.animationId = null;
+                    return;
+                }
+
+                this.time += 0.012; // Slower animation
+                this.render();
+                this.animationId = requestAnimationFrame(() => this.animate());
+            }
+
+            start() {
+                this.animate();
+            }
+        }
+
+        // ============================================
+        // ASCII Flutter Logo Effect (same style as VIDE)
+        // ============================================
+
+        class AsciiFlutterLogo {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.time = 0;
+                this.animationId = null;
+                this.isVisible = true;
+
+                // Character set for vortex background (same as VIDE)
+                this.vortexChars = '░▒▓█▓▒░';
+
+                // We'll draw the Flutter logo programmatically with filled rectangles
+                // instead of ASCII art to match the pixel grid style in the reference
+                this.pixelSize = 12;
+                this.gap = 2;
+
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+
                 document.addEventListener('visibilitychange', () => {
                     this.isVisible = !document.hidden;
                     if (this.isVisible && !this.animationId) {
@@ -1182,28 +1487,20 @@
             }
 
             getVortexChar(x, y, time) {
-                // Calculate distance and angle from center
                 const dx = x - this.centerX;
-                const dy = (y - this.centerY) * 1.8; // Adjust for char aspect ratio
+                const dy = (y - this.centerY) * 1.8;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 const angle = Math.atan2(dy, dx);
 
-                // SUBTLE spiral formula: slower rotation, gentler curves
                 const spiralAngle = angle + dist * 0.08 - time * 0.4;
                 const spiralValue = Math.sin(spiralAngle * 2) * 0.5 + 0.5;
-
-                // Gentler radial waves
                 const radialWave = Math.sin(dist * 0.2 - time * 0.6) * 0.5 + 0.5;
-
-                // Combine effects with more emphasis on spiral
                 const intensity = (spiralValue * 0.7 + radialWave * 0.3);
 
-                // Stronger fade at edges for subtlety
                 const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
                 const distFade = 1 - Math.min(dist / maxDist, 1);
                 const finalIntensity = intensity * (0.15 + distFade * 0.6);
 
-                // Pick character based on intensity
                 const charIndex = Math.floor(finalIntensity * (this.vortexChars.length - 1));
                 return {
                     char: this.vortexChars[Math.max(0, Math.min(charIndex, this.vortexChars.length - 1))],
@@ -1213,93 +1510,184 @@
             }
 
             getColor(intensity, dist, time) {
-                // Color gradient: very dark -> subtle cyan toward center
                 const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
                 const normalizedDist = Math.min(dist / maxDist, 1);
 
-                // Muted cyan color palette
-                let r = 0;
-                let g = Math.floor(60 + intensity * 80);
+                // Purple/lavender color palette (different from cyan VIDE)
+                let r = Math.floor(60 + intensity * 60);
+                let g = Math.floor(40 + intensity * 50);
                 let b = Math.floor(100 + intensity * 100);
 
-                // Subtle color variation
                 const colorShift = Math.sin(time * 0.5 + dist * 0.05) * 15;
-                g = Math.max(30, Math.min(180, g + colorShift));
+                b = Math.max(80, Math.min(200, b + colorShift));
 
-                // Gentle brightening toward center
                 if (normalizedDist < 0.25) {
                     const centerBoost = (0.25 - normalizedDist) / 0.25;
-                    r = Math.floor(r + centerBoost * 40);
-                    g = Math.floor(g + centerBoost * 30);
-                    b = Math.floor(b + centerBoost * 20);
+                    r = Math.floor(r + centerBoost * 30);
+                    g = Math.floor(g + centerBoost * 20);
+                    b = Math.floor(b + centerBoost * 40);
                 }
 
-                // More aggressive fade at edges
                 const alpha = 0.15 + intensity * 0.5 * (1 - normalizedDist * 0.7);
-
                 return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+
+            // Get Flutter logo pixels - returns array of {x, y, dark} coordinates
+            getFlutterPixels() {
+                const pixels = [];
+
+                // Top blade - diagonal parallelogram going down-left
+                // Starts at top-right, each row shifts left by 1
+                for (let row = 0; row < 8; row++) {
+                    const width = 4 + row; // Gets wider as it goes down
+                    const startCol = 8 - row; // Shifts left each row
+                    for (let col = 0; col < width; col++) {
+                        pixels.push({ x: startCol + col, y: row, dark: false });
+                    }
+                }
+                // Continue top blade going back up (narrowing)
+                for (let row = 0; row < 7; row++) {
+                    const width = 11 - row;
+                    const startCol = row;
+                    for (let col = 0; col < width; col++) {
+                        pixels.push({ x: startCol + col, y: 8 + row, dark: false });
+                    }
+                }
+
+                // Left shadow piece - small parallelogram
+                for (let row = 0; row < 5; row++) {
+                    const width = 4;
+                    const startCol = row;
+                    for (let col = 0; col < width; col++) {
+                        pixels.push({ x: startCol + col, y: 10 + row, dark: true });
+                    }
+                }
+
+                // Bottom blade - similar to top but smaller
+                for (let row = 0; row < 5; row++) {
+                    const width = 4 + row;
+                    const startCol = 8 - row;
+                    for (let col = 0; col < width; col++) {
+                        pixels.push({ x: startCol + col, y: 15 + row, dark: false });
+                    }
+                }
+                // Bottom blade narrowing
+                for (let row = 0; row < 8; row++) {
+                    const width = Math.max(1, 8 - row);
+                    const startCol = 4 + row;
+                    for (let col = 0; col < width; col++) {
+                        pixels.push({ x: startCol + col, y: 20 + row, dark: false });
+                    }
+                }
+
+                return pixels;
+            }
+
+            drawPixel(ctx, x, y, isDark) {
+                const size = this.pixelSize - this.gap;
+                const glowIntensity = 0.8 + Math.sin(this.time * 0.8) * 0.2;
+
+                // Colors
+                const baseR = isDark ? 100 : 180;
+                const baseG = isDark ? 80 : 160;
+                const baseB = isDark ? 160 : 220;
+
+                const r = Math.floor(baseR + glowIntensity * 30);
+                const g = Math.floor(baseG + glowIntensity * 20);
+                const b = Math.floor(baseB + glowIntensity * 35);
+
+                // Glow
+                ctx.shadowColor = `rgba(${r}, ${g}, 255, 0.8)`;
+                ctx.shadowBlur = 15;
+
+                // Fill with gradient for 3D effect
+                const gradient = ctx.createLinearGradient(x, y, x + size, y + size);
+                gradient.addColorStop(0, `rgba(${r + 30}, ${g + 30}, ${b + 30}, 0.95)`);
+                gradient.addColorStop(1, `rgba(${r - 20}, ${g - 20}, ${b - 20}, 0.95)`);
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, y, size, size);
+
+                // Border
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = `rgba(${r + 50}, ${g + 50}, ${b + 50}, 0.5)`;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
             }
 
             render() {
                 const ctx = this.ctx;
 
                 // Clear with dark background
-                ctx.fillStyle = '#080810';
+                ctx.fillStyle = '#0a0a18';
                 ctx.fillRect(0, 0, this.width, this.height);
 
-                ctx.font = `${this.charHeight - 2}px "JetBrains Mono", monospace`;
-                ctx.textBaseline = 'top';
+                // Draw dot pattern background
+                const dotSpacing = 8;
+                const dotRadius = 1.5;
+                for (let y = 0; y < this.height; y += dotSpacing) {
+                    for (let x = 0; x < this.width; x += dotSpacing) {
+                        const dx = x - this.width / 2;
+                        const dy = y - this.height / 2;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        const maxDist = Math.sqrt(this.width * this.width + this.height * this.height) / 2;
+                        const wave = Math.sin(dist * 0.02 - this.time * 0.5) * 0.3 + 0.7;
+                        const alpha = 0.15 + wave * 0.15 * (1 - dist / maxDist);
 
-                // Calculate VIDE art position (centered)
-                const videWidth = this.videArt[0].length;
-                const videHeight = this.videArt.length;
-                const videStartX = Math.floor(this.centerX - videWidth / 2);
-                const videStartY = Math.floor(this.centerY - videHeight / 2);
-
-                // Draw vortex characters
-                for (let y = 0; y < this.rows; y++) {
-                    for (let x = 0; x < this.cols; x++) {
-                        // Check if this position is part of VIDE text
-                        const videX = x - videStartX;
-                        const videY = y - videStartY;
-                        const isVideArea = videX >= 0 && videX < videWidth &&
-                                          videY >= 0 && videY < videHeight;
-
-                        if (isVideArea) {
-                            // Render VIDE character
-                            const videChar = this.videArt[videY][videX];
-                            if (videChar && videChar !== ' ') {
-                                // Subtle glowing cyan for VIDE text
-                                const glowIntensity = 0.8 + Math.sin(this.time * 0.8) * 0.2;
-                                ctx.fillStyle = `rgba(0, ${Math.floor(180 + glowIntensity * 40)}, 255, ${glowIntensity})`;
-
-                                // Subtle glow effect
-                                ctx.shadowColor = '#00d4ff';
-                                ctx.shadowBlur = 12 + Math.sin(this.time * 0.5) * 4;
-
-                                ctx.fillText(videChar, x * this.charWidth, y * this.charHeight);
-                                ctx.shadowBlur = 0;
-                            }
-                        } else {
-                            // Render vortex character
-                            const vortex = this.getVortexChar(x, y, this.time);
-                            if (vortex.char !== ' ' && vortex.intensity > 0.05) {
-                                ctx.fillStyle = this.getColor(vortex.intensity, vortex.dist, this.time);
-                                ctx.fillText(vortex.char, x * this.charWidth, y * this.charHeight);
-                            }
-                        }
+                        ctx.beginPath();
+                        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(40, 60, 120, ${alpha})`;
+                        ctx.fill();
                     }
                 }
 
-                // Add subtle radial gradient overlay for depth
-                const gradient = ctx.createRadialGradient(
-                    this.width / 2, this.height / 2, 0,
-                    this.width / 2, this.height / 2, Math.max(this.width, this.height) / 2
+                // Draw ambient purple glow blobs
+                const blobs = [
+                    { x: 0.15, y: 0.3, size: 150 },
+                    { x: 0.85, y: 0.7, size: 120 },
+                    { x: 0.4, y: 0.5, size: 180 },
+                ];
+                blobs.forEach((blob, i) => {
+                    const bx = blob.x * this.width + Math.sin(this.time * 0.3 + i) * 20;
+                    const by = blob.y * this.height + Math.cos(this.time * 0.4 + i) * 15;
+                    const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, blob.size);
+                    gradient.addColorStop(0, 'rgba(80, 40, 120, 0.4)');
+                    gradient.addColorStop(0.5, 'rgba(60, 30, 100, 0.15)');
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, this.width, this.height);
+                });
+
+                // Draw Flutter logo pixels
+                const pixels = this.getFlutterPixels();
+
+                // Calculate logo bounds
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                pixels.forEach(p => {
+                    minX = Math.min(minX, p.x);
+                    maxX = Math.max(maxX, p.x);
+                    minY = Math.min(minY, p.y);
+                    maxY = Math.max(maxY, p.y);
+                });
+
+                const logoWidth = (maxX - minX + 1) * this.pixelSize;
+                const logoHeight = (maxY - minY + 1) * this.pixelSize;
+                const offsetX = (this.width - logoWidth) / 2 - minX * this.pixelSize;
+                const offsetY = (this.height - logoHeight) / 2 - minY * this.pixelSize;
+
+                pixels.forEach(pixel => {
+                    const x = offsetX + pixel.x * this.pixelSize;
+                    const y = offsetY + pixel.y * this.pixelSize;
+                    this.drawPixel(ctx, x, y, pixel.dark);
+                });
+
+                // Subtle vignette
+                const vignette = ctx.createRadialGradient(
+                    this.width / 2, this.height / 2, this.height * 0.2,
+                    this.width / 2, this.height / 2, this.height * 0.8
                 );
-                gradient.addColorStop(0, 'rgba(0, 212, 255, 0.05)');
-                gradient.addColorStop(0.5, 'transparent');
-                gradient.addColorStop(1, 'rgba(8, 8, 16, 0.3)');
-                ctx.fillStyle = gradient;
+                vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+                vignette.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+                ctx.fillStyle = vignette;
                 ctx.fillRect(0, 0, this.width, this.height);
             }
 
@@ -1309,7 +1697,7 @@
                     return;
                 }
 
-                this.time += 0.012; // Slower animation
+                this.time += 0.012;
                 this.render();
                 this.animationId = requestAnimationFrame(() => this.animate());
             }
@@ -1353,11 +1741,18 @@
             const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
             if (!prefersReducedMotion) {
-                // Initialize vortex
+                // Initialize vortex with subtle scroll morphing
                 const vortexCanvas = document.getElementById('vortex-canvas');
                 if (vortexCanvas) {
                     const vortex = new AsciiVortex(vortexCanvas);
                     vortex.start();
+                }
+
+                // Initialize Flutter logo
+                const flutterCanvas = document.getElementById('flutter-canvas');
+                if (flutterCanvas) {
+                    const flutterLogo = new AsciiFlutterLogo(flutterCanvas);
+                    flutterLogo.start();
                 }
 
                 // Initialize footer wave
@@ -1371,6 +1766,12 @@
                 if (waveContainer) {
                     waveContainer.textContent = '░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░';
                     waveContainer.style.color = '#2a4a5a';
+                }
+
+                // Hide pattern indicator in reduced motion mode
+                const indicatorContainer = document.getElementById('pattern-indicator');
+                if (indicatorContainer) {
+                    indicatorContainer.style.display = 'none';
                 }
             }
         });
