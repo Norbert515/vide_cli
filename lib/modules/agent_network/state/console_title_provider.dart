@@ -109,6 +109,11 @@ _AggregatedStatus _getAggregatedStatus(Ref ref) {
   final permissionState = ref.watch(permissionStateProvider);
   final askUserQuestionState = ref.watch(askUserQuestionStateProvider);
 
+  // Watch conversation state changes to detect isProcessing updates
+  ref.watch(conversationStateChangedProvider);
+  // Watch agents stream to detect spawned/terminated agents
+  ref.watch(videSessionAgentsProvider);
+
   // Check if there's a pending permission request or askUserQuestion
   if (permissionState.current != null || askUserQuestionState.current != null) {
     return _AggregatedStatus.needsAttention;
