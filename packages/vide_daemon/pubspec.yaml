@@ -1,0 +1,26 @@
+name: vide_daemon
+description: Persistent daemon service managing multiple vide sessions as sub-processes
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  shelf_web_socket: ^3.0.0
+  web_socket_channel: ^3.0.0
+  args: ^2.4.0
+  path: ^1.9.0
+  logging: ^1.2.0
+  uuid: ^4.0.0
+  http: ^1.2.0
+  json_annotation: ^4.9.0
+
+dev_dependencies:
+  lints: ^3.0.0
+  test: ^1.24.0
+  build_runner: ^2.4.9
+  json_serializable: ^6.9.4
