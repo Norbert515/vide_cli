@@ -33,6 +33,14 @@ generate: generate-devtools generate-teams
 test-onboarding:
     VIDE_FORCE_WELCOME=1 dart run bin/vide.dart
 
+# Start the vide daemon server (default port 8080)
+daemon port="8080":
+    cd packages/vide_daemon && dart run bin/vide_daemon.dart --port {{port}}
+
+# Start the daemon in debug mode with verbose logging
+daemon-debug port="8080":
+    cd packages/vide_daemon && dart run bin/vide_daemon.dart --port {{port}} --verbose
+
 # Create a new release (interactive)
 release:
     #!/usr/bin/env bash

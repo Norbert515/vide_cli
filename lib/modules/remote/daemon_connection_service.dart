@@ -130,9 +130,62 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     await _initialize();
   }
 
-  /// Create a session on the daemon and return a connected RemoteVideSession.
+  /// Create a session on the daemon and return a RemoteVideSession immediately.
   ///
-  /// Throws if not connected or if session creation fails.
+  /// This returns a "pending" session that can be used right away for navigation.
+  /// The actual HTTP call to create the session happens in the background.
+  /// Once complete, the session will connect via WebSocket automatically.
+  ///
+  /// [onReady] is called when the session is ready (HTTP call completed and
+  /// WebSocket connection started). Use this to trigger a UI rebuild.
+  ///
+  /// Throws synchronously if not connected to daemon.
+  RemoteVideSession createSessionOptimistic({
+    required String initialMessage,
+    required String workingDirectory,
+    String permissionMode = 'ask',
+    void Function()? onReady,
+  }) {
+    final client = state.client;
+    if (client == null || !state.isConnected) {
+      throw StateError('Not connected to daemon');
+    }
+
+    // Create a pending session immediately for instant navigation
+    final remoteSession = RemoteVideSession.pending();
+
+    // Set up callback to notify when ready
+    remoteSession.onPendingComplete = onReady;
+
+    // Do the HTTP call in background
+    () async {
+      try {
+        final response = await client.createSession(
+          initialMessage: initialMessage,
+          workingDirectory: workingDirectory,
+          permissionMode: permissionMode,
+        );
+
+        // Complete the pending session with real details
+        remoteSession.completePending(
+          sessionId: response.sessionId,
+          wsUrl: response.wsUrl,
+          mainAgentId: response.mainAgentId,
+        );
+      } catch (e) {
+        remoteSession.failPending('Failed to create session: $e');
+      }
+    }();
+
+    return remoteSession;
+  }
+
+  /// Create a session on the daemon and return a RemoteVideSession.
+  ///
+  /// This waits for the HTTP call to complete before returning.
+  /// Use [createSessionOptimistic] for instant navigation.
+  ///
+  /// Throws if not connected to daemon or if session creation fails.
   Future<RemoteVideSession> createSession({
     required String initialMessage,
     required String workingDirectory,
@@ -143,23 +196,22 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
       throw StateError('Not connected to daemon');
     }
 
-    // Create session on daemon
+    // Create session on daemon - response includes wsUrl and mainAgentId
     final response = await client.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
     );
 
-    // Get session details for WebSocket URL
-    final details = await client.getSession(response.sessionId);
-
-    // Create and connect the remote session
+    // Create the remote session with pre-populated main agent
     final remoteSession = RemoteVideSession(
       sessionId: response.sessionId,
-      wsUrl: details.wsUrl,
+      wsUrl: response.wsUrl,
+      mainAgentId: response.mainAgentId,
     );
 
-    await remoteSession.connect();
+    // Start connection but don't wait - enables instant navigation
+    remoteSession.connectInBackground();
 
     return remoteSession;
   }
