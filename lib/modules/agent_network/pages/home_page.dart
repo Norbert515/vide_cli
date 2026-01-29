@@ -17,9 +17,8 @@ import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
-import 'package:vide_daemon/vide_daemon.dart';
+import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 
 class HomePage extends StatefulComponent {
   const HomePage({super.key});
@@ -45,94 +44,12 @@ class _HomePageState extends State<HomePage> {
   int? _pendingDeleteIndex;
   final _scrollController = ScrollController();
 
-  // Daemon mode state
-  DaemonClient? _daemonClient;
-  String? _daemonError;
-  bool _daemonConnecting = false;
-  String? _lastDaemonHost;
-  int? _lastDaemonPort;
-
   @override
   void initState() {
     super.initState();
     _loadProjectInfo();
     _initializeClaude();
     _loadTeams();
-    _initDaemonIfNeeded();
-  }
-
-  @override
-  void dispose() {
-    _daemonClient?.close();
-    super.dispose();
-  }
-
-  /// Initialize daemon client if daemon mode is enabled.
-  /// Can be called multiple times - will reinitialize if settings changed.
-  Future<void> _initDaemonIfNeeded() async {
-    final daemonEnabled = context.read(daemonModeEnabledProvider);
-    final configManager = context.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
-
-    // If daemon mode is disabled, clean up
-    if (!daemonEnabled) {
-      if (_daemonClient != null) {
-        _daemonClient?.close();
-        _daemonClient = null;
-        _daemonError = null;
-        _lastDaemonHost = null;
-        _lastDaemonPort = null;
-      }
-      return;
-    }
-
-    // If settings haven't changed and we already have a client, skip
-    if (_daemonClient != null &&
-        _lastDaemonHost == settings.daemonHost &&
-        _lastDaemonPort == settings.daemonPort &&
-        _daemonError == null) {
-      return;
-    }
-
-    // Close existing client if settings changed
-    _daemonClient?.close();
-
-    setState(() {
-      _daemonConnecting = true;
-      _daemonError = null;
-    });
-
-    _lastDaemonHost = settings.daemonHost;
-    _lastDaemonPort = settings.daemonPort;
-
-    _daemonClient = DaemonClient(
-      host: settings.daemonHost,
-      port: settings.daemonPort,
-    );
-
-    try {
-      final healthy = await _daemonClient!.isHealthy();
-      if (!healthy) {
-        if (mounted) {
-          setState(() {
-            _daemonError =
-                'Daemon not responding at ${settings.daemonHost}:${settings.daemonPort}';
-            _daemonConnecting = false;
-          });
-        }
-        return;
-      }
-      if (mounted) {
-        setState(() => _daemonConnecting = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _daemonError = 'Failed to connect to daemon: $e';
-          _daemonConnecting = false;
-        });
-      }
-    }
   }
 
   Future<void> _loadTeams() async {
@@ -183,9 +100,9 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _handleSubmit(Message message) async {
-    final daemonEnabled = context.read(daemonModeEnabledProvider);
+    final daemonState = context.read(daemonConnectionProvider);
 
-    if (daemonEnabled && _daemonClient != null && _daemonError == null) {
+    if (daemonState.isConnected) {
       // Daemon mode: create session on daemon
       await _handleDaemonSubmit(message);
     } else {
@@ -215,29 +132,19 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _handleDaemonSubmit(Message message) async {
     try {
-      // Create session on daemon
-      final response = await _daemonClient!.createSession(
-        initialMessage: message.text,
-        workingDirectory: Directory.current.path,
-        permissionMode: 'ask',
-      );
-
-      // Get session details for WebSocket URL
-      final details = await _daemonClient!.getSession(response.sessionId);
-
-      // Create and connect the remote session
-      final remoteSession = RemoteVideSession(
-        sessionId: response.sessionId,
-        wsUrl: details.wsUrl,
-      );
-
-      await remoteSession.connect();
+      // Create session on daemon using the service
+      final remoteSession = await context
+          .read(daemonConnectionProvider.notifier)
+          .createSession(
+            initialMessage: message.text,
+            workingDirectory: Directory.current.path,
+          );
 
       // Store in provider for the rest of the app
       context.read(remoteVideSessionProvider.notifier).state = remoteSession;
 
       // Navigate to the execution page
-      await NetworkExecutionPage.push(context, response.sessionId);
+      await NetworkExecutionPage.push(context, remoteSession.id);
     } catch (e) {
       setState(() {
         _commandResult = 'Failed to create daemon session: $e';
@@ -478,23 +385,6 @@ class _HomePageState extends State<HomePage> {
     // Watch sidebar focus state from app-level provider
     final sidebarFocused = context.watch(sidebarFocusProvider);
 
-    // Watch daemon mode - reinitialize client if settings changed
-    final daemonEnabled = context.watch(daemonModeEnabledProvider);
-    final configManager = context.read(videConfigManagerProvider);
-    final daemonSettings = configManager.readGlobalSettings();
-
-    // Check if daemon settings changed and reinitialize if needed
-    if (daemonEnabled &&
-        (_lastDaemonHost != daemonSettings.daemonHost ||
-         _lastDaemonPort != daemonSettings.daemonPort ||
-         _daemonClient == null)) {
-      // Schedule reinitialization after build
-      Future.microtask(() => _initDaemonIfNeeded());
-    } else if (!daemonEnabled && _daemonClient != null) {
-      // Clean up if daemon mode was disabled
-      Future.microtask(() => _initDaemonIfNeeded());
-    }
-
     // Get networks list
     final networks = context.watch(agentNetworksStateNotifierProvider).networks;
 
@@ -607,11 +497,10 @@ class _HomePageState extends State<HomePage> {
                       // Daemon mode indicator
                       Builder(
                         builder: (context) {
+                          final daemonState = context.watch(daemonConnectionProvider);
                           final daemonEnabled = context.watch(daemonModeEnabledProvider);
                           if (!daemonEnabled) return const SizedBox.shrink();
 
-                          final configManager = context.read(videConfigManagerProvider);
-                          final settings = configManager.readGlobalSettings();
                           final daemonIndicatorFocused = _focusState == 'daemonIndicator';
 
                           return Padding(
@@ -619,7 +508,7 @@ class _HomePageState extends State<HomePage> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                if (_daemonConnecting)
+                                if (daemonState.isConnecting)
                                   Text(
                                     '⟳ Connecting to daemon...',
                                     style: TextStyle(
@@ -628,9 +517,9 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ),
                                   )
-                                else if (_daemonError != null)
+                                else if (daemonState.error != null)
                                   Text(
-                                    '⚠ $_daemonError',
+                                    '⚠ ${daemonState.error}',
                                     style: TextStyle(color: theme.base.error),
                                   )
                                 else
@@ -645,7 +534,7 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                       if (daemonIndicatorFocused)
                                         Text(
-                                          ' daemon ${settings.daemonHost}:${settings.daemonPort} ',
+                                          ' daemon ${daemonState.host}:${daemonState.port} ',
                                           style: TextStyle(
                                             color: theme.base.background,
                                             backgroundColor: theme.base.primary,
@@ -661,7 +550,7 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         ),
                                         Text(
-                                          '${settings.daemonHost}:${settings.daemonPort}',
+                                          '${daemonState.host}:${daemonState.port}',
                                           style: TextStyle(
                                             color: theme.base.onSurface.withOpacity(
                                               TextOpacity.tertiary,

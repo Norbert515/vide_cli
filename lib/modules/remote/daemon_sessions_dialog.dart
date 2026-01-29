@@ -5,9 +5,9 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/remote/remote_vide_session.dart';
+import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
 import 'package:vide_daemon/vide_daemon.dart';
 
 /// A dialog for viewing and connecting to existing daemon sessions.
@@ -38,7 +38,6 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
   String? _error;
   bool _loading = true;
   int _selectedIndex = 0;
-  DaemonClient? _client;
   StreamSubscription<DaemonEvent>? _eventSubscription;
 
   @override
@@ -50,37 +49,33 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
   @override
   void dispose() {
     _eventSubscription?.cancel();
-    _client?.close();
     super.dispose();
   }
 
   Future<void> _loadSessions() async {
-    final configManager = context.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
+    final daemonState = context.read(daemonConnectionProvider);
 
-    _client = DaemonClient(
-      host: settings.daemonHost,
-      port: settings.daemonPort,
-    );
+    if (!daemonState.isConnected) {
+      setState(() {
+        _error = daemonState.error ?? 'Not connected to daemon';
+        _loading = false;
+      });
+      return;
+    }
 
     try {
-      final healthy = await _client!.isHealthy();
-      if (!healthy) {
-        setState(() {
-          _error = 'Daemon not responding at ${settings.daemonHost}:${settings.daemonPort}';
-          _loading = false;
-        });
-        return;
-      }
-
-      final sessions = await _client!.listSessions();
+      final notifier = context.read(daemonConnectionProvider.notifier);
+      final sessions = await notifier.listSessions();
 
       // Subscribe to events for real-time updates
-      _eventSubscription = _client!.connectEvents().listen((event) {
-        if (event is SessionCreatedEvent || event is SessionStoppedEvent) {
-          _refreshSessions();
-        }
-      });
+      final events = notifier.connectEvents();
+      if (events != null) {
+        _eventSubscription = events.listen((event) {
+          if (event is SessionCreatedEvent || event is SessionStoppedEvent) {
+            _refreshSessions();
+          }
+        });
+      }
 
       setState(() {
         _sessions = sessions;
@@ -89,17 +84,17 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
       });
     } catch (e) {
       setState(() {
-        _error = 'Failed to connect: $e';
+        _error = 'Failed to load sessions: $e';
         _loading = false;
       });
     }
   }
 
   Future<void> _refreshSessions() async {
-    if (_client == null) return;
+    final notifier = context.read(daemonConnectionProvider.notifier);
 
     try {
-      final sessions = await _client!.listSessions();
+      final sessions = await notifier.listSessions();
       if (mounted) {
         setState(() {
           _sessions = sessions;
@@ -156,7 +151,8 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
 
   Future<void> _connectToSession(SessionSummary session) async {
     try {
-      final details = await _client!.getSession(session.sessionId);
+      final notifier = context.read(daemonConnectionProvider.notifier);
+      final details = await notifier.getSession(session.sessionId);
 
       final remoteSession = RemoteVideSession(
         sessionId: session.sessionId,
@@ -193,8 +189,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final configManager = context.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
+    final daemonState = context.watch(daemonConnectionProvider);
 
     return Focusable(
       focused: true,
@@ -228,7 +223,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
                     ),
                   ),
                   Text(
-                    ' - ${settings.daemonHost}:${settings.daemonPort}',
+                    ' - ${daemonState.host ?? '?'}:${daemonState.port ?? '?'}',
                     style: TextStyle(
                       color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                     ),
