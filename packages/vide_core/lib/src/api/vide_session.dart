@@ -158,12 +158,25 @@ class VideSession {
   /// Current agents in the session.
   ///
   /// This returns an immutable snapshot of the current agents.
-  /// Subscribe to [events] to receive [AgentSpawnedEvent] and
-  /// [AgentTerminatedEvent] for real-time updates.
+  /// Subscribe to [agentsStream] for real-time updates when agents
+  /// are spawned or terminated.
   List<VideAgent> get agents {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agents.map(_mapAgent).toList();
+  }
+
+  /// Stream that emits the current agents list whenever it changes.
+  ///
+  /// Emits when agents are spawned or terminated. Use this to rebuild
+  /// UI components that display the agent list.
+  ///
+  /// The stream emits the full list of agents (not just the changed agent)
+  /// for convenience in UI rebuilding.
+  Stream<List<VideAgent>> get agentsStream {
+    return _eventController.stream
+        .where((e) => e is AgentSpawnedEvent || e is AgentTerminatedEvent)
+        .map((_) => agents);
   }
 
   /// The main agent (first agent in the network).

@@ -307,6 +307,124 @@ void main() {
         expect(session.isConnected, isFalse);
       });
     });
+
+    group('agent spawning', () {
+      test('agentsStream emits when agent is spawned', () async {
+        final updates = <List<dynamic>>[];
+        final subscription = session.agentsStream.listen(updates.add);
+
+        // Allow subscription to be set up
+        await Future.delayed(Duration.zero);
+
+        _simulateAgentSpawned(
+          session,
+          'sub-agent-1',
+          'implementer',
+          'Code Helper',
+          seq: ++seq,
+        );
+
+        // Allow event to propagate
+        await Future.delayed(Duration.zero);
+
+        await subscription.cancel();
+
+        expect(updates.length, greaterThanOrEqualTo(1));
+        // The agents list should include both main and spawned agent
+        expect(updates.last.length, equals(2));
+      });
+
+      test('agents list includes spawned agents', () {
+        // Initially has just the placeholder main agent
+        expect(session.agents.length, equals(1));
+
+        _simulateAgentSpawned(
+          session,
+          'sub-agent-1',
+          'implementer',
+          'Code Helper',
+          seq: ++seq,
+        );
+
+        expect(session.agents.length, equals(2));
+        expect(session.agents.any((a) => a.id == 'sub-agent-1'), isTrue);
+        expect(session.agents.any((a) => a.name == 'Code Helper'), isTrue);
+      });
+
+      test('agentsStream emits when agent is terminated', () async {
+        // First spawn an agent
+        _simulateAgentSpawned(
+          session,
+          'sub-agent-1',
+          'implementer',
+          'Code Helper',
+          seq: ++seq,
+        );
+
+        final updates = <List<dynamic>>[];
+        final subscription = session.agentsStream.listen(updates.add);
+
+        // Allow subscription to be set up
+        await Future.delayed(Duration.zero);
+
+        _simulateAgentTerminated(session, 'sub-agent-1', seq: ++seq);
+
+        // Allow event to propagate
+        await Future.delayed(Duration.zero);
+
+        await subscription.cancel();
+
+        expect(updates.length, greaterThanOrEqualTo(1));
+        // Should be back to just main agent
+        expect(updates.last.length, equals(1));
+      });
+
+      test('agents list removes terminated agents', () {
+        _simulateAgentSpawned(
+          session,
+          'sub-agent-1',
+          'implementer',
+          'Code Helper',
+          seq: ++seq,
+        );
+
+        expect(session.agents.length, equals(2));
+
+        _simulateAgentTerminated(session, 'sub-agent-1', seq: ++seq);
+
+        expect(session.agents.length, equals(1));
+        expect(session.agents.any((a) => a.id == 'sub-agent-1'), isFalse);
+      });
+
+      test('multiple spawned agents appear in list', () {
+        _simulateAgentSpawned(
+          session,
+          'agent-1',
+          'implementer',
+          'Implementer',
+          seq: ++seq,
+        );
+        _simulateAgentSpawned(
+          session,
+          'agent-2',
+          'researcher',
+          'Researcher',
+          seq: ++seq,
+        );
+        _simulateAgentSpawned(
+          session,
+          'agent-3',
+          'qa-breaker',
+          'Tester',
+          seq: ++seq,
+        );
+
+        expect(session.agents.length, equals(4)); // main + 3 spawned
+        expect(session.agents.any((a) => a.id == 'agent-1'), isTrue);
+        expect(session.agents.any((a) => a.id == 'agent-2'), isTrue);
+        expect(session.agents.any((a) => a.id == 'agent-3'), isTrue);
+      });
+    });
   });
 }
 
@@ -388,6 +506,41 @@ void _simulateDone(
     'data': {
       'reason': 'complete',
     },
+  });
+  session.handleWebSocketMessage(json);
+}
+
+void _simulateAgentSpawned(
+  RemoteVideSession session,
+  String agentId,
+  String agentType,
+  String? agentName, {
+  required int seq,
+  String spawnedBy = 'main',
+}) {
+  final json = jsonEncode({
+    'type': 'agent-spawned',
+    'seq': seq,
+    'agent-id': agentId,
+    'agent-type': agentType,
+    'agent-name': agentName,
+    'data': {
+      'spawned-by': spawnedBy,
+    },
+  });
+  session.handleWebSocketMessage(json);
+}
+
+void _simulateAgentTerminated(
+  RemoteVideSession session,
+  String agentId, {
+  required int seq,
+}) {
+  final json = jsonEncode({
+    'type': 'agent-terminated',
+    'seq': seq,
+    'agent-id': agentId,
+    'data': {},
   });
   session.handleWebSocketMessage(json);
 }

@@ -65,6 +65,14 @@ class RemoteVideSession implements VideSession {
   /// Stream that emits when connection state changes (true = connected).
   Stream<bool> get connectionStateStream => _connectionStateController.stream;
 
+  /// Stream controller that emits when agents list changes.
+  /// Used by providers to trigger rebuilds when agents are spawned/terminated.
+  final StreamController<List<VideAgent>> _agentsController =
+      StreamController<List<VideAgent>>.broadcast();
+
+  /// Stream that emits when agents list changes (spawned/terminated).
+  Stream<List<VideAgent>> get agentsStream => _agentsController.stream;
+
   /// Whether the WebSocket is connected and ready.
   bool get isConnected => _connected;
 
@@ -886,6 +894,9 @@ class RemoteVideSession implements VideSession {
       name: agentName,
     );
 
+    // Notify listeners that agents list changed
+    _agentsController.add(agents);
+
     _eventController.add(
       AgentSpawnedEvent(
         agentId: agentId,
@@ -904,6 +915,9 @@ class RemoteVideSession implements VideSession {
 
     final agentId = json['agent-id'] as String;
     final agentInfo = _agents.remove(agentId);
+
+    // Notify listeners that agents list changed
+    _agentsController.add(agents);
 
     _eventController.add(
       AgentTerminatedEvent(
@@ -1091,6 +1105,7 @@ class RemoteVideSession implements VideSession {
     _conversationControllers.clear();
 
     await _connectionStateController.close();
+    await _agentsController.close();
     await _eventController.close();
   }
 

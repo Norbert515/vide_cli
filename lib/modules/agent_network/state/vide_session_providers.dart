@@ -57,6 +57,24 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
   return core.getSessionForNetwork(currentNetwork.id);
 });
 
+/// Provider that emits the current agents list whenever it changes.
+///
+/// This is a unified provider that works for both local and remote sessions.
+/// It watches the session's [agentsStream] to detect when agents are
+/// spawned or terminated, triggering UI rebuilds.
+///
+/// Usage:
+/// ```dart
+/// final agents = context.watch(videSessionAgentsProvider);
+/// final agentsList = agents.valueOrNull ?? session?.agents ?? [];
+/// ```
+final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  if (session == null) return const Stream.empty();
+
+  return session.agentsStream;
+});
+
 /// Provider for ConversationStateManager tied to the current session.
 ///
 /// The ConversationStateManager is owned by the VideSession and accumulates

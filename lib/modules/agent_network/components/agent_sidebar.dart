@@ -192,8 +192,11 @@ class _AgentSidebarState extends State<AgentSidebar>
     final teamDef = teamDefAsync.valueOrNull;
 
     // Watch for agent changes - unified for both local and remote modes
+    // The videSessionAgentsProvider watches session.agentsStream which emits
+    // whenever agents are spawned or terminated.
     final session = context.watch(currentVideSessionProvider);
-    final spawnedAgents = session?.agents ?? [];
+    final agentsAsync = context.watch(videSessionAgentsProvider);
+    final spawnedAgents = agentsAsync.valueOrNull ?? session?.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);
@@ -588,7 +591,9 @@ class _AgentRowItemState extends State<_AgentRowItem>
     final status = context.watch(agentStatusProvider(component.agent.id));
 
     // Get conversation state to check if processing
+    // Watch conversationStateChangedProvider to rebuild when conversation state changes
     final session = context.watch(currentVideSessionProvider);
+    context.watch(conversationStateChangedProvider);
     final conversation = session?.getConversation(component.agent.id);
     final isProcessing = conversation?.isProcessing ?? false;
 
