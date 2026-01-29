@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:claude_sdk/claude_sdk.dart';
+import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:vide_core/vide_core.dart';
@@ -11,8 +12,8 @@ import 'package:vide_core/vide_core.dart';
 /// This enables the TUI to control a session running in the daemon,
 /// translating WebSocket events to VideEvents and vice versa.
 class RemoteVideSession implements VideSession {
-  final String _sessionId;
-  final String _wsUrl;
+  String _sessionId;
+  String? _wsUrl;
   final String? _authToken;
 
   WebSocketChannel? _channel;
@@ -46,35 +47,226 @@ class RemoteVideSession implements VideSession {
   /// Current message event IDs per agent (for streaming).
   final Map<String, String> _currentMessageEventIds = {};
 
+  /// Current assistant message ID per agent (for grouping text + tool use + tool result).
+  /// All responses during a turn should be added to this message.
+  final Map<String, String> _currentAssistantMessageId = {};
+
   /// Last seq seen, for reconnection.
   int _lastSeq = 0;
 
   bool _disposed = false;
   bool _connected = false;
 
+  /// Stream controller that emits when connection state changes.
+  /// Used by providers to trigger rebuilds when connected.
+  final StreamController<bool> _connectionStateController =
+      StreamController<bool>.broadcast();
+
+  /// Stream that emits when connection state changes (true = connected).
+  Stream<bool> get connectionStateStream => _connectionStateController.stream;
+
+  /// Whether the WebSocket is connected and ready.
+  bool get isConnected => _connected;
+
+  /// Whether this session is still being created on the server.
+  bool _isPending = false;
+  bool get isPending => _isPending;
+
+  /// Error that occurred during session creation (if any).
+  String? _creationError;
+  String? get creationError => _creationError;
+
+  /// Callback invoked when pending session completes (success or failure).
+  /// Used to notify the UI to rebuild.
+  void Function()? onPendingComplete;
+
   /// Completer for initial connection.
   final Completer<void> _connectCompleter = Completer<void>();
 
+  /// Standard constructor - session details known upfront.
   RemoteVideSession({
     required String sessionId,
     required String wsUrl,
     String? authToken,
+    String? mainAgentId,
   }) : _sessionId = sessionId,
        _wsUrl = wsUrl,
        _authToken = authToken {
+    _initWithMainAgent(mainAgentId);
+  }
+
+  /// Create a pending session that will be connected once server responds.
+  ///
+  /// This enables optimistic navigation - we can navigate immediately while
+  /// the HTTP call to create the session happens in the background.
+  RemoteVideSession.pending({
+    String? authToken,
+  }) : _sessionId = const Uuid().v4(), // Temporary ID
+       _wsUrl = null,
+       _authToken = authToken,
+       _isPending = true {
+    // Pre-populate with a placeholder main agent
+    final placeholderId = const Uuid().v4();
+    _mainAgentId = placeholderId;
+    _agents[placeholderId] = _RemoteAgentInfo(
+      id: placeholderId,
+      type: 'main',
+      name: 'Connecting...',
+    );
+
     // Subscribe to our own events to update conversation state
     _eventController.stream.listen((event) {
       _conversationStateManager.handleEvent(event);
     });
   }
 
-  /// Connect to the remote session.
+  /// Complete a pending session with actual server details.
+  void completePending({
+    required String sessionId,
+    required String wsUrl,
+    required String mainAgentId,
+  }) {
+    if (!_isPending) return;
+
+    // Remove placeholder agent
+    final oldMainId = _mainAgentId;
+    if (oldMainId != null) {
+      _agents.remove(oldMainId);
+    }
+
+    // Update with real details
+    _sessionId = sessionId;
+    _wsUrl = wsUrl;
+    _isPending = false;
+
+    // Add real main agent
+    _mainAgentId = mainAgentId;
+    _agents[mainAgentId] = _RemoteAgentInfo(
+      id: mainAgentId,
+      type: 'main',
+      name: 'Main',
+    );
+
+    // Start connecting
+    connectInBackground();
+
+    // Notify listeners
+    onPendingComplete?.call();
+  }
+
+  /// Mark the pending session as failed.
+  void failPending(String error) {
+    if (!_isPending) return;
+    _creationError = error;
+    _isPending = false;
+
+    // Update placeholder agent to show error
+    if (_mainAgentId != null) {
+      _agents[_mainAgentId!] = _RemoteAgentInfo(
+        id: _mainAgentId!,
+        type: 'main',
+        name: 'Error',
+      );
+    }
+
+    // Notify listeners
+    onPendingComplete?.call();
+  }
+
+  /// Adds a user message to the conversation for immediate display.
+  ///
+  /// This is called during optimistic navigation so the user sees their
+  /// message immediately, before the server responds.
+  void addPendingUserMessage(String content) {
+    final agentId = _mainAgentId;
+    if (agentId == null) return;
+
+    var conversation = _conversations[agentId] ?? Conversation.empty();
+    final messages = List<ConversationMessage>.from(conversation.messages);
+
+    messages.add(
+      ConversationMessage(
+        id: const Uuid().v4(),
+        role: MessageRole.user,
+        content: content,
+        timestamp: DateTime.now(),
+        responses: [],
+        isStreaming: false,
+        isComplete: true,
+        messageType: MessageType.userMessage,
+      ),
+    );
+
+    conversation = conversation.copyWith(
+      messages: messages,
+      state: ConversationState.sendingMessage,
+    );
+    _conversations[agentId] = conversation;
+
+    // Notify listeners
+    _getOrCreateConversationController(agentId).add(conversation);
+  }
+
+  void _initWithMainAgent(String? mainAgentId) {
+    // Pre-populate main agent if provided (avoids "No agents" flash)
+    if (mainAgentId != null) {
+      _mainAgentId = mainAgentId;
+      _agents[mainAgentId] = _RemoteAgentInfo(
+        id: mainAgentId,
+        type: 'main',
+        name: 'Main', // Will be updated when connected event arrives
+      );
+    }
+
+    // Subscribe to our own events to update conversation state
+    _eventController.stream.listen((event) {
+      _conversationStateManager.handleEvent(event);
+    });
+  }
+
+  /// Whether the WebSocket connection has been started.
+  bool _connectionStarted = false;
+
+  /// Connect to the remote session and wait for connection to complete.
+  ///
+  /// This is the blocking version - use [connectInBackground] for non-blocking.
   Future<void> connect() async {
-    if (_connected) return;
+    _startConnection();
+    await waitForConnection();
+  }
+
+  /// Start connecting in the background without waiting.
+  ///
+  /// This allows immediate navigation to the execution page while
+  /// the WebSocket connection is established. Events will start
+  /// streaming once connected.
+  void connectInBackground() {
+    _startConnection();
+  }
+
+  /// Wait for the connection to complete.
+  ///
+  /// Call this after [connectInBackground] if you need to ensure connection.
+  Future<void> waitForConnection() async {
+    await _connectCompleter.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () {
+        throw StateError(
+          'Timeout waiting for connection to session $_sessionId',
+        );
+      },
+    );
+  }
+
+  /// Internal method to start the WebSocket connection.
+  void _startConnection() {
+    if (_connectionStarted) return;
+    if (_wsUrl == null) return; // Can't connect without URL (pending session)
+    _connectionStarted = true;
 
     final uri = _authToken != null
         ? Uri.parse('$_wsUrl?token=$_authToken')
-        : Uri.parse(_wsUrl);
+        : Uri.parse(_wsUrl!);
 
     _channel = WebSocketChannel.connect(uri);
 
@@ -90,20 +282,15 @@ class RemoteVideSession implements VideSession {
         if (!_disposed) {
           // Connection closed unexpectedly - could trigger reconnect
           _connected = false;
+          _connectionStateController.add(false);
         }
       },
     );
-
-    // Wait for connected event
-    await _connectCompleter.future.timeout(
-      const Duration(seconds: 30),
-      onTimeout: () {
-        throw StateError(
-          'Timeout waiting for connection to session $_sessionId',
-        );
-      },
-    );
   }
+
+  /// Handles a WebSocket message. Exposed for testing.
+  @visibleForTesting
+  void handleWebSocketMessage(dynamic message) => _handleWebSocketMessage(message);
 
   void _handleWebSocketMessage(dynamic message) {
     if (message is! String) return;
@@ -167,6 +354,7 @@ class RemoteVideSession implements VideSession {
     }
 
     _connected = true;
+    _connectionStateController.add(true);
     if (!_connectCompleter.isCompleted) {
       _connectCompleter.complete();
     }
@@ -259,6 +447,9 @@ class RemoteVideSession implements VideSession {
   }
 
   /// Updates conversation state from a message event.
+  ///
+  /// For user messages, creates a new message.
+  /// For assistant messages, adds to the current assistant message (or creates one).
   void _updateConversation({
     required String agentId,
     required String eventId,
@@ -269,68 +460,91 @@ class RemoteVideSession implements VideSession {
     var conversation = _conversations[agentId] ?? Conversation.empty();
     final messages = List<ConversationMessage>.from(conversation.messages);
 
-    // Check if we're updating an existing message (streaming)
-    final existingIndex = messages.indexWhere((m) => m.id == eventId);
-
-    final messageRole =
-        role == 'user' ? MessageRole.user : MessageRole.assistant;
-    final messageType =
-        role == 'user' ? MessageType.userMessage : MessageType.assistantText;
-
-    if (existingIndex >= 0) {
-      // Update existing message with accumulated content
-      final existing = messages[existingIndex];
-      final newContent = existing.content + content;
-
-      // For assistant messages, accumulate text responses
-      List<ClaudeResponse> responses = List.from(existing.responses);
-      if (messageRole == MessageRole.assistant && content.isNotEmpty) {
-        responses.add(
-          TextResponse(
-            id: const Uuid().v4(),
-            timestamp: DateTime.now(),
-            content: content,
-            isPartial: true,
-          ),
-        );
-      }
-
-      messages[existingIndex] = ConversationMessage(
-        id: eventId,
-        role: messageRole,
-        content: newContent,
-        timestamp: existing.timestamp,
-        responses: responses,
-        isStreaming: isPartial,
-        isComplete: !isPartial,
-        messageType: messageType,
-      );
-    } else {
-      // Add new message
-      List<ClaudeResponse> responses = [];
-      if (messageRole == MessageRole.assistant && content.isNotEmpty) {
-        responses.add(
-          TextResponse(
-            id: const Uuid().v4(),
-            timestamp: DateTime.now(),
-            content: content,
-            isPartial: true,
-          ),
-        );
-      }
-
+    if (role == 'user') {
+      // User messages are always new messages
       messages.add(
         ConversationMessage(
           id: eventId,
-          role: messageRole,
+          role: MessageRole.user,
           content: content,
           timestamp: DateTime.now(),
+          responses: [],
+          isStreaming: false,
+          isComplete: true,
+          messageType: MessageType.userMessage,
+        ),
+      );
+      // Clear any current assistant message tracking since user started new turn
+      _currentAssistantMessageId.remove(agentId);
+    } else {
+      // Assistant message - add to current assistant message
+      final currentMsgId = _currentAssistantMessageId[agentId];
+      final existingIndex = currentMsgId != null
+          ? messages.indexWhere((m) => m.id == currentMsgId)
+          : -1;
+
+      if (existingIndex >= 0) {
+        // Add text to existing assistant message
+        final existing = messages[existingIndex];
+        final newContent = existing.content + content;
+        final responses = List<ClaudeResponse>.from(existing.responses);
+
+        if (content.isNotEmpty) {
+          responses.add(
+            TextResponse(
+              id: const Uuid().v4(),
+              timestamp: DateTime.now(),
+              content: content,
+              isPartial: true,
+            ),
+          );
+        }
+
+        messages[existingIndex] = ConversationMessage(
+          id: existing.id,
+          role: MessageRole.assistant,
+          content: newContent,
+          timestamp: existing.timestamp,
           responses: responses,
           isStreaming: isPartial,
           isComplete: !isPartial,
-          messageType: messageType,
-        ),
-      );
+          messageType: MessageType.assistantText,
+        );
+      } else {
+        // Create new assistant message
+        final newMsgId = eventId;
+        _currentAssistantMessageId[agentId] = newMsgId;
+
+        final responses = <ClaudeResponse>[];
+        if (content.isNotEmpty) {
+          responses.add(
+            TextResponse(
+              id: const Uuid().v4(),
+              timestamp: DateTime.now(),
+              content: content,
+              isPartial: true,
+            ),
+          );
+        }
+
+        messages.add(
+          ConversationMessage(
+            id: newMsgId,
+            role: MessageRole.assistant,
+            content: content,
+            timestamp: DateTime.now(),
+            responses: responses,
+            isStreaming: isPartial,
+            isComplete: !isPartial,
+            messageType: MessageType.assistantText,
+          ),
+        );
+      }
+
+      // Clear tracking when turn completes
+      if (!isPartial) {
+        _currentAssistantMessageId.remove(agentId);
+      }
     }
 
     final state =
@@ -344,6 +558,8 @@ class RemoteVideSession implements VideSession {
   }
 
   /// Updates conversation state with a tool use event.
+  ///
+  /// Adds ToolUseResponse to the current assistant message.
   void _updateConversationWithToolUse({
     required String agentId,
     required String toolUseId,
@@ -353,30 +569,54 @@ class RemoteVideSession implements VideSession {
     var conversation = _conversations[agentId] ?? Conversation.empty();
     final messages = List<ConversationMessage>.from(conversation.messages);
 
-    // Add a tool use message
-    messages.add(
-      ConversationMessage(
+    // Find or create the current assistant message
+    var currentMsgId = _currentAssistantMessageId[agentId];
+    var existingIndex = currentMsgId != null
+        ? messages.indexWhere((m) => m.id == currentMsgId)
+        : -1;
+
+    if (existingIndex < 0) {
+      // No current assistant message - create one
+      currentMsgId = const Uuid().v4();
+      _currentAssistantMessageId[agentId] = currentMsgId;
+      messages.add(
+        ConversationMessage(
+          id: currentMsgId,
+          role: MessageRole.assistant,
+          content: '',
+          timestamp: DateTime.now(),
+          responses: [],
+          isStreaming: true,
+          isComplete: false,
+          messageType: MessageType.assistantText,
+        ),
+      );
+      existingIndex = messages.length - 1;
+    }
+
+    // Add ToolUseResponse to the current assistant message
+    final existing = messages[existingIndex];
+    final responses = List<ClaudeResponse>.from(existing.responses);
+    responses.add(
+      ToolUseResponse(
         id: toolUseId,
-        role: MessageRole.assistant,
-        content: '', // Tool uses don't have text content
         timestamp: DateTime.now(),
-        responses: [
-          ToolUseResponse(
-            id: toolUseId,
-            timestamp: DateTime.now(),
-            toolName: toolName,
-            parameters: toolInput,
-            toolUseId: toolUseId,
-          ),
-        ],
-        isStreaming: true, // Mark as streaming until result arrives
-        isComplete: false,
-        messageType: MessageType.toolUse,
+        toolName: toolName,
+        parameters: toolInput,
+        toolUseId: toolUseId,
       ),
     );
 
-    // Track the message index for later result matching
-    _pendingToolUseMessageIndex[toolUseId] = messages.length - 1;
+    messages[existingIndex] = ConversationMessage(
+      id: existing.id,
+      role: MessageRole.assistant,
+      content: existing.content,
+      timestamp: existing.timestamp,
+      responses: responses,
+      isStreaming: true,
+      isComplete: false,
+      messageType: MessageType.assistantText,
+    );
 
     conversation = conversation.copyWith(
       messages: messages,
@@ -389,6 +629,8 @@ class RemoteVideSession implements VideSession {
   }
 
   /// Updates conversation state with a tool result event.
+  ///
+  /// Adds ToolResultResponse to the current assistant message.
   void _updateConversationWithToolResult({
     required String agentId,
     required String toolUseId,
@@ -398,58 +640,47 @@ class RemoteVideSession implements VideSession {
     var conversation = _conversations[agentId] ?? Conversation.empty();
     final messages = List<ConversationMessage>.from(conversation.messages);
 
-    // Find the tool use message to update
-    final messageIndex = _pendingToolUseMessageIndex.remove(toolUseId);
+    // Find the current assistant message
+    final currentMsgId = _currentAssistantMessageId[agentId];
+    final existingIndex = currentMsgId != null
+        ? messages.indexWhere((m) => m.id == currentMsgId)
+        : -1;
 
-    if (messageIndex != null && messageIndex < messages.length) {
-      // Update the existing tool use message to mark it complete
-      final toolUseMessage = messages[messageIndex];
-      messages[messageIndex] = ConversationMessage(
-        id: toolUseMessage.id,
-        role: toolUseMessage.role,
-        content: toolUseMessage.content,
-        timestamp: toolUseMessage.timestamp,
-        responses: toolUseMessage.responses,
-        isStreaming: false,
-        isComplete: true,
-        messageType: toolUseMessage.messageType,
+    if (existingIndex >= 0) {
+      // Add ToolResultResponse to the current assistant message
+      final existing = messages[existingIndex];
+      final responses = List<ClaudeResponse>.from(existing.responses);
+      responses.add(
+        ToolResultResponse(
+          id: '${toolUseId}_result',
+          timestamp: DateTime.now(),
+          toolUseId: toolUseId,
+          content: result,
+          isError: isError,
+        ),
+      );
+
+      messages[existingIndex] = ConversationMessage(
+        id: existing.id,
+        role: MessageRole.assistant,
+        content: existing.content,
+        timestamp: existing.timestamp,
+        responses: responses,
+        isStreaming: true, // Still streaming until turn completes
+        isComplete: false,
+        messageType: MessageType.assistantText,
       );
     }
 
-    // Add a tool result message
-    messages.add(
-      ConversationMessage(
-        id: '${toolUseId}_result',
-        role: MessageRole.user, // Tool results are treated as user messages
-        content: result,
-        timestamp: DateTime.now(),
-        responses: [
-          ToolResultResponse(
-            id: '${toolUseId}_result',
-            timestamp: DateTime.now(),
-            toolUseId: toolUseId,
-            content: result,
-            isError: isError,
-          ),
-        ],
-        isStreaming: false,
-        isComplete: true,
-        messageType: MessageType.toolResult,
-      ),
-    );
-
     conversation = conversation.copyWith(
       messages: messages,
-      state: ConversationState.receivingResponse,
+      state: ConversationState.processing,
     );
     _conversations[agentId] = conversation;
 
     // Notify listeners
     _getOrCreateConversationController(agentId).add(conversation);
   }
-
-  /// Tracks pending tool use message indices for result matching.
-  final Map<String, int> _pendingToolUseMessageIndex = {};
 
   StreamController<Conversation> _getOrCreateConversationController(
     String agentId,
@@ -568,6 +799,9 @@ class RemoteVideSession implements VideSession {
     final agentInfo = _agents[agentId];
     final data = json['data'] as Map<String, dynamic>? ?? {};
 
+    // Mark the current assistant message as complete
+    _markAssistantTurnComplete(agentId);
+
     _eventController.add(
       TurnCompleteEvent(
         agentId: agentId,
@@ -578,6 +812,41 @@ class RemoteVideSession implements VideSession {
         reason: data['reason'] as String? ?? 'complete',
       ),
     );
+  }
+
+  /// Marks the current assistant message as complete.
+  void _markAssistantTurnComplete(String agentId) {
+    final currentMsgId = _currentAssistantMessageId.remove(agentId);
+    if (currentMsgId == null) return;
+
+    var conversation = _conversations[agentId];
+    if (conversation == null) return;
+
+    final messages = List<ConversationMessage>.from(conversation.messages);
+    final existingIndex = messages.indexWhere((m) => m.id == currentMsgId);
+
+    if (existingIndex >= 0) {
+      final existing = messages[existingIndex];
+      messages[existingIndex] = ConversationMessage(
+        id: existing.id,
+        role: existing.role,
+        content: existing.content,
+        timestamp: existing.timestamp,
+        responses: existing.responses,
+        isStreaming: false,
+        isComplete: true,
+        messageType: existing.messageType,
+      );
+
+      conversation = conversation.copyWith(
+        messages: messages,
+        state: ConversationState.idle,
+      );
+      _conversations[agentId] = conversation;
+
+      // Notify listeners
+      _getOrCreateConversationController(agentId).add(conversation);
+    }
   }
 
   void _handleError(Map<String, dynamic> json, {bool skipSeqCheck = false}) {
@@ -821,6 +1090,7 @@ class RemoteVideSession implements VideSession {
     }
     _conversationControllers.clear();
 
+    await _connectionStateController.close();
     await _eventController.close();
   }
 

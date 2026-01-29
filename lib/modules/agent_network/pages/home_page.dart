@@ -99,55 +99,65 @@ class _HomePageState extends State<HomePage> {
     return fullPath;
   }
 
-  void _handleSubmit(Message message) async {
+  Future<void> _handleSubmit(Message message) async {
     final daemonState = context.read(daemonConnectionProvider);
 
-    if (daemonState.isConnected) {
-      // Daemon mode: create session on daemon
-      await _handleDaemonSubmit(message);
-    } else {
-      // Local mode: create session locally
-      await _handleLocalSubmit(message);
-    }
-  }
-
-  Future<void> _handleLocalSubmit(Message message) async {
-    // Start a new agent network with the full message (preserves attachments)
-    // This returns immediately - client creation happens in background
-    // Use the repo path override if user selected a worktree before starting
-    final worktreePath = context.read(repoPathOverrideProvider);
-    final currentTeam = context.read(currentTeamProvider);
-    final network = await context
-        .read(agentNetworkManagerProvider.notifier)
-        .startNew(message, workingDirectory: worktreePath, team: currentTeam);
-
-    // Update the networks list
-    context
-        .read(agentNetworksStateNotifierProvider.notifier)
-        .upsertNetwork(network);
-
-    // Navigate to the execution page immediately
-    await NetworkExecutionPage.push(context, network.id);
-  }
-
-  Future<void> _handleDaemonSubmit(Message message) async {
     try {
-      // Create session on daemon using the service
-      final remoteSession = await context
-          .read(daemonConnectionProvider.notifier)
-          .createSession(
-            initialMessage: message.text,
-            workingDirectory: Directory.current.path,
-          );
+      final String sessionId;
 
-      // Store in provider for the rest of the app
-      context.read(remoteVideSessionProvider.notifier).state = remoteSession;
+      if (daemonState.isConnected) {
+        // Daemon mode: create session on daemon server
+        // Use optimistic approach - navigate immediately, HTTP call in background
+        final remoteSession = context
+            .read(daemonConnectionProvider.notifier)
+            .createSessionOptimistic(
+              initialMessage: message.text,
+              workingDirectory: Directory.current.path,
+              onReady: () {
+                // Trigger rebuild when session is ready by re-setting the provider
+                // This is called after HTTP completes and WebSocket starts connecting
+                if (mounted) {
+                  final current = context.read(remoteVideSessionProvider);
+                  if (current != null) {
+                    // Re-set to trigger dependents to rebuild
+                    context.read(remoteVideSessionProvider.notifier).state = current;
+                  }
+                }
+              },
+            );
 
-      // Navigate to the execution page
-      await NetworkExecutionPage.push(context, remoteSession.id);
+        // Store in provider IMMEDIATELY (before HTTP completes)
+        context.read(remoteVideSessionProvider.notifier).state = remoteSession;
+        sessionId = remoteSession.id;
+
+        // Pre-populate the conversation with the user's message for instant feedback
+        remoteSession.addPendingUserMessage(message.text);
+      } else {
+        // Local mode: create session locally
+        // Returns immediately - client initialization happens in background
+        final worktreePath = context.read(repoPathOverrideProvider);
+        final currentTeam = context.read(currentTeamProvider);
+        final network = await context
+            .read(agentNetworkManagerProvider.notifier)
+            .startNew(
+              message,
+              workingDirectory: worktreePath,
+              team: currentTeam,
+            );
+
+        // Update the networks list
+        context
+            .read(agentNetworksStateNotifierProvider.notifier)
+            .upsertNetwork(network);
+
+        sessionId = network.id;
+      }
+
+      // Navigate to the execution page IMMEDIATELY (optimistic for daemon mode)
+      await NetworkExecutionPage.push(context, sessionId);
     } catch (e) {
       setState(() {
-        _commandResult = 'Failed to create daemon session: $e';
+        _commandResult = 'Failed to create session: $e';
         _commandResultIsError = true;
       });
 

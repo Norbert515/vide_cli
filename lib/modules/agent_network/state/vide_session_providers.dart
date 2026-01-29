@@ -22,6 +22,18 @@ final remoteVideSessionProvider = StateProvider<RemoteVideSession?>(
   (ref) => null,
 );
 
+/// Provider that triggers rebuilds when the remote session connection state changes.
+///
+/// This watches the [RemoteVideSession.connectionStateStream] to detect when
+/// the WebSocket connects or disconnects. Without this, setting the session
+/// provider doesn't trigger rebuilds when internal state changes.
+final remoteSessionConnectionProvider = StreamProvider<bool>((ref) {
+  final remoteSession = ref.watch(remoteVideSessionProvider);
+  if (remoteSession == null) return const Stream.empty();
+
+  return remoteSession.connectionStateStream;
+});
+
 /// Provider for the current VideSession based on the active network.
 ///
 /// Returns null if no network is currently active.
@@ -30,6 +42,8 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
   // Check if we're in remote mode first
   final remoteSession = ref.watch(remoteVideSessionProvider);
   if (remoteSession != null) {
+    // Also watch connection state to rebuild when connected
+    ref.watch(remoteSessionConnectionProvider);
     return remoteSession;
   }
 
