@@ -371,8 +371,11 @@ class _HomePageState extends State<HomePage> {
       final network = networks[_selectedNetworkIndex];
       // Update the team provider to match the network's team
       context.read(currentTeamProvider.notifier).state = network.team;
-      // Await resume to complete before navigating to prevent flash of empty state
-      context.read(videoCoreProvider).resumeSession(network.id).then((_) {
+      // Resume directly via the manager (same as startNew) to keep state in TUI's container
+      context
+          .read(agentNetworkManagerProvider.notifier)
+          .resume(network)
+          .then((_) {
         NetworkExecutionPage.push(context, network.id);
       });
       return true;

@@ -57,6 +57,9 @@ class VideSession {
   final ProviderContainer _container;
   final StreamController<VideEvent> _eventController;
 
+  /// Buffered stream that replays events to late subscribers.
+  late final _BufferedEventStream<VideEvent> _bufferedEvents;
+
   /// Subscriptions to clean up on dispose.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<ProviderSubscription<dynamic>> _providerSubscriptions = [];
@@ -89,6 +92,9 @@ class VideSession {
   }) : _networkId = networkId,
        _container = container,
        _eventController = StreamController<VideEvent>.broadcast() {
+    // Create buffered event stream that replays events to late subscribers
+    _bufferedEvents = _BufferedEventStream(_eventController.stream);
+
     // Create permission checker for this session
     _permissionChecker = PermissionChecker(
       config: permissionConfig ?? PermissionCheckerConfig.tui,
@@ -153,7 +159,12 @@ class VideSession {
   /// - [AgentTerminatedEvent] - When an agent is terminated
   /// - [PermissionRequestEvent] - When permission is needed
   /// - [ErrorEvent] - When an error occurs
-  Stream<VideEvent> get events => _eventController.stream;
+  ///
+  /// **Note:** This stream buffers events until the first listener subscribes,
+  /// then replays all buffered events. This ensures late subscribers (like UI
+  /// components that subscribe during build) don't miss early events like
+  /// permission requests.
+  Stream<VideEvent> get events => _bufferedEvents.stream;
 
   /// Current agents in the session.
   ///
@@ -174,7 +185,7 @@ class VideSession {
   /// The stream emits the full list of agents (not just the changed agent)
   /// for convenience in UI rebuilding.
   Stream<List<VideAgent>> get agentsStream {
-    return _eventController.stream
+    return _bufferedEvents.stream
         .where((e) => e is AgentSpawnedEvent || e is AgentTerminatedEvent)
         .map((_) => agents);
   }
@@ -516,6 +527,9 @@ class VideSession {
     // Dispose permission checker and conversation state manager
     _permissionChecker.dispose();
     _conversationStateManager.dispose();
+
+    // Dispose buffered event stream
+    _bufferedEvents.dispose();
 
     // Close the event stream
     await _eventController.close();
@@ -1061,4 +1075,63 @@ class _AgentStreamState {
     required this.agentType,
     this.agentName,
   });
+}
+
+/// A stream wrapper that buffers events until the first listener subscribes.
+///
+/// This solves the race condition where events may be emitted before UI
+/// components have a chance to subscribe. All events are buffered, and when
+/// the first listener subscribes, buffered events are replayed before
+/// switching to live streaming.
+///
+/// After the first listener subscribes, behaves like a normal broadcast stream.
+class _BufferedEventStream<T> {
+  final Stream<T> _source;
+  final List<T> _buffer = [];
+  StreamSubscription<T>? _sourceSubscription;
+  StreamController<T>? _outputController;
+  bool _hasHadListener = false;
+
+  _BufferedEventStream(this._source) {
+    // Start buffering immediately
+    _sourceSubscription = _source.listen(_buffer.add);
+  }
+
+  /// The stream that replays buffered events to the first subscriber,
+  /// then emits live events.
+  Stream<T> get stream {
+    // Create output controller lazily on first access
+    _outputController ??= StreamController<T>.broadcast(
+      onListen: _onFirstListen,
+    );
+    return _outputController!.stream;
+  }
+
+  void _onFirstListen() {
+    if (_hasHadListener) return;
+    _hasHadListener = true;
+
+    // Cancel buffering subscription
+    _sourceSubscription?.cancel();
+    _sourceSubscription = null;
+
+    // Replay buffered events
+    for (final event in _buffer) {
+      _outputController?.add(event);
+    }
+    _buffer.clear();
+
+    // Switch to live mode
+    _sourceSubscription = _source.listen(
+      _outputController?.add,
+      onError: _outputController?.addError,
+      onDone: _outputController?.close,
+    );
+  }
+
+  /// Dispose of resources.
+  void dispose() {
+    _sourceSubscription?.cancel();
+    _outputController?.close();
+  }
 }
