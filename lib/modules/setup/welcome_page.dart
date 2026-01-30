@@ -137,7 +137,7 @@ class _WelcomePageState extends State<WelcomePage>
 
   Future<void> _runClaudeTest() async {
     try {
-      final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
+      final executable = await ProcessManager.getClaudeExecutable();
       final result = await Process.run(executable, [
         '--print',
         'Respond with exactly: "Connected and ready to help!"',

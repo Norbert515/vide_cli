@@ -5,6 +5,7 @@ import '../control/control_protocol.dart';
 import '../control/control_types.dart';
 import '../errors/claude_errors.dart';
 import '../models/config.dart';
+import 'process_manager.dart';
 
 /// Manages the lifecycle of a Claude CLI process.
 ///
@@ -48,8 +49,8 @@ class ProcessLifecycleManager {
     }
 
     // Start the process
-    // On Windows, use 'claude.cmd' since npm installs it as a .cmd wrapper
-    final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
+    // On Windows, check for both standalone installer (.exe) and npm (.cmd)
+    final executable = await ProcessManager.getClaudeExecutable();
     Process process;
     try {
       process = await Process.start(

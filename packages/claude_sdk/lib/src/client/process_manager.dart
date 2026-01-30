@@ -47,4 +47,31 @@ class ProcessManager {
       return false;
     }
   }
+
+  /// Get the Claude executable name for the current platform.
+  ///
+  /// On Windows, checks for both 'claude.exe' (standalone installer) and
+  /// 'claude.cmd' (npm installation), preferring .exe if both exist.
+  /// On other platforms, returns 'claude'.
+  static Future<String> getClaudeExecutable() async {
+    if (!Platform.isWindows) {
+      return 'claude';
+    }
+
+    // On Windows, check for standalone installer (.exe) first, then npm (.cmd)
+    // Use 'where' to check if executables exist in PATH
+    for (final exe in ['claude.exe', 'claude.cmd']) {
+      try {
+        final result = await Process.run('where', [exe]);
+        if (result.exitCode == 0) {
+          return exe;
+        }
+      } catch (_) {
+        // Continue to next option
+      }
+    }
+
+    // Fallback to 'claude' and let the system resolve it
+    return 'claude';
+  }
 }
