@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/models/session_event.dart' as session_events;
+import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
 import '../agents/agent_panel.dart';
 import '../permissions/permission_sheet.dart';
@@ -26,17 +30,206 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _inputController = TextEditingController();
   final _scrollController = ScrollController();
+  StreamSubscription<session_events.SessionEvent>? _eventSubscription;
+
+  /// Tracks accumulated content for streaming messages by eventId.
+  final Map<String, String> _streamingMessages = {};
+
+  /// Tracks whether permission sheet is currently showing.
+  bool _isPermissionSheetShowing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeToEvents();
+  }
 
   @override
   void dispose() {
+    _eventSubscription?.cancel();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
+  void _subscribeToEvents() {
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    _eventSubscription = sessionRepo.events.listen(_handleEvent);
+  }
+
+  void _handleEvent(session_events.SessionEvent event) {
+    final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
+
+    switch (event) {
+      case session_events.ConnectedEvent(:final agents):
+        // Set initial agents from connected event
+        notifier.setAgents(agents);
+
+      case session_events.HistoryEvent(:final events):
+        // Process history events for reconnection
+        for (final historyEvent in events) {
+          _handleEvent(historyEvent);
+        }
+
+      case session_events.MessageEvent(
+          :final eventId,
+          :final agentId,
+          :final agentType,
+          :final agentName,
+          :final content,
+          :final role,
+          :final isPartial,
+          :final timestamp,
+        ):
+        _handleMessageEvent(
+          eventId: eventId,
+          agentId: agentId,
+          agentType: agentType,
+          agentName: agentName,
+          content: content,
+          role: role,
+          isPartial: isPartial,
+          timestamp: timestamp,
+        );
+
+      case session_events.StatusEvent(:final agentId, :final status, :final taskName):
+        notifier.updateAgentStatus(agentId, status, taskName);
+        // Update isAgentWorking based on any agent working
+        final agents = ref.read(chatNotifierProvider(widget.sessionId)).agents;
+        final anyWorking = agents.any((a) => a.status == AgentStatus.working);
+        notifier.setIsAgentWorking(anyWorking);
+
+      case session_events.ToolUseEvent(:final toolUse):
+        notifier.addToolUse(toolUse);
+        _scrollToBottom();
+
+      case session_events.ToolResultEvent(:final toolResult):
+        notifier.addToolResult(toolResult);
+        _scrollToBottom();
+
+      case session_events.PermissionRequestEvent(:final request):
+        notifier.setPendingPermission(request);
+
+      case session_events.PermissionTimeoutEvent(:final requestId):
+        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
+        if (pending?.requestId == requestId) {
+          notifier.setPendingPermission(null);
+          if (_isPermissionSheetShowing && mounted) {
+            Navigator.of(context).pop();
+            _isPermissionSheetShowing = false;
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Permission request timed out')),
+            );
+          }
+        }
+
+      case session_events.AgentSpawnedEvent(:final agent):
+        notifier.addAgent(agent);
+
+      case session_events.AgentTerminatedEvent(:final terminatedAgentId):
+        notifier.removeAgent(terminatedAgentId);
+
+      case session_events.DoneEvent():
+        notifier.setIsAgentWorking(false);
+
+      case session_events.AbortedEvent():
+        notifier.setIsAgentWorking(false);
+
+      case session_events.ErrorEvent(:final message):
+        notifier.setError(message);
+        notifier.setIsAgentWorking(false);
+
+      case session_events.UnknownEvent():
+        // Ignore unknown events
+        break;
+    }
+  }
+
+  void _handleMessageEvent({
+    required String eventId,
+    required String agentId,
+    required String agentType,
+    required String? agentName,
+    required String content,
+    required MessageRole role,
+    required bool isPartial,
+    required DateTime timestamp,
+  }) {
+    final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
+    final state = ref.read(chatNotifierProvider(widget.sessionId));
+
+    if (isPartial) {
+      // Accumulate streaming content
+      _streamingMessages[eventId] = (_streamingMessages[eventId] ?? '') + content;
+
+      // Check if we already have a message with this eventId
+      final existingIndex = state.messages.indexWhere((m) => m.eventId == eventId);
+
+      if (existingIndex >= 0) {
+        // Update existing message with accumulated content
+        notifier.updateMessage(
+          eventId,
+          state.messages[existingIndex].copyWith(
+            content: _streamingMessages[eventId]!,
+            isStreaming: true,
+          ),
+        );
+      } else {
+        // Create new streaming message
+        notifier.addMessage(ChatMessage(
+          eventId: eventId,
+          role: role,
+          content: _streamingMessages[eventId]!,
+          agentId: agentId,
+          agentType: agentType,
+          agentName: agentName,
+          timestamp: timestamp,
+          isStreaming: true,
+        ));
+      }
+    } else {
+      // Final message (isPartial: false)
+      final accumulatedContent = _streamingMessages[eventId] ?? '';
+      final finalContent = accumulatedContent + content;
+      _streamingMessages.remove(eventId);
+
+      final existingIndex = state.messages.indexWhere((m) => m.eventId == eventId);
+
+      if (existingIndex >= 0) {
+        // Mark message as complete
+        notifier.updateMessage(
+          eventId,
+          state.messages[existingIndex].copyWith(
+            content: finalContent,
+            isStreaming: false,
+          ),
+        );
+      } else if (finalContent.isNotEmpty) {
+        // Add complete message (this can happen if we missed partial events)
+        notifier.addMessage(ChatMessage(
+          eventId: eventId,
+          role: role,
+          content: finalContent,
+          agentId: agentId,
+          agentType: agentType,
+          agentName: agentName,
+          timestamp: timestamp,
+          isStreaming: false,
+        ));
+      }
+    }
+
+    _scrollToBottom();
+  }
+
   void _sendMessage() {
     final message = _inputController.text.trim();
     if (message.isEmpty) return;
+
+    final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
 
     // Add user message to state
     final userMessage = ChatMessage(
@@ -48,39 +241,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       timestamp: DateTime.now(),
     );
 
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).addMessage(userMessage);
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(true);
+    notifier.addMessage(userMessage);
+    notifier.setIsAgentWorking(true);
 
-    // TODO: Send to WebSocket
+    // Send to WebSocket via vide_client
+    sessionRepo.sendMessage(message);
+
     _inputController.clear();
     _scrollToBottom();
-
-    // Simulate agent response for demo
-    _simulateAgentResponse();
-  }
-
-  void _simulateAgentResponse() {
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-
-      final assistantMessage = ChatMessage(
-        eventId: DateTime.now().millisecondsSinceEpoch.toString(),
-        role: MessageRole.assistant,
-        content: 'I received your message. This is a simulated response. The actual implementation will stream responses from the Vide server via WebSocket.',
-        agentId: 'main-agent',
-        agentType: 'main',
-        agentName: 'Main Agent',
-        timestamp: DateTime.now(),
-      );
-
-      ref.read(chatNotifierProvider(widget.sessionId).notifier).addMessage(assistantMessage);
-      ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(false);
-      _scrollToBottom();
-    });
   }
 
   void _abort() {
-    // TODO: Send abort to WebSocket
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    sessionRepo.abort();
     ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(false);
   }
 
@@ -106,8 +279,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _handlePermission(bool allow) {
-    // TODO: Send permission response to WebSocket
+    final state = ref.read(chatNotifierProvider(widget.sessionId));
+    final pendingPermission = state.pendingPermission;
+    if (pendingPermission == null) return;
+
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    sessionRepo.respondToPermission(
+      pendingPermission.requestId,
+      allow,
+    );
+
     ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(null);
+    _isPermissionSheetShowing = false;
+    Navigator.of(context).pop(); // Close the permission sheet
+  }
+
+  void _showPermissionSheet(PermissionRequest request) {
+    if (_isPermissionSheetShowing) return;
+    _isPermissionSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => PermissionSheet(
+        request: request,
+        onAllow: () => _handlePermission(true),
+        onDeny: () => _handlePermission(false),
+      ),
+    ).whenComplete(() {
+      _isPermissionSheetShowing = false;
+    });
   }
 
   @override
@@ -116,18 +318,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final colorScheme = Theme.of(context).colorScheme;
 
     // Show permission sheet if there's a pending permission
-    if (state.pendingPermission != null) {
+    if (state.pendingPermission != null && !_isPermissionSheetShowing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        showModalBottomSheet(
-          context: context,
-          isDismissible: false,
-          enableDrag: false,
-          builder: (context) => PermissionSheet(
-            request: state.pendingPermission!,
-            onAllow: () => _handlePermission(true),
-            onDeny: () => _handlePermission(false),
-          ),
-        );
+        if (mounted && state.pendingPermission != null) {
+          _showPermissionSheet(state.pendingPermission!);
+        }
       });
     }
 
@@ -164,6 +359,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             LinearProgressIndicator(
               backgroundColor: colorScheme.primaryContainer,
               valueColor: AlwaysStoppedAnimation(colorScheme.primary),
+            ),
+          // Error banner
+          if (state.error != null)
+            MaterialBanner(
+              content: Text(state.error!),
+              backgroundColor: colorScheme.errorContainer,
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    ref.read(chatNotifierProvider(widget.sessionId).notifier).setError(null);
+                  },
+                  child: const Text('Dismiss'),
+                ),
+              ],
             ),
           // Messages list
           Expanded(

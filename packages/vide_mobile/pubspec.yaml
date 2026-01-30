@@ -18,10 +18,12 @@ dependencies:
   flutter_markdown: ^0.6.18
   shared_preferences: ^2.2.2
   connectivity_plus: ^5.0.2
-  web_socket_channel: ^2.4.0
+  web_socket_channel: ^3.0.0
   http: ^1.2.0
   uuid: ^4.2.2
   cupertino_icons: ^1.0.6
+  vide_client:
+    path: ../vide_client
 
 dev_dependencies:
   flutter_test:
