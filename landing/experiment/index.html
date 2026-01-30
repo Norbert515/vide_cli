@@ -296,382 +296,293 @@
             50% { opacity: 1; }
         }
 
-        /* Stats Row (replaces sidebar) */
-        .stats-row {
-            display: flex;
-            gap: var(--gap);
-        }
-
-        .stat-card {
-            flex: 1;
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: var(--padding);
-            text-align: center;
-            transition: border-color 0.2s ease;
-        }
-
-        .stat-card:hover {
-            border-color: var(--cyan);
-        }
-
-        .stat-card .value {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: var(--cyan);
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .stat-card .label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
         /* ============================================
-           Features Row
+           Glass Sections
            ============================================ */
 
-        .features-row {
-            display: flex;
-            gap: var(--gap);
-        }
-
-        .feature-card {
-            flex: 1;
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: var(--padding);
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
-            animation: feature-wave 4s ease-in-out infinite;
-            animation-delay: calc(var(--card-index) * 0.4s);
-        }
-
-        @keyframes feature-wave {
-            0%, 100% {
-                border-color: var(--border-default);
-            }
-            50% {
-                border-color: rgba(var(--accent-color), 0.4);
-                box-shadow: 0 0 15px rgba(var(--accent-color), 0.1);
-            }
-        }
-
-        .feature-card h3 {
-            font-size: 0.8rem;
-            font-weight: normal;
-            color: var(--text-primary);
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .feature-icon {
-            animation: icon-pulse 4s ease-in-out infinite;
-            animation-delay: calc(var(--card-index) * 0.4s);
-        }
-
-        @keyframes icon-pulse {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
-        }
-
-        .feature-divider {
-            height: 1px;
-            background: var(--border-default);
-            margin-bottom: 6px;
-            opacity: 0.5;
-        }
-
-        .feature-card p {
-            color: var(--text-muted);
-            font-size: 0.75rem;
-        }
-
-        /* ============================================
-           Flutter Logo Section
-           ============================================ */
-
-        .flutter-section {
-            position: relative;
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: 0;
-            overflow: hidden;
-            height: 500px;
-        }
-
-        .flutter-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-        }
-
-        .flutter-overlay {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            z-index: 10;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            pointer-events: none;
-        }
-
-        .flutter-tagline {
-            background: rgba(8, 8, 16, 0.85);
-            border: 1px solid var(--border-default);
-            padding: 12px 16px;
-            pointer-events: auto;
-        }
-
-        .flutter-tagline h3 {
-            color: var(--text-bright);
-            font-size: 0.9rem;
-            margin: 0 0 4px 0;
-        }
-
-        .flutter-tagline p {
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            margin: 0;
-        }
-
-        .flutter-tagline .flutter-highlight {
-            color: #54C5F8;
-        }
-
-        /* ============================================
-           Problem Section
-           ============================================ */
-
-        .problem-section {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
+        .glass-section {
+            background: rgba(12, 12, 20, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(42, 42, 58, 0.6);
             padding: calc(var(--padding) * 1.5);
+            margin-bottom: var(--gap);
         }
 
-        .section-title {
-            font-size: 0.9rem;
+        .section-heading {
+            font-size: 1rem;
             font-weight: normal;
-            color: var(--text-label);
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .section-subtitle {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .problem-content {
-            max-width: 700px;
-            margin: 0 auto;
-            text-align: center;
-        }
-
-        .problem-content p {
-            font-size: 0.85rem;
-            color: var(--text-primary);
-            line-height: 1.7;
-            margin-bottom: 12px;
-        }
-
-        .problem-content .highlight {
-            color: var(--cyan);
-            font-weight: bold;
-        }
-
-        .problem-content .strike {
-            text-decoration: line-through;
-            color: var(--text-muted);
-        }
-
-        .comparison-boxes {
-            display: flex;
-            gap: 16px;
-            justify-content: center;
-            margin-top: 20px;
-        }
-
-        .comparison-box {
-            background: var(--bg-dark);
-            border: 1px solid var(--border-default);
-            padding: 16px 24px;
-            text-align: center;
-        }
-
-        .comparison-box.after {
-            border-color: var(--cyan);
-        }
-
-        .comparison-label {
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--text-muted);
+            color: var(--text-bright);
             margin-bottom: 8px;
         }
 
-        .comparison-box.after .comparison-label {
-            color: var(--cyan);
-        }
-
-        .comparison-flow {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.75rem;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .flow-item {
-            padding: 4px 8px;
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-        }
-
-        .comparison-box.after .flow-item {
-            border-color: var(--cyan);
-            color: var(--cyan);
-        }
-
-        .flow-arrow {
-            color: var(--text-muted);
-        }
-
-        /* ============================================
-           Agents Section
-           ============================================ */
-
-        .agents-section {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: var(--padding);
-        }
-
-        .agents-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: var(--gap);
-        }
-
-        .agent-card {
-            background: var(--bg-dark);
-            border: 1px solid var(--border-default);
-            padding: var(--padding);
-            transition: border-color 0.2s ease;
-        }
-
-        .agent-card:hover {
-            border-color: var(--cyan);
-        }
-
-        .agent-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .agent-icon {
-            font-size: 1.3rem;
-        }
-
-        .agent-card h3 {
-            font-size: 0.85rem;
-            font-weight: bold;
-            color: var(--text-primary);
-        }
-
-        .agent-tag {
-            margin-left: auto;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            background: var(--bg-panel);
-            padding: 2px 6px;
-        }
-
-        .agent-card p {
-            font-size: 0.75rem;
-            color: var(--text-muted);
+        .section-text {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
             line-height: 1.5;
         }
 
-        /* ============================================
-           Demo Section
-           ============================================ */
-
-        .demo-section {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: var(--padding);
+        .feature-grid {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
         }
 
-        .demo-window {
-            background: var(--bg-dark);
-            border: 1px solid var(--border-default);
-            overflow: hidden;
-        }
-
-        .demo-titlebar {
+        .feature-item {
             display: flex;
             align-items: center;
-            padding: 8px 12px;
-            background: rgba(0, 0, 0, 0.3);
-            border-bottom: 1px solid var(--border-default);
             gap: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 12px;
+            border: 1px solid var(--border-default);
         }
 
-        .demo-dots {
-            display: flex;
-            gap: 5px;
+        .feature-item .feature-icon {
+            font-size: 1rem;
         }
 
-        .demo-dots span {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-muted);
-        }
-
-        .demo-dots span:first-child { background: #ff5f57; }
-        .demo-dots span:nth-child(2) { background: #febc2e; }
-        .demo-dots span:last-child { background: #28c840; }
-
-        .demo-title {
-            flex: 1;
-            text-align: center;
+        .feature-item .feature-label {
             font-size: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        /* Code block */
+        .code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-default);
+            padding: 16px;
+            overflow-x: auto;
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        .code-comment {
             color: var(--text-muted);
         }
 
-        .demo-badge {
-            background: var(--green);
-            color: var(--bg-dark);
-            font-size: 0.6rem;
+        .code-keyword {
+            color: var(--code-function);
+        }
+
+        .code-string {
+            color: var(--code-string);
+        }
+
+        /* Agent list */
+        .agent-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+        }
+
+        .agent-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px 12px;
+            border: 1px solid var(--border-default);
+            transition: border-color 0.2s ease;
+        }
+
+        .agent-item:hover {
+            border-color: var(--cyan);
+        }
+
+        .agent-item .agent-icon {
+            font-size: 1.2rem;
+        }
+
+        .agent-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .agent-name {
+            font-size: 0.8rem;
+            color: var(--text-bright);
+        }
+
+        .agent-desc {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* ============================================
+           Agents Terminal Display
+           ============================================ */
+
+        .agents-terminal {
+            background: rgba(30, 32, 35, 0.95);
+            border: 1px solid #3a3d41;
+            border-radius: 8px;
+            overflow: hidden;
+            font-family: 'JetBrains Mono', monospace;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .terminal-chrome {
+            background: #2d2d2d;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #3a3d41;
+        }
+
+        .terminal-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .terminal-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3a3d41;
+        }
+
+        .terminal-dots span:nth-child(1) { background: #ff5f57; }
+        .terminal-dots span:nth-child(2) { background: #febc2e; }
+        .terminal-dots span:nth-child(3) { background: #28c840; }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: #808080;
+            font-size: 0.75rem;
+        }
+
+        .terminal-content {
+            padding: 20px;
+        }
+
+        .agents-header {
+            color: #808080;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #3a3d41;
+        }
+
+        .agent-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            font-size: 0.85rem;
+        }
+
+        .agent-row[data-status="working"] {
+            color: #e0e0e0;
+        }
+
+        .agent-row[data-status="done"] {
+            color: #808080;
+        }
+
+        /* Braille spinner animation */
+        .agent-spinner {
+            display: inline-block;
+            width: 1em;
+            text-align: center;
+            color: var(--cyan);
+        }
+
+        .agent-spinner[data-speed="fast"] {
+            animation: braille-spin 0.8s steps(1) infinite;
+        }
+
+        .agent-spinner[data-speed="medium"] {
+            animation: braille-spin 1.2s steps(1) infinite;
+            animation-delay: 0.2s;
+        }
+
+        .agent-spinner[data-speed="slow"] {
+            animation: braille-spin 1.6s steps(1) infinite;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes braille-spin {
+            0%   { content: '⠋'; }
+            12.5%  { content: '⠙'; }
+            25%  { content: '⠹'; }
+            37.5%  { content: '⠸'; }
+            50%  { content: '⠼'; }
+            62.5%  { content: '⠴'; }
+            75%  { content: '⠦'; }
+            87.5%  { content: '⠧'; }
+            100% { content: '⠇'; }
+        }
+
+        /* Use pseudo-element for the actual animation */
+        .agent-spinner::before {
+            content: '⠋';
+            animation: braille-spin-content 0.8s steps(1) infinite;
+        }
+
+        .agent-spinner[data-speed="medium"]::before {
+            animation-duration: 1.2s;
+            animation-delay: 0.2s;
+        }
+
+        .agent-spinner[data-speed="slow"]::before {
+            animation-duration: 1.6s;
+            animation-delay: 0.4s;
+        }
+
+        @keyframes braille-spin-content {
+            0%      { content: '⠋'; }
+            12.5%   { content: '⠙'; }
+            25%     { content: '⠹'; }
+            37.5%   { content: '⠸'; }
+            50%     { content: '⠼'; }
+            62.5%   { content: '⠴'; }
+            75%     { content: '⠦'; }
+            87.5%   { content: '⠧'; }
+        }
+
+        .agent-check {
+            color: var(--green);
+            width: 1em;
+            text-align: center;
+        }
+
+        .agent-name {
             font-weight: bold;
-            padding: 2px 6px;
-            animation: pulse-badge 2s ease-in-out infinite;
+            color: #c5cdd3;
+            min-width: 60px;
         }
 
-        @keyframes pulse-badge {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+        .agent-row[data-status="working"] .agent-name {
+            color: #fff;
         }
 
-        .demo-content img {
-            width: 100%;
-            height: auto;
-            display: block;
+        .agent-task {
+            color: #808080;
+            flex: 1;
+        }
+
+        .agent-row[data-status="working"] .agent-task {
+            color: #a0a0a0;
+        }
+
+        .agents-summary {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid #3a3d41;
+            display: flex;
+            gap: 20px;
+            font-size: 0.75rem;
+            color: #606060;
+        }
+
+        .stat-num {
+            color: var(--cyan);
+            font-weight: bold;
         }
 
         /* ============================================
@@ -679,26 +590,14 @@
            ============================================ */
 
         .cta-section {
-            background: var(--bg-panel);
+            background: rgba(12, 12, 20, 0.8);
             border: 1px solid var(--border-glow);
             padding: calc(var(--padding) * 1.5);
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
             gap: var(--padding);
             flex-wrap: wrap;
-            animation: border-glow 4s ease-in-out infinite;
-        }
-
-        .cta-content h2 {
-            font-size: 1.1rem;
-            color: var(--text-bright);
-            margin-bottom: 4px;
-        }
-
-        .cta-content p {
-            color: var(--text-secondary);
-            font-size: 0.8rem;
         }
 
         .cta-code {
@@ -754,96 +653,8 @@
         }
 
         /* ============================================
-           Bottom Bar
-           ============================================ */
-
-        .bottom-bar {
-            background: var(--bg-panel);
-            border: 1px solid var(--border-default);
-            padding: 12px var(--padding);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .brand-icon {
-            width: 20px;
-            height: 20px;
-        }
-
-        .brand-name {
-            color: var(--text-bright);
-            font-weight: bold;
-        }
-
-        .brand-tagline {
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            font-style: italic;
-        }
-
-        .wave-container {
-            display: flex;
-            gap: 0;
-            font-size: 0.8rem;
-        }
-
-        .wave-char {
-            animation: wave-color 3s ease-in-out infinite;
-            animation-delay: calc(var(--i) * 0.1s);
-        }
-
-        @keyframes wave-color {
-            0%, 100% { color: rgba(0, 100, 140, 0.4); }
-            25% { color: rgba(0, 140, 180, 0.6); }
-            50% { color: rgba(0, 212, 255, 0.9); }
-            75% { color: rgba(0, 140, 180, 0.6); }
-        }
-
-        .bottom-links {
-            display: flex;
-            gap: 16px;
-        }
-
-        .bottom-links a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 0.8rem;
-            transition: color 0.2s ease;
-        }
-
-        .bottom-links a:hover {
-            color: var(--text-primary);
-        }
-
-        /* ============================================
            Responsive Design
            ============================================ */
-
-        @media (max-width: 900px) {
-            .hero-section {
-                height: 100vh;
-                min-height: 500px;
-            }
-
-            .stats-row {
-                flex-wrap: wrap;
-            }
-
-            .stat-card {
-                flex: 1 1 calc(50% - var(--gap));
-            }
-
-            .agents-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
 
         @media (max-width: 700px) {
             .site-header {
@@ -876,24 +687,6 @@
                 bottom: 20px;
             }
 
-            .features-row {
-                flex-wrap: wrap;
-            }
-
-            .feature-card {
-                flex: 1 1 calc(50% - var(--gap));
-                min-width: 140px;
-            }
-
-            .agents-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .comparison-boxes {
-                flex-direction: column;
-                align-items: center;
-            }
-
             .content-wrapper {
                 padding: 12px;
             }
@@ -903,16 +696,19 @@
                 text-align: center;
             }
 
-            .wave-container {
-                display: none;
+            .agents-terminal {
+                margin: 0 -12px;
+                border-radius: 0;
+                border-left: none;
+                border-right: none;
+            }
+
+            .agent-task {
+                font-size: 0.75rem;
             }
         }
 
         @media (max-width: 500px) {
-            .feature-card {
-                flex: 1 1 100%;
-            }
-
             .hero-cta {
                 flex-direction: column;
             }
@@ -920,6 +716,24 @@
             .hero-cta-button {
                 width: 100%;
                 text-align: center;
+            }
+
+            .agent-row {
+                flex-wrap: wrap;
+            }
+
+            .agent-task {
+                width: 100%;
+                padding-left: calc(1em + 10px + 60px);
+                margin-top: -4px;
+            }
+
+            .terminal-content {
+                padding: 16px 12px;
+            }
+
+            .agent-name {
+                min-width: 50px;
             }
         }
 
@@ -998,207 +812,58 @@
         <!-- Content below hero -->
         <div class="content-wrapper">
 
-        <!-- Flutter Logo Section -->
-        <section class="flutter-section">
-            <canvas id="flutter-canvas" class="flutter-canvas" aria-hidden="true"></canvas>
-            <div class="flutter-overlay">
-                <div class="flutter-tagline">
-                    <h3>Built for <span class="flutter-highlight">Flutter</span></h3>
-                    <p>Hot reload • Vision testing • Widget tree analysis</p>
+        <!-- Active Agents Terminal Display -->
+        <section class="agents-terminal">
+            <div class="terminal-chrome">
+                <div class="terminal-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="terminal-title">vide — agent network</div>
+            </div>
+            <div class="terminal-content">
+                <div class="agents-header">Active Agents</div>
+                <div class="agent-row" data-status="working">
+                    <span class="agent-spinner" data-speed="fast"></span>
+                    <span class="agent-name">Atlas</span>
+                    <span class="agent-task">analyzing auth patterns in src/</span>
+                </div>
+                <div class="agent-row" data-status="working">
+                    <span class="agent-spinner" data-speed="medium"></span>
+                    <span class="agent-name">Nova</span>
+                    <span class="agent-task">implementing JWT refresh logic</span>
+                </div>
+                <div class="agent-row" data-status="working">
+                    <span class="agent-spinner" data-speed="slow"></span>
+                    <span class="agent-name">Echo</span>
+                    <span class="agent-task">running flutter test suite</span>
+                </div>
+                <div class="agent-row" data-status="done">
+                    <span class="agent-check">✓</span>
+                    <span class="agent-name">Bolt</span>
+                    <span class="agent-task">created user_model.dart</span>
+                </div>
+                <div class="agent-row" data-status="done">
+                    <span class="agent-check">✓</span>
+                    <span class="agent-name">Iris</span>
+                    <span class="agent-task">reviewed auth_service.dart</span>
+                </div>
+                <div class="agents-summary">
+                    <span class="summary-stat"><span class="stat-num">3</span> working</span>
+                    <span class="summary-stat"><span class="stat-num">2</span> complete</span>
                 </div>
             </div>
         </section>
 
-        <!-- Stats Row -->
-        <div class="stats-row">
-            <div class="stat-card">
-                <span class="value">6+</span>
-                <span class="label">Agent Types</span>
-            </div>
-            <div class="stat-card">
-                <span class="value">∞</span>
-                <span class="label">Parallel Tasks</span>
-            </div>
-            <div class="stat-card">
-                <span class="value">24/7</span>
-                <span class="label">Availability</span>
-            </div>
-            <div class="stat-card">
-                <span class="value">✓</span>
-                <span class="label">Git Worktrees</span>
-            </div>
-        </div>
-
-        <!-- Feature Cards -->
-        <div class="features-row">
-            <article class="feature-card" style="--card-index: 0; --accent-color: 0, 212, 255">
-                <h3><span class="feature-icon">⚡</span> Parallel Execution</h3>
-                <div class="feature-divider"></div>
-                <p>Multiple agents work simultaneously</p>
-            </article>
-
-            <article class="feature-card" style="--card-index: 1; --accent-color: 168, 85, 247">
-                <h3><span class="feature-icon">💬</span> Message Passing</h3>
-                <div class="feature-divider"></div>
-                <p>Async agent communication</p>
-            </article>
-
-            <article class="feature-card" style="--card-index: 2; --accent-color: 29, 209, 161">
-                <h3><span class="feature-icon">🌳</span> Git Worktrees</h3>
-                <div class="feature-divider"></div>
-                <p>Isolated feature branches</p>
-            </article>
-
-            <article class="feature-card" style="--card-index: 3; --accent-color: 254, 202, 87">
-                <h3><span class="feature-icon">👁️</span> Vision Testing</h3>
-                <div class="feature-divider"></div>
-                <p>AI-powered UI validation</p>
-            </article>
-
-            <article class="feature-card" style="--card-index: 4; --accent-color: 255, 107, 157">
-                <h3><span class="feature-icon">🔄</span> Hot Reload</h3>
-                <div class="feature-divider"></div>
-                <p>Flutter tester integration</p>
-            </article>
-        </div>
-
-        <!-- Row 3: Problem Section -->
-        <section class="problem-section">
-            <h2 class="section-title">Multi-Agent Orchestration</h2>
-            <div class="problem-content">
-                <p>
-                    Traditional AI assistants work <span class="strike">one task at a time</span>.
-                    Vide spawns <span class="highlight">specialized agents</span> that work in parallel.
-                </p>
-                <p>
-                    Research while implementing while testing. Your codebase, amplified by an entire engineering team.
-                </p>
-                <div class="comparison-boxes">
-                    <div class="comparison-box">
-                        <div class="comparison-label">Before</div>
-                        <div class="comparison-flow">
-                            <span class="flow-item">Task 1</span>
-                            <span class="flow-arrow">→</span>
-                            <span class="flow-item">Task 2</span>
-                            <span class="flow-arrow">→</span>
-                            <span class="flow-item">Task 3</span>
-                        </div>
-                    </div>
-                    <div class="comparison-box after">
-                        <div class="comparison-label">With Vide</div>
-                        <div class="comparison-flow">
-                            <span class="flow-item">Research</span>
-                            <span class="flow-item">Implement</span>
-                            <span class="flow-item">Test</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Row 4: Agents Grid -->
-        <section class="agents-section">
-            <h2 class="section-title">Meet Your Team</h2>
-            <p class="section-subtitle">Specialized agents that communicate, coordinate, and deliver</p>
-            <div class="agents-grid">
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">🎯</span>
-                        <h3>Orchestrator</h3>
-                        <span class="agent-tag">lead</span>
-                    </div>
-                    <p>Breaks down complex requests, delegates to specialists, synthesizes results. Never writes code directly.</p>
-                </article>
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">🔍</span>
-                        <h3>Researcher</h3>
-                        <span class="agent-tag">context</span>
-                    </div>
-                    <p>Deep dives into your codebase. Understands patterns, finds dependencies, gathers context.</p>
-                </article>
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">⚡</span>
-                        <h3>Implementer</h3>
-                        <span class="agent-tag">code</span>
-                    </div>
-                    <p>The builder. Writes production code, fixes bugs, implements features in isolated worktrees.</p>
-                </article>
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">📋</span>
-                        <h3>Planner</h3>
-                        <span class="agent-tag">strategy</span>
-                    </div>
-                    <p>Architects solutions before code is written. Creates detailed implementation plans.</p>
-                </article>
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">🧪</span>
-                        <h3>Flutter Tester</h3>
-                        <span class="agent-tag">QA</span>
-                    </div>
-                    <p>Runs your Flutter app, takes screenshots, validates changes visually with AI vision.</p>
-                </article>
-                <article class="agent-card">
-                    <div class="agent-header">
-                        <span class="agent-icon">👁️</span>
-                        <h3>Reviewer</h3>
-                        <span class="agent-tag">quality</span>
-                    </div>
-                    <p>Reviews code for quality, security, and best practices before it reaches production.</p>
-                </article>
-            </div>
-        </section>
-
-        <!-- Row 5: Demo -->
-        <section class="demo-section">
-            <h2 class="section-title">See It In Action</h2>
-            <div class="demo-window">
-                <div class="demo-titlebar">
-                    <div class="demo-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-                    <span class="demo-title">vide — agent-network</span>
-                    <span class="demo-badge">LIVE</span>
-                </div>
-                <div class="demo-content">
-                    <img src="https://github.com/Norbert515/vide_cli/blob/main/docs/hero.png?raw=true" alt="Vide in action - agent network visualization">
-                </div>
-            </div>
-        </section>
-
-        <!-- Row 6: CTA -->
+        <!-- Install CTA -->
         <section class="cta-section" id="install">
-            <div class="cta-content">
-                <h2>Ready to Build?</h2>
-                <p>Spawn your first agent team in seconds</p>
-            </div>
             <div class="cta-code">
                 <code><span class="prompt">$</span> curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
             </div>
             <div class="cta-links">
-                <a href="https://github.com/Norbert515/vide_cli" class="cta-button primary">Get Started</a>
-                <a href="https://github.com/Norbert515/vide_cli/releases" class="cta-button secondary">Releases</a>
+                <a href="https://github.com/Norbert515/vide_cli" class="cta-button primary">GitHub</a>
+                <a href="https://discord.gg/st8Gup7xjB" class="cta-button secondary">Discord</a>
             </div>
         </section>
-
-        <!-- Row 7: Bottom Bar -->
-        <footer class="bottom-bar">
-            <div class="brand">
-                <img src="assets/logo.png" alt="Vide" class="brand-icon">
-                <span class="brand-name">Vide</span>
-                <span class="brand-tagline">— the development team that never sleeps</span>
-            </div>
-            <div class="wave-container" id="wave" aria-hidden="true"></div>
-            <nav class="bottom-links">
-                <a href="https://github.com/Norbert515/vide_cli">GitHub</a>
-                <a href="https://discord.gg/st8Gup7xjB">Discord</a>
-            </nav>
-        </footer>
 
         </div><!-- end content-wrapper -->
     </main>
@@ -1425,315 +1090,6 @@
         }
 
         // ============================================
-        // ASCII Flutter Logo Effect (same style as VIDE)
-        // ============================================
-
-        class AsciiFlutterLogo {
-            constructor(canvas) {
-                this.canvas = canvas;
-                this.ctx = canvas.getContext('2d');
-                this.time = 0;
-                this.animationId = null;
-                this.isVisible = true;
-
-                // Character set for vortex background (same as VIDE)
-                this.vortexChars = '░▒▓█▓▒░';
-
-                // We'll draw the Flutter logo programmatically with filled rectangles
-                // instead of ASCII art to match the pixel grid style in the reference
-                this.pixelSize = 12;
-                this.gap = 2;
-
-                this.init();
-            }
-
-            init() {
-                this.resize();
-                window.addEventListener('resize', () => this.resize());
-
-                document.addEventListener('visibilitychange', () => {
-                    this.isVisible = !document.hidden;
-                    if (this.isVisible && !this.animationId) {
-                        this.animate();
-                    }
-                });
-
-                this.observer = new IntersectionObserver((entries) => {
-                    this.isVisible = entries[0].isIntersecting;
-                    if (this.isVisible && !this.animationId) {
-                        this.animate();
-                    }
-                }, { threshold: 0.1 });
-                this.observer.observe(this.canvas);
-            }
-
-            resize() {
-                const rect = this.canvas.parentElement.getBoundingClientRect();
-                const dpr = Math.min(window.devicePixelRatio || 1, 2);
-
-                this.canvas.width = rect.width * dpr;
-                this.canvas.height = rect.height * dpr;
-                this.canvas.style.width = rect.width + 'px';
-                this.canvas.style.height = rect.height + 'px';
-
-                this.ctx.scale(dpr, dpr);
-                this.width = rect.width;
-                this.height = rect.height;
-
-                this.cols = Math.ceil(this.width / this.charWidth);
-                this.rows = Math.ceil(this.height / this.charHeight);
-                this.centerX = this.cols / 2;
-                this.centerY = this.rows / 2;
-            }
-
-            getVortexChar(x, y, time) {
-                const dx = x - this.centerX;
-                const dy = (y - this.centerY) * 1.8;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                const angle = Math.atan2(dy, dx);
-
-                const spiralAngle = angle + dist * 0.08 - time * 0.4;
-                const spiralValue = Math.sin(spiralAngle * 2) * 0.5 + 0.5;
-                const radialWave = Math.sin(dist * 0.2 - time * 0.6) * 0.5 + 0.5;
-                const intensity = (spiralValue * 0.7 + radialWave * 0.3);
-
-                const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
-                const distFade = 1 - Math.min(dist / maxDist, 1);
-                const finalIntensity = intensity * (0.15 + distFade * 0.6);
-
-                const charIndex = Math.floor(finalIntensity * (this.vortexChars.length - 1));
-                return {
-                    char: this.vortexChars[Math.max(0, Math.min(charIndex, this.vortexChars.length - 1))],
-                    intensity: finalIntensity,
-                    dist: dist
-                };
-            }
-
-            getColor(intensity, dist, time) {
-                const maxDist = Math.max(this.centerX, this.centerY) * 1.2;
-                const normalizedDist = Math.min(dist / maxDist, 1);
-
-                // Purple/lavender color palette (different from cyan VIDE)
-                let r = Math.floor(60 + intensity * 60);
-                let g = Math.floor(40 + intensity * 50);
-                let b = Math.floor(100 + intensity * 100);
-
-                const colorShift = Math.sin(time * 0.5 + dist * 0.05) * 15;
-                b = Math.max(80, Math.min(200, b + colorShift));
-
-                if (normalizedDist < 0.25) {
-                    const centerBoost = (0.25 - normalizedDist) / 0.25;
-                    r = Math.floor(r + centerBoost * 30);
-                    g = Math.floor(g + centerBoost * 20);
-                    b = Math.floor(b + centerBoost * 40);
-                }
-
-                const alpha = 0.15 + intensity * 0.5 * (1 - normalizedDist * 0.7);
-                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-            }
-
-            // Get Flutter logo pixels - returns array of {x, y, dark} coordinates
-            getFlutterPixels() {
-                const pixels = [];
-
-                // Top blade - diagonal parallelogram going down-left
-                // Starts at top-right, each row shifts left by 1
-                for (let row = 0; row < 8; row++) {
-                    const width = 4 + row; // Gets wider as it goes down
-                    const startCol = 8 - row; // Shifts left each row
-                    for (let col = 0; col < width; col++) {
-                        pixels.push({ x: startCol + col, y: row, dark: false });
-                    }
-                }
-                // Continue top blade going back up (narrowing)
-                for (let row = 0; row < 7; row++) {
-                    const width = 11 - row;
-                    const startCol = row;
-                    for (let col = 0; col < width; col++) {
-                        pixels.push({ x: startCol + col, y: 8 + row, dark: false });
-                    }
-                }
-
-                // Left shadow piece - small parallelogram
-                for (let row = 0; row < 5; row++) {
-                    const width = 4;
-                    const startCol = row;
-                    for (let col = 0; col < width; col++) {
-                        pixels.push({ x: startCol + col, y: 10 + row, dark: true });
-                    }
-                }
-
-                // Bottom blade - similar to top but smaller
-                for (let row = 0; row < 5; row++) {
-                    const width = 4 + row;
-                    const startCol = 8 - row;
-                    for (let col = 0; col < width; col++) {
-                        pixels.push({ x: startCol + col, y: 15 + row, dark: false });
-                    }
-                }
-                // Bottom blade narrowing
-                for (let row = 0; row < 8; row++) {
-                    const width = Math.max(1, 8 - row);
-                    const startCol = 4 + row;
-                    for (let col = 0; col < width; col++) {
-                        pixels.push({ x: startCol + col, y: 20 + row, dark: false });
-                    }
-                }
-
-                return pixels;
-            }
-
-            drawPixel(ctx, x, y, isDark) {
-                const size = this.pixelSize - this.gap;
-                const glowIntensity = 0.8 + Math.sin(this.time * 0.8) * 0.2;
-
-                // Colors
-                const baseR = isDark ? 100 : 180;
-                const baseG = isDark ? 80 : 160;
-                const baseB = isDark ? 160 : 220;
-
-                const r = Math.floor(baseR + glowIntensity * 30);
-                const g = Math.floor(baseG + glowIntensity * 20);
-                const b = Math.floor(baseB + glowIntensity * 35);
-
-                // Glow
-                ctx.shadowColor = `rgba(${r}, ${g}, 255, 0.8)`;
-                ctx.shadowBlur = 15;
-
-                // Fill with gradient for 3D effect
-                const gradient = ctx.createLinearGradient(x, y, x + size, y + size);
-                gradient.addColorStop(0, `rgba(${r + 30}, ${g + 30}, ${b + 30}, 0.95)`);
-                gradient.addColorStop(1, `rgba(${r - 20}, ${g - 20}, ${b - 20}, 0.95)`);
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x, y, size, size);
-
-                // Border
-                ctx.shadowBlur = 0;
-                ctx.strokeStyle = `rgba(${r + 50}, ${g + 50}, ${b + 50}, 0.5)`;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(x + 0.5, y + 0.5, size - 1, size - 1);
-            }
-
-            render() {
-                const ctx = this.ctx;
-
-                // Clear with dark background
-                ctx.fillStyle = '#0a0a18';
-                ctx.fillRect(0, 0, this.width, this.height);
-
-                // Draw dot pattern background
-                const dotSpacing = 8;
-                const dotRadius = 1.5;
-                for (let y = 0; y < this.height; y += dotSpacing) {
-                    for (let x = 0; x < this.width; x += dotSpacing) {
-                        const dx = x - this.width / 2;
-                        const dy = y - this.height / 2;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        const maxDist = Math.sqrt(this.width * this.width + this.height * this.height) / 2;
-                        const wave = Math.sin(dist * 0.02 - this.time * 0.5) * 0.3 + 0.7;
-                        const alpha = 0.15 + wave * 0.15 * (1 - dist / maxDist);
-
-                        ctx.beginPath();
-                        ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
-                        ctx.fillStyle = `rgba(40, 60, 120, ${alpha})`;
-                        ctx.fill();
-                    }
-                }
-
-                // Draw ambient purple glow blobs
-                const blobs = [
-                    { x: 0.15, y: 0.3, size: 150 },
-                    { x: 0.85, y: 0.7, size: 120 },
-                    { x: 0.4, y: 0.5, size: 180 },
-                ];
-                blobs.forEach((blob, i) => {
-                    const bx = blob.x * this.width + Math.sin(this.time * 0.3 + i) * 20;
-                    const by = blob.y * this.height + Math.cos(this.time * 0.4 + i) * 15;
-                    const gradient = ctx.createRadialGradient(bx, by, 0, bx, by, blob.size);
-                    gradient.addColorStop(0, 'rgba(80, 40, 120, 0.4)');
-                    gradient.addColorStop(0.5, 'rgba(60, 30, 100, 0.15)');
-                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-                    ctx.fillStyle = gradient;
-                    ctx.fillRect(0, 0, this.width, this.height);
-                });
-
-                // Draw Flutter logo pixels
-                const pixels = this.getFlutterPixels();
-
-                // Calculate logo bounds
-                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                pixels.forEach(p => {
-                    minX = Math.min(minX, p.x);
-                    maxX = Math.max(maxX, p.x);
-                    minY = Math.min(minY, p.y);
-                    maxY = Math.max(maxY, p.y);
-                });
-
-                const logoWidth = (maxX - minX + 1) * this.pixelSize;
-                const logoHeight = (maxY - minY + 1) * this.pixelSize;
-                const offsetX = (this.width - logoWidth) / 2 - minX * this.pixelSize;
-                const offsetY = (this.height - logoHeight) / 2 - minY * this.pixelSize;
-
-                pixels.forEach(pixel => {
-                    const x = offsetX + pixel.x * this.pixelSize;
-                    const y = offsetY + pixel.y * this.pixelSize;
-                    this.drawPixel(ctx, x, y, pixel.dark);
-                });
-
-                // Subtle vignette
-                const vignette = ctx.createRadialGradient(
-                    this.width / 2, this.height / 2, this.height * 0.2,
-                    this.width / 2, this.height / 2, this.height * 0.8
-                );
-                vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-                vignette.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
-                ctx.fillStyle = vignette;
-                ctx.fillRect(0, 0, this.width, this.height);
-            }
-
-            animate() {
-                if (!this.isVisible) {
-                    this.animationId = null;
-                    return;
-                }
-
-                this.time += 0.012;
-                this.render();
-                this.animationId = requestAnimationFrame(() => this.animate());
-            }
-
-            start() {
-                this.animate();
-            }
-        }
-
-        // ============================================
-        // Wave Effect (Footer)
-        // ============================================
-
-        class WaveEffect {
-            constructor(container) {
-                this.container = container;
-                this.createElements();
-            }
-
-            createElements() {
-                const chars = 25;
-                const fragment = document.createDocumentFragment();
-
-                for (let i = 0; i < chars; i++) {
-                    const span = document.createElement('span');
-                    span.className = 'wave-char';
-                    span.style.setProperty('--i', i);
-                    span.textContent = '█';
-                    fragment.appendChild(span);
-                }
-
-                this.container.appendChild(fragment);
-            }
-        }
-
-        // ============================================
         // Initialize
         // ============================================
 
@@ -1741,37 +1097,11 @@
             const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
             if (!prefersReducedMotion) {
-                // Initialize vortex with subtle scroll morphing
+                // Initialize vortex background
                 const vortexCanvas = document.getElementById('vortex-canvas');
                 if (vortexCanvas) {
                     const vortex = new AsciiVortex(vortexCanvas);
                     vortex.start();
-                }
-
-                // Initialize Flutter logo
-                const flutterCanvas = document.getElementById('flutter-canvas');
-                if (flutterCanvas) {
-                    const flutterLogo = new AsciiFlutterLogo(flutterCanvas);
-                    flutterLogo.start();
-                }
-
-                // Initialize footer wave
-                const waveContainer = document.getElementById('wave');
-                if (waveContainer) {
-                    new WaveEffect(waveContainer);
-                }
-            } else {
-                // Static fallback
-                const waveContainer = document.getElementById('wave');
-                if (waveContainer) {
-                    waveContainer.textContent = '░▒▓█▓▒░▒▓█▓▒░▒▓█▓▒░';
-                    waveContainer.style.color = '#2a4a5a';
-                }
-
-                // Hide pattern indicator in reduced motion mode
-                const indicatorContainer = document.getElementById('pattern-indicator');
-                if (indicatorContainer) {
-                    indicatorContainer.style.display = 'none';
                 }
             }
         });
