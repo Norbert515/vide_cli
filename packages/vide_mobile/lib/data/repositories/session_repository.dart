@@ -4,11 +4,14 @@ import 'dart:developer' as developer;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vide_client/vide_client.dart' as vc;
 
+import '../../core/providers/connection_state_provider.dart';
 import '../../domain/models/agent.dart';
 import '../../domain/models/chat_message.dart';
 import '../../domain/models/permission_request.dart';
 import '../../domain/models/session.dart';
 import '../../domain/models/tool_event.dart';
+import '../../domain/services/network_monitor_service.dart';
+import '../../domain/services/reconnection_service.dart';
 import '../local/settings_storage.dart';
 import '../models/session_event.dart' as local;
 import 'connection_repository.dart';
@@ -31,30 +34,37 @@ class SessionState {
   final Session? session;
   final vc.Session? videSession;
   final bool isActive;
+  final int lastSeq;
 
   const SessionState({
     this.session,
     this.videSession,
     this.isActive = false,
+    this.lastSeq = 0,
   });
 
   SessionState copyWith({
     Session? session,
     vc.Session? videSession,
     bool? isActive,
+    int? lastSeq,
   }) {
     return SessionState(
       session: session ?? this.session,
       videSession: videSession ?? this.videSession,
       isActive: isActive ?? this.isActive,
+      lastSeq: lastSeq ?? this.lastSeq,
     );
   }
 }
 
-/// Repository for managing Vide sessions.
+/// Repository for managing Vide sessions with reconnection support.
 @Riverpod(keepAlive: true)
 class SessionRepository extends _$SessionRepository {
   final _eventController = StreamController<local.SessionEvent>.broadcast();
+  final _reconnectionService = ReconnectionService();
+  StreamSubscription<vc.VideEvent>? _eventSubscription;
+  NetworkStatus? _lastNetworkStatus;
 
   void _log(String message) {
     developer.log(message, name: 'SessionRepository');
@@ -63,9 +73,25 @@ class SessionRepository extends _$SessionRepository {
   @override
   SessionState build() {
     ref.onDispose(() {
+      _eventSubscription?.cancel();
+      _reconnectionService.dispose();
       state.videSession?.close();
       _eventController.close();
     });
+
+    // Listen for network changes
+    ref.listen(networkMonitorProvider, (previous, next) {
+      // Check if network came back online
+      if (_lastNetworkStatus == NetworkStatus.offline &&
+          next == NetworkStatus.online &&
+          state.session != null &&
+          !state.isActive) {
+        _log('Network came back online, attempting reconnect');
+        _attemptReconnect();
+      }
+      _lastNetworkStatus = next;
+    });
+
     return const SessionState();
   }
 
@@ -86,6 +112,9 @@ class SessionRepository extends _$SessionRepository {
 
     // Close existing session
     close();
+
+    // Update connection state to connecting
+    ref.read(webSocketConnectionProvider.notifier).setConnecting();
 
     // Create vide_client instance
     final videClient = vc.VideClient(
@@ -115,16 +144,8 @@ class SessionRepository extends _$SessionRepository {
       model: model,
     );
 
-    // Listen to vide_client events and convert them
-    videSession.events.listen(
-      (event) {
-        final converted = _convertEvent(event);
-        _eventController.add(converted);
-      },
-      onError: (e) {
-        _eventController.addError(e);
-      },
-    );
+    // Set up event listening with disconnect handling
+    _setupEventListening(videSession);
 
     state = SessionState(
       session: session,
@@ -133,6 +154,128 @@ class SessionRepository extends _$SessionRepository {
     );
 
     return session;
+  }
+
+  void _setupEventListening(vc.Session videSession) {
+    _eventSubscription?.cancel();
+    _eventSubscription = videSession.events.listen(
+      (event) {
+        // Update lastSeq for deduplication
+        final seq = event.seq ?? 0;
+        if (seq > state.lastSeq) {
+          state = state.copyWith(lastSeq: seq);
+          ref.read(webSocketConnectionProvider.notifier).updateLastSeq(seq);
+        }
+
+        // Handle connected event
+        if (event is vc.ConnectedEvent) {
+          _reconnectionService.reset();
+          ref.read(webSocketConnectionProvider.notifier).setConnected(lastSeq: event.lastSeq);
+        }
+
+        final converted = _convertEvent(event);
+        _eventController.add(converted);
+      },
+      onError: (e) {
+        _log('WebSocket error: $e');
+        _handleDisconnect(e.toString());
+        _eventController.addError(e);
+      },
+      onDone: () {
+        _log('WebSocket closed');
+        if (state.isActive) {
+          _handleDisconnect('Connection closed');
+        }
+      },
+    );
+  }
+
+  void _handleDisconnect(String reason) {
+    _log('Handling disconnect: $reason');
+
+    state = state.copyWith(isActive: false);
+
+    // Check network status
+    final networkStatus = ref.read(networkMonitorProvider);
+    if (networkStatus == NetworkStatus.offline) {
+      _log('Network is offline, waiting for network');
+      ref.read(webSocketConnectionProvider.notifier).setDisconnected(
+        errorMessage: 'No internet connection',
+      );
+      return;
+    }
+
+    // Attempt reconnect
+    _attemptReconnect();
+  }
+
+  void _attemptReconnect() {
+    if (_reconnectionService.hasExceededMaxRetries) {
+      _log('Max retries exceeded');
+      ref.read(webSocketConnectionProvider.notifier).setFailed(
+        errorMessage: 'Unable to reconnect after ${_reconnectionService.maxRetries} attempts',
+      );
+      return;
+    }
+
+    ref.read(webSocketConnectionProvider.notifier).setReconnecting(
+      retryCount: _reconnectionService.retryCount + 1,
+      maxRetries: _reconnectionService.maxRetries,
+    );
+
+    _log('Scheduling reconnect attempt ${_reconnectionService.retryCount + 1}');
+
+    _reconnectionService.scheduleReconnect(
+      onReconnect: () async {
+        await _reconnect();
+      },
+    )?.catchError((e) {
+      _log('Reconnect attempt failed: $e');
+      _attemptReconnect();
+    });
+  }
+
+  Future<void> _reconnect() async {
+    final currentSession = state.session;
+    if (currentSession == null) {
+      _log('No session to reconnect to');
+      return;
+    }
+
+    _log('Attempting to reconnect to session ${currentSession.sessionId}');
+
+    final connectionState = ref.read(connectionRepositoryProvider);
+    if (!connectionState.isConnected || connectionState.connection == null) {
+      throw SessionException('Not connected to server');
+    }
+
+    final connection = connectionState.connection!;
+
+    // Create vide_client instance
+    final videClient = vc.VideClient(
+      host: connection.host,
+      port: connection.port,
+    );
+
+    // Connect to existing session
+    final videSession = videClient.connectToSession(currentSession.sessionId);
+
+    // Set up event listening
+    _setupEventListening(videSession);
+
+    state = state.copyWith(
+      videSession: videSession,
+      isActive: true,
+    );
+
+    _log('Reconnected to session ${currentSession.sessionId}');
+  }
+
+  /// Manually trigger a reconnection attempt (e.g., after max retries exceeded).
+  Future<void> manualReconnect() async {
+    _reconnectionService.reset();
+    ref.read(webSocketConnectionProvider.notifier).setConnecting();
+    await _reconnect();
   }
 
   /// Converts a vide_client event to the app's local SessionEvent.
@@ -356,7 +499,7 @@ class SessionRepository extends _$SessionRepository {
 
   /// Sends a user message.
   void sendMessage(String content, {String? model}) {
-    if (state.videSession == null) {
+    if (state.videSession == null || !state.isActive) {
       throw SessionException('No active session');
     }
     state.videSession!.sendMessage(content);
@@ -364,7 +507,7 @@ class SessionRepository extends _$SessionRepository {
 
   /// Responds to a permission request.
   void respondToPermission(String requestId, bool allow, {String? message}) {
-    if (state.videSession == null) {
+    if (state.videSession == null || !state.isActive) {
       throw SessionException('No active session');
     }
     state.videSession!.respondToPermission(
@@ -376,7 +519,7 @@ class SessionRepository extends _$SessionRepository {
 
   /// Aborts all active agents.
   void abort() {
-    if (state.videSession == null) {
+    if (state.videSession == null || !state.isActive) {
       throw SessionException('No active session');
     }
     state.videSession!.abort();
@@ -385,7 +528,11 @@ class SessionRepository extends _$SessionRepository {
   /// Closes the current session.
   void close() {
     _log('Closing session');
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+    _reconnectionService.cancel();
     state.videSession?.close();
+    ref.read(webSocketConnectionProvider.notifier).reset();
     state = const SessionState();
   }
 }

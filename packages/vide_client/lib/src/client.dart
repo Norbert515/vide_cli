@@ -78,6 +78,17 @@ class VideClient {
 
     return Session(id: sessionId, channel: channel);
   }
+
+  /// Connect to an existing session by ID.
+  ///
+  /// Use this to reconnect to a session after a WebSocket disconnect.
+  /// The server will send a `connected` event followed by `history` events
+  /// to restore state.
+  Session connectToSession(String sessionId) {
+    final wsUrl = '$_wsUrl/api/v1/sessions/$sessionId/stream';
+    final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+    return Session(id: sessionId, channel: channel);
+  }
 }
 
 /// Exception thrown by [VideClient] operations.

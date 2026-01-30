@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/providers/connection_state_provider.dart';
 import '../../data/models/session_event.dart' as session_events;
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
 import '../agents/agent_panel.dart';
 import '../permissions/permission_sheet.dart';
 import 'chat_state.dart';
+import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/tool_card.dart';
@@ -37,6 +39,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
+
+  /// Track previous connection status for showing snackbar on reconnection.
+  WebSocketConnectionStatus? _previousConnectionStatus;
 
   @override
   void initState() {
@@ -315,7 +320,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatNotifierProvider(widget.sessionId));
+    final connectionState = ref.watch(webSocketConnectionProvider);
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Show snackbar when connection is restored
+    _handleConnectionStatusChange(connectionState.status);
 
     // Show permission sheet if there's a pending permission
     if (state.pendingPermission != null && !_isPermissionSheetShowing) {
@@ -326,6 +335,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     }
 
+    // Determine if input should be disabled
+    final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
+    final inputEnabled = !state.isAgentWorking && !isDisconnected;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -334,6 +347,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         title: const Text('Session'),
         actions: [
+          // Connection status chip
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Center(child: ConnectionStatusChip()),
+          ),
           // Agent count badge
           if (state.agents.isNotEmpty)
             Badge(
@@ -354,8 +372,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          // Connection status banner
+          const ConnectionStatusBanner(),
           // Working indicator
-          if (state.isAgentWorking)
+          if (state.isAgentWorking && connectionState.status == WebSocketConnectionStatus.connected)
             LinearProgressIndicator(
               backgroundColor: colorScheme.primaryContainer,
               valueColor: AlwaysStoppedAnimation(colorScheme.primary),
@@ -388,7 +408,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Input bar
           InputBar(
             controller: _inputController,
-            enabled: !state.isAgentWorking,
+            enabled: inputEnabled,
             isLoading: state.isAgentWorking,
             onSend: _sendMessage,
             onAbort: _abort,
@@ -396,6 +416,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _handleConnectionStatusChange(WebSocketConnectionStatus currentStatus) {
+    // Show snackbar when reconnected
+    if (_previousConnectionStatus != null &&
+        _previousConnectionStatus != WebSocketConnectionStatus.connected &&
+        currentStatus == WebSocketConnectionStatus.connected) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Connection restored'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      });
+    }
+    _previousConnectionStatus = currentStatus;
   }
 }
 
