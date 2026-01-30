@@ -19,6 +19,7 @@ import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
 import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
+import 'package:vide_cli/components/version_indicator.dart';
 
 class HomePage extends StatefulComponent {
   const HomePage({super.key});
@@ -447,10 +448,12 @@ class _HomePageState extends State<HomePage> {
           final topPadding = ((availableForMain - _mainContentHeight) / 2)
               .clamp(0.0, double.infinity);
 
-          return Column(
+          return Stack(
             children: [
-              // Top spacer for vertical centering
-              SizedBox(height: topPadding),
+              Column(
+                children: [
+                  // Top spacer for vertical centering
+                  SizedBox(height: topPadding),
 
               // Main content section (logo, path, input)
               Center(
@@ -841,6 +844,14 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
               ],
+              ],
+            ),
+              // Version indicator in bottom-right corner
+              Positioned(
+                bottom: 1,
+                right: 1,
+                child: const VersionIndicator(),
+              ),
             ],
           );
         },
