@@ -906,17 +906,9 @@ class VideSession {
             ),
           );
 
-          // Wait for response (with timeout)
+          // Wait for response indefinitely - user can take as long as needed
           try {
-            return await completer.future.timeout(
-              const Duration(seconds: 60),
-              onTimeout: () {
-                _pendingPermissions.remove(requestId);
-                return const PermissionResultDeny(
-                  message: 'Permission request timed out',
-                );
-              },
-            );
+            return await completer.future;
           } catch (e) {
             _pendingPermissions.remove(requestId);
             return PermissionResultDeny(message: 'Error: $e');
@@ -975,14 +967,8 @@ class VideSession {
         ),
       );
 
-      // Wait for response (with timeout)
-      final answers = await completer.future.timeout(
-        const Duration(minutes: 5), // Longer timeout for user questions
-        onTimeout: () {
-          _pendingAskUserQuestions.remove(requestId);
-          throw TimeoutException('AskUserQuestion request timed out');
-        },
-      );
+      // Wait for response indefinitely - user can take as long as needed
+      final answers = await completer.future;
 
       // Return allow with the answers included in updatedInput
       return PermissionResultAllow(
