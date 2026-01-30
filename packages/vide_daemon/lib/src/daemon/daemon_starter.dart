@@ -31,6 +31,10 @@ class DaemonConfig {
   /// Enable verbose logging.
   final bool verbose;
 
+  /// Bind to all network interfaces (0.0.0.0) instead of localhost only.
+  /// WARNING: Only use this with authentication enabled.
+  final bool bindAllInterfaces;
+
   /// Callback invoked when server is ready.
   /// Receives the server URL and optional auth token.
   final void Function(String url, String? token)? onReady;
@@ -42,6 +46,7 @@ class DaemonConfig {
     this.authToken,
     this.generateToken = false,
     this.verbose = false,
+    this.bindAllInterfaces = false,
     this.onReady,
   });
 }
@@ -110,6 +115,7 @@ class DaemonStarter {
       registry: registry,
       port: config.port,
       authToken: authToken,
+      bindAllInterfaces: config.bindAllInterfaces,
     );
 
     await server.start();
@@ -123,10 +129,12 @@ class DaemonStarter {
       stateDir: stateDir,
       authToken: authToken,
       sessionCount: registry.sessionCount,
+      bindAllInterfaces: config.bindAllInterfaces,
     );
 
     // Invoke ready callback if provided
-    config.onReady?.call('http://127.0.0.1:${config.port}', authToken);
+    final host = config.bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
+    config.onReady?.call('http://$host:${config.port}', authToken);
 
     _server = server;
     _registry = registry;
@@ -235,8 +243,10 @@ class DaemonStarter {
     required String stateDir,
     required String? authToken,
     required int sessionCount,
+    required bool bindAllInterfaces,
   }) {
-    final url = 'http://127.0.0.1:$port';
+    final host = bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
+    final url = 'http://$host:$port';
     print('');
     print('╔══════════════════════════════════════════════════════════════╗');
     print('║                        Vide Daemon                           ║');

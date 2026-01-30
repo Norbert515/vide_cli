@@ -18,6 +18,7 @@ class DaemonServer {
   final SessionRegistry registry;
   final int port;
   final String? authToken;
+  final bool bindAllInterfaces;
   final DateTime startedAt = DateTime.now();
 
   HttpServer? _server;
@@ -26,7 +27,12 @@ class DaemonServer {
 
   final Logger _log = Logger('DaemonServer');
 
-  DaemonServer({required this.registry, required this.port, this.authToken});
+  DaemonServer({
+    required this.registry,
+    required this.port,
+    this.authToken,
+    this.bindAllInterfaces = false,
+  });
 
   /// Start the daemon server.
   Future<void> start() async {
@@ -37,9 +43,12 @@ class DaemonServer {
 
     final handler = _createHandler();
 
-    _server = await shelf_io.serve(handler, InternetAddress.loopbackIPv4, port);
+    final address =
+        bindAllInterfaces ? InternetAddress.anyIPv4 : InternetAddress.loopbackIPv4;
+    _server = await shelf_io.serve(handler, address, port);
 
-    _log.info('Daemon server listening on http://127.0.0.1:$port');
+    final host = bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
+    _log.info('Daemon server listening on http://$host:$port');
   }
 
   /// Stop the daemon server.

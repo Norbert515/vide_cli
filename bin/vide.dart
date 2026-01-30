@@ -66,6 +66,13 @@ void main(List<String> args) async {
       'verbose',
       negatable: false,
       help: 'Enable verbose logging (only used with --serve)',
+    )
+    ..addFlag(
+      'bind-all',
+      negatable: false,
+      help:
+          'Bind to all network interfaces (0.0.0.0) instead of localhost only. '
+          'WARNING: Use with --token or --generate-token for security.',
     );
 
   ArgResults argResults;
@@ -188,6 +195,8 @@ DAEMON MODE:
     vide --serve --state-dir /tmp/vide     Use custom state directory
     vide --serve --generate-token          Start with auto-generated auth token
     vide --serve --token mysecret          Start with custom auth token
+    vide --serve --bind-all --generate-token
+                                           Allow remote connections (with auth)
 
 DESCRIPTION:
     Vide orchestrates a network of specialized AI agents that collaborate
@@ -209,12 +218,14 @@ Future<void> _startDaemonServer(ArgResults argResults) async {
   }
 
   // Create daemon configuration
+  final bindAll = argResults['bind-all'] as bool;
   final config = DaemonConfig(
     port: port,
     stateDir: argResults['state-dir'] as String?,
     authToken: argResults['token'] as String?,
     generateToken: argResults['generate-token'] as bool,
     verbose: argResults['verbose'] as bool,
+    bindAllInterfaces: bindAll,
   );
 
   // Start the daemon using shared logic
