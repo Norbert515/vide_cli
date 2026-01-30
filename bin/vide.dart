@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:args/args.dart';
 import 'package:vide_cli/main.dart' as app;
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_daemon/vide_daemon.dart';
 import 'package:path/path.dart' as path;
 
 void main(List<String> args) async {
@@ -35,7 +37,36 @@ void main(List<String> args) async {
       negatable: false,
       help: 'Force local session mode (ignore daemon setting)',
     )
-    ..addFlag('daemon', negatable: false, help: 'Force daemon session mode');
+    ..addFlag('daemon', negatable: false, help: 'Force daemon session mode')
+    ..addFlag(
+      'serve',
+      negatable: false,
+      help: 'Start the daemon server instead of the TUI',
+    )
+    ..addOption(
+      'port',
+      abbr: 'p',
+      defaultsTo: '8080',
+      help: 'Port for daemon server (only used with --serve)',
+    )
+    ..addOption(
+      'state-dir',
+      help: 'Directory for daemon state (only used with --serve)',
+    )
+    ..addFlag(
+      'generate-token',
+      negatable: false,
+      help: 'Generate auth token for daemon (only used with --serve)',
+    )
+    ..addOption(
+      'token',
+      help: 'Auth token for daemon (only used with --serve)',
+    )
+    ..addFlag(
+      'verbose',
+      negatable: false,
+      help: 'Enable verbose logging (only used with --serve)',
+    );
 
   ArgResults argResults;
   try {
@@ -55,6 +86,12 @@ void main(List<String> args) async {
   if (argResults['version'] as bool) {
     print('vide $videVersion');
     exit(0);
+  }
+
+  // Handle --serve flag: start daemon server instead of TUI
+  if (argResults['serve'] as bool) {
+    await _startDaemonServer(argResults);
+    return; // Never returns, but for clarity
   }
 
   // Determine config root for TUI: ~/.vide
@@ -143,6 +180,15 @@ REMOTE MODE:
     vide --connect 192.168.1.10:8080       Connect to remote daemon
     vide --connect 8080 --session abc123   Connect to specific session
 
+DAEMON MODE:
+    Use --serve to start the daemon server:
+
+    vide --serve                           Start daemon on port 8080
+    vide --serve --port 9000               Start daemon on port 9000
+    vide --serve --state-dir /tmp/vide     Use custom state directory
+    vide --serve --generate-token          Start with auto-generated auth token
+    vide --serve --token mysecret          Start with custom auth token
+
 DESCRIPTION:
     Vide orchestrates a network of specialized AI agents that collaborate
     asynchronously to help with software development tasks. It features
@@ -150,4 +196,32 @@ DESCRIPTION:
 
 For more information, visit: https://github.com/Norbert515/vide_cli
 ''');
+}
+
+/// Start the daemon server (non-TUI mode).
+Future<void> _startDaemonServer(ArgResults argResults) async {
+  // Parse port
+  final portStr = argResults['port'] as String;
+  final port = int.tryParse(portStr);
+  if (port == null) {
+    print('Error: Port must be a valid number, got: $portStr');
+    exit(1);
+  }
+
+  // Create daemon configuration
+  final config = DaemonConfig(
+    port: port,
+    stateDir: argResults['state-dir'] as String?,
+    authToken: argResults['token'] as String?,
+    generateToken: argResults['generate-token'] as bool,
+    verbose: argResults['verbose'] as bool,
+  );
+
+  // Start the daemon using shared logic
+  final starter = DaemonStarter(config);
+  await starter.start();
+  starter.setupSignalHandlers();
+
+  // Keep the process alive
+  await Completer<void>().future;
 }

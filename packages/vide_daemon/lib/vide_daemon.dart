@@ -6,6 +6,7 @@
 library;
 
 export 'src/daemon/daemon_server.dart';
+export 'src/daemon/daemon_starter.dart';
 export 'src/daemon/session_process.dart';
 export 'src/daemon/session_registry.dart';
 export 'src/protocol/daemon_messages.dart';
