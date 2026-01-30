@@ -122,7 +122,6 @@ Future<void> main(
   RemoteConfig? remoteConfig,
   bool forceLocal = false,
   bool forceDaemon = false,
-  TerminalBackend? backend,
 }) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
@@ -163,7 +162,6 @@ Future<void> main(
       parent: container,
       child: VideApp(container: container),
     ),
-    backend: backend,
   );
 }
 
