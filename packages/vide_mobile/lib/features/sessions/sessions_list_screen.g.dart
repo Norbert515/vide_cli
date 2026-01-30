@@ -1,26 +1,29 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'app_router.dart';
+part of 'sessions_list_screen.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$appRouterHash() => r'f5207c027912c4aec103bb7386956e045b56f760';
+String _$sessionsListHash() => r'ef7c56a751976f1c6045af3dbe82c540e3a4ec5e';
 
-/// See also [appRouter].
-@ProviderFor(appRouter)
-final appRouterProvider = AutoDisposeProvider<GoRouter>.internal(
-  appRouter,
-  name: r'appRouterProvider',
+/// Provider to fetch sessions list.
+///
+/// Copied from [sessionsList].
+@ProviderFor(sessionsList)
+final sessionsListProvider =
+    AutoDisposeFutureProvider<List<SessionSummary>>.internal(
+  sessionsList,
+  name: r'sessionsListProvider',
   debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$appRouterHash,
+      const bool.fromEnvironment('dart.vm.product') ? null : _$sessionsListHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef AppRouterRef = AutoDisposeProviderRef<GoRouter>;
+typedef SessionsListRef = AutoDisposeFutureProviderRef<List<SessionSummary>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

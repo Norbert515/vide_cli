@@ -50,7 +50,48 @@ class DirectoryEntry {
   }
 }
 
-/// HTTP client for the Vide REST API.
+/// Summary of a session from the daemon.
+class SessionSummary {
+  final String sessionId;
+  final String workingDirectory;
+  final String? goal;
+  final DateTime createdAt;
+  final DateTime? lastActiveAt;
+  final int agentCount;
+  final String state;
+  final int connectedClients;
+  final int port;
+
+  SessionSummary({
+    required this.sessionId,
+    required this.workingDirectory,
+    this.goal,
+    required this.createdAt,
+    this.lastActiveAt,
+    required this.agentCount,
+    required this.state,
+    required this.connectedClients,
+    required this.port,
+  });
+
+  factory SessionSummary.fromJson(Map<String, dynamic> json) {
+    return SessionSummary(
+      sessionId: json['session-id'] as String,
+      workingDirectory: json['working-directory'] as String,
+      goal: json['goal'] as String?,
+      createdAt: DateTime.parse(json['created-at'] as String),
+      lastActiveAt: json['last-active-at'] != null
+          ? DateTime.parse(json['last-active-at'] as String)
+          : null,
+      agentCount: json['agent-count'] as int,
+      state: json['state'] as String,
+      connectedClients: json['connected-clients'] as int,
+      port: json['port'] as int,
+    );
+  }
+}
+
+/// HTTP client for the Vide daemon REST API.
 class VideApiClient {
   final String baseUrl;
   final http.Client _client;
@@ -67,9 +108,19 @@ class VideApiClient {
     bool isSecure = false,
     http.Client? client,
   }) {
+    // Strip protocol prefix if user accidentally included it
+    var cleanHost = host;
+    if (cleanHost.startsWith('http://')) {
+      cleanHost = cleanHost.substring(7);
+    } else if (cleanHost.startsWith('https://')) {
+      cleanHost = cleanHost.substring(8);
+    }
+    // Strip trailing slashes
+    cleanHost = cleanHost.replaceAll(RegExp(r'/+$'), '');
+
     final protocol = isSecure ? 'https' : 'http';
     return VideApiClient._(
-      baseUrl: '$protocol://$host:$port',
+      baseUrl: '$protocol://$cleanHost:$port',
       client: client ?? http.Client(),
     );
   }
@@ -78,8 +129,8 @@ class VideApiClient {
     developer.log(message, name: 'VideApiClient');
   }
 
-  /// Performs a health check on the server.
-  /// Returns true if the server is healthy.
+  /// Performs a health check on the daemon.
+  /// Returns true if the daemon is healthy.
   Future<bool> healthCheck() async {
     try {
       _log('Performing health check on $baseUrl');
@@ -87,18 +138,65 @@ class VideApiClient {
           .get(Uri.parse('$baseUrl/health'))
           .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final status = json['status'] as String?;
-        _log('Health check result: $status');
-        return status == 'ok';
-      }
-      _log('Health check failed with status: ${response.statusCode}');
-      return false;
+      _log('Health check response: ${response.statusCode}');
+      return response.statusCode == 200;
     } catch (e) {
       _log('Health check error: $e');
-      return false;
+      rethrow;
     }
+  }
+
+  /// Lists all sessions from the daemon.
+  Future<List<SessionSummary>> listSessions() async {
+    _log('Listing sessions');
+
+    final response = await _client.get(
+      Uri.parse('$baseUrl/sessions'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      throw VideApiException(
+        'Failed to list sessions',
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final sessions = json['sessions'] as List<dynamic>;
+    _log('Found ${sessions.length} sessions');
+
+    return sessions
+        .map((s) => SessionSummary.fromJson(s as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get details for a specific session.
+  Future<Map<String, dynamic>> getSession(String sessionId) async {
+    _log('Getting session: $sessionId');
+
+    final response = await _client.get(
+      Uri.parse('$baseUrl/sessions/$sessionId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 404) {
+      throw VideApiException(
+        'Session not found',
+        statusCode: response.statusCode,
+      );
+    }
+
+    if (response.statusCode != 200) {
+      throw VideApiException(
+        'Failed to get session',
+        statusCode: response.statusCode,
+        body: response.body,
+      );
+    }
+
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   /// Creates a new session.
@@ -123,7 +221,7 @@ class VideApiClient {
     }
 
     final response = await _client.post(
-      Uri.parse('$baseUrl/api/v1/sessions'),
+      Uri.parse('$baseUrl/sessions'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
     );
@@ -146,56 +244,32 @@ class VideApiClient {
       createdAt: DateTime.parse(json['created-at'] as String),
       workingDirectory: workingDirectory,
       model: model,
+      wsUrl: json['ws-url'] as String?,
     );
 
     return CreateSessionResponse(session: session);
   }
 
-  /// Lists contents of a directory on the server.
-  Future<List<DirectoryEntry>> listDirectory(String path) async {
-    _log('Listing directory: $path');
+  /// Stop a session.
+  Future<void> stopSession(String sessionId, {bool force = false}) async {
+    _log('Stopping session: $sessionId');
 
-    final response = await _client.get(
-      Uri.parse('$baseUrl/api/v1/filesystem').replace(
-        queryParameters: {'path': path},
-      ),
-    );
+    final url = force
+        ? '$baseUrl/sessions/$sessionId?force=true'
+        : '$baseUrl/sessions/$sessionId';
+
+    final response = await _client.delete(Uri.parse(url));
+
+    if (response.statusCode == 404) {
+      throw VideApiException('Session not found', statusCode: 404);
+    }
 
     if (response.statusCode != 200) {
       throw VideApiException(
-        'Failed to list directory',
+        'Failed to stop session',
         statusCode: response.statusCode,
         body: response.body,
       );
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final entries = json['entries'] as List<dynamic>? ?? [];
-
-    return entries
-        .map((e) => DirectoryEntry.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  /// Validates a path on the server.
-  Future<bool> validatePath(String path) async {
-    _log('Validating path: $path');
-
-    try {
-      final response = await _client.post(
-        Uri.parse('$baseUrl/api/v1/filesystem'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'path': path}),
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        return json['valid'] as bool? ?? false;
-      }
-      return false;
-    } catch (e) {
-      _log('Path validation error: $e');
-      return false;
     }
   }
 

@@ -12,6 +12,7 @@ _$SessionImpl _$$SessionImplFromJson(Map<String, dynamic> json) =>
       mainAgentId: json['main-agent-id'] as String,
       createdAt: DateTime.parse(json['created-at'] as String),
       workingDirectory: json['working-directory'] as String,
+      wsUrl: json['ws-url'] as String?,
       model: json['model'] as String?,
     );
 
@@ -21,5 +22,6 @@ Map<String, dynamic> _$$SessionImplToJson(_$SessionImpl instance) =>
       'main-agent-id': instance.mainAgentId,
       'created-at': instance.createdAt.toIso8601String(),
       'working-directory': instance.workingDirectory,
+      'ws-url': instance.wsUrl,
       'model': instance.model,
     };

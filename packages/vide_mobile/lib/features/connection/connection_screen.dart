@@ -60,7 +60,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   void _connect() {
     final state = ref.read(connectionNotifierProvider);
     if (state.status == ConnectionStatus.connected) {
-      context.push(AppRoutes.newSession);
+      context.push(AppRoutes.sessions);
     }
   }
 
@@ -119,7 +119,8 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                   controller: _hostController,
                   decoration: const InputDecoration(
                     labelText: 'Host',
-                    hintText: 'localhost or 192.168.1.100',
+                    hintText: 'e.g. localhost, 192.168.1.100',
+                    helperText: 'IP address or hostname (without http://)',
                     prefixIcon: Icon(Icons.computer_outlined),
                   ),
                   keyboardType: TextInputType.url,

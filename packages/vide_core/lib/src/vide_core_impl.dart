@@ -121,10 +121,18 @@ class VideCore {
   Future<VideSession> startSession(VideSessionConfig config) async {
     _checkNotDisposed();
 
-    // Create a new container for this session
+    // Get config from parent container
+    final videConfigManager = _container.read(videConfigManagerProvider);
+
+    // Create a completely isolated container for this session.
+    // We don't use parent containers because Riverpod's dependency tracking
+    // requires all providers in the dependency chain to be overridden when
+    // any dependency is overridden, which becomes unwieldy.
     final finalContainer = ProviderContainer(
-      parent: _container,
       overrides: [
+        // Copy config from parent
+        videConfigManagerProvider.overrideWithValue(videConfigManager),
+        // Set the working directory for this session
         workingDirProvider.overrideWithValue(config.workingDirectory),
       ],
     );
@@ -172,10 +180,20 @@ class VideCore {
   }) async {
     _checkNotDisposed();
 
-    // Create a new container for this session
+    // Get config from parent container
+    final videConfigManager = _container.read(videConfigManagerProvider);
+
+    // Create a completely isolated container for this session.
+    // We don't use parent containers because Riverpod's dependency tracking
+    // requires all providers in the dependency chain to be overridden when
+    // any dependency is overridden, which becomes unwieldy.
     final finalContainer = ProviderContainer(
-      parent: _container,
-      overrides: [workingDirProvider.overrideWithValue(workingDirectory)],
+      overrides: [
+        // Copy config from parent
+        videConfigManagerProvider.overrideWithValue(videConfigManager),
+        // Set the working directory for this session
+        workingDirProvider.overrideWithValue(workingDirectory),
+      ],
     );
 
     // Create network via AgentNetworkManager
@@ -232,10 +250,20 @@ class VideCore {
     // Determine working directory from network
     final workingDir = network.worktreePath ?? Directory.current.path;
 
-    // Create a new container for this session
+    // Get config from parent container
+    final videConfigManager = _container.read(videConfigManagerProvider);
+
+    // Create a completely isolated container for this session.
+    // We don't use parent containers because Riverpod's dependency tracking
+    // requires all providers in the dependency chain to be overridden when
+    // any dependency is overridden, which becomes unwieldy.
     final sessionContainer = ProviderContainer(
-      parent: _container,
-      overrides: [workingDirProvider.overrideWithValue(workingDir)],
+      overrides: [
+        // Copy config from parent
+        videConfigManagerProvider.overrideWithValue(videConfigManager),
+        // Set the working directory for this session
+        workingDirProvider.overrideWithValue(workingDir),
+      ],
     );
 
     // Resume the network

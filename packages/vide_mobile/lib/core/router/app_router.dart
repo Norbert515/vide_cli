@@ -6,6 +6,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/chat/chat_screen.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
+import '../../features/sessions/sessions_list_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
 part 'app_router.g.dart';
@@ -13,6 +14,7 @@ part 'app_router.g.dart';
 /// Route paths for the app
 abstract class AppRoutes {
   static const connection = '/';
+  static const sessions = '/sessions';
   static const newSession = '/session/new';
   static const session = '/session/:id';
   static const settings = '/settings';
@@ -30,6 +32,11 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.connection,
         name: 'connection',
         builder: (context, state) => const ConnectionScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.sessions,
+        name: 'sessions',
+        builder: (context, state) => const SessionsListScreen(),
       ),
       GoRoute(
         path: AppRoutes.newSession,

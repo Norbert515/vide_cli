@@ -258,7 +258,7 @@ class SessionRepository extends _$SessionRepository {
     );
 
     // Connect to existing session
-    final videSession = videClient.connectToSession(currentSession.sessionId);
+    final videSession = await videClient.connectToSession(currentSession.sessionId);
 
     // Set up event listening
     _setupEventListening(videSession);

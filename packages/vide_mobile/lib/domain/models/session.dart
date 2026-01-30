@@ -11,6 +11,7 @@ class Session with _$Session {
     @JsonKey(name: 'main-agent-id') required String mainAgentId,
     @JsonKey(name: 'created-at') required DateTime createdAt,
     @JsonKey(name: 'working-directory') required String workingDirectory,
+    @JsonKey(name: 'ws-url') String? wsUrl,
     String? model,
   }) = _Session;
 

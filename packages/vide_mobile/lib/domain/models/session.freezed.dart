@@ -28,6 +28,8 @@ mixin _$Session {
   DateTime get createdAt => throw _privateConstructorUsedError;
   @JsonKey(name: 'working-directory')
   String get workingDirectory => throw _privateConstructorUsedError;
+  @JsonKey(name: 'ws-url')
+  String? get wsUrl => throw _privateConstructorUsedError;
   String? get model => throw _privateConstructorUsedError;
 
   /// Serializes this Session to a JSON map.
@@ -49,6 +51,7 @@ abstract class $SessionCopyWith<$Res> {
       @JsonKey(name: 'main-agent-id') String mainAgentId,
       @JsonKey(name: 'created-at') DateTime createdAt,
       @JsonKey(name: 'working-directory') String workingDirectory,
+      @JsonKey(name: 'ws-url') String? wsUrl,
       String? model});
 }
 
@@ -71,6 +74,7 @@ class _$SessionCopyWithImpl<$Res, $Val extends Session>
     Object? mainAgentId = null,
     Object? createdAt = null,
     Object? workingDirectory = null,
+    Object? wsUrl = freezed,
     Object? model = freezed,
   }) {
     return _then(_value.copyWith(
@@ -90,6 +94,10 @@ class _$SessionCopyWithImpl<$Res, $Val extends Session>
           ? _value.workingDirectory
           : workingDirectory // ignore: cast_nullable_to_non_nullable
               as String,
+      wsUrl: freezed == wsUrl
+          ? _value.wsUrl
+          : wsUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
       model: freezed == model
           ? _value.model
           : model // ignore: cast_nullable_to_non_nullable
@@ -110,6 +118,7 @@ abstract class _$$SessionImplCopyWith<$Res> implements $SessionCopyWith<$Res> {
       @JsonKey(name: 'main-agent-id') String mainAgentId,
       @JsonKey(name: 'created-at') DateTime createdAt,
       @JsonKey(name: 'working-directory') String workingDirectory,
+      @JsonKey(name: 'ws-url') String? wsUrl,
       String? model});
 }
 
@@ -130,6 +139,7 @@ class __$$SessionImplCopyWithImpl<$Res>
     Object? mainAgentId = null,
     Object? createdAt = null,
     Object? workingDirectory = null,
+    Object? wsUrl = freezed,
     Object? model = freezed,
   }) {
     return _then(_$SessionImpl(
@@ -149,6 +159,10 @@ class __$$SessionImplCopyWithImpl<$Res>
           ? _value.workingDirectory
           : workingDirectory // ignore: cast_nullable_to_non_nullable
               as String,
+      wsUrl: freezed == wsUrl
+          ? _value.wsUrl
+          : wsUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
       model: freezed == model
           ? _value.model
           : model // ignore: cast_nullable_to_non_nullable
@@ -165,6 +179,7 @@ class _$SessionImpl implements _Session {
       @JsonKey(name: 'main-agent-id') required this.mainAgentId,
       @JsonKey(name: 'created-at') required this.createdAt,
       @JsonKey(name: 'working-directory') required this.workingDirectory,
+      @JsonKey(name: 'ws-url') this.wsUrl,
       this.model});
 
   factory _$SessionImpl.fromJson(Map<String, dynamic> json) =>
@@ -183,11 +198,14 @@ class _$SessionImpl implements _Session {
   @JsonKey(name: 'working-directory')
   final String workingDirectory;
   @override
+  @JsonKey(name: 'ws-url')
+  final String? wsUrl;
+  @override
   final String? model;
 
   @override
   String toString() {
-    return 'Session(sessionId: $sessionId, mainAgentId: $mainAgentId, createdAt: $createdAt, workingDirectory: $workingDirectory, model: $model)';
+    return 'Session(sessionId: $sessionId, mainAgentId: $mainAgentId, createdAt: $createdAt, workingDirectory: $workingDirectory, wsUrl: $wsUrl, model: $model)';
   }
 
   @override
@@ -203,13 +221,14 @@ class _$SessionImpl implements _Session {
                 other.createdAt == createdAt) &&
             (identical(other.workingDirectory, workingDirectory) ||
                 other.workingDirectory == workingDirectory) &&
+            (identical(other.wsUrl, wsUrl) || other.wsUrl == wsUrl) &&
             (identical(other.model, model) || other.model == model));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
-      runtimeType, sessionId, mainAgentId, createdAt, workingDirectory, model);
+  int get hashCode => Object.hash(runtimeType, sessionId, mainAgentId,
+      createdAt, workingDirectory, wsUrl, model);
 
   /// Create a copy of Session
   /// with the given fields replaced by the non-null parameter values.
@@ -234,6 +253,7 @@ abstract class _Session implements Session {
       @JsonKey(name: 'created-at') required final DateTime createdAt,
       @JsonKey(name: 'working-directory')
       required final String workingDirectory,
+      @JsonKey(name: 'ws-url') final String? wsUrl,
       final String? model}) = _$SessionImpl;
 
   factory _Session.fromJson(Map<String, dynamic> json) = _$SessionImpl.fromJson;
@@ -250,6 +270,9 @@ abstract class _Session implements Session {
   @override
   @JsonKey(name: 'working-directory')
   String get workingDirectory;
+  @override
+  @JsonKey(name: 'ws-url')
+  String? get wsUrl;
   @override
   String? get model;
 
