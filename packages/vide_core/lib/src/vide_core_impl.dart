@@ -12,6 +12,7 @@ import 'package:riverpod/riverpod.dart';
 import 'services/agent_network_manager.dart';
 import 'services/agent_network_persistence_manager.dart';
 import 'services/initial_claude_client.dart';
+import 'services/permission_provider.dart';
 import 'services/vide_config_manager.dart';
 import 'utils/working_dir_provider.dart';
 import 'api/vide_agent.dart';
@@ -134,6 +135,10 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(config.workingDirectory),
+        // Set up session lookup so permission callbacks can find sessions
+        sessionLookupProvider.overrideWithValue((networkId) {
+          return _activeSessions[networkId];
+        }),
       ],
     );
 
@@ -193,6 +198,10 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(workingDirectory),
+        // Set up session lookup so permission callbacks can find sessions
+        sessionLookupProvider.overrideWithValue((networkId) {
+          return _activeSessions[networkId];
+        }),
       ],
     );
 
@@ -263,6 +272,10 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(workingDir),
+        // Set up session lookup so permission callbacks can find sessions
+        sessionLookupProvider.overrideWithValue((networkId) {
+          return _activeSessions[networkId];
+        }),
       ],
     );
 
