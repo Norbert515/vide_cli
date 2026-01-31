@@ -30,15 +30,19 @@ void main() {
     );
 
     test(
-      'matches pipe command when second part approved and first is data source',
+      'rejects pipe when first command is not a safe filter',
       () {
+        // SECURITY: Even if second command matches, first must be either:
+        // 1. Match the pattern, OR
+        // 2. Be a safe filter
+        // This prevents: dangerous_cmd | allowed_cmd
         expect(
           PermissionMatcher.matches(
             'Bash(grep:*)',
             'Bash',
             BashToolInput(command: 'dart pub deps | grep uuid'),
           ),
-          isTrue, // grep matches, dart pub deps is allowed as data source
+          isFalse, // dart pub deps is not a safe filter, so rejected
         );
       },
     );

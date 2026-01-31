@@ -71,14 +71,16 @@ void main() {
           isTrue, // grep is auto-approved as safe filter
         );
 
-        // With only grep:* pattern, it should also pass (dart pub is what grep filters)
+        // SECURITY FIX: With only grep:* pattern, it should FAIL
+        // Even if grep matches, dart pub deps is not a safe filter, so rejected
+        // This prevents: dangerous_cmd | grep pattern
         expect(
           PermissionMatcher.matches(
             'Bash(grep:*)',
             'Bash',
             BashToolInput(command: 'dart pub deps | grep uuid'),
           ),
-          isTrue, // dart pub deps doesn't match, but grep matches
+          isFalse, // dart pub deps doesn't match and isn't a safe filter
         );
 
         // With a wildcard pattern, it should still pass
