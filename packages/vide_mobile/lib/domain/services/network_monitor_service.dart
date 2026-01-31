@@ -20,7 +20,7 @@ enum NetworkStatus {
 /// Provider for monitoring network connectivity.
 @Riverpod(keepAlive: true)
 class NetworkMonitor extends _$NetworkMonitor {
-  StreamSubscription<List<ConnectivityResult>>? _subscription;
+  StreamSubscription<ConnectivityResult>? _subscription;
   final Connectivity _connectivity = Connectivity();
 
   @override
@@ -39,25 +39,22 @@ class NetworkMonitor extends _$NetworkMonitor {
   }
 
   void _startMonitoring() {
+    // connectivity_plus v5.x returns Stream<ConnectivityResult>
     _subscription = _connectivity.onConnectivityChanged.listen(
-      (result) {
-        // Handle both single result and list depending on package version
-        final results = result is List ? result : [result];
-        final status = _resultsToStatus(results as List<ConnectivityResult>);
-        state = status;
+      (ConnectivityResult result) {
+        state = _resultToStatus(result);
       },
-    ) as StreamSubscription<List<ConnectivityResult>>?;
+    );
   }
 
   Future<void> _checkConnectivity() async {
+    // connectivity_plus v5.x returns ConnectivityResult
     final result = await _connectivity.checkConnectivity();
-    // Handle both single result and list depending on package version
-    final results = result is List ? result : [result];
-    state = _resultsToStatus(results as List<ConnectivityResult>);
+    state = _resultToStatus(result);
   }
 
-  NetworkStatus _resultsToStatus(List<ConnectivityResult> results) {
-    if (results.isEmpty || results.contains(ConnectivityResult.none)) {
+  NetworkStatus _resultToStatus(ConnectivityResult result) {
+    if (result == ConnectivityResult.none) {
       return NetworkStatus.offline;
     }
     return NetworkStatus.online;
