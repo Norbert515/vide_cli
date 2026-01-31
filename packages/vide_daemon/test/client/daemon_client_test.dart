@@ -12,7 +12,6 @@ void main() {
     group('URL construction', () {
       test('constructs correct base URL', () {
         final client = DaemonClient(host: '127.0.0.1', port: 8080);
-        // We can't access private _baseUrl, but we can test via isHealthy behavior
         expect(client.host, '127.0.0.1');
         expect(client.port, 8080);
         client.close();
@@ -33,7 +32,7 @@ void main() {
           return http.Response('{"status": "ok"}', 200);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final result = await daemonClient.isHealthy();
 
@@ -46,7 +45,7 @@ void main() {
           return http.Response('{"error": "internal"}', 500);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final result = await daemonClient.isHealthy();
 
@@ -59,7 +58,7 @@ void main() {
           throw const SocketException('Connection refused');
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final result = await daemonClient.isHealthy();
 
@@ -83,7 +82,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final health = await daemonClient.getHealth();
 
@@ -99,7 +98,7 @@ void main() {
           return http.Response('{"error": "not found"}', 404);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.getHealth(),
@@ -123,7 +122,8 @@ void main() {
             jsonEncode({
               'session-id': 'new-session-123',
               'main-agent-id': 'agent-456',
-              'ws-url': 'ws://127.0.0.1:8080/api/v1/sessions/new-session-123/stream',
+              'ws-url':
+                  'ws://127.0.0.1:8080/api/v1/sessions/new-session-123/stream',
               'http-url': 'http://127.0.0.1:8080',
               'port': 8080,
               'created-at': '2024-01-15T10:30:00.000Z',
@@ -132,7 +132,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final response = await daemonClient.createSession(
           initialMessage: 'Hello',
@@ -165,7 +165,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(9000, mockClient);
+        final daemonClient = DaemonClient(port: 9000, httpClient: mockClient);
 
         final response = await daemonClient.createSession(
           initialMessage: 'Test',
@@ -184,7 +184,7 @@ void main() {
           return http.Response('{"error": "Invalid request"}', 400);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.createSession(
@@ -209,7 +209,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final sessions = await daemonClient.listSessions();
 
@@ -246,7 +246,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final sessions = await daemonClient.listSessions();
 
@@ -263,7 +263,7 @@ void main() {
           return http.Response('{"error": "Internal error"}', 500);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.listSessions(),
@@ -297,7 +297,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         final details = await daemonClient.getSession('test-session-id');
 
@@ -313,7 +313,7 @@ void main() {
           return http.Response('{"error": "Session not found"}', 404);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.getSession('nonexistent-id'),
@@ -327,7 +327,7 @@ void main() {
           return http.Response('{"error": "Internal error"}', 500);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.getSession('some-id'),
@@ -350,7 +350,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         // Should not throw
         await daemonClient.stopSession('session-to-stop');
@@ -368,7 +368,7 @@ void main() {
           );
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         await daemonClient.stopSession('session-to-kill', force: true);
         daemonClient.close();
@@ -379,7 +379,7 @@ void main() {
           return http.Response('{"error": "Session not found"}', 404);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.stopSession('nonexistent'),
@@ -393,7 +393,7 @@ void main() {
           return http.Response('{"error": "Internal error"}', 500);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         expect(
           () => daemonClient.stopSession('some-id'),
@@ -411,9 +411,9 @@ void main() {
           return http.Response(jsonEncode({'sessions': []}), 200);
         });
 
-        final daemonClient = _createClientWithMock(
-          8080,
-          mockClient,
+        final daemonClient = DaemonClient(
+          port: 8080,
+          httpClient: mockClient,
           authToken: 'test-token-123',
         );
 
@@ -428,7 +428,7 @@ void main() {
           return http.Response(jsonEncode({'sessions': []}), 200);
         });
 
-        final daemonClient = _createClientWithMock(8080, mockClient);
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
 
         await daemonClient.listSessions();
         daemonClient.close();
@@ -460,165 +460,4 @@ void main() {
       expect(exception.sessionId, 'test-id');
     });
   });
-}
-
-/// Creates a DaemonClient that uses a mock HTTP client for testing.
-///
-/// This is a workaround since DaemonClient uses its own http.Client instance.
-/// We need to test via the actual HTTP calls which will be intercepted.
-DaemonClient _createClientWithMock(
-  int port,
-  MockClient mockClient, {
-  String? authToken,
-}) {
-  // Unfortunately, DaemonClient creates its own http.Client internally,
-  // so we can't directly inject the mock. For proper testing, we'd need
-  // to modify DaemonClient to accept an http.Client parameter.
-  //
-  // For now, we'll create a testable version that uses the mock.
-  return _TestableDaemonClient(
-    port: port,
-    mockClient: mockClient,
-    authToken: authToken,
-  );
-}
-
-/// A testable version of DaemonClient that allows injecting a mock HTTP client.
-class _TestableDaemonClient extends DaemonClient {
-  final MockClient mockClient;
-
-  _TestableDaemonClient({
-    required int port,
-    required this.mockClient,
-    String? authToken,
-  }) : super(port: port, authToken: authToken);
-
-  @override
-  Future<bool> isHealthy() async {
-    try {
-      final response = await mockClient
-          .get(
-            Uri.parse('http://$host:$port/health'),
-            headers: _buildHeaders(),
-          )
-          .timeout(const Duration(seconds: 5));
-      return response.statusCode == 200;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  @override
-  Future<Map<String, dynamic>> getHealth() async {
-    final response = await mockClient.get(
-      Uri.parse('http://$host:$port/health'),
-      headers: _buildHeaders(),
-    );
-
-    if (response.statusCode != 200) {
-      throw DaemonClientException(
-        'Health check failed: ${response.statusCode}',
-      );
-    }
-
-    return jsonDecode(response.body) as Map<String, dynamic>;
-  }
-
-  @override
-  Future<CreateSessionResponse> createSession({
-    required String initialMessage,
-    required String workingDirectory,
-    String? model,
-    String? permissionMode,
-    String? team,
-  }) async {
-    final request = CreateSessionRequest(
-      initialMessage: initialMessage,
-      workingDirectory: workingDirectory,
-      model: model,
-      permissionMode: permissionMode,
-      team: team,
-    );
-
-    final response = await mockClient.post(
-      Uri.parse('http://$host:$port/sessions'),
-      headers: _buildHeaders(),
-      body: jsonEncode(request.toJson()),
-    );
-
-    if (response.statusCode != 200 && response.statusCode != 201) {
-      throw DaemonClientException(
-        'Failed to create session: ${response.statusCode} ${response.body}',
-      );
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return CreateSessionResponse.fromJson(json);
-  }
-
-  @override
-  Future<List<SessionSummary>> listSessions() async {
-    final response = await mockClient.get(
-      Uri.parse('http://$host:$port/sessions'),
-      headers: _buildHeaders(),
-    );
-
-    if (response.statusCode != 200) {
-      throw DaemonClientException(
-        'Failed to list sessions: ${response.statusCode}',
-      );
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final listResponse = ListSessionsResponse.fromJson(json);
-    return listResponse.sessions;
-  }
-
-  @override
-  Future<SessionDetailsResponse> getSession(String sessionId) async {
-    final response = await mockClient.get(
-      Uri.parse('http://$host:$port/sessions/$sessionId'),
-      headers: _buildHeaders(),
-    );
-
-    if (response.statusCode == 404) {
-      throw SessionNotFoundException(sessionId);
-    }
-
-    if (response.statusCode != 200) {
-      throw DaemonClientException(
-        'Failed to get session: ${response.statusCode}',
-      );
-    }
-
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-    return SessionDetailsResponse.fromJson(json);
-  }
-
-  @override
-  Future<void> stopSession(String sessionId, {bool force = false}) async {
-    final url = force
-        ? 'http://$host:$port/sessions/$sessionId?force=true'
-        : 'http://$host:$port/sessions/$sessionId';
-
-    final response = await mockClient.delete(
-      Uri.parse(url),
-      headers: _buildHeaders(),
-    );
-
-    if (response.statusCode == 404) {
-      throw SessionNotFoundException(sessionId);
-    }
-
-    if (response.statusCode != 200) {
-      throw DaemonClientException(
-        'Failed to stop session: ${response.statusCode}',
-      );
-    }
-  }
-
-  Map<String, String> _buildHeaders() => {
-        'Content-Type': 'application/json',
-        if (authToken != null) 'Authorization': 'Bearer $authToken',
-      };
 }

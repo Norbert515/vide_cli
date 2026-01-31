@@ -13,11 +13,16 @@ class DaemonClient {
   final int port;
   final String? authToken;
 
-  final http.Client _httpClient = http.Client();
+  final http.Client _httpClient;
   WebSocketChannel? _wsChannel;
   StreamController<DaemonEvent>? _eventController;
 
-  DaemonClient({this.host = '127.0.0.1', required this.port, this.authToken});
+  DaemonClient({
+    this.host = '127.0.0.1',
+    required this.port,
+    this.authToken,
+    http.Client? httpClient,
+  }) : _httpClient = httpClient ?? http.Client();
 
   String get _baseUrl => 'http://$host:$port';
   String get _wsUrl => 'ws://$host:$port';

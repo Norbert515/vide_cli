@@ -270,7 +270,26 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Apply permission mode override if provided
     // This allows session-level permission mode (e.g., 'ask') to override
     // the agent's default permission mode from the team framework
+    //
+    // Valid modes:
+    // - 'ask': vide-specific mode (translated to 'default' for CLI, permissions handled via SDK callback)
+    // - 'acceptEdits', 'bypassPermissions', 'default', 'delegate', 'dontAsk', 'plan': Claude CLI modes
     if (permissionMode != null) {
+      const validModes = {
+        'ask', // vide-specific
+        'acceptEdits',
+        'bypassPermissions',
+        'default',
+        'delegate',
+        'dontAsk',
+        'plan',
+      };
+      if (!validModes.contains(permissionMode)) {
+        throw ArgumentError(
+          'Invalid permission mode: $permissionMode. '
+          'Valid modes are: ${validModes.join(", ")}',
+        );
+      }
       leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
     }
 
