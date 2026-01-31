@@ -29,6 +29,7 @@ class PatternInference {
   /// Example: "git status" → "Bash(git status:*)"
   /// Example: "cd /path && dart pub get" → "Bash(dart pub get:*)"
   /// Example: "find /path -name *.dart" → "Bash(find:*)"
+  /// Example: "dart test 2>&1" → "Bash(dart test:*)" (redirects stripped)
   static String _inferBashPattern(String command) {
     if (command.isEmpty) return 'Bash(*)';
 
@@ -36,7 +37,7 @@ class PatternInference {
     final parsedCommands = BashCommandParser.parse(command);
 
     // Find the "main" command (skip cd commands)
-    final mainCommand = parsedCommands
+    var mainCommand = parsedCommands
         .firstWhere(
           (cmd) => cmd.type != CommandType.cd,
           orElse: () => parsedCommands.isNotEmpty
@@ -46,6 +47,10 @@ class PatternInference {
         .command;
 
     if (mainCommand.isEmpty) return 'Bash(*)';
+
+    // Strip shell redirects from the command before inferring pattern
+    // These are implementation details that shouldn't be part of the pattern
+    mainCommand = _stripShellRedirects(mainCommand);
 
     // Split into parts
     final parts = mainCommand.trim().split(RegExp(r'\s+'));
@@ -75,6 +80,50 @@ class PatternInference {
 
     final baseCommand = baseParts.join(' ');
     return baseCommand.isEmpty ? 'Bash(*)' : 'Bash($baseCommand:*)';
+  }
+
+  /// Strip shell redirects from a command string.
+  ///
+  /// Removes patterns like:
+  /// - `2>&1`, `>&2`, `1>&2` - file descriptor redirects
+  /// - `2>/dev/null`, `>/dev/null`, `&>/dev/null` - output to file
+  /// - `</path/to/file` - input redirect
+  /// - `>>file` - append redirect
+  static String _stripShellRedirects(String command) {
+    // Pattern to match shell redirects:
+    // - [0-9]*>&[0-9]+ : fd redirect (2>&1, >&2, 1>&2)
+    // - [0-9]*>>[^\s]+ : append redirect (>>file, 2>>file)
+    // - [0-9]*>[^\s]+  : output redirect (>file, 2>/dev/null, &>/dev/null)
+    // - <[^\s]+        : input redirect (<file)
+    //
+    // We need to be careful not to match things like:
+    // - Comparison operators in strings
+    // - The > in paths like /path/to/file
+    //
+    // Match redirects at word boundaries (preceded by space or start, followed by space or end)
+    final redirectPattern = RegExp(
+      r'(?:^|\s)'                   // Start or preceded by whitespace
+      r'(?:'
+      r'[0-9]*>&[0-9]+'             // fd redirect: 2>&1, >&2
+      r'|'
+      r'&>>[^\s]*'                  // append both: &>>file
+      r'|'
+      r'&>[^\s]*'                   // redirect both: &>/dev/null
+      r'|'
+      r'[0-9]*>>[^\s]*'             // append: >>file, 2>>file
+      r'|'
+      r'[0-9]*>[^\s]*'              // output: >file, 2>/dev/null
+      r'|'
+      r'<[^\s]+'                    // input: <file
+      r')'
+      r'(?=\s|$)',                  // Followed by whitespace or end
+    );
+
+    // Remove all redirect patterns and clean up extra whitespace
+    return command
+        .replaceAll(redirectPattern, ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   /// Infer pattern for file operations (Write/Edit/MultiEdit)

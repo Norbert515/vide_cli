@@ -218,6 +218,12 @@ class PermissionMatcher {
   ) {
     if (command.trim().isEmpty) return false;
 
+    // SECURITY: Check for command substitution and process substitution
+    // These can inject arbitrary commands that bypass pattern matching
+    if (_containsCommandSubstitution(command)) {
+      return false;
+    }
+
     // Get working directory from context
     final cwd = context?['cwd'] as String?;
 
@@ -268,7 +274,7 @@ class PermissionMatcher {
 
   /// Match pipeline commands with intelligent filtering
   /// In a pipeline, at least one command must match the pattern,
-  /// and other commands can be safe filters or data sources being piped
+  /// and ALL other commands must be safe filters (not dangerous commands)
   static bool _matchesPipeline(
     List<ParsedCommand> parsedCommands,
     String argPattern,
@@ -300,10 +306,10 @@ class PermissionMatcher {
         continue; // Safe filter - auto-approved in pipelines
       }
 
-      // If it doesn't match and isn't a safe filter,
-      // it could be a data source command (first in pipeline)
-      // Allow it if there's a matching command later in the pipeline
-      // We'll verify this at the end
+      // SECURITY: If it doesn't match AND isn't a safe filter,
+      // it's potentially dangerous - reject the entire pipeline
+      // This prevents: allowed_cmd | malicious_cmd
+      return false;
     }
 
     // At least one command in the pipeline must match the pattern
@@ -312,6 +318,11 @@ class PermissionMatcher {
 
   /// Check if a command is a safe output filter
   /// These are common utilities used to filter/limit output in pipelines
+  ///
+  /// SECURITY: A safe filter must:
+  /// 1. Be in the allowed list
+  /// 2. NOT have dangerous flags (like sed -i)
+  /// 3. NOT be a command executor (bash, sh, python, etc.)
   static bool _isSafeOutputFilter(String command) {
     final trimmed = command.trim();
     final parts = trimmed.split(RegExp(r'\s+'));
@@ -319,14 +330,21 @@ class PermissionMatcher {
 
     final commandName = parts[0];
 
+    // SECURITY: Check for dangerous commands first (blocklist)
+    // These can execute arbitrary code or perform destructive actions
+    if (_isDangerousCommand(commandName)) {
+      return false;
+    }
+
     // List of safe output filtering commands
+    // SECURITY: tee is NOT safe as it writes to files
     const safeFilters = {
       'head', // Limit to first N lines
       'tail', // Limit to last N lines
       'grep', // Filter by pattern
       'egrep', // Extended grep
       'fgrep', // Fixed string grep
-      'sed', // Stream editor (when used for filtering)
+      'sed', // Stream editor (when used for filtering) - but check flags!
       'awk', // Pattern scanning (when used for filtering)
       'cut', // Cut out columns
       'sort', // Sort lines
@@ -336,13 +354,200 @@ class PermissionMatcher {
       'less', // Pager
       'more', // Pager
       'cat', // Concatenate (when used as output)
-      'tee', // Duplicate output
       'column', // Format into columns
       'nl', // Number lines
       'jq', // JSON processor
+      // NOTE: 'tee' is intentionally NOT included - it writes to files
+      // NOTE: 'xargs' is intentionally NOT included - it executes commands
     };
 
-    return safeFilters.contains(commandName);
+    if (!safeFilters.contains(commandName)) {
+      return false;
+    }
+
+    // SECURITY: Check for dangerous flags that make safe commands unsafe
+    if (_hasDangerousFilterFlags(command, commandName)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Check if a command name is inherently dangerous (command executors, etc.)
+  static bool _isDangerousCommand(String commandName) {
+    const dangerous = {
+      // Shell interpreters - can execute arbitrary code
+      'bash',
+      'sh',
+      'zsh',
+      'ksh',
+      'csh',
+      'tcsh',
+      'fish',
+      'dash',
+
+      // Script interpreters - can execute arbitrary code
+      'python',
+      'python2',
+      'python3',
+      'perl',
+      'ruby',
+      'node',
+      'nodejs',
+      'php',
+      'lua',
+      'osascript', // macOS scripting
+
+      // Command execution tools
+      'xargs', // Executes commands from input
+      'exec', // Replaces shell with command
+      'eval', // Evaluates string as command
+      'source', // Executes script in current shell
+
+      // Network tools - can exfiltrate data
+      'curl',
+      'wget',
+      'nc', // netcat
+      'ncat',
+      'netcat',
+      'ssh',
+      'scp',
+      'rsync',
+      'ftp',
+      'sftp',
+
+      // Destructive file operations
+      'rm',
+      'rmdir',
+      'mv',
+      'cp', // Could overwrite files
+      'chmod',
+      'chown',
+      'chgrp',
+      'mkfs',
+      'dd', // Can overwrite disk
+
+      // File writing tools
+      'tee', // Writes to files
+      'install', // Can write files
+
+      // Process manipulation
+      'kill',
+      'killall',
+      'pkill',
+    };
+
+    return dangerous.contains(commandName);
+  }
+
+  /// Check if a safe filter command has dangerous flags
+  static bool _hasDangerousFilterFlags(String command, String commandName) {
+    final parts = command.split(RegExp(r'\s+'));
+
+    switch (commandName) {
+      case 'sed':
+        // sed -i modifies files in place
+        for (final part in parts) {
+          if (part == '-i' || part.startsWith('-i') && part.length > 2) {
+            return true;
+          }
+          // Also check for --in-place
+          if (part == '--in-place' || part.startsWith('--in-place=')) {
+            return true;
+          }
+        }
+        break;
+
+      case 'awk':
+        // awk can write to files if command contains > (though rare in pipes)
+        // We allow awk in pipes but block explicit file redirection
+        if (command.contains('>') && !command.contains('2>')) {
+          return true;
+        }
+        break;
+
+      case 'sort':
+        // sort -o writes to file
+        if (parts.contains('-o') || parts.any((p) => p.startsWith('-o'))) {
+          return true;
+        }
+        break;
+    }
+
+    return false;
+  }
+
+  /// Check if a command contains command substitution or process substitution
+  /// These can inject arbitrary commands that execute before the main command
+  ///
+  /// Detects:
+  /// - $() - command substitution
+  /// - `` (backticks) - command substitution
+  /// - <() - process substitution (input)
+  /// - >() - process substitution (output)
+  /// - Subshells with parentheses at the start
+  static bool _containsCommandSubstitution(String command) {
+    // Track quote state to avoid false positives
+    var inSingleQuote = false;
+    var inDoubleQuote = false;
+
+    for (var i = 0; i < command.length; i++) {
+      final char = command[i];
+
+      // Handle quote state
+      if (char == "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+        continue;
+      }
+      if (char == '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+        continue;
+      }
+
+      // Single quotes prevent all substitution
+      if (inSingleQuote) continue;
+
+      // In double quotes or unquoted, check for substitution patterns
+
+      // Check for $( - command substitution
+      if (char == r'$' && i + 1 < command.length && command[i + 1] == '(') {
+        return true;
+      }
+
+      // Check for backticks - command substitution
+      if (char == '`') {
+        return true;
+      }
+
+      // Check for <( - process substitution (not inside quotes is what matters)
+      if (char == '<' &&
+          i + 1 < command.length &&
+          command[i + 1] == '(' &&
+          !inDoubleQuote) {
+        return true;
+      }
+
+      // Check for >( - process substitution
+      if (char == '>' &&
+          i + 1 < command.length &&
+          command[i + 1] == '(' &&
+          !inDoubleQuote) {
+        return true;
+      }
+
+      // Check for unquoted subshell at the start: (commands)
+      // This is tricky - we only want to catch subshells, not arithmetic
+      // A leading ( is suspicious when followed by command-like content
+      if (char == '(' && !inDoubleQuote && i == 0) {
+        // Check if this looks like a subshell (contains command-like characters)
+        final rest = command.substring(1);
+        if (rest.contains(' ') && !rest.startsWith('(')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   /// Generate a permission pattern from a tool use
