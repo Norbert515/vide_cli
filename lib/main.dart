@@ -120,14 +120,15 @@ Future<void> main(
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
-  // Create provider container with overrides from entry point and permission callback
+  // Create provider container with overrides from entry point
   // Note: videoCoreProvider is overridden using Late pattern since it needs the container
   late final VideCore videCore;
   final container = ProviderContainer(
     overrides: [
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
-      // Permission handler for late session binding (enables unified permission flow)
+      // Permission handler for late session binding. TUI uses AgentNetworkManager directly,
+      // which reads this provider at construction time, so we must override it here.
       permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
       // Remote mode configuration
       if (remoteConfig != null)
@@ -138,8 +139,12 @@ Future<void> main(
     ],
   );
 
-  // Create VideCore from the existing container (enables public API usage)
-  videCore = VideCore.fromContainer(container);
+  // Create VideCore from the existing container with permission handler.
+  // The handler is also passed here for any future VideCore.startSession() calls.
+  videCore = VideCore.fromContainer(
+    container,
+    permissionHandler: _tuiPermissionHandler,
+  );
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
   final configManager = container.read(videConfigManagerProvider);
