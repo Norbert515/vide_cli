@@ -54,13 +54,18 @@ import 'api/vide_session.dart';
 class VideCore {
   final ProviderContainer _container;
   final bool _ownsContainer;
+  final PermissionHandler? _permissionHandler;
   bool _disposed = false;
 
   /// Active sessions by ID.
   final Map<String, VideSession> _activeSessions = {};
 
-  VideCore._(this._container, {bool ownsContainer = true})
-    : _ownsContainer = ownsContainer;
+  VideCore._(
+    this._container, {
+    bool ownsContainer = true,
+    PermissionHandler? permissionHandler,
+  }) : _ownsContainer = ownsContainer,
+       _permissionHandler = permissionHandler;
 
   /// Create a new VideCore instance.
   ///
@@ -82,27 +87,42 @@ class VideCore {
       ],
     );
 
-    return VideCore._(container, ownsContainer: true);
+    return VideCore._(
+      container,
+      ownsContainer: true,
+      permissionHandler: config.permissionHandler,
+    );
   }
 
   /// Create a VideCore instance from an existing ProviderContainer.
   ///
   /// This is useful for integrating with existing applications that already
-  /// have a ProviderContainer with their own overrides (e.g., for permissions).
+  /// have a ProviderContainer with their own overrides.
   ///
   /// The container will NOT be disposed when VideCore is disposed. The caller
   /// is responsible for managing the container lifecycle.
   ///
+  /// [permissionHandler] handles tool permission requests. If not provided,
+  /// all permissions are auto-allowed (no checking).
+  ///
   /// Example:
   /// ```dart
   /// final container = ProviderContainer(overrides: [...]);
-  /// final core = VideCore.fromContainer(container);
+  /// final handler = PermissionHandler();
+  /// final core = VideCore.fromContainer(container, permissionHandler: handler);
   /// // ... use core
   /// core.dispose(); // Does NOT dispose container
   /// container.dispose(); // Caller disposes container
   /// ```
-  factory VideCore.fromContainer(ProviderContainer container) {
-    return VideCore._(container, ownsContainer: false);
+  factory VideCore.fromContainer(
+    ProviderContainer container, {
+    PermissionHandler? permissionHandler,
+  }) {
+    return VideCore._(
+      container,
+      ownsContainer: false,
+      permissionHandler: permissionHandler,
+    );
   }
 
   /// Start a new session with the given configuration.
@@ -125,8 +145,8 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
-    // Create permission handler for late session binding
-    final permissionHandler = PermissionHandler();
+    // Use the permission handler passed to VideCore (shared across sessions)
+    final permissionHandler = _permissionHandler;
 
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
@@ -161,8 +181,8 @@ class VideCore {
       container: finalContainer,
     );
 
-    // Now that session exists, bind it to the permission handler
-    permissionHandler.setSession(session);
+    // Bind session to permission handler (enables late binding)
+    permissionHandler?.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -192,8 +212,8 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
-    // Create permission handler for late session binding
-    final permissionHandler = PermissionHandler();
+    // Use the permission handler passed to VideCore (shared across sessions)
+    final permissionHandler = _permissionHandler;
 
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
@@ -227,8 +247,8 @@ class VideCore {
       container: finalContainer,
     );
 
-    // Now that session exists, bind it to the permission handler
-    permissionHandler.setSession(session);
+    // Bind session to permission handler (enables late binding)
+    permissionHandler?.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -270,8 +290,8 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
-    // Create permission handler for late session binding
-    final permissionHandler = PermissionHandler();
+    // Use the permission handler passed to VideCore (shared across sessions)
+    final permissionHandler = _permissionHandler;
 
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
@@ -298,8 +318,8 @@ class VideCore {
       container: sessionContainer,
     );
 
-    // Now that session exists, bind it to the permission handler
-    permissionHandler.setSession(session);
+    // Bind session to permission handler (enables late binding)
+    permissionHandler?.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
