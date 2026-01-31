@@ -4,10 +4,58 @@ import 'package:riverpod/riverpod.dart';
 import '../api/vide_session.dart';
 import '../models/agent_id.dart';
 
-/// Function type for looking up a VideSession by network ID.
+/// Handler that manages permission callbacks with late session binding.
 ///
-/// Returns null if no session exists for the given network ID.
-typedef SessionLookup = VideSession? Function(String networkId);
+/// This solves the chicken-egg problem where permission callbacks are needed
+/// before the session exists. The handler is created first, then the session
+/// is set after creation via [setSession].
+///
+/// Example:
+/// ```dart
+/// final handler = PermissionHandler();
+/// // ... create network with ClaudeClient using handler.createCallback()
+/// final session = VideSession.create(...);
+/// handler.setSession(session);  // Now permission callbacks will work
+/// ```
+class PermissionHandler {
+  VideSession? _session;
+
+  /// Set the session for permission handling.
+  ///
+  /// Must be called after the session is created but before any
+  /// permission callbacks are invoked.
+  void setSession(VideSession session) {
+    _session = session;
+  }
+
+  /// Create a permission callback that delegates to the session.
+  ///
+  /// The callback uses late binding - when invoked, it looks up the session
+  /// that was set via [setSession]. If no session is set, auto-allows.
+  CanUseToolCallback createCallback({
+    required String cwd,
+    required AgentId agentId,
+    required String? agentName,
+    required String? agentType,
+  }) {
+    return (toolName, input, context) async {
+      final session = _session;
+      if (session == null) {
+        // No session yet - auto-allow (shouldn't happen in practice)
+        return const PermissionResultAllow();
+      }
+
+      // Delegate to session's permission callback
+      final callback = session.createPermissionCallback(
+        agentId: agentId.toString(),
+        agentName: agentName,
+        agentType: agentType,
+        cwd: cwd,
+      );
+      return callback(toolName, input, context);
+    };
+  }
+}
 
 /// Context for creating a canUseTool callback for a specific agent.
 ///
@@ -19,12 +67,9 @@ class PermissionCallbackContext {
   final String? agentName;
   final String? agentType;
   final String? permissionMode;
-  final String? networkId; // Session ID in REST API terms
 
-  /// Function to look up the session at callback invocation time.
-  /// This enables late-binding where the session may not exist when
-  /// the callback is created, but will exist when it's invoked.
-  final SessionLookup? sessionLookup;
+  /// The permission handler for late session binding.
+  final PermissionHandler? permissionHandler;
 
   const PermissionCallbackContext({
     required this.cwd,
@@ -32,39 +77,15 @@ class PermissionCallbackContext {
     this.agentName,
     this.agentType,
     this.permissionMode,
-    this.networkId,
-    this.sessionLookup,
+    this.permissionHandler,
   });
 }
 
-/// Factory function type for creating canUseTool callbacks.
+/// Provider for the permission handler.
 ///
-/// The factory takes a [PermissionCallbackContext] containing the working
-/// directory and agent context, and returns a [CanUseToolCallback] that can
-/// be passed to [ClaudeClient.create].
-///
-/// This design allows each agent to have its own cwd and permission behavior
-/// while sharing the underlying permission logic.
-typedef CanUseToolCallbackFactory =
-    CanUseToolCallback Function(PermissionCallbackContext context);
-
-/// Riverpod provider for the canUseTool callback factory.
-///
-/// This provider MUST be overridden by the UI with the appropriate implementation:
-/// - TUI: Uses session-based permission checking via VideSession
-/// - REST: Uses createRestPermissionCallback or createInteractivePermissionCallback
-///
-/// If not overridden, returns null (no permission checking).
-final canUseToolCallbackFactoryProvider = Provider<CanUseToolCallbackFactory?>((
-  ref,
-) {
-  return null; // Default: no permission checking (auto-allow)
-});
-
-/// Provider for the session lookup function.
-///
-/// This is used by the permission callback factory to resolve sessions
-/// at invocation time (late binding).
-final sessionLookupProvider = Provider<SessionLookup?>((ref) {
-  return null; // Default: no session lookup
+/// This should be overridden per-session with a PermissionHandler instance.
+/// After the session is created, call handler.setSession(session) to enable
+/// permission checking.
+final permissionHandlerProvider = Provider<PermissionHandler?>((ref) {
+  return null; // Default: no permission checking
 });

@@ -15,6 +15,7 @@ import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
+import 'permission_provider.dart';
 import 'bashboard_service.dart';
 import 'team_framework_loader.dart';
 import 'trigger_service.dart';
@@ -54,6 +55,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     _clientFactory = ClaudeClientFactoryImpl(
       getWorkingDirectory: () => effectiveWorkingDirectory,
       ref: _ref,
+      permissionHandler: _ref.read(permissionHandlerProvider),
     );
     _teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,

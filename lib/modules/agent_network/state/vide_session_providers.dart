@@ -54,7 +54,15 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
 
   if (currentNetwork == null) return null;
 
-  return core.getSessionForNetwork(currentNetwork.id);
+  final session = core.getSessionForNetwork(currentNetwork.id);
+
+  // Bind the session to the permission handler for late-binding permission checks
+  if (session != null) {
+    final permissionHandler = ref.read(permissionHandlerProvider);
+    permissionHandler?.setSession(session);
+  }
+
+  return session;
 });
 
 /// Provider that emits the current agents list whenever it changes.

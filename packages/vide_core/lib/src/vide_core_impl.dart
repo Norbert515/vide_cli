@@ -12,7 +12,7 @@ import 'package:riverpod/riverpod.dart';
 import 'services/agent_network_manager.dart';
 import 'services/agent_network_persistence_manager.dart';
 import 'services/initial_claude_client.dart';
-import 'services/permission_provider.dart';
+import 'services/permission_provider.dart' show PermissionHandler, permissionHandlerProvider;
 import 'services/vide_config_manager.dart';
 import 'utils/working_dir_provider.dart';
 import 'api/vide_agent.dart';
@@ -125,6 +125,9 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
+    // Create permission handler for late session binding
+    final permissionHandler = PermissionHandler();
+
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
     // requires all providers in the dependency chain to be overridden when
@@ -135,10 +138,8 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(config.workingDirectory),
-        // Set up session lookup so permission callbacks can find sessions
-        sessionLookupProvider.overrideWithValue((networkId) {
-          return _activeSessions[networkId];
-        }),
+        // Provide permission handler for late session binding
+        permissionHandlerProvider.overrideWithValue(permissionHandler),
       ],
     );
 
@@ -154,11 +155,14 @@ class VideCore {
       team: config.team,
     );
 
-    // Create and return the session
+    // Create the session
     final session = VideSession.create(
       networkId: network.id,
       container: finalContainer,
     );
+
+    // Now that session exists, bind it to the permission handler
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -188,6 +192,9 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
+    // Create permission handler for late session binding
+    final permissionHandler = PermissionHandler();
+
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
     // requires all providers in the dependency chain to be overridden when
@@ -198,10 +205,8 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(workingDirectory),
-        // Set up session lookup so permission callbacks can find sessions
-        sessionLookupProvider.overrideWithValue((networkId) {
-          return _activeSessions[networkId];
-        }),
+        // Provide permission handler for late session binding
+        permissionHandlerProvider.overrideWithValue(permissionHandler),
       ],
     );
 
@@ -216,11 +221,14 @@ class VideCore {
       permissionMode: permissionMode,
     );
 
-    // Create and return the session
+    // Create the session
     final session = VideSession.create(
       networkId: network.id,
       container: finalContainer,
     );
+
+    // Now that session exists, bind it to the permission handler
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -262,6 +270,9 @@ class VideCore {
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
 
+    // Create permission handler for late session binding
+    final permissionHandler = PermissionHandler();
+
     // Create a completely isolated container for this session.
     // We don't use parent containers because Riverpod's dependency tracking
     // requires all providers in the dependency chain to be overridden when
@@ -272,10 +283,8 @@ class VideCore {
         videConfigManagerProvider.overrideWithValue(videConfigManager),
         // Set the working directory for this session
         workingDirProvider.overrideWithValue(workingDir),
-        // Set up session lookup so permission callbacks can find sessions
-        sessionLookupProvider.overrideWithValue((networkId) {
-          return _activeSessions[networkId];
-        }),
+        // Provide permission handler for late session binding
+        permissionHandlerProvider.overrideWithValue(permissionHandler),
       ],
     );
 
@@ -283,11 +292,14 @@ class VideCore {
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
     await manager.resume(network);
 
-    // Create and return the session
+    // Create the session
     final session = VideSession.create(
       networkId: network.id,
       container: sessionContainer,
     );
+
+    // Now that session exists, bind it to the permission handler
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;

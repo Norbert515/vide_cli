@@ -95,17 +95,11 @@ final currentRepoPathProvider = Provider<String>((ref) {
   return networkManager.effectiveWorkingDirectory;
 });
 
-/// Provider override for sessionLookup that enables session-based permission checking.
+/// Global permission handler for late session binding.
 ///
-/// This allows the ClaudeClientFactory to resolve sessions at callback invocation time
-/// (late binding), enabling unified permission handling through VideSession.
-late final _sessionLookupOverride = sessionLookupProvider.overrideWith((ref) {
-  return (String networkId) {
-    // Look up the session from VideCore
-    final core = ref.read(videoCoreProvider);
-    return core.getSessionForNetwork(networkId);
-  };
-});
+/// This is used by the TUI to enable permission checking. After a network is
+/// created and wrapped as a session, call `setSession()` to bind it.
+final _tuiPermissionHandler = PermissionHandler();
 
 /// Provider for remote configuration. When set, TUI operates in remote mode.
 final remoteConfigProvider = StateProvider<RemoteConfig?>((ref) => null);
@@ -133,8 +127,8 @@ Future<void> main(
     overrides: [
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
-      // Session lookup for permission callbacks (enables unified permission flow)
-      _sessionLookupOverride,
+      // Permission handler for late session binding (enables unified permission flow)
+      permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
