@@ -259,12 +259,19 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       mainAgentName,
     );
 
-    final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
+    var leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,
       teamName: team,
     );
     if (leadConfig == null) {
       throw Exception('Agent configuration not found for: $mainAgentName');
+    }
+
+    // Apply permission mode override if provided
+    // This allows session-level permission mode (e.g., 'ask') to override
+    // the agent's default permission mode from the team framework
+    if (permissionMode != null) {
+      leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
     }
 
     // Create client synchronously - initialization happens in background
