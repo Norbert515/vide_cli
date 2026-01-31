@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../protocol/daemon_messages.dart';
 
@@ -34,6 +35,21 @@ class SessionProcess {
 
   /// Callback invoked when process state changes.
   void Function(SessionProcessState state)? onStateChanged;
+
+  /// Last activity timestamp, updated from session events.
+  DateTime? _lastActiveAt;
+
+  /// Current agent count, tracked from spawn/terminate events.
+  int _agentCount = 1;
+
+  /// WebSocket channel for event monitoring.
+  WebSocketChannel? _eventChannel;
+
+  /// Subscription to WebSocket events.
+  StreamSubscription<dynamic>? _eventSubscription;
+
+  /// Whether event monitoring has been started.
+  bool _eventMonitoringStarted = false;
 
   SessionProcess._({
     required this.sessionId,
@@ -294,10 +310,113 @@ class SessionProcess {
     }
   }
 
+  /// Start monitoring session events via WebSocket.
+  ///
+  /// This connects to the session's WebSocket stream and monitors events
+  /// to track [_lastActiveAt] and [_agentCount]. The connection is lazy -
+  /// it only starts when first needed and reconnects on failure.
+  void _startEventMonitoring() {
+    if (_eventMonitoringStarted) return;
+    _eventMonitoringStarted = true;
+    _connectToEventStream();
+  }
+
+  void _connectToEventStream() {
+    if (_state == SessionProcessState.stopping) return;
+
+    try {
+      _eventChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _log.fine('Connecting to event stream: $wsUrl');
+
+      _eventSubscription = _eventChannel!.stream.listen(
+        _handleEvent,
+        onError: (error) {
+          _log.warning('Event stream error: $error');
+          _scheduleReconnect();
+        },
+        onDone: () {
+          _log.fine('Event stream closed');
+          _scheduleReconnect();
+        },
+      );
+    } catch (e) {
+      _log.warning('Failed to connect to event stream: $e');
+      _scheduleReconnect();
+    }
+  }
+
+  void _handleEvent(dynamic message) {
+    try {
+      final json = jsonDecode(message as String) as Map<String, dynamic>;
+      final type = json['type'] as String?;
+
+      // Update lastActiveAt for any meaningful event
+      if (_isActivityEvent(type)) {
+        _lastActiveAt = DateTime.now();
+      }
+
+      // Track agent count changes
+      if (type == 'agent-spawned') {
+        _agentCount++;
+        _log.fine('Agent spawned, count now: $_agentCount');
+      } else if (type == 'agent-terminated') {
+        _agentCount = (_agentCount - 1).clamp(1, double.maxFinite.toInt());
+        _log.fine('Agent terminated, count now: $_agentCount');
+      }
+    } catch (e) {
+      _log.warning('Failed to parse event: $e');
+    }
+  }
+
+  /// Returns true for event types that indicate session activity.
+  bool _isActivityEvent(String? type) {
+    return type != null &&
+        const {
+          'message',
+          'tool-use',
+          'tool-result',
+          'status',
+          'agent-spawned',
+          'agent-terminated',
+          'permission-request',
+          'permission-timeout',
+          'done',
+          'aborted',
+          'error',
+        }.contains(type);
+  }
+
+  void _scheduleReconnect() {
+    if (_state == SessionProcessState.stopping) return;
+
+    // Clean up existing connection
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+    _eventChannel = null;
+
+    // Reconnect after a delay
+    Future.delayed(const Duration(seconds: 5), () {
+      if (_state != SessionProcessState.stopping) {
+        _connectToEventStream();
+      }
+    });
+  }
+
+  void _stopEventMonitoring() {
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+    _eventChannel?.sink.close();
+    _eventChannel = null;
+    _eventMonitoringStarted = false;
+  }
+
   /// Gracefully stop the process.
   Future<void> stop() async {
     _log.info('Stopping session process');
     _setState(SessionProcessState.stopping);
+
+    // Stop event monitoring first
+    _stopEventMonitoring();
 
     // Send SIGTERM for graceful shutdown
     _process.kill(ProcessSignal.sigterm);
@@ -316,19 +435,26 @@ class SessionProcess {
   Future<void> kill() async {
     _log.info('Force killing session process');
     _setState(SessionProcessState.stopping);
+
+    // Stop event monitoring first
+    _stopEventMonitoring();
+
     _process.kill(ProcessSignal.sigkill);
     await _process.exitCode;
   }
 
   /// Create a summary for listing.
+  ///
+  /// Starts event monitoring on first call to enable tracking.
   SessionSummary toSummary({String? goal}) {
+    _startEventMonitoring();
     return SessionSummary(
       sessionId: sessionId,
       workingDirectory: workingDirectory,
       goal: goal,
       createdAt: createdAt,
-      lastActiveAt: null, // TODO: Track from session events
-      agentCount: 1, // TODO: Track from session events
+      lastActiveAt: _lastActiveAt,
+      agentCount: _agentCount,
       state: state,
       connectedClients: connectedClients,
       port: port,
@@ -336,7 +462,10 @@ class SessionProcess {
   }
 
   /// Create detailed response.
+  ///
+  /// Starts event monitoring on first call to enable tracking.
   SessionDetailsResponse toDetails({String? goal}) {
+    _startEventMonitoring();
     return SessionDetailsResponse(
       sessionId: sessionId,
       workingDirectory: workingDirectory,
@@ -345,7 +474,7 @@ class SessionProcess {
       httpUrl: httpUrl,
       port: port,
       createdAt: createdAt,
-      lastActiveAt: null, // TODO: Track from session events
+      lastActiveAt: _lastActiveAt,
       state: state,
       connectedClients: connectedClients,
       pid: pid,
