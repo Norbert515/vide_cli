@@ -12,10 +12,12 @@ Future<SharedPreferences> sharedPreferences(Ref ref) async {
 
 @riverpod
 Stream<ConnectivityResult> connectivity(Ref ref) {
+  // connectivity_plus v5.x returns Stream<ConnectivityResult>
   return Connectivity().onConnectivityChanged;
 }
 
 @riverpod
 Future<ConnectivityResult> currentConnectivity(Ref ref) async {
+  // connectivity_plus v5.x returns ConnectivityResult
   return await Connectivity().checkConnectivity();
 }
