@@ -319,10 +319,8 @@ class PermissionMatcher {
   /// Check if a command is a safe output filter
   /// These are common utilities used to filter/limit output in pipelines
   ///
-  /// SECURITY: A safe filter must:
-  /// 1. Be in the allowed list
-  /// 2. NOT have dangerous flags (like sed -i)
-  /// 3. NOT be a command executor (bash, sh, python, etc.)
+  /// SECURITY: Uses an allowlist approach - only commands explicitly listed
+  /// are considered safe. Any command not in the list is rejected.
   static bool _isSafeOutputFilter(String command) {
     final trimmed = command.trim();
     final parts = trimmed.split(RegExp(r'\s+'));
@@ -330,14 +328,9 @@ class PermissionMatcher {
 
     final commandName = parts[0];
 
-    // SECURITY: Check for dangerous commands first (blocklist)
-    // These can execute arbitrary code or perform destructive actions
-    if (_isDangerousCommand(commandName)) {
-      return false;
-    }
-
-    // List of safe output filtering commands
-    // SECURITY: tee is NOT safe as it writes to files
+    // Allowlist of safe output filtering commands
+    // SECURITY: Only these specific commands are allowed in pipelines
+    // when they don't match the pattern. Any other command is rejected.
     const safeFilters = {
       'head', // Limit to first N lines
       'tail', // Limit to last N lines
@@ -371,73 +364,6 @@ class PermissionMatcher {
     }
 
     return true;
-  }
-
-  /// Check if a command name is inherently dangerous (command executors, etc.)
-  static bool _isDangerousCommand(String commandName) {
-    const dangerous = {
-      // Shell interpreters - can execute arbitrary code
-      'bash',
-      'sh',
-      'zsh',
-      'ksh',
-      'csh',
-      'tcsh',
-      'fish',
-      'dash',
-
-      // Script interpreters - can execute arbitrary code
-      'python',
-      'python2',
-      'python3',
-      'perl',
-      'ruby',
-      'node',
-      'nodejs',
-      'php',
-      'lua',
-      'osascript', // macOS scripting
-
-      // Command execution tools
-      'xargs', // Executes commands from input
-      'exec', // Replaces shell with command
-      'eval', // Evaluates string as command
-      'source', // Executes script in current shell
-
-      // Network tools - can exfiltrate data
-      'curl',
-      'wget',
-      'nc', // netcat
-      'ncat',
-      'netcat',
-      'ssh',
-      'scp',
-      'rsync',
-      'ftp',
-      'sftp',
-
-      // Destructive file operations
-      'rm',
-      'rmdir',
-      'mv',
-      'cp', // Could overwrite files
-      'chmod',
-      'chown',
-      'chgrp',
-      'mkfs',
-      'dd', // Can overwrite disk
-
-      // File writing tools
-      'tee', // Writes to files
-      'install', // Can write files
-
-      // Process manipulation
-      'kill',
-      'killall',
-      'pkill',
-    };
-
-    return dangerous.contains(commandName);
   }
 
   /// Check if a safe filter command has dangerous flags
