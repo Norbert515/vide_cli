@@ -7,7 +7,6 @@ This is a lightweight command-line interface that showcases how to integrate wit
 ## Features
 
 - **Interactive REPL** - Chat with agents in a terminal session
-- **Server Mode** - Start HTTP/WebSocket server for remote access
 - **Session Management** - List and resume saved sessions
 - **Permission Handling** - Interactive permission prompts
 - **Colored Output** - Terminal-aware event rendering
@@ -39,23 +38,6 @@ dart run bin/vide_cli.dart -d /path/to/project
 dart run bin/vide_cli.dart -m opus "Help me fix the bug"
 ```
 
-### Server Mode
-
-Start an embedded HTTP/WebSocket server for remote access:
-
-```bash
-dart run bin/vide_cli.dart --serve -p 8080 "Help me with this project"
-```
-
-Server endpoints:
-- `GET /health` - Health check
-- `GET /session` - Session info
-- `GET /agents` - List agents
-- `POST /message` - Send message
-- `POST /permission` - Respond to permission
-- `POST /abort` - Abort session
-- `WS /ws` - WebSocket for real-time events
-
 ### REPL Commands
 
 | Command | Description |
@@ -72,8 +54,7 @@ Server endpoints:
 -d, --dir          Working directory (default: current)
 -m, --model        Model: sonnet, opus, haiku
     --config-dir   Configuration directory (default: ~/.vide)
-    --serve        Start HTTP/WebSocket server
--p, --port         Server port (default: 8080)
+-t, --team         Team to use (default: vide)
 -h, --help         Show help
 -v, --version      Show version
 ```
@@ -156,14 +137,6 @@ session.events.listen((event) {
 });
 ```
 
-**Starting embedded server:**
-```dart
-final server = await VideEmbeddedServer.start(
-  session: session,
-  port: 8080,
-);
-```
-
 ## Dependencies
 
 - `vide_core` - Core business logic
@@ -172,4 +145,4 @@ final server = await VideEmbeddedServer.start(
 ## Related Packages
 
 - `vide_core` - Core multi-agent system
-- `vide_server` - Full REST API server
+- `vide_server` - Full REST API server (runs as daemon)

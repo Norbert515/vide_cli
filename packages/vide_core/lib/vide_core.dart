@@ -23,7 +23,6 @@ export 'src/api/vide_session.dart';
 export 'src/api/vide_event.dart';
 export 'src/api/vide_agent.dart';
 export 'src/api/vide_config.dart';
-export 'src/api/embedded_server.dart';
 export 'src/api/conversation_state.dart';
 export 'src/api/remote_vide_session.dart';
 

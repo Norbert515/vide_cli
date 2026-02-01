@@ -110,7 +110,7 @@ The recommended entry point for new consumers. Provides a clean interface withou
 - `VideSession` - Active session with agent network
 - `VideEvent` - Sealed event hierarchy
 - `VideAgent` - Immutable agent state snapshot
-- `VideEmbeddedServer` - HTTP/WebSocket server for remote access
+- `RemoteVideSession` - Client for connecting to remote daemon sessions
 
 **Event Types:**
 
@@ -235,18 +235,6 @@ final session = await core.resumeSession(sessionId);
 
 // Delete a session
 await core.deleteSession(sessionId);
-```
-
-## Embedded Server
-
-Start a lightweight HTTP/WebSocket server for remote access:
-
-```dart
-final server = await VideEmbeddedServer.start(
-  session: session,
-  port: 8080,
-);
-// External clients connect via HTTP/WebSocket
 ```
 
 ## User-Defined Agents
