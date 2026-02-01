@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_client/vide_client.dart' as vc;
 import 'package:vide_core/vide_core.dart'
     show videConfigManagerProvider, RemoteVideSession;
 import 'package:vide_daemon/vide_daemon.dart';
@@ -146,8 +147,8 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     String permissionMode = 'ask',
     void Function()? onReady,
   }) {
-    final client = state.client;
-    if (client == null || !state.isConnected) {
+    final daemonClient = state.client;
+    if (daemonClient == null || !state.isConnected) {
       throw StateError('Not connected to daemon');
     }
 
@@ -160,18 +161,19 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     // Do the HTTP call in background
     () async {
       try {
-        final response = await client.createSession(
+        // Use vide_client to create the session
+        final videClient = vc.VideClient(
+          host: state.host!,
+          port: state.port!,
+        );
+        final clientSession = await videClient.createSession(
           initialMessage: initialMessage,
           workingDirectory: workingDirectory,
           permissionMode: permissionMode,
         );
 
-        // Complete the pending session with real details
-        remoteSession.completePending(
-          sessionId: response.sessionId,
-          wsUrl: response.wsUrl,
-          mainAgentId: response.mainAgentId,
-        );
+        // Complete the pending session with the client session
+        remoteSession.completePending(clientSession);
       } catch (e) {
         remoteSession.failPending('Failed to create session: $e');
       }
@@ -191,29 +193,24 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     required String workingDirectory,
     String permissionMode = 'ask',
   }) async {
-    final client = state.client;
-    if (client == null || !state.isConnected) {
+    final daemonClient = state.client;
+    if (daemonClient == null || !state.isConnected) {
       throw StateError('Not connected to daemon');
     }
 
-    // Create session on daemon - response includes wsUrl and mainAgentId
-    final response = await client.createSession(
+    // Use vide_client to create session (handles both REST + WebSocket)
+    final videClient = vc.VideClient(
+      host: state.host!,
+      port: state.port!,
+    );
+    final clientSession = await videClient.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
     );
 
-    // Create the remote session with pre-populated main agent
-    final remoteSession = RemoteVideSession(
-      sessionId: response.sessionId,
-      wsUrl: response.wsUrl,
-      mainAgentId: response.mainAgentId,
-    );
-
-    // Start connection but don't wait - enables instant navigation
-    remoteSession.connectInBackground();
-
-    return remoteSession;
+    // Wrap with RemoteVideSession for full business event handling
+    return RemoteVideSession.fromClientSession(clientSession);
   }
 
   /// List sessions from the daemon.

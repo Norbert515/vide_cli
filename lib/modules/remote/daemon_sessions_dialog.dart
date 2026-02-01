@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_client/vide_client.dart' as vc;
 import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
@@ -151,15 +152,17 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
 
   Future<void> _connectToSession(SessionSummary session) async {
     try {
-      final notifier = context.read(daemonConnectionProvider.notifier);
-      final details = await notifier.getSession(session.sessionId);
+      final daemonState = context.read(daemonConnectionProvider);
 
-      final remoteSession = RemoteVideSession(
-        sessionId: session.sessionId,
-        wsUrl: details.wsUrl,
+      // Use vide_client to connect to the session
+      final videClient = vc.VideClient(
+        host: daemonState.host!,
+        port: daemonState.port!,
       );
+      final clientSession = await videClient.connectToSession(session.sessionId);
 
-      await remoteSession.connect();
+      // Wrap with RemoteVideSession for business event handling
+      final remoteSession = RemoteVideSession.fromClientSession(clientSession);
 
       // Store in provider
       context.read(remoteVideSessionProvider.notifier).state = remoteSession;
