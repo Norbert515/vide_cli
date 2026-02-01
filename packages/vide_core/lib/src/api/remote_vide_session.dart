@@ -127,6 +127,10 @@ class RemoteVideSession implements VideSession {
   bool _isPending = false;
   bool get isPending => _isPending;
 
+  /// Pending conversation to migrate when connected event arrives.
+  /// This is set during completePending() and consumed in _handleConnected().
+  Conversation? _pendingConversationToMigrate;
+
   /// Error that occurred during session creation (if any).
   String? _creationError;
   String? get creationError => _creationError;
@@ -175,9 +179,14 @@ class RemoteVideSession implements VideSession {
   void completePending(vc.Session clientSession) {
     if (!_isPending) return;
 
-    // Remove placeholder agent
+    // Save placeholder agent ID and its conversation before removing
     final oldMainId = _mainAgentId;
+    StreamController<Conversation>? pendingController;
+
     if (oldMainId != null) {
+      // Store conversation for migration when ConnectedEvent arrives
+      _pendingConversationToMigrate = _conversations.remove(oldMainId);
+      pendingController = _conversationControllers.remove(oldMainId);
       _agents.remove(oldMainId);
     }
 
@@ -186,8 +195,11 @@ class RemoteVideSession implements VideSession {
     _clientSession = clientSession;
     _isPending = false;
 
-    // Set up event listening
+    // Set up event listening (ConnectedEvent will set _mainAgentId and migrate conversation)
     _setupEventListening();
+
+    // Clean up old controller
+    pendingController?.close();
 
     // Notify listeners
     onPendingComplete?.call();
@@ -377,6 +389,14 @@ class RemoteVideSession implements VideSession {
       );
     }
 
+    // Migrate pending conversation from placeholder to real main agent
+    if (_pendingConversationToMigrate != null && _mainAgentId != null) {
+      _conversations[_mainAgentId!] = _pendingConversationToMigrate!;
+      final controller = _getOrCreateConversationController(_mainAgentId!);
+      controller.add(_pendingConversationToMigrate!);
+      _pendingConversationToMigrate = null;
+    }
+
     // Notify listeners that agents list changed (important for reconnection)
     _agentsController.add(agents);
 
@@ -392,16 +412,11 @@ class RemoteVideSession implements VideSession {
     // The server stores every streaming partial, so we need to take only the final
     // version of each message (either the non-partial one, or the last partial with
     // accumulated content).
-    print('[DEBUG] _handleHistory: ${event.events.length} raw events');
     final consolidatedEvents = _consolidateHistoryMessages(event.events);
-    print('[DEBUG] _handleHistory: ${consolidatedEvents.length} consolidated events');
 
     // Process consolidated history events without seq filtering
     // Mark as history replay so messages don't get accumulated
     for (final parsed in consolidatedEvents) {
-      if (parsed is vc.MessageEvent) {
-        print('[DEBUG] Processing history message: role=${parsed.role}, content="${parsed.content.substring(0, parsed.content.length.clamp(0, 50))}", isPartial=${parsed.isPartial}');
-      }
       _handleClientEvent(parsed, skipSeqCheck: true, isHistoryReplay: true);
     }
     _lastSeq = event.lastSeq;
@@ -422,8 +437,6 @@ class RemoteVideSession implements VideSession {
     final messagesByEventId = <String, List<vc.MessageEvent>>{};
     // Track positions for message events to maintain order
     final eventIdPositions = <String, int>{};
-
-    print('[DEBUG] _consolidateHistoryMessages: rawEvents types = ${rawEvents.map((e) => e.runtimeType).toSet()}');
 
     // First pass: parse all events and group messages by eventId
     for (int i = 0; i < rawEvents.length; i++) {
