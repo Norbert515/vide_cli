@@ -33,12 +33,18 @@ class FlutterRuntimeServer extends McpServerBase {
     }
   }
 
-  /// Creates an ImageContent from screenshot bytes, resizing if needed to fit Claude API limits.
+  /// Creates an ImageContent from screenshot bytes, resizing and validating to fit Claude API limits.
   ImageContent _createScreenshotContent(List<int> screenshotBytes) {
     final resizedBytes = resizeImageIfNeeded(screenshotBytes);
-    return ImageContent(
-      data: base64.encode(resizedBytes),
+    // Ensure the image fits within Claude's 5MB API limit
+    final validated = ImageValidator.ensureWithinLimits(
+      Uint8List.fromList(resizedBytes),
       mimeType: 'image/png',
+      onWarning: (msg) => print('[flutter-runtime] $msg'),
+    );
+    return ImageContent(
+      data: base64.encode(validated.bytes),
+      mimeType: validated.mimeType,
     );
   }
 

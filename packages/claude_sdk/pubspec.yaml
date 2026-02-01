@@ -7,6 +7,7 @@ environment:
   sdk: ^3.8.0
 
 dependencies:
+  image: ^4.0.0
   json_annotation: ^4.8.1
   mcp_dart: ^0.6.3
   path: ^1.8.3

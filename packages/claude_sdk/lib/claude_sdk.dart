@@ -28,5 +28,8 @@ export 'src/settings/settings.dart';
 export 'src/mcp/server/mcp_server_base.dart';
 export 'src/mcp/utils/port_manager.dart';
 
+// Utils
+export 'src/utils/image_validator.dart';
+
 // Note: ConfidenceServer and ConfidenceUpdate moved to main project at lib/mcp/
 // Note: PermissionServer removed - using hook-based permissions instead
