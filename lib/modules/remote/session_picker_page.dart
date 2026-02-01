@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_client/vide_client.dart' as vc;
 import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
@@ -230,18 +231,25 @@ class _SessionPickerPageState extends State<SessionPickerPage> {
   }
 
   Future<void> _connectToSession(String sessionId) async {
-    // Get full session details to get the wsUrl
+    final remoteConfig = context.read(remoteConfigProvider);
+    if (remoteConfig == null) {
+      setState(() {
+        _error = 'No remote configuration';
+        _loading = false;
+      });
+      return;
+    }
+
     try {
-      final details = await _client!.getSession(sessionId);
-
-      // Create and connect the remote session
-      final remoteSession = RemoteVideSession(
-        sessionId: sessionId,
-        wsUrl: details.wsUrl,
-        authToken: context.read(remoteConfigProvider)?.authToken,
+      // Use vide_client to connect to the existing session
+      final videClient = vc.VideClient(
+        host: remoteConfig.host,
+        port: remoteConfig.port,
       );
+      final clientSession = await videClient.connectToSession(sessionId);
 
-      await remoteSession.connect();
+      // Wrap with RemoteVideSession for full business event handling
+      final remoteSession = RemoteVideSession.fromClientSession(clientSession);
 
       // Store in provider for the rest of the app
       context.read(remoteVideSessionProvider.notifier).state = remoteSession;

@@ -10,6 +10,7 @@ environment:
 dependencies:
   claude_sdk: any
   flutter_runtime_mcp: any
+  vide_client: any
   riverpod: ^2.5.1
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1
