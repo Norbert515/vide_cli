@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
+import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 
 void main() {
   group('RemoteVideSession conversation handling', () {
