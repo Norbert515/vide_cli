@@ -91,7 +91,7 @@ class VideSession {
     PermissionCheckerConfig? permissionConfig,
   }) : _networkId = networkId,
        _container = container,
-       _eventController = StreamController<VideEvent>.broadcast() {
+       _eventController = StreamController<VideEvent>.broadcast(sync: true) {
     // Create buffered event stream that replays events to late subscribers
     _bufferedEvents = _BufferedEventStream(_eventController.stream);
 
