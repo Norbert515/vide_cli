@@ -34,6 +34,16 @@ class RemoteVideSession implements VideSession {
   /// Working directory (from connected event metadata).
   String _workingDirectory = '';
 
+  /// Session goal/task name.
+  String _goal = 'Session';
+
+  /// Controller for goal changes.
+  final StreamController<String> _goalController =
+      StreamController<String>.broadcast();
+
+  /// Team name for this session.
+  String _team = 'vide';
+
   /// Conversation state per agent.
   final Map<String, Conversation> _conversations = {};
 
@@ -1037,6 +1047,15 @@ class RemoteVideSession implements VideSession {
   String get workingDirectory => _workingDirectory;
 
   @override
+  String get goal => _goal;
+
+  @override
+  Stream<String> get goalStream => _goalController.stream;
+
+  @override
+  String get team => _team;
+
+  @override
   void sendMessage(Message message, {String? agentId}) {
     _checkNotDisposed();
     _channel?.sink.add(
@@ -1106,6 +1125,7 @@ class RemoteVideSession implements VideSession {
 
     await _connectionStateController.close();
     await _agentsController.close();
+    await _goalController.close();
     await _eventController.close();
   }
 

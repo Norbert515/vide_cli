@@ -82,7 +82,7 @@ final isOnHomePageProvider = StateProvider<bool>((ref) => true);
 final repoPathOverrideProvider = StateProvider<String?>((ref) => null);
 
 /// Provider for current repository path. Uses manual override if set,
-/// otherwise uses effective working directory from the agent network
+/// otherwise uses effective working directory from the current session
 /// (accounts for worktrees), or falls back to Directory.current.path.
 final currentRepoPathProvider = Provider<String>((ref) {
   // Manual override takes precedence
@@ -90,9 +90,9 @@ final currentRepoPathProvider = Provider<String>((ref) {
   if (override != null) {
     return override;
   }
-  // Otherwise use agent network's effective directory
-  final networkManager = ref.watch(agentNetworkManagerProvider.notifier);
-  return networkManager.effectiveWorkingDirectory;
+  // Otherwise use session's working directory
+  final session = ref.watch(currentVideSessionProvider);
+  return session?.workingDirectory ?? Directory.current.path;
 });
 
 /// Global permission handler for late session binding.

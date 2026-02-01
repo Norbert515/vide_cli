@@ -363,3 +363,27 @@ class AskUserQuestionOptionData {
     required this.description,
   });
 }
+
+/// The session/network goal (task name) was changed.
+///
+/// This is emitted when the main task name is updated via setTaskName MCP tool.
+final class TaskNameChangedEvent extends VideEvent {
+  /// The new goal/task name.
+  final String newGoal;
+
+  /// The previous goal/task name.
+  final String? previousGoal;
+
+  TaskNameChangedEvent({
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.newGoal,
+    this.previousGoal,
+  });
+
+  @override
+  String toString() => 'TaskNameChangedEvent($previousGoal -> $newGoal)';
+}
