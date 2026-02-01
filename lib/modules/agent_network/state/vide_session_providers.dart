@@ -38,15 +38,7 @@ final remoteSessionConnectionProvider = StreamProvider<bool>((ref) {
 /// This is the primary way to track which session is active.
 /// Set this when creating or resuming a session.
 /// Set to null when no session is active (e.g., on home page).
-///
-/// For backwards compatibility, this also syncs with [agentNetworkManagerProvider]
-/// to support gradual migration of code that still uses the old pattern.
-final currentSessionIdProvider = StateProvider<String?>((ref) {
-  // Sync with the legacy agentNetworkManagerProvider for backwards compatibility
-  // TODO: Remove this once all code migrates to using currentSessionIdProvider directly
-  final networkState = ref.watch(agentNetworkManagerProvider);
-  return networkState.currentNetwork?.id;
-});
+final currentSessionIdProvider = StateProvider<String?>((ref) => null);
 
 /// Provider for the current VideSession based on the active session ID.
 ///
