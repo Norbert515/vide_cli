@@ -2,7 +2,6 @@
 enum SettingsCategory {
   general('General', 'Basic settings'),
   appearance('Appearance', 'Theme and colors'),
-  server('Server', 'Embedded HTTP/WebSocket server'),
   mcpServers('MCP Servers', 'Manage MCP server connections'),
   about('About', 'Version and information');
 
