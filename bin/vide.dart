@@ -4,6 +4,7 @@ import 'package:args/args.dart';
 import 'package:vide_cli/main.dart' as app;
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_daemon/vide_daemon.dart';
+import 'package:vide_server/vide_server.dart' as server;
 import 'package:path/path.dart' as path;
 
 void main(List<String> args) async {
@@ -73,6 +74,18 @@ void main(List<String> args) async {
       help:
           'Bind to all network interfaces (0.0.0.0) instead of localhost only. '
           'WARNING: Use with --token or --generate-token for security.',
+    )
+    // Hidden flag for internal use by the daemon to spawn session servers
+    ..addFlag(
+      'session-server',
+      negatable: false,
+      hide: true,
+      help: 'Internal: Start as a session server (used by daemon)',
+    )
+    ..addOption(
+      'working-dir',
+      hide: true,
+      help: 'Internal: Working directory for session server',
     );
 
   ArgResults argResults;
@@ -93,6 +106,12 @@ void main(List<String> args) async {
   if (argResults['version'] as bool) {
     print('vide $videVersion');
     exit(0);
+  }
+
+  // Handle --session-server flag: internal mode for daemon to spawn sessions
+  if (argResults['session-server'] as bool) {
+    await _startSessionServer(argResults);
+    return; // Never returns, but for clarity
   }
 
   // Handle --serve flag: start daemon server instead of TUI
@@ -205,6 +224,35 @@ DESCRIPTION:
 
 For more information, visit: https://github.com/Norbert515/vide_cli
 ''');
+}
+
+/// Start as a session server (internal mode, invoked by daemon).
+Future<void> _startSessionServer(ArgResults argResults) async {
+  // Parse required arguments
+  final portStr = argResults['port'] as String;
+  final port = int.tryParse(portStr);
+  if (port == null) {
+    print('Error: Port must be a valid number, got: $portStr');
+    exit(1);
+  }
+
+  final workingDir = argResults['working-dir'] as String?;
+  if (workingDir == null) {
+    print('Error: --working-dir is required for --session-server mode');
+    exit(1);
+  }
+
+  // Change to the specified working directory
+  Directory.current = workingDir;
+
+  // Start the server
+  await server.startServer(server.VideServerConfig(
+    port: port,
+    workingDirectory: workingDir,
+  ));
+
+  // Keep the process alive
+  await Completer<void>().future;
 }
 
 /// Start the daemon server (non-TUI mode).

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../protocol/daemon_messages.dart';
+import 'daemon_starter.dart' show SessionSpawnConfig;
 import 'session_event_monitor.dart';
 
 /// Manages a single vide_server subprocess.
@@ -79,7 +80,7 @@ class SessionProcess {
   static Future<SessionProcess> spawn({
     required String initialMessage,
     required String workingDirectory,
-    required String videServerPath,
+    required SessionSpawnConfig spawnConfig,
     String? model,
     String? permissionMode,
     String? team,
@@ -96,13 +97,23 @@ class SessionProcess {
     await serverSocket.close();
 
     log.info(
-      'Starting vide_server on port $port for workDir: $workingDirectory',
+      'Starting session server on port $port for workDir: $workingDirectory',
     );
 
-    // Start vide_server process
+    // Get spawn command from config
+    final spawnCommand = spawnConfig.getSpawnCommand(
+      port: port,
+      workingDirectory: workingDirectory,
+    );
+
+    log.fine(
+      'Spawn command: ${spawnCommand.executable} ${spawnCommand.args.join(' ')}',
+    );
+
+    // Start session server process
     final process = await Process.start(
-      'dart',
-      ['run', videServerPath, '--port', port.toString()],
+      spawnCommand.executable,
+      spawnCommand.args,
       workingDirectory: workingDirectory,
       environment: {
         ...Platform.environment,

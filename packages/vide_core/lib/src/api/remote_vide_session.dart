@@ -216,9 +216,14 @@ class RemoteVideSession implements VideSession {
   ///
   /// This is called during optimistic navigation so the user sees their
   /// message immediately, before the server responds.
+  ///
+  /// Also emits a status event showing the agent as "working" so the UI
+  /// displays activity immediately.
   void addPendingUserMessage(String content) {
     final agentId = _mainAgentId;
     if (agentId == null) return;
+
+    final agentInfo = _agents[agentId];
 
     var conversation = _conversations[agentId] ?? Conversation.empty();
     final messages = List<ConversationMessage>.from(conversation.messages);
@@ -244,6 +249,17 @@ class RemoteVideSession implements VideSession {
 
     // Notify listeners
     _getOrCreateConversationController(agentId).add(conversation);
+
+    // Emit optimistic status event so UI shows the agent as working
+    _eventController.add(
+      StatusEvent(
+        agentId: agentId,
+        agentType: agentInfo?.type ?? 'main',
+        agentName: agentInfo?.name,
+        taskName: null,
+        status: VideAgentStatus.working,
+      ),
+    );
   }
 
   void _initWithMainAgent(String? mainAgentId) {
@@ -288,11 +304,19 @@ class RemoteVideSession implements VideSession {
   /// Handle an event from the vide_client session.
   ///
   /// This adapts wire-format events to business events.
-  void _handleClientEvent(vc.VideEvent event) {
-    // Deduplicate by seq
-    final seq = event.seq ?? 0;
-    if (seq > 0 && seq <= _lastSeq) return;
-    if (seq > 0) _lastSeq = seq;
+  /// If [skipSeqCheck] is true, deduplication is skipped (for history replay).
+  /// If [isHistoryReplay] is true, messages are treated as complete (not accumulated).
+  void _handleClientEvent(
+    vc.VideEvent event, {
+    bool skipSeqCheck = false,
+    bool isHistoryReplay = false,
+  }) {
+    // Deduplicate by seq (skip for history replay)
+    if (!skipSeqCheck) {
+      final seq = event.seq ?? 0;
+      if (seq > 0 && seq <= _lastSeq) return;
+      if (seq > 0) _lastSeq = seq;
+    }
 
     switch (event) {
       case vc.ConnectedEvent():
@@ -300,7 +324,7 @@ class RemoteVideSession implements VideSession {
       case vc.HistoryEvent():
         _handleHistory(event);
       case vc.MessageEvent():
-        _handleMessage(event);
+        _handleMessage(event, isHistoryReplay: isHistoryReplay);
       case vc.ToolUseEvent():
         _handleToolUse(event);
       case vc.ToolResultEvent():
@@ -353,6 +377,9 @@ class RemoteVideSession implements VideSession {
       );
     }
 
+    // Notify listeners that agents list changed (important for reconnection)
+    _agentsController.add(agents);
+
     _connected = true;
     _connectionStateController.add(true);
     if (!_connectCompleter.isCompleted) {
@@ -361,38 +388,144 @@ class RemoteVideSession implements VideSession {
   }
 
   void _handleHistory(vc.HistoryEvent event) {
-    // Process history events without seq filtering
-    // (they're replayed history, not duplicates)
-    for (final rawEvent in event.events) {
-      if (rawEvent is Map<String, dynamic>) {
-        final parsed = vc.VideEvent.fromJson(rawEvent);
-        _handleClientEvent(parsed);
+    // Consolidate message events by eventId to avoid duplication from streaming chunks.
+    // The server stores every streaming partial, so we need to take only the final
+    // version of each message (either the non-partial one, or the last partial with
+    // accumulated content).
+    print('[DEBUG] _handleHistory: ${event.events.length} raw events');
+    final consolidatedEvents = _consolidateHistoryMessages(event.events);
+    print('[DEBUG] _handleHistory: ${consolidatedEvents.length} consolidated events');
+
+    // Process consolidated history events without seq filtering
+    // Mark as history replay so messages don't get accumulated
+    for (final parsed in consolidatedEvents) {
+      if (parsed is vc.MessageEvent) {
+        print('[DEBUG] Processing history message: role=${parsed.role}, content="${parsed.content.substring(0, parsed.content.length.clamp(0, 50))}", isPartial=${parsed.isPartial}');
       }
+      _handleClientEvent(parsed, skipSeqCheck: true, isHistoryReplay: true);
     }
     _lastSeq = event.lastSeq;
   }
 
-  void _handleMessage(vc.MessageEvent event) {
+  /// Consolidate streaming message events in history by eventId.
+  ///
+  /// When a message is streamed, the server stores each partial chunk as a separate
+  /// event. For history replay, we need to consolidate these into single messages
+  /// to avoid re-accumulating content that causes duplication.
+  ///
+  /// For messages with the same eventId:
+  /// - If there's a non-partial (final) event, use that
+  /// - Otherwise, accumulate content from all partials
+  List<vc.VideEvent> _consolidateHistoryMessages(List<dynamic> rawEvents) {
+    final result = <vc.VideEvent>[];
+    // Track message events by eventId for consolidation
+    final messagesByEventId = <String, List<vc.MessageEvent>>{};
+    // Track positions for message events to maintain order
+    final eventIdPositions = <String, int>{};
+
+    print('[DEBUG] _consolidateHistoryMessages: rawEvents types = ${rawEvents.map((e) => e.runtimeType).toSet()}');
+
+    // First pass: parse all events and group messages by eventId
+    for (int i = 0; i < rawEvents.length; i++) {
+      final rawEvent = rawEvents[i];
+      if (rawEvent is! Map<String, dynamic>) continue;
+
+      final parsed = vc.VideEvent.fromJson(rawEvent);
+
+      if (parsed is vc.MessageEvent && parsed.eventId != null) {
+        final eventId = parsed.eventId!;
+        messagesByEventId.putIfAbsent(eventId, () => []).add(parsed);
+        eventIdPositions.putIfAbsent(eventId, () => i);
+      } else {
+        // Non-message events go directly to result
+        result.add(parsed);
+      }
+    }
+
+    // Second pass: consolidate message events
+    final consolidatedMessages = <int, vc.VideEvent>{};
+    for (final entry in messagesByEventId.entries) {
+      final eventId = entry.key;
+      final messages = entry.value;
+      final position = eventIdPositions[eventId]!;
+
+      if (messages.length == 1) {
+        // Only one event for this eventId, use as-is
+        consolidatedMessages[position] = messages.first;
+      } else {
+        // Multiple events - find the final one or accumulate content
+        final finalMessage = messages.where((m) => !m.isPartial).firstOrNull;
+        if (finalMessage != null) {
+          // Use the final non-partial message (it should have full content)
+          // But server sends empty content for final, so accumulate from partials
+          final accumulatedContent =
+              messages.where((m) => m.isPartial).map((m) => m.content).join();
+          consolidatedMessages[position] = vc.MessageEvent(
+            seq: finalMessage.seq,
+            eventId: finalMessage.eventId,
+            timestamp: finalMessage.timestamp,
+            agent: finalMessage.agent,
+            role: finalMessage.role,
+            content: accumulatedContent,
+            isPartial: false,
+          );
+        } else {
+          // All partials - accumulate content
+          final last = messages.last;
+          final accumulatedContent = messages.map((m) => m.content).join();
+          consolidatedMessages[position] = vc.MessageEvent(
+            seq: last.seq,
+            eventId: last.eventId,
+            timestamp: last.timestamp,
+            agent: last.agent,
+            role: last.role,
+            content: accumulatedContent,
+            isPartial: true,
+          );
+        }
+      }
+    }
+
+    // Insert consolidated messages at their original positions
+    final sortedPositions = consolidatedMessages.keys.toList()..sort();
+    for (final position in sortedPositions) {
+      result.insert(
+        result.length.clamp(0, position),
+        consolidatedMessages[position]!,
+      );
+    }
+
+    // Sort by seq to maintain proper order
+    result.sort((a, b) => (a.seq ?? 0).compareTo(b.seq ?? 0));
+
+    return result;
+  }
+
+  void _handleMessage(vc.MessageEvent event, {bool isHistoryReplay = false}) {
     final agentId = event.agent?.id ?? '';
     final agentInfo = _agents[agentId];
     final eventId = event.eventId ?? const Uuid().v4();
 
-    // Track streaming state
-    if (event.isPartial) {
-      _currentMessageEventIds[agentId] = eventId;
-    } else {
-      _currentMessageEventIds.remove(agentId);
+    // Track streaming state (skip for history replay - messages are already complete)
+    if (!isHistoryReplay) {
+      if (event.isPartial) {
+        _currentMessageEventIds[agentId] = eventId;
+      } else {
+        _currentMessageEventIds.remove(agentId);
+      }
     }
 
     final role = event.role == vc.MessageRole.user ? 'user' : 'assistant';
 
     // Update conversation state
+    // For history replay, messages should not be accumulated
     _updateConversation(
       agentId: agentId,
       eventId: eventId,
       role: role,
       content: event.content,
       isPartial: event.isPartial,
+      isHistoryReplay: isHistoryReplay,
     );
 
     _eventController.add(
@@ -611,94 +744,158 @@ class RemoteVideSession implements VideSession {
     required String role,
     required String content,
     required bool isPartial,
+    bool isHistoryReplay = false,
   }) {
     var conversation = _conversations[agentId] ?? Conversation.empty();
     final messages = List<ConversationMessage>.from(conversation.messages);
 
     if (role == 'user') {
-      // User messages are always new messages
-      messages.add(
-        ConversationMessage(
-          id: eventId,
-          role: MessageRole.user,
-          content: content,
-          timestamp: DateTime.now(),
-          responses: [],
-          isStreaming: false,
-          isComplete: true,
-          messageType: MessageType.userMessage,
-        ),
-      );
+      // Check if this user message already exists (from optimistic add)
+      // We compare by content since IDs may differ between optimistic and server events
+      final isDuplicate = messages.isNotEmpty &&
+          messages.last.role == MessageRole.user &&
+          messages.last.content == content;
+
+      if (!isDuplicate) {
+        messages.add(
+          ConversationMessage(
+            id: eventId,
+            role: MessageRole.user,
+            content: content,
+            timestamp: DateTime.now(),
+            responses: [],
+            isStreaming: false,
+            isComplete: true,
+            messageType: MessageType.userMessage,
+          ),
+        );
+      }
       // Clear any current assistant message tracking since user started new turn
       _currentAssistantMessageId.remove(agentId);
     } else {
-      // Assistant message - add to current assistant message
-      final currentMsgId = _currentAssistantMessageId[agentId];
-      final existingIndex = currentMsgId != null
-          ? messages.indexWhere((m) => m.id == currentMsgId)
-          : -1;
-
-      if (existingIndex >= 0) {
-        // Add text to existing assistant message
-        final existing = messages[existingIndex];
-        final newContent = existing.content + content;
-        final responses = List<ClaudeResponse>.from(existing.responses);
-
-        if (content.isNotEmpty) {
-          responses.add(
-            TextResponse(
-              id: const Uuid().v4(),
-              timestamp: DateTime.now(),
-              content: content,
-              isPartial: true,
-            ),
-          );
-        }
-
-        messages[existingIndex] = ConversationMessage(
-          id: existing.id,
-          role: MessageRole.assistant,
-          content: newContent,
-          timestamp: existing.timestamp,
-          responses: responses,
-          isStreaming: isPartial,
-          isComplete: !isPartial,
-          messageType: MessageType.assistantText,
-        );
-      } else {
-        // Create new assistant message
-        final newMsgId = eventId;
-        _currentAssistantMessageId[agentId] = newMsgId;
-
-        final responses = <ClaudeResponse>[];
-        if (content.isNotEmpty) {
-          responses.add(
-            TextResponse(
-              id: const Uuid().v4(),
-              timestamp: DateTime.now(),
-              content: content,
-              isPartial: true,
-            ),
-          );
-        }
-
-        messages.add(
-          ConversationMessage(
-            id: newMsgId,
+      // Assistant message handling
+      //
+      // For history replay: messages are already consolidated, so just add them
+      // without accumulating. This prevents duplication from replaying streaming chunks.
+      //
+      // For live streaming: accumulate chunks into current message by ID.
+      if (isHistoryReplay) {
+        // History replay - add message directly without accumulation
+        // Check for duplicate by eventId first
+        final existingIndex = messages.indexWhere((m) => m.id == eventId);
+        if (existingIndex >= 0) {
+          // Update existing message (shouldn't happen with proper consolidation)
+          final existing = messages[existingIndex];
+          messages[existingIndex] = ConversationMessage(
+            id: existing.id,
             role: MessageRole.assistant,
             content: content,
-            timestamp: DateTime.now(),
+            timestamp: existing.timestamp,
+            responses: [
+              if (content.isNotEmpty)
+                TextResponse(
+                  id: const Uuid().v4(),
+                  timestamp: DateTime.now(),
+                  content: content,
+                  isPartial: false,
+                ),
+            ],
+            isStreaming: false,
+            isComplete: true,
+            messageType: MessageType.assistantText,
+          );
+        } else {
+          // Add new message
+          messages.add(
+            ConversationMessage(
+              id: eventId,
+              role: MessageRole.assistant,
+              content: content,
+              timestamp: DateTime.now(),
+              responses: [
+                if (content.isNotEmpty)
+                  TextResponse(
+                    id: const Uuid().v4(),
+                    timestamp: DateTime.now(),
+                    content: content,
+                    isPartial: false,
+                  ),
+              ],
+              isStreaming: false,
+              isComplete: true,
+              messageType: MessageType.assistantText,
+            ),
+          );
+        }
+      } else {
+        // Live streaming - accumulate chunks into current message
+        final currentMsgId = _currentAssistantMessageId[agentId];
+        final existingIndex = currentMsgId != null
+            ? messages.indexWhere((m) => m.id == currentMsgId)
+            : -1;
+
+        if (existingIndex >= 0) {
+          // Add text to existing assistant message
+          final existing = messages[existingIndex];
+          final newContent = existing.content + content;
+          final responses = List<ClaudeResponse>.from(existing.responses);
+
+          if (content.isNotEmpty) {
+            responses.add(
+              TextResponse(
+                id: const Uuid().v4(),
+                timestamp: DateTime.now(),
+                content: content,
+                isPartial: true,
+              ),
+            );
+          }
+
+          messages[existingIndex] = ConversationMessage(
+            id: existing.id,
+            role: MessageRole.assistant,
+            content: newContent,
+            timestamp: existing.timestamp,
             responses: responses,
             isStreaming: isPartial,
             isComplete: !isPartial,
             messageType: MessageType.assistantText,
-          ),
-        );
-      }
+          );
+        } else {
+          // Create new assistant message
+          final newMsgId = eventId;
+          _currentAssistantMessageId[agentId] = newMsgId;
 
-      // Clear tracking when turn completes
-      if (!isPartial) {
-        _currentAssistantMessageId.remove(agentId);
+          final responses = <ClaudeResponse>[];
+          if (content.isNotEmpty) {
+            responses.add(
+              TextResponse(
+                id: const Uuid().v4(),
+                timestamp: DateTime.now(),
+                content: content,
+                isPartial: true,
+              ),
+            );
+          }
+
+          messages.add(
+            ConversationMessage(
+              id: newMsgId,
+              role: MessageRole.assistant,
+              content: content,
+              timestamp: DateTime.now(),
+              responses: responses,
+              isStreaming: isPartial,
+              isComplete: !isPartial,
+              messageType: MessageType.assistantText,
+            ),
+          );
+        }
+
+        // Clear tracking when turn completes
+        if (!isPartial) {
+          _currentAssistantMessageId.remove(agentId);
+        }
       }
     }
 

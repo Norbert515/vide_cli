@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 
 import '../protocol/daemon_events.dart';
 import '../protocol/daemon_messages.dart';
+import 'daemon_starter.dart' show SessionSpawnConfig;
 import 'session_process.dart';
 
 /// Result of a health check for a session.
@@ -29,8 +30,8 @@ class SessionRegistry {
   /// Path to state file for persistence.
   final String stateFilePath;
 
-  /// Path to vide_server entry point (for spawning new sessions).
-  final String videServerPath;
+  /// Configuration for spawning session server processes.
+  final SessionSpawnConfig spawnConfig;
 
   /// Event controller for broadcasting daemon events.
   final StreamController<DaemonEvent> _eventController =
@@ -44,7 +45,7 @@ class SessionRegistry {
 
   final Logger _log = Logger('SessionRegistry');
 
-  SessionRegistry({required this.stateFilePath, required this.videServerPath});
+  SessionRegistry({required this.stateFilePath, required this.spawnConfig});
 
   /// Get all active sessions.
   Iterable<SessionProcess> get sessions => _sessions.values;
@@ -65,7 +66,7 @@ class SessionRegistry {
     final session = await SessionProcess.spawn(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
-      videServerPath: videServerPath,
+      spawnConfig: spawnConfig,
       model: model,
       permissionMode: permissionMode,
       team: team,

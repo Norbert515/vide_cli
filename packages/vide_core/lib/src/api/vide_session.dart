@@ -655,6 +655,19 @@ class VideSession {
       agentName: agent.name,
     );
 
+    // Emit initial status event so UI shows agent state immediately.
+    // Default status is 'working' since agents start processing right away.
+    final initialStatus = _container.read(agentStatusProvider(agent.id));
+    _eventController.add(
+      StatusEvent(
+        agentId: agent.id,
+        agentType: agent.type,
+        agentName: agent.name,
+        taskName: agent.taskName,
+        status: _mapStatus(initialStatus),
+      ),
+    );
+
     // IMPORTANT: First replay the current conversation state
     // This catches up on any messages that were sent before we subscribed
     final currentConversation = client.currentConversation;

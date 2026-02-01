@@ -132,7 +132,7 @@ class __$$ConnectionStateImplCopyWithImpl<$Res>
 
 class _$ConnectionStateImpl implements _ConnectionState {
   const _$ConnectionStateImpl(
-      {this.host = '',
+      {this.host = 'localhost',
       this.port = 8080,
       this.status = ConnectionStatus.disconnected,
       this.error});

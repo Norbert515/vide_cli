@@ -12,7 +12,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:logging/logging.dart';
 import 'package:vide_core/vide_core.dart';
 import '../dto/session_dto.dart';
-import '../services/session_event_store.dart';
+import '../services/session_broadcaster.dart';
 import '../services/server_config.dart';
 
 final _log = Logger('SessionRoutes');
@@ -113,6 +113,9 @@ Future<Response> createSession(
 
   _log.info('Session created: ${session.id}');
 
+  // Register with broadcaster (ensures events are stored once)
+  SessionBroadcasterRegistry.instance.getOrCreate(session);
+
   // Cache for WebSocket access
   sessionCache[session.id] = session;
 
@@ -134,21 +137,20 @@ Future<Response> createSession(
 
 /// Simplified stream handler using VideSession as the single interface.
 ///
-/// This replaces the complex _SessionStreamManager class by:
-/// 1. Subscribing to session.events (single stream for all agents)
-/// 2. Mapping VideEvent -> SessionEvent for the WebSocket protocol
-/// 3. Using session.respondToPermission() for permission handling
-/// 4. Using session.sendMessage() for user messages
+/// Events are stored centrally by SessionBroadcaster. This handler only:
+/// 1. Sends history on connect
+/// 2. Forwards live events to the WebSocket client
+/// 3. Handles client messages (user input, permissions, abort)
 class _SimplifiedStreamHandler {
   final VideSession session;
   final WebSocketChannel channel;
   final ServerConfig serverConfig;
 
-  /// Event store for persistence across reconnects
-  final SessionEventStore _eventStore = SessionEventStore.instance;
+  /// Broadcaster that stores events and broadcasts to all clients
+  late final SessionBroadcaster _broadcaster;
 
-  /// Subscription to session events
-  StreamSubscription<VideEvent>? _eventSubscription;
+  /// Function to unregister from broadcaster on cleanup
+  void Function()? _unregister;
 
   /// Permission timeout timers
   final Map<String, Timer> _permissionTimers = {};
@@ -157,48 +159,38 @@ class _SimplifiedStreamHandler {
     required this.session,
     required this.channel,
     required this.serverConfig,
-  });
+  }) {
+    _broadcaster = SessionBroadcasterRegistry.instance.getOrCreate(session);
+  }
 
   String get sessionId => session.id;
 
-  /// Get the next sequence number for this session
-  int _nextSeq() => _eventStore.nextSeq(sessionId);
-
   /// Set up the WebSocket stream
   Future<void> setup() async {
-    _log.info('[Session $sessionId] Setting up stream via VideSession');
+    _log.info('[Session $sessionId] Setting up stream');
 
-    // Send connected event (server protocol event, not VideSession event)
+    // Send connected event
     final agents = session.agents;
     final connectedEvent = ConnectedEvent(
       sessionId: sessionId,
       mainAgentId: session.mainAgent?.id ?? '',
-      lastSeq: _eventStore.getLastSeq(sessionId),
+      lastSeq: _broadcaster.history.length,
       agents: agents.map((a) => AgentInfo(id: a.id, type: a.type, name: a.name)).toList(),
       metadata: {'working-directory': session.workingDirectory},
     );
     channel.sink.add(connectedEvent.toJsonString());
     _log.info('[Session $sessionId] Sent connected event');
 
-    // Send history event (for reconnection support)
+    // Send history
     final historyEvent = HistoryEvent(
-      lastSeq: _eventStore.getLastSeq(sessionId),
-      events: _eventStore.getEvents(sessionId),
+      lastSeq: _broadcaster.history.length,
+      events: _broadcaster.history,
     );
     channel.sink.add(historyEvent.toJsonString());
-    _log.info('[Session $sessionId] Sent history with ${historyEvent.events.length} events');
+    _log.info('[Session $sessionId] Sent history with ${_broadcaster.history.length} events');
 
-    // Subscribe to VideSession events and map to SessionEvent
-    _eventSubscription = session.events.listen(
-      _handleVideEvent,
-      onError: (error) {
-        _log.warning('[Session $sessionId] Event stream error: $error');
-        _sendError(error.toString());
-      },
-      onDone: () {
-        _log.info('[Session $sessionId] Event stream closed');
-      },
-    );
+    // Register for live events (broadcaster handles storage)
+    _unregister = _broadcaster.addClient(_handleBroadcastEvent);
 
     // Listen for client messages
     channel.stream.listen(
@@ -211,191 +203,40 @@ class _SimplifiedStreamHandler {
     );
   }
 
-  /// Map VideEvent to SessionEvent and send to client
-  void _handleVideEvent(VideEvent event) {
-    final sessionEvent = _mapVideEventToSessionEvent(event);
-    if (sessionEvent == null) return;
-
-    // Start permission timeout for permission requests
-    if (event is PermissionRequestEvent) {
-      _startPermissionTimeout(event);
+  /// Handle event from broadcaster (already stored, just forward)
+  void _handleBroadcastEvent(Map<String, dynamic> event) {
+    // Start permission timeout if needed
+    if (event case {'type': 'permission-request', 'data': {'request-id': String requestId}}) {
+      _startPermissionTimeout(requestId);
     }
 
-    // Store and send
-    _eventStore.storeEvent(sessionId, sessionEvent.seq, sessionEvent.toJson());
-    channel.sink.add(sessionEvent.toJsonString());
-  }
-
-  /// Map VideEvent to SessionEvent (returns null if event should be skipped)
-  SessionEvent? _mapVideEventToSessionEvent(VideEvent event) {
-    switch (event) {
-      case MessageEvent e:
-        return SessionEvent.message(
-          seq: _nextSeq(),
-          eventId: e.eventId,
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          role: e.role,
-          content: e.content,
-          isPartial: e.isPartial,
-        );
-
-      case ToolUseEvent e:
-        return SessionEvent.toolUse(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          toolUseId: e.toolUseId,
-          toolName: e.toolName,
-          toolInput: e.toolInput,
-        );
-
-      case ToolResultEvent e:
-        return SessionEvent.toolResult(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          toolUseId: e.toolUseId,
-          toolName: e.toolName,
-          result: e.result,
-          isError: e.isError,
-        );
-
-      case StatusEvent e:
-        return SessionEvent.status(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          status: _mapAgentStatus(e.status),
-        );
-
-      case TurnCompleteEvent e:
-        return SessionEvent.done(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-        );
-
-      case AgentSpawnedEvent e:
-        return SessionEvent.agentSpawned(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          spawnedBy: e.spawnedBy,
-        );
-
-      case AgentTerminatedEvent e:
-        return SessionEvent.agentTerminated(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          terminatedBy: 'unknown',
-        );
-
-      case PermissionRequestEvent e:
-        return SessionEvent.permissionRequest(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          requestId: e.requestId,
-          tool: {
-            'name': e.toolName,
-            'input': e.toolInput,
-            if (e.inferredPattern != null)
-              'permission-suggestions': [e.inferredPattern],
-          },
-        );
-
-      case AskUserQuestionEvent e:
-        // Map to permission request for now (client can handle specially)
-        return SessionEvent.askUserQuestion(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          requestId: e.requestId,
-          questions: e.questions.map((q) => {
-            'question': q.question,
-            'header': q.header,
-            'multi-select': q.multiSelect,
-            'options': q.options.map((o) => {
-              'label': o.label,
-              'description': o.description,
-            }).toList(),
-          }).toList(),
-        );
-
-      case ErrorEvent e:
-        return SessionEvent.error(
-          seq: _nextSeq(),
-          agentId: e.agentId,
-          agentType: e.agentType,
-          agentName: e.agentName,
-          taskName: e.taskName,
-          message: e.message,
-        );
-
-      case TaskNameChangedEvent _:
-        // Internal event, not sent to WebSocket clients
-        return null;
-    }
-  }
-
-  /// Map VideAgentStatus enum to kebab-case string for JSON
-  String _mapAgentStatus(VideAgentStatus status) {
-    switch (status) {
-      case VideAgentStatus.working:
-        return 'working';
-      case VideAgentStatus.waitingForAgent:
-        return 'waiting-for-agent';
-      case VideAgentStatus.waitingForUser:
-        return 'waiting-for-user';
-      case VideAgentStatus.idle:
-        return 'idle';
-    }
+    // Forward to client
+    channel.sink.add(jsonEncode(event));
   }
 
   /// Start permission timeout timer
-  void _startPermissionTimeout(PermissionRequestEvent event) {
+  void _startPermissionTimeout(String requestId) {
     final timeoutSeconds = serverConfig.permissionTimeoutSeconds;
     if (timeoutSeconds <= 0) return; // No timeout configured
 
-    _permissionTimers[event.requestId] = Timer(
+    _permissionTimers[requestId] = Timer(
       Duration(seconds: timeoutSeconds),
       () {
-        _log.info('[Session $sessionId] Permission timeout: ${event.requestId}');
-        _permissionTimers.remove(event.requestId);
+        _log.info('[Session $sessionId] Permission timeout: $requestId');
+        _permissionTimers.remove(requestId);
 
         // Auto-deny on timeout
-        session.respondToPermission(event.requestId, allow: false, message: 'Permission timed out');
+        session.respondToPermission(requestId, allow: false, message: 'Permission timed out');
 
-        // Send timeout event
-        final timeoutEvent = SessionEvent.permissionTimeout(
-          seq: _nextSeq(),
-          agentId: event.agentId,
-          agentType: event.agentType,
-          agentName: event.agentName,
-          taskName: event.taskName,
-          requestId: event.requestId,
-        );
-        _eventStore.storeEvent(sessionId, timeoutEvent.seq, timeoutEvent.toJson());
-        channel.sink.add(timeoutEvent.toJsonString());
+        // Send timeout event to this client only (not stored in history)
+        channel.sink.add(jsonEncode({
+          'type': 'permission-timeout',
+          'data': {
+            'request-id': requestId,
+            'message': 'Permission timed out after ${timeoutSeconds}s',
+          },
+          'timestamp': DateTime.now().toIso8601String(),
+        }));
       },
     );
   }
@@ -458,19 +299,7 @@ class _SimplifiedStreamHandler {
   void _handleAbort() {
     _log.info('[Session $sessionId] Abort requested');
     session.abort();
-
-    // Send aborted event for all agents
-    for (final agent in session.agents) {
-      final event = SessionEvent.aborted(
-        seq: _nextSeq(),
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: agent.taskName,
-      );
-      _eventStore.storeEvent(sessionId, event.seq, event.toJson());
-      channel.sink.add(event.toJsonString());
-    }
+    // Abort events will come through the broadcaster
   }
 
   void _sendError(
@@ -478,21 +307,23 @@ class _SimplifiedStreamHandler {
     String? code,
     Map<String, dynamic>? originalMessage,
   }) {
-    final event = SessionEvent.error(
-      seq: _nextSeq(),
-      agentId: 'server',
-      agentType: 'system',
-      message: message,
-      code: code,
-      originalMessage: originalMessage,
-    );
-    _eventStore.storeEvent(sessionId, event.seq, event.toJson());
-    channel.sink.add(event.toJsonString());
+    // Server errors go directly to this client only
+    channel.sink.add(jsonEncode({
+      'type': 'error',
+      'agent-id': 'server',
+      'agent-type': 'system',
+      'data': {
+        'message': message,
+        if (code != null) 'code': code,
+        if (originalMessage != null) 'original-message': originalMessage,
+      },
+      'timestamp': DateTime.now().toIso8601String(),
+    }));
   }
 
   void _cleanup() {
     _log.info('[Session $sessionId] Cleaning up');
-    _eventSubscription?.cancel();
+    _unregister?.call();
     for (final timer in _permissionTimers.values) {
       timer.cancel();
     }

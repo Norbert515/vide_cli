@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
 
 /// Screen for creating a new session.
@@ -70,14 +71,30 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
 
     notifier.setIsCreating(true);
 
-    // TODO: Implement actual session creation via API
-    // For now, simulate with a delay and navigate to a placeholder session
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final state = ref.read(sessionCreationNotifierProvider);
+      final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
 
-    if (mounted) {
-      notifier.setIsCreating(false);
-      // Navigate to session screen with a placeholder ID
-      context.go(AppRoutes.sessionPath('new-session'));
+      final session = await sessionRepo.createSession(
+        initialMessage: state.initialMessage,
+        workingDirectory: state.workingDirectory,
+        model: state.model.value,
+      );
+
+      if (mounted) {
+        notifier.setIsCreating(false);
+        context.go(AppRoutes.sessionPath(session.sessionId));
+      }
+    } catch (e) {
+      if (mounted) {
+        notifier.setIsCreating(false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to create session: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 

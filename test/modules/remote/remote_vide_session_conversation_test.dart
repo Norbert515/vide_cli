@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/vide_core.dart' show RemoteVideSession;
+import 'package:vide_core/vide_core.dart' show RemoteVideSession, VideAgent;
 
 void main() {
   group('RemoteVideSession conversation handling', () {
@@ -423,6 +423,317 @@ void main() {
         expect(session.agents.any((a) => a.id == 'agent-1'), isTrue);
         expect(session.agents.any((a) => a.id == 'agent-2'), isTrue);
         expect(session.agents.any((a) => a.id == 'agent-3'), isTrue);
+      });
+    });
+
+    group('history replay', () {
+      test('agents from history events are populated', () {
+        // First simulate connected event which sets up main agent
+        final mainAgentIdFromServer = 'main-agent-123';
+        final ts = DateTime.now().toIso8601String();
+        final connectedJson = jsonEncode({
+          'type': 'connected',
+          'seq': 0,
+          'session-id': 'test-session-123',
+          'main-agent-id': mainAgentIdFromServer,
+          'last-seq': 0,
+          'timestamp': ts,
+          'agents': [
+            {
+              'id': mainAgentIdFromServer,
+              'type': 'main',
+              'name': 'Main Agent',
+            },
+          ],
+        });
+        session.handleWebSocketMessage(connectedJson);
+
+        // Simulate a history event containing agent-spawned events
+        // Note: history events are under 'data.events'
+        final historyJson = jsonEncode({
+          'type': 'history',
+          'seq': 0,
+          'last-seq': 5,
+          'timestamp': ts,
+          'data': {
+            'events': [
+              {
+                'type': 'message',
+                'seq': 1,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'evt-1',
+                'is-partial': false,
+                'timestamp': ts,
+                'data': {'role': 'user', 'content': 'Hello'},
+              },
+              {
+                'type': 'agent-spawned',
+                'seq': 2,
+                'agent-id': 'spawned-1',
+                'agent-type': 'implementer',
+                'agent-name': 'Implementer',
+                'timestamp': ts,
+                'data': {'spawned-by': mainAgentIdFromServer},
+              },
+              {
+                'type': 'message',
+                'seq': 3,
+                'agent-id': 'spawned-1',
+                'event-id': 'evt-3',
+                'is-partial': false,
+                'timestamp': ts,
+                'data': {'role': 'assistant', 'content': 'Working on it'},
+              },
+            ],
+          },
+        });
+        session.handleWebSocketMessage(historyJson);
+
+        // Agents should be populated from history
+        // Note: pending session placeholder + main from connected + spawned from history
+        // But the pending placeholder should have different ID than main from connected
+        expect(session.agents.any((a) => a.id == mainAgentIdFromServer), isTrue);
+        expect(session.agents.any((a) => a.id == 'spawned-1'), isTrue);
+        expect(session.agents.any((a) => a.name == 'Implementer'), isTrue);
+      });
+
+      test('connected event emits to agentsStream for UI reactivity', () async {
+        // This test verifies that when we receive a connected event with agents,
+        // the agentsStream emits so that UI components can react
+        final mainAgentIdFromServer = 'main-agent-stream-test';
+        final ts = DateTime.now().toIso8601String();
+
+        // Set up a listener for the stream BEFORE the connected event
+        List<VideAgent>? emittedAgents;
+        final subscription = session.agentsStream.listen((agents) {
+          emittedAgents = agents;
+        });
+
+        final connectedJson = jsonEncode({
+          'type': 'connected',
+          'seq': 0,
+          'session-id': 'test-session-stream',
+          'main-agent-id': mainAgentIdFromServer,
+          'last-seq': 0,
+          'timestamp': ts,
+          'agents': [
+            {
+              'id': mainAgentIdFromServer,
+              'type': 'main',
+              'name': 'Stream Test Agent',
+            },
+          ],
+        });
+        session.handleWebSocketMessage(connectedJson);
+
+        // Give stream a chance to emit
+        await Future.delayed(Duration(milliseconds: 10));
+
+        // Verify the stream emitted with the agents
+        expect(emittedAgents, isNotNull);
+        expect(emittedAgents!.any((a) => a.id == mainAgentIdFromServer), isTrue);
+
+        await subscription.cancel();
+      });
+
+      test('history events are processed even with lower seq numbers', () {
+        // First set up via connected event
+        final mainAgentIdFromServer = 'main-agent-456';
+        final ts = DateTime.now().toIso8601String();
+        final connectedJson = jsonEncode({
+          'type': 'connected',
+          'seq': 0,
+          'session-id': 'test-session-456',
+          'main-agent-id': mainAgentIdFromServer,
+          'last-seq': 10, // High lastSeq
+          'timestamp': ts,
+          'agents': [
+            {
+              'id': mainAgentIdFromServer,
+              'type': 'main',
+              'name': 'Main',
+            },
+          ],
+        });
+        session.handleWebSocketMessage(connectedJson);
+
+        // Now simulate history with lower seq numbers
+        // Note: history events are under 'data.events'
+        final historyJson = jsonEncode({
+          'type': 'history',
+          'seq': 0,
+          'last-seq': 10,
+          'timestamp': ts,
+          'data': {
+            'events': [
+              {
+                'type': 'agent-spawned',
+                'seq': 2, // Lower than connected's lastSeq
+                'agent-id': 'history-agent',
+                'agent-type': 'researcher',
+                'agent-name': 'From History',
+                'timestamp': ts,
+                'data': {'spawned-by': mainAgentIdFromServer},
+              },
+            ],
+          },
+        });
+        session.handleWebSocketMessage(historyJson);
+
+        // Agent from history should still be added (skipSeqCheck for history)
+        expect(session.agents.any((a) => a.id == 'history-agent'), isTrue);
+      });
+
+      test('history streaming messages are consolidated to avoid duplication', () {
+        // This tests that when history contains multiple partial message events
+        // with the same eventId (from streaming), they are consolidated into
+        // a single message instead of being accumulated multiple times.
+        final mainAgentIdFromServer = 'main-agent-stream';
+        final ts = DateTime.now().toIso8601String();
+        final connectedJson = jsonEncode({
+          'type': 'connected',
+          'seq': 0,
+          'session-id': 'test-session-stream',
+          'main-agent-id': mainAgentIdFromServer,
+          'last-seq': 0,
+          'timestamp': ts,
+          'agents': [
+            {
+              'id': mainAgentIdFromServer,
+              'type': 'main',
+              'name': 'Main',
+            },
+          ],
+        });
+        session.handleWebSocketMessage(connectedJson);
+
+        // Simulate history with streaming message chunks (same event-id)
+        final historyJson = jsonEncode({
+          'type': 'history',
+          'seq': 0,
+          'last-seq': 5,
+          'timestamp': ts,
+          'data': {
+            'events': [
+              // User message
+              {
+                'type': 'message',
+                'seq': 1,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'user-msg-1',
+                'is-partial': false,
+                'timestamp': ts,
+                'data': {'role': 'user', 'content': 'Hello'},
+              },
+              // Assistant streaming chunks - same event-id
+              {
+                'type': 'message',
+                'seq': 2,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'assistant-msg-1',
+                'is-partial': true,
+                'timestamp': ts,
+                'data': {'role': 'assistant', 'content': 'Hello! '},
+              },
+              {
+                'type': 'message',
+                'seq': 3,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'assistant-msg-1',
+                'is-partial': true,
+                'timestamp': ts,
+                'data': {'role': 'assistant', 'content': 'How can '},
+              },
+              {
+                'type': 'message',
+                'seq': 4,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'assistant-msg-1',
+                'is-partial': true,
+                'timestamp': ts,
+                'data': {'role': 'assistant', 'content': 'I help?'},
+              },
+              // Final message marker (empty content, is-partial: false)
+              {
+                'type': 'message',
+                'seq': 5,
+                'agent-id': mainAgentIdFromServer,
+                'event-id': 'assistant-msg-1',
+                'is-partial': false,
+                'timestamp': ts,
+                'data': {'role': 'assistant', 'content': ''},
+              },
+            ],
+          },
+        });
+        session.handleWebSocketMessage(historyJson);
+
+        // Get conversation and verify messages are NOT duplicated
+        final conversation = session.getConversation(mainAgentIdFromServer);
+        expect(conversation, isNotNull);
+
+        // Should have exactly 2 messages: user + consolidated assistant
+        expect(conversation!.messages.length, equals(2));
+
+        // User message should be correct
+        expect(conversation.messages[0].role, equals(MessageRole.user));
+        expect(conversation.messages[0].content, equals('Hello'));
+
+        // Assistant message should be consolidated (not "Hello! Hello! How can How can I help?I help?")
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
+        expect(
+          conversation.messages[1].content,
+          equals('Hello! How can I help?'),
+        );
+      });
+    });
+
+    group('optimistic message deduplication', () {
+      test('optimistic user message is not duplicated when server echoes it', () {
+        // Add optimistic message
+        session.addPendingUserMessage('Hello server!');
+
+        var conversation = session.getConversation(agentId);
+        expect(conversation!.messages.length, equals(1));
+
+        // Server echoes the same message back
+        _simulateMessage(session, agentId, 'user', 'Hello server!', seq: ++seq);
+
+        // Should still be just one message (deduplicated)
+        conversation = session.getConversation(agentId);
+        expect(conversation!.messages.length, equals(1));
+        expect(conversation.messages[0].content, equals('Hello server!'));
+      });
+
+      test('different user message is not deduplicated', () {
+        // Add optimistic message
+        session.addPendingUserMessage('First message');
+
+        var conversation = session.getConversation(agentId);
+        expect(conversation!.messages.length, equals(1));
+
+        // Server sends a different message
+        _simulateMessage(session, agentId, 'user', 'Different message', seq: ++seq);
+
+        // Should have two messages
+        conversation = session.getConversation(agentId);
+        expect(conversation!.messages.length, equals(2));
+      });
+
+      test('assistant message after optimistic user message is added', () {
+        // Add optimistic message
+        session.addPendingUserMessage('Hello server!');
+
+        // Server echoes user message (deduplicated)
+        _simulateMessage(session, agentId, 'user', 'Hello server!', seq: ++seq);
+
+        // Server sends assistant response
+        _simulateMessage(session, agentId, 'assistant', 'Hello human!', seq: ++seq);
+
+        final conversation = session.getConversation(agentId);
+        expect(conversation!.messages.length, equals(2));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
       });
     });
   });

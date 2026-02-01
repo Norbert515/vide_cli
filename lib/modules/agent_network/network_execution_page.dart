@@ -156,8 +156,13 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   Component build(BuildContext context) {
     // Get session (works for both local and remote modes)
     final session = context.watch(currentVideSessionProvider);
-    final agentIds = session?.agentIds ?? [];
     final workingDirectory = session?.workingDirectory ?? '';
+
+    // Watch for agent changes - this is crucial for remote sessions where
+    // agents are populated asynchronously from history/connected events
+    final agentsAsync = context.watch(videSessionAgentsProvider);
+    final agents = agentsAsync.valueOrNull ?? session?.agents ?? [];
+    final agentIds = agents.map((a) => a.id).toList();
 
     // Get goal text from session (works for both local and remote modes)
     final goalText = session?.goal ?? 'Session';
