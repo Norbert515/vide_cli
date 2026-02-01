@@ -33,6 +33,9 @@ class NetworkExecutionPage extends StatefulComponent {
   const NetworkExecutionPage({required this.networkId, super.key});
 
   static Future<void> push(BuildContext context, String networkId) async {
+    // Set the current session ID so currentVideSessionProvider can find it
+    context.read(currentSessionIdProvider.notifier).state = networkId;
+
     return Navigator.of(context).push<void>(
       PageRoute(
         builder: (context) => NetworkExecutionPage(networkId: networkId),
