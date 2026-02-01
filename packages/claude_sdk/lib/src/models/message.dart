@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:json_annotation/json_annotation.dart';
 
+import '../utils/image_validator.dart';
+
 part 'message.g.dart';
 
 @JsonSerializable()
@@ -76,17 +78,39 @@ class Attachment {
 
   Map<String, dynamic> toClaudeJson() {
     if (type == 'image') {
+      String mediaType = mimeType ?? 'image/jpeg';
       String base64Data;
 
-      // If content is provided, use it directly
+      // If content is provided (already base64)
       if (content != null) {
-        base64Data = content!;
+        // Try to decode for validation, but if it fails, pass through unchanged
+        try {
+          final imageBytes = base64Decode(content!);
+          // Validate and compress if needed to fit Claude's 5MB API limit
+          final validated = ImageValidator.ensureWithinLimits(
+            imageBytes,
+            mimeType: mediaType,
+            onWarning: (msg) => print('[claude-sdk] $msg'),
+          );
+          base64Data = base64Encode(validated.bytes);
+          mediaType = validated.mimeType;
+        } on FormatException {
+          // Invalid base64 - pass through unchanged (will likely fail at API level)
+          base64Data = content!;
+        }
       }
-      // If path is provided, read the file and encode it
+      // If path is provided, read the file
       else if (path != null) {
         final file = File(path!);
-        final bytes = file.readAsBytesSync();
-        base64Data = base64Encode(bytes);
+        final imageBytes = file.readAsBytesSync();
+        // Validate and compress if needed to fit Claude's 5MB API limit
+        final validated = ImageValidator.ensureWithinLimits(
+          imageBytes,
+          mimeType: mediaType,
+          onWarning: (msg) => print('[claude-sdk] $msg'),
+        );
+        base64Data = base64Encode(validated.bytes);
+        mediaType = validated.mimeType;
       } else {
         throw ArgumentError(
           'Either content or path must be provided for image attachment',
@@ -97,7 +121,7 @@ class Attachment {
         'type': 'image',
         'source': {
           'type': 'base64',
-          'media_type': mimeType ?? 'image/jpeg',
+          'media_type': mediaType,
           'data': base64Data,
         },
       };
