@@ -2690,13 +2690,8 @@
         }
 
         resize() {
-          // Canvas sized to viewport (not full document) to keep center anchored in view
-          const hero = document.querySelector(".hero-section");
-          const heroWidth =
-            (hero ? hero.getBoundingClientRect().width : window.innerWidth) ||
-            window.innerWidth;
-          const maxCanvasWidth = Math.min(heroWidth, window.innerWidth * 0.9);
-          const width = Math.max(800, Math.floor(maxCanvasWidth));
+          // Canvas sized to full viewport width, vortex center stays on logo
+          const width = window.innerWidth;
           const height = window.innerHeight;
 
           this.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -2706,7 +2701,7 @@
           this.canvas.style.width = width + "px";
           this.canvas.style.height = height + "px";
           this.canvas.style.display = "block";
-          this.canvas.style.margin = "0 auto";
+          this.canvas.style.margin = "0";
 
           this.width = width * this.dpr;
           this.height = height * this.dpr;
