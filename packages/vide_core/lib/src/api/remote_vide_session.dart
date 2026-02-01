@@ -5,12 +5,61 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:vide_core/vide_core.dart';
+
+import 'conversation_state.dart';
+import 'vide_agent.dart';
+import 'vide_event.dart';
+import 'vide_session.dart';
 
 /// A VideSession that connects to a remote vide_server via WebSocket.
 ///
-/// This enables the TUI to control a session running in the daemon,
-/// translating WebSocket events to VideEvents and vice versa.
+/// This is the canonical remote session implementation, providing the full
+/// [VideSession] interface for clients connecting to a vide daemon/server.
+///
+/// ## Composability
+///
+/// This class provides three levels of composability:
+///
+/// 1. **Raw WebSocket** - Use `WebSocketChannel` directly and parse events yourself
+/// 2. **RemoteVideSession** - Full [VideSession] interface with conversation state
+///
+/// ## Usage
+///
+/// ```dart
+/// // Standard usage - session details known upfront
+/// final session = RemoteVideSession(
+///   sessionId: 'abc-123',
+///   wsUrl: 'ws://localhost:8080/api/v1/sessions/abc-123/stream',
+/// );
+/// await session.connect();
+///
+/// // Listen to events
+/// session.events.listen((event) {
+///   switch (event) {
+///     case MessageEvent(:final content): print(content);
+///     case ToolUseEvent(:final toolName): print('Using: $toolName');
+///   }
+/// });
+///
+/// // Send messages
+/// session.sendMessage(Message.text('Hello'));
+/// ```
+///
+/// ## Optimistic Navigation (Pending Sessions)
+///
+/// For UIs that want to navigate before the session is created:
+///
+/// ```dart
+/// final session = RemoteVideSession.pending();
+/// navigateToExecutionPage(session); // Navigate immediately
+///
+/// // Later, when server responds:
+/// session.completePending(
+///   sessionId: responseSessionId,
+///   wsUrl: responseWsUrl,
+///   mainAgentId: responseMainAgentId,
+/// );
+/// ```
 class RemoteVideSession implements VideSession {
   String _sessionId;
   String? _wsUrl;
@@ -81,6 +130,7 @@ class RemoteVideSession implements VideSession {
       StreamController<List<VideAgent>>.broadcast();
 
   /// Stream that emits when agents list changes (spawned/terminated).
+  @override
   Stream<List<VideAgent>> get agentsStream => _agentsController.stream;
 
   /// Whether the WebSocket is connected and ready.
@@ -107,9 +157,9 @@ class RemoteVideSession implements VideSession {
     required String wsUrl,
     String? authToken,
     String? mainAgentId,
-  }) : _sessionId = sessionId,
-       _wsUrl = wsUrl,
-       _authToken = authToken {
+  })  : _sessionId = sessionId,
+        _wsUrl = wsUrl,
+        _authToken = authToken {
     _initWithMainAgent(mainAgentId);
   }
 
@@ -119,10 +169,10 @@ class RemoteVideSession implements VideSession {
   /// the HTTP call to create the session happens in the background.
   RemoteVideSession.pending({
     String? authToken,
-  }) : _sessionId = const Uuid().v4(), // Temporary ID
-       _wsUrl = null,
-       _authToken = authToken,
-       _isPending = true {
+  })  : _sessionId = const Uuid().v4(), // Temporary ID
+        _wsUrl = null,
+        _authToken = authToken,
+        _isPending = true {
     // Pre-populate with a placeholder main agent
     final placeholderId = const Uuid().v4();
     _mainAgentId = placeholderId;
@@ -308,7 +358,8 @@ class RemoteVideSession implements VideSession {
 
   /// Handles a WebSocket message. Exposed for testing.
   @visibleForTesting
-  void handleWebSocketMessage(dynamic message) => _handleWebSocketMessage(message);
+  void handleWebSocketMessage(dynamic message) =>
+      _handleWebSocketMessage(message);
 
   void _handleWebSocketMessage(dynamic message) {
     if (message is! String) return;
@@ -346,8 +397,8 @@ class RemoteVideSession implements VideSession {
           _handleAborted(json);
       }
     } catch (e) {
-      // Log but don't crash on malformed messages
-      print('[RemoteVideSession] Error parsing message: $e');
+      // Silently ignore malformed messages to avoid crashing on protocol issues.
+      // In production, consider adding structured logging here.
     }
   }
 
@@ -565,8 +616,9 @@ class RemoteVideSession implements VideSession {
       }
     }
 
-    final state =
-        isPartial ? ConversationState.receivingResponse : ConversationState.idle;
+    final state = isPartial
+        ? ConversationState.receivingResponse
+        : ConversationState.idle;
 
     conversation = conversation.copyWith(messages: messages, state: state);
     _conversations[agentId] = conversation;
@@ -743,7 +795,10 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleToolResult(Map<String, dynamic> json, {bool skipSeqCheck = false}) {
+  void _handleToolResult(
+    Map<String, dynamic> json, {
+    bool skipSeqCheck = false,
+  }) {
     final seq = json['seq'] as int? ?? 0;
     if (!skipSeqCheck && seq <= _lastSeq) return;
     if (!skipSeqCheck) _lastSeq = seq;
@@ -888,7 +943,10 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleAgentSpawned(Map<String, dynamic> json, {bool skipSeqCheck = false}) {
+  void _handleAgentSpawned(
+    Map<String, dynamic> json, {
+    bool skipSeqCheck = false,
+  }) {
     final seq = json['seq'] as int? ?? 0;
     if (!skipSeqCheck && seq <= _lastSeq) return;
     if (!skipSeqCheck) _lastSeq = seq;
@@ -918,7 +976,10 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleAgentTerminated(Map<String, dynamic> json, {bool skipSeqCheck = false}) {
+  void _handleAgentTerminated(
+    Map<String, dynamic> json, {
+    bool skipSeqCheck = false,
+  }) {
     final seq = json['seq'] as int? ?? 0;
     if (!skipSeqCheck && seq <= _lastSeq) return;
     if (!skipSeqCheck) _lastSeq = seq;
@@ -940,7 +1001,10 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handlePermissionRequest(Map<String, dynamic> json, {bool skipSeqCheck = false}) {
+  void _handlePermissionRequest(
+    Map<String, dynamic> json, {
+    bool skipSeqCheck = false,
+  }) {
     final seq = json['seq'] as int? ?? 0;
     if (!skipSeqCheck && seq <= _lastSeq) return;
     if (!skipSeqCheck) _lastSeq = seq;

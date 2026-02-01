@@ -4,7 +4,6 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider for the VideCore instance.

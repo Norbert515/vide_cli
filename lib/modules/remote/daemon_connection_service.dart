@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
+import 'package:vide_core/vide_core.dart'
+    show videConfigManagerProvider, RemoteVideSession;
 import 'package:vide_daemon/vide_daemon.dart';
 
 import 'package:vide_cli/main.dart' show daemonModeEnabledProvider;
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 
 /// State for daemon connection.
 class DaemonConnectionState {

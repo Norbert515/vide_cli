@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
