@@ -2690,9 +2690,16 @@
         }
 
         resize() {
-          // Canvas sized to full viewport width, vortex center stays on logo
+          // Canvas sized to full document (width x full page height)
+          // Vortex center stays anchored on logo in hero section
           const width = window.innerWidth;
-          const height = window.innerHeight;
+          const docEl = document.documentElement;
+          const docHeight = Math.max(
+            docEl.scrollHeight,
+            docEl.offsetHeight,
+            docEl.clientHeight
+          );
+          const height = docHeight;
 
           this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -2705,7 +2712,8 @@
 
           this.width = width * this.dpr;
           this.height = height * this.dpr;
-          this.viewportHeight = height * this.dpr;
+          // Viewport height stays as actual viewport for shader calculations
+          this.viewportHeight = window.innerHeight * this.dpr;
 
           this.gl.viewport(0, 0, this.width, this.height);
         }
