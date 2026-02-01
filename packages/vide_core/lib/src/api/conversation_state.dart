@@ -286,6 +286,9 @@ class ConversationStateManager {
       case ErrorEvent _:
         // Errors can be handled by UI directly from event stream
         break;
+      case TaskNameChangedEvent _:
+        // Task name changes are handled separately (for goal display)
+        break;
     }
   }
 

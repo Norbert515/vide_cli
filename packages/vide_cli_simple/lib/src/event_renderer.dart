@@ -86,6 +86,9 @@ class EventRenderer {
         _renderAskUserQuestion(e);
       case ErrorEvent e:
         _renderError(e);
+      case TaskNameChangedEvent _:
+        // Internal event, no rendering needed
+        break;
     }
   }
 

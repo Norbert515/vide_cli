@@ -350,6 +350,10 @@ class _SimplifiedStreamHandler {
           taskName: e.taskName,
           message: e.message,
         );
+
+      case TaskNameChangedEvent _:
+        // Internal event, not sent to WebSocket clients
+        return null;
     }
   }
 

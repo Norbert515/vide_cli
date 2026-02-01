@@ -206,45 +206,56 @@ class VideCore {
     required String workingDirectory,
     String? model,
     String? permissionMode,
+    String? team,
   }) async {
     _checkNotDisposed();
-
-    // Get config from parent container
-    final videConfigManager = _container.read(videConfigManagerProvider);
 
     // Use the permission handler passed to VideCore (shared across sessions)
     final permissionHandler = _permissionHandler;
 
-    // Create a completely isolated container for this session.
-    // We don't use parent containers because Riverpod's dependency tracking
-    // requires all providers in the dependency chain to be overridden when
-    // any dependency is overridden, which becomes unwieldy.
-    final finalContainer = ProviderContainer(
-      overrides: [
-        // Copy config from parent
-        videConfigManagerProvider.overrideWithValue(videConfigManager),
-        // Set the working directory for this session
-        workingDirProvider.overrideWithValue(workingDirectory),
-        // Provide permission handler for late session binding
-        permissionHandlerProvider.overrideWithValue(permissionHandler),
-      ],
-    );
+    // Determine which container to use:
+    // - If we own the container (standalone VideCore), create an isolated container
+    // - If we don't own it (fromContainer), use the shared container so providers
+    //   like agentNetworkManagerProvider stay in sync with the caller's container
+    final ProviderContainer sessionContainer;
+    if (_ownsContainer) {
+      // Create a completely isolated container for this session.
+      // We don't use parent containers because Riverpod's dependency tracking
+      // requires all providers in the dependency chain to be overridden when
+      // any dependency is overridden, which becomes unwieldy.
+      final videConfigManager = _container.read(videConfigManagerProvider);
+      sessionContainer = ProviderContainer(
+        overrides: [
+          // Copy config from parent
+          videConfigManagerProvider.overrideWithValue(videConfigManager),
+          // Set the working directory for this session
+          workingDirProvider.overrideWithValue(workingDirectory),
+          // Provide permission handler for late session binding
+          permissionHandlerProvider.overrideWithValue(permissionHandler),
+        ],
+      );
+    } else {
+      // Use shared container - this keeps agentNetworkManagerProvider in sync
+      // with the caller's container (important for TUI provider watching)
+      sessionContainer = _container;
+    }
 
     // Create network via AgentNetworkManager
     // The initialClaudeClientProvider will be lazily evaluated when first accessed,
     // which will load the main agent configuration from the team framework
-    final manager = finalContainer.read(agentNetworkManagerProvider.notifier);
+    final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
     final network = await manager.startNew(
       message,
       workingDirectory: workingDirectory,
       model: model,
       permissionMode: permissionMode,
+      team: team ?? 'vide',
     );
 
     // Create the session
     final session = VideSession.create(
       networkId: network.id,
-      container: finalContainer,
+      container: sessionContainer,
     );
 
     // Bind session to permission handler (enables late binding)
