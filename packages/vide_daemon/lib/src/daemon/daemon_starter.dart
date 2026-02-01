@@ -17,7 +17,7 @@ class DaemonConfig {
   /// Defaults to ~/.vide/daemon if not specified.
   final String? stateDir;
 
-  /// Path to vide_server entry point.
+  /// Path to vide_server entry point (for source mode).
   /// Auto-detected if not specified.
   final String? videServerPath;
 
@@ -49,6 +49,54 @@ class DaemonConfig {
     this.bindAllInterfaces = false,
     this.onReady,
   });
+}
+
+/// Describes how to spawn session server processes.
+///
+/// This captures the executable and base arguments needed to start
+/// a session server. The spawn command works both when running from
+/// source (`dart run bin/vide.dart`) and when compiled (`./vide`).
+class SessionSpawnConfig {
+  /// The executable to run (e.g., 'dart' or '/path/to/vide').
+  final String executable;
+
+  /// Base arguments before --session-server (e.g., ['run', 'bin/vide.dart']).
+  /// Empty for compiled binaries.
+  final List<String> baseArgs;
+
+  const SessionSpawnConfig({
+    required this.executable,
+    required this.baseArgs,
+  });
+
+  /// Whether this is a compiled binary (no baseArgs means compiled).
+  bool get isCompiled => baseArgs.isEmpty;
+
+  /// Get the full command to spawn a session server on a given port.
+  ({String executable, List<String> args}) getSpawnCommand({
+    required int port,
+    required String workingDirectory,
+  }) {
+    return (
+      executable: executable,
+      args: [
+        ...baseArgs,
+        '--session-server',
+        '--port',
+        port.toString(),
+        '--working-dir',
+        workingDirectory,
+      ],
+    );
+  }
+
+  @override
+  String toString() {
+    if (isCompiled) {
+      return 'SessionSpawnConfig(compiled: $executable)';
+    }
+    return 'SessionSpawnConfig(source: $executable ${baseArgs.join(' ')})';
+  }
 }
 
 /// Shared daemon startup logic.
@@ -91,9 +139,9 @@ class DaemonStarter {
     // Ensure state directory exists
     await Directory(stateDir).create(recursive: true);
 
-    // Determine vide_server path
-    final videServerPath = config.videServerPath ?? _findVideServerPath();
-    _log.info('vide_server path: $videServerPath');
+    // Determine how to spawn session servers
+    final spawnConfig = _determineSpawnConfig(config.videServerPath);
+    _log.info('Session spawn config: $spawnConfig');
 
     // Handle auth token
     String? authToken = config.authToken;
@@ -104,7 +152,7 @@ class DaemonStarter {
     // Create registry
     final registry = SessionRegistry(
       stateFilePath: stateFilePath,
-      videServerPath: videServerPath,
+      spawnConfig: spawnConfig,
     );
 
     // Restore any existing sessions
@@ -175,58 +223,40 @@ class DaemonStarter {
     return path.join(homeDir, '.vide', 'daemon');
   }
 
-  /// Find the vide_server entry point.
+  /// Determine how to spawn session server processes.
   ///
-  /// Searches common locations relative to the current script.
-  static String _findVideServerPath() {
+  /// When running from source (via `dart run`), we need to use:
+  ///   dart run <script-path> --session-server ...
+  ///
+  /// When running as a compiled binary, we use:
+  ///   <binary-path> --session-server ...
+  static SessionSpawnConfig _determineSpawnConfig(String? overridePath) {
     final log = Logger('VideDaemon');
-    final scriptDir = path.dirname(Platform.script.toFilePath());
 
-    final possiblePaths = [
-      // Running from bin/ (e.g., dart run bin/vide.dart)
-      path.join(
-        scriptDir,
-        '..',
-        'packages',
-        'vide_server',
-        'bin',
-        'vide_server.dart',
-      ),
-      // Running from packages/vide_daemon/bin/
-      path.join(
-        scriptDir,
-        '..',
-        '..',
-        'vide_server',
-        'bin',
-        'vide_server.dart',
-      ),
-      // Running from packages/vide_daemon/
-      path.join(scriptDir, '..', 'vide_server', 'bin', 'vide_server.dart'),
-      // Running from repo root
-      path.join(
-        scriptDir,
-        'packages',
-        'vide_server',
-        'bin',
-        'vide_server.dart',
-      ),
-      // Running as compiled binary alongside packages
-      path.join(scriptDir, 'packages', 'vide_server', 'bin', 'vide_server.dart'),
-    ];
+    // Check if we're running as a compiled binary
+    final executableName = path.basename(Platform.resolvedExecutable);
+    final isCompiled = executableName != 'dart' && executableName != 'dart.exe';
 
-    for (final p in possiblePaths) {
-      final normalized = path.normalize(p);
-      if (File(normalized).existsSync()) {
-        return normalized;
-      }
+    if (isCompiled) {
+      // Compiled binary - spawn using the same binary with --session-server
+      log.fine('Running as compiled binary');
+      return SessionSpawnConfig(
+        executable: Platform.resolvedExecutable,
+        baseArgs: const [],
+      );
     }
 
-    // Fallback: use relative path and hope for the best
-    log.warning(
-      'Could not find vide_server, using fallback path: bin/vide_server.dart',
+    // Running from source - need to find the script path
+    // Platform.script gives us the URI to the current script
+    final scriptPath = Platform.script.toFilePath();
+    final absoluteScriptPath = path.absolute(scriptPath);
+
+    log.fine('Running from source, script: $absoluteScriptPath');
+
+    return SessionSpawnConfig(
+      executable: Platform.resolvedExecutable, // 'dart'
+      baseArgs: ['run', absoluteScriptPath],
     );
-    return 'bin/vide_server.dart';
   }
 
   /// Generate a random 32-character auth token.

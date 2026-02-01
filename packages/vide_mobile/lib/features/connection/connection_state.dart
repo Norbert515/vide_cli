@@ -17,7 +17,7 @@ enum ConnectionStatus {
 @freezed
 class ConnectionState with _$ConnectionState {
   const factory ConnectionState({
-    @Default('') String host,
+    @Default('localhost') String host,
     @Default(8080) int port,
     @Default(ConnectionStatus.disconnected) ConnectionStatus status,
     String? error,

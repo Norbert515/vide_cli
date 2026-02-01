@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../data/repositories/connection_repository.dart';
+import '../../domain/models/server_connection.dart';
 import 'connection_state.dart';
 
 /// Screen for connecting to a Vide server.
@@ -57,10 +59,30 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     }
   }
 
-  void _connect() {
+  Future<void> _connect() async {
     final state = ref.read(connectionNotifierProvider);
-    if (state.status == ConnectionStatus.connected) {
-      context.push(AppRoutes.sessions);
+    if (state.status != ConnectionStatus.connected) return;
+
+    try {
+      // Connect via the repository to store the connection state
+      final connection = ServerConnection(
+        host: state.host,
+        port: state.port,
+      );
+      await ref.read(connectionRepositoryProvider.notifier).connect(connection);
+
+      if (mounted) {
+        context.push(AppRoutes.sessions);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to connect: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     }
   }
 
