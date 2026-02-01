@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../protocol/daemon_messages.dart';
+import 'session_event_monitor.dart';
 
 /// Manages a single vide_server subprocess.
 class SessionProcess {
@@ -34,6 +35,15 @@ class SessionProcess {
 
   /// Callback invoked when process state changes.
   void Function(SessionProcessState state)? onStateChanged;
+
+  /// Last activity timestamp, updated from session events.
+  DateTime? _lastActiveAt;
+
+  /// Current agent count, tracked from spawn/terminate events.
+  int _agentCount = 1;
+
+  /// Event monitor for tracking session activity.
+  SessionEventMonitor? _eventMonitor;
 
   SessionProcess._({
     required this.sessionId,
@@ -193,6 +203,9 @@ class SessionProcess {
 
     sessionProcess._setState(SessionProcessState.ready);
 
+    // Start event monitoring immediately to track activity from the start
+    sessionProcess._startEventMonitoring();
+
     return sessionProcess;
   }
 
@@ -294,10 +307,37 @@ class SessionProcess {
     }
   }
 
+  /// Start monitoring session events via WebSocket.
+  ///
+  /// Creates a SessionEventMonitor that connects to the session's WebSocket
+  /// stream and tracks [_lastActiveAt] and [_agentCount].
+  void _startEventMonitoring() {
+    if (_eventMonitor != null) return;
+
+    _eventMonitor = SessionEventMonitor(
+      wsUrl: wsUrl,
+      sessionId: sessionId,
+      onActivity: (timestamp) => _lastActiveAt = timestamp,
+      onAgentCountChanged: (delta) {
+        _agentCount = (_agentCount + delta).clamp(1, double.maxFinite.toInt());
+        _log.fine('Agent count changed by $delta, now: $_agentCount');
+      },
+    );
+    _eventMonitor!.start();
+  }
+
+  void _stopEventMonitoring() {
+    _eventMonitor?.stop();
+    _eventMonitor = null;
+  }
+
   /// Gracefully stop the process.
   Future<void> stop() async {
     _log.info('Stopping session process');
     _setState(SessionProcessState.stopping);
+
+    // Stop event monitoring first
+    _stopEventMonitoring();
 
     // Send SIGTERM for graceful shutdown
     _process.kill(ProcessSignal.sigterm);
@@ -316,6 +356,10 @@ class SessionProcess {
   Future<void> kill() async {
     _log.info('Force killing session process');
     _setState(SessionProcessState.stopping);
+
+    // Stop event monitoring first
+    _stopEventMonitoring();
+
     _process.kill(ProcessSignal.sigkill);
     await _process.exitCode;
   }
@@ -327,8 +371,8 @@ class SessionProcess {
       workingDirectory: workingDirectory,
       goal: goal,
       createdAt: createdAt,
-      lastActiveAt: null, // TODO: Track from session events
-      agentCount: 1, // TODO: Track from session events
+      lastActiveAt: _lastActiveAt,
+      agentCount: _agentCount,
       state: state,
       connectedClients: connectedClients,
       port: port,
@@ -345,7 +389,7 @@ class SessionProcess {
       httpUrl: httpUrl,
       port: port,
       createdAt: createdAt,
-      lastActiveAt: null, // TODO: Track from session events
+      lastActiveAt: _lastActiveAt,
       state: state,
       connectedClients: connectedClients,
       pid: pid,

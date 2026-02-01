@@ -7,14 +7,10 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:path/path.dart' as path;
 import 'package:logging/logging.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_server/services/rest_permission_service.dart';
-import 'package:vide_server/services/network_cache_manager.dart';
 import 'package:vide_server/services/server_config.dart';
-import 'package:vide_server/services/session_permission_manager.dart';
 import 'package:vide_server/middleware/cors_middleware.dart';
 import 'package:vide_server/routes/filesystem_routes.dart';
 import 'package:vide_server/routes/session_routes.dart';
@@ -99,9 +95,6 @@ void main(List<String> arguments) async {
     );
   }
 
-  // Initialize permission manager with config
-  SessionPermissionManager.instance.initialize(serverConfig);
-
   // Get home directory
   final homeDir =
       Platform.environment['HOME'] ??
@@ -111,49 +104,14 @@ void main(List<String> arguments) async {
   // Use ~/.vide/api for REST API config (isolated from TUI)
   final configRoot = path.join(homeDir, '.vide', 'api');
 
-  // Create provider container with REST-specific overrides
-  final container = ProviderContainer(
-    overrides: [
-      // Config manager with REST API config root
-      videConfigManagerProvider.overrideWithValue(
-        VideConfigManager(configRoot: configRoot),
-      ),
-      // Permission callback factory that uses appropriate callback based on permission mode
-      canUseToolCallbackFactoryProvider.overrideWithValue(
-        createSmartPermissionCallback,
-      ),
-      // Working directory provider - uses current directory as default
-      //
-      // NOTE: This is used by MCP servers (e.g., MemoryMCPServer for projectPath).
-      // The actual working directory for agent operations comes from the explicit
-      // parameter passed to startNew(workingDirectory: ...), which sets the network's
-      // worktreePath. The fix in AgentNetworkManager._inflateClaudeClient ensures
-      // it uses the network's worktreePath instead of reading from this provider.
-      //
-      // LIMITATION: MCP servers currently use this shared default instead of per-network
-      // worktreePath. This could be improved in the future if MCP servers need per-network
-      // isolation (e.g., memory storage scoped to network working directory).
-      workingDirProvider.overrideWithValue(Directory.current.path),
-      // Override AgentNetworkManager provider to use a dummy working directory
-      // The actual working directory is passed explicitly to startNew()
-      agentNetworkManagerProvider.overrideWith((ref) {
-        return AgentNetworkManager(
-          workingDirectory:
-              Directory.current.path, // Dummy default, overridden by startNew()
-          ref: ref,
-        );
-      }),
-    ],
-  );
+  // Create VideCore instance - the single interface for session management
+  final videCore = VideCore(VideCoreConfig(configDir: configRoot));
 
-  // Create network cache manager
-  final persistenceManager = container.read(
-    agentNetworkPersistenceManagerProvider,
-  );
-  final cacheManager = NetworkCacheManager(persistenceManager);
+  // Simple session cache for WebSocket access
+  final sessionCache = <String, VideSession>{};
 
   // Create HTTP handler with routes
-  final handler = _createHandler(container, cacheManager, serverConfig);
+  final handler = _createHandler(videCore, sessionCache, serverConfig);
 
   // Start server on localhost only (no authentication for MVP)
   final server = await shelf_io.serve(
@@ -180,22 +138,22 @@ void main(List<String> arguments) async {
 
 /// Create the HTTP handler with routes and middleware
 Handler _createHandler(
-  ProviderContainer container,
-  NetworkCacheManager cacheManager,
+  VideCore videCore,
+  Map<String, VideSession> sessionCache,
   ServerConfig serverConfig,
 ) {
   final router = Router();
 
   // Phase 2.5 API routes (session-based, kebab-case)
   router.post('/api/v1/sessions', (Request request) {
-    return createSession(request, container, cacheManager);
+    return createSession(request, videCore, sessionCache);
   });
 
   router.get('/api/v1/sessions/<sessionId>/stream', (
     Request request,
     String sessionId,
   ) {
-    return streamSessionWebSocket(sessionId, container, cacheManager)(request);
+    return streamSessionWebSocket(sessionId, videCore, sessionCache, serverConfig)(request);
   });
 
   // Filesystem browsing API

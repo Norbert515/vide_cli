@@ -159,10 +159,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     final agentIds = session?.agentIds ?? [];
     final workingDirectory = session?.workingDirectory ?? '';
 
-    // Get goal text from network state (only available in local mode)
-    final networkState = context.watch(agentNetworkManagerProvider);
-    final currentNetwork = networkState.currentNetwork;
-    final goalText = currentNetwork?.goal ?? 'Session';
+    // Get goal text from session (works for both local and remote modes)
+    final goalText = session?.goal ?? 'Session';
 
     // Build the main content column
     final content = Container(
@@ -299,10 +297,10 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   bool _isLastAgent() {
-    final network = context.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null)
-      return true; // If no network, treat as last agent (safe default)
-    return network.agents.length <= 1;
+    final session = context.read(currentVideSessionProvider);
+    if (session == null)
+      return true; // If no session, treat as last agent (safe default)
+    return session.agents.length <= 1;
   }
 
   Future<void> _handleCommand(String commandInput) async {
@@ -360,12 +358,11 @@ class _AgentChatState extends State<_AgentChat> {
               agentId: component.agentId,
             );
           },
-          onSwitchWorktree: (path) {
+          onSwitchWorktree: (path) async {
             final container = ProviderScope.containerOf(context);
             container.read(repoPathOverrideProvider.notifier).state = path;
-            container
-                .read(agentNetworkManagerProvider.notifier)
-                .setWorktreePath(path);
+            // Use VideSession.setWorktreePath() instead of direct provider access
+            await session?.setWorktreePath(path);
           },
         );
       },

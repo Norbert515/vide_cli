@@ -6,7 +6,7 @@ part of 'network_monitor_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$networkMonitorHash() => r'52bec95fbb10bdc154f2fb7480c17452741d9f8b';
+String _$networkMonitorHash() => r'27ba39d9970935e56a275b29cc072cea94fc4218';
 
 /// Provider for monitoring network connectivity.
 ///

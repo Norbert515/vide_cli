@@ -134,24 +134,25 @@ class _HomePageState extends State<HomePage> {
         // Pre-populate the conversation with the user's message for instant feedback
         remoteSession.addPendingUserMessage(message.text);
       } else {
-        // Local mode: create session locally
+        // Local mode: create session via VideCore
         // Returns immediately - client initialization happens in background
         final worktreePath = context.read(repoPathOverrideProvider);
         final currentTeam = context.read(currentTeamProvider);
-        final network = await context
-            .read(agentNetworkManagerProvider.notifier)
-            .startNew(
-              message,
-              workingDirectory: worktreePath,
-              team: currentTeam,
-            );
+        final videCore = context.read(videoCoreProvider);
 
-        // Update the networks list
-        context
+        final session = await videCore.startSessionWithMessage(
+          message,
+          workingDirectory: worktreePath ?? Directory.current.path,
+          team: currentTeam,
+        );
+
+        // Update the networks list for home page display
+        // The session is now active and will be found via currentSessionIdProvider
+        await context
             .read(agentNetworksStateNotifierProvider.notifier)
-            .upsertNetwork(network);
+            .reload();
 
-        sessionId = network.id;
+        sessionId = session.id;
       }
 
       // Navigate to the execution page IMMEDIATELY (optimistic for daemon mode)

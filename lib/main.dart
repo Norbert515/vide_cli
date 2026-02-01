@@ -82,7 +82,7 @@ final isOnHomePageProvider = StateProvider<bool>((ref) => true);
 final repoPathOverrideProvider = StateProvider<String?>((ref) => null);
 
 /// Provider for current repository path. Uses manual override if set,
-/// otherwise uses effective working directory from the agent network
+/// otherwise uses effective working directory from the current session
 /// (accounts for worktrees), or falls back to Directory.current.path.
 final currentRepoPathProvider = Provider<String>((ref) {
   // Manual override takes precedence
@@ -90,22 +90,16 @@ final currentRepoPathProvider = Provider<String>((ref) {
   if (override != null) {
     return override;
   }
-  // Otherwise use agent network's effective directory
-  final networkManager = ref.watch(agentNetworkManagerProvider.notifier);
-  return networkManager.effectiveWorkingDirectory;
+  // Otherwise use session's working directory
+  final session = ref.watch(currentVideSessionProvider);
+  return session?.workingDirectory ?? Directory.current.path;
 });
 
-/// Provider override for sessionLookup that enables session-based permission checking.
+/// Global permission handler for late session binding.
 ///
-/// This allows the ClaudeClientFactory to resolve sessions at callback invocation time
-/// (late binding), enabling unified permission handling through VideSession.
-late final _sessionLookupOverride = sessionLookupProvider.overrideWith((ref) {
-  return (String networkId) {
-    // Look up the session from VideCore
-    final core = ref.read(videoCoreProvider);
-    return core.getSessionForNetwork(networkId);
-  };
-});
+/// This is used by the TUI to enable permission checking. After a network is
+/// created and wrapped as a session, call `setSession()` to bind it.
+final _tuiPermissionHandler = PermissionHandler();
 
 /// Provider for remote configuration. When set, TUI operates in remote mode.
 final remoteConfigProvider = StateProvider<RemoteConfig?>((ref) => null);
@@ -126,15 +120,16 @@ Future<void> main(
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
-  // Create provider container with overrides from entry point and permission callback
+  // Create provider container with overrides from entry point
   // Note: videoCoreProvider is overridden using Late pattern since it needs the container
   late final VideCore videCore;
   final container = ProviderContainer(
     overrides: [
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
-      // Session lookup for permission callbacks (enables unified permission flow)
-      _sessionLookupOverride,
+      // Permission handler for late session binding. TUI uses AgentNetworkManager directly,
+      // which reads this provider at construction time, so we must override it here.
+      permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
@@ -144,8 +139,12 @@ Future<void> main(
     ],
   );
 
-  // Create VideCore from the existing container (enables public API usage)
-  videCore = VideCore.fromContainer(container);
+  // Create VideCore from the existing container with permission handler.
+  // The handler is also passed here for any future VideCore.startSession() calls.
+  videCore = VideCore.fromContainer(
+    container,
+    permissionHandler: _tuiPermissionHandler,
+  );
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
   final configManager = container.read(videConfigManagerProvider);

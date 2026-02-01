@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
+import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 
 void main() {
   group('RemoteVideSession conversation handling', () {
@@ -480,6 +480,7 @@ void _simulateToolResult(
   String result, {
   required int seq,
   bool isError = false,
+  String toolName = 'test_tool',
 }) {
   final json = jsonEncode({
     'type': 'tool-result',
@@ -487,6 +488,7 @@ void _simulateToolResult(
     'agent-id': agentId,
     'data': {
       'tool-use-id': toolUseId,
+      'tool-name': toolName,
       'result': result,
       'is-error': isError,
     },
@@ -535,12 +537,17 @@ void _simulateAgentTerminated(
   RemoteVideSession session,
   String agentId, {
   required int seq,
+  String terminatedBy = 'main',
+  String? reason,
 }) {
   final json = jsonEncode({
     'type': 'agent-terminated',
     'seq': seq,
     'agent-id': agentId,
-    'data': {},
+    'data': {
+      'terminated-by': terminatedBy,
+      if (reason != null) 'reason': reason,
+    },
   });
   session.handleWebSocketMessage(json);
 }

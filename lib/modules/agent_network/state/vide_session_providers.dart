@@ -4,7 +4,6 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_cli/modules/remote/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider for the VideCore instance.
@@ -34,10 +33,28 @@ final remoteSessionConnectionProvider = StreamProvider<bool>((ref) {
   return remoteSession.connectionStateStream;
 });
 
-/// Provider for the current VideSession based on the active network.
+/// Provider for the ID of the currently active session.
 ///
-/// Returns null if no network is currently active.
+/// This is the primary way to track which session is active.
+/// Set this when creating or resuming a session.
+/// Set to null when no session is active (e.g., on home page).
+///
+/// For backwards compatibility, this also syncs with [agentNetworkManagerProvider]
+/// to support gradual migration of code that still uses the old pattern.
+final currentSessionIdProvider = StateProvider<String?>((ref) {
+  // Sync with the legacy agentNetworkManagerProvider for backwards compatibility
+  // TODO: Remove this once all code migrates to using currentSessionIdProvider directly
+  final networkState = ref.watch(agentNetworkManagerProvider);
+  return networkState.currentNetwork?.id;
+});
+
+/// Provider for the current VideSession based on the active session ID.
+///
+/// Returns null if no session is currently active.
 /// In remote mode, returns the [RemoteVideSession] instead.
+///
+/// This is the unified session accessor - use this to get the current session
+/// regardless of whether it's local or remote.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
   // Check if we're in remote mode first
   final remoteSession = ref.watch(remoteVideSessionProvider);
@@ -47,14 +64,38 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
     return remoteSession;
   }
 
-  // Local mode - use VideCore
+  // Local mode - use session ID + VideCore lookup
+  final sessionId = ref.watch(currentSessionIdProvider);
+  if (sessionId == null) return null;
+
   final core = ref.watch(videoCoreProvider);
-  final networkState = ref.watch(agentNetworkManagerProvider);
-  final currentNetwork = networkState.currentNetwork;
+  final session = core.getSessionForNetwork(sessionId);
 
-  if (currentNetwork == null) return null;
+  // Bind the session to the permission handler for late-binding permission checks
+  if (session != null) {
+    final permissionHandler = ref.read(permissionHandlerProvider);
+    permissionHandler?.setSession(session);
+  }
 
-  return core.getSessionForNetwork(currentNetwork.id);
+  return session;
+});
+
+/// Provider for the current session's goal/task name.
+///
+/// This is reactive - it will update when the goal changes via setTaskName MCP tool.
+final currentSessionGoalProvider = Provider<String>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  return session?.goal ?? 'Session';
+});
+
+/// Stream provider that emits when the goal changes.
+///
+/// This allows widgets to reactively rebuild when the task name is updated.
+final sessionGoalStreamProvider = StreamProvider<String>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  if (session == null) return Stream.value('Session');
+
+  return session.goalStream;
 });
 
 /// Provider that emits the current agents list whenever it changes.

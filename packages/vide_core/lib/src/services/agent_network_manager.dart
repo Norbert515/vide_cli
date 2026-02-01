@@ -15,6 +15,7 @@ import '../utils/working_dir_provider.dart';
 import 'agent_network_persistence_manager.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
+import 'permission_provider.dart';
 import 'bashboard_service.dart';
 import 'team_framework_loader.dart';
 import 'trigger_service.dart';
@@ -54,6 +55,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     _clientFactory = ClaudeClientFactoryImpl(
       getWorkingDirectory: () => effectiveWorkingDirectory,
       ref: _ref,
+      permissionHandler: _ref.read(permissionHandlerProvider),
     );
     _teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,
@@ -259,12 +261,38 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       mainAgentName,
     );
 
-    final leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
+    var leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,
       teamName: team,
     );
     if (leadConfig == null) {
       throw Exception('Agent configuration not found for: $mainAgentName');
+    }
+
+    // Apply permission mode override if provided
+    // This allows session-level permission mode (e.g., 'ask') to override
+    // the agent's default permission mode from the team framework
+    //
+    // Valid modes:
+    // - 'ask': vide-specific mode (translated to 'default' for CLI, permissions handled via SDK callback)
+    // - 'acceptEdits', 'bypassPermissions', 'default', 'delegate', 'dontAsk', 'plan': Claude CLI modes
+    if (permissionMode != null) {
+      const validModes = {
+        'ask', // vide-specific
+        'acceptEdits',
+        'bypassPermissions',
+        'default',
+        'delegate',
+        'dontAsk',
+        'plan',
+      };
+      if (!validModes.contains(permissionMode)) {
+        throw ArgumentError(
+          'Invalid permission mode: $permissionMode. '
+          'Valid modes are: ${validModes.join(", ")}',
+        );
+      }
+      leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
     }
 
     // Create client synchronously - initialization happens in background

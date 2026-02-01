@@ -256,12 +256,11 @@ class _VideScaffoldState extends State<VideScaffold> {
                 );
               }
             },
-            onSwitchWorktree: (path) {
-              // Update the repo path override and agent network's worktree path
+            onSwitchWorktree: (path) async {
+              // Update the repo path override and session's worktree path
               context.read(repoPathOverrideProvider.notifier).state = path;
-              context
-                  .read(agentNetworkManagerProvider.notifier)
-                  .setWorktreePath(path);
+              final session = context.read(currentVideSessionProvider);
+              await session?.setWorktreePath(path);
             },
           ),
         ),

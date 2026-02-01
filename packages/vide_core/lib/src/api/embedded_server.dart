@@ -434,6 +434,14 @@ class VideEmbeddedServer {
 
       case ErrorEvent e:
         return {...base, 'type': 'error', 'message': e.message, 'code': e.code};
+
+      case TaskNameChangedEvent e:
+        return {
+          ...base,
+          'type': 'task_name_changed',
+          'new_goal': e.newGoal,
+          'previous_goal': e.previousGoal,
+        };
     }
   }
 

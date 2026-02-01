@@ -3,6 +3,7 @@
 /// These provide clean configuration without exposing internal types.
 library;
 
+import '../services/permission_provider.dart';
 import 'vide_agent.dart';
 
 /// Configuration for creating a [VideCore] instance.
@@ -19,7 +20,17 @@ class VideCoreConfig {
   /// Defaults to `~/.vide` if not specified.
   final String? configDir;
 
-  const VideCoreConfig({this.configDir});
+  /// Permission handler for processing tool permission requests.
+  ///
+  /// If not provided, all permissions are auto-allowed (no checking).
+  /// The handler will be bound to each session after creation via
+  /// [PermissionHandler.setSession].
+  final PermissionHandler? permissionHandler;
+
+  const VideCoreConfig({
+    this.configDir,
+    this.permissionHandler,
+  });
 }
 
 /// Configuration for starting a new session.

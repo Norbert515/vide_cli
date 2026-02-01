@@ -401,6 +401,28 @@ class SessionEvent {
     );
   }
 
+  /// Create an ask-user-question event
+  factory SessionEvent.askUserQuestion({
+    required int seq,
+    required String agentId,
+    required String agentType,
+    String? agentName,
+    String? taskName,
+    required String requestId,
+    required List<Map<String, dynamic>> questions,
+  }) {
+    return SessionEvent(
+      seq: seq,
+      eventId: const Uuid().v4(),
+      type: 'ask-user-question',
+      agentId: agentId,
+      agentType: agentType,
+      agentName: agentName,
+      taskName: taskName,
+      data: {'request-id': requestId, 'questions': questions},
+    );
+  }
+
   /// Create an aborted event
   factory SessionEvent.aborted({
     required int seq,

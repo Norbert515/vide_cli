@@ -226,6 +226,30 @@ class VideSession {
     return manager.effectiveWorkingDirectory;
   }
 
+  /// The goal/task name for this session.
+  ///
+  /// This is the high-level description of what this session is trying to accomplish.
+  /// It can be updated via setTaskName MCP tool.
+  String get goal {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    return network?.goal ?? 'Session';
+  }
+
+  /// Stream that emits the current goal whenever it changes.
+  ///
+  /// This is derived from network changes where the goal field is updated.
+  Stream<String> get goalStream {
+    return _bufferedEvents.stream
+        .where((e) => e is TaskNameChangedEvent)
+        .map((_) => goal);
+  }
+
+  /// The team name for this session (e.g., 'vide', 'enterprise').
+  String get team {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    return network?.team ?? 'vide';
+  }
+
   /// Send a message to an agent.
   ///
   /// If [agentId] is not specified, the message is sent to the main agent.
@@ -552,6 +576,27 @@ class VideSession {
           previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
       final nextAgentIds =
           next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+
+      // Check for goal changes
+      final prevGoal = previous?.currentNetwork?.goal;
+      final nextGoal = next.currentNetwork?.goal;
+      if (prevGoal != nextGoal && nextGoal != null) {
+        // Find the main agent to attribute the event to
+        final mainAgent = next.currentNetwork!.agents.isNotEmpty
+            ? next.currentNetwork!.agents.first
+            : null;
+
+        _eventController.add(
+          TaskNameChangedEvent(
+            agentId: mainAgent?.id ?? 'unknown',
+            agentType: mainAgent?.type ?? 'main',
+            agentName: mainAgent?.name,
+            taskName: mainAgent?.taskName,
+            newGoal: nextGoal,
+            previousGoal: prevGoal,
+          ),
+        );
+      }
 
       // Check for new agents (spawned)
       for (final agentId in nextAgentIds.difference(prevAgentIds)) {
