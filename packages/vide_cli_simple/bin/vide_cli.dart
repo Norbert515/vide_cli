@@ -71,8 +71,14 @@ void main(List<String> args) async {
     exit(1);
   }
 
-  // Create VideCore
-  final core = VideCore(VideCoreConfig(configDir: configDir));
+  // Create VideCore with permission handler
+  final permissionHandler = PermissionHandler();
+  final core = VideCore(
+    VideCoreConfig(
+      configDir: configDir,
+      permissionHandler: permissionHandler,
+    ),
+  );
 
   // Interactive REPL mode
   await runRepl(

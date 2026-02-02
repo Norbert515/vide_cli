@@ -77,8 +77,14 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   // Use ~/.vide/api for REST API config (isolated from TUI)
   final configRoot = path.join(homeDir, '.vide', 'api');
 
-  // Create VideCore instance - the single interface for session management
-  final videCore = VideCore(VideCoreConfig(configDir: configRoot));
+  // Create VideCore instance with permission handler - the single interface for session management
+  final permissionHandler = PermissionHandler();
+  final videCore = VideCore(
+    VideCoreConfig(
+      configDir: configRoot,
+      permissionHandler: permissionHandler,
+    ),
+  );
 
   // Simple session cache for WebSocket access
   final sessionCache = <String, VideSession>{};

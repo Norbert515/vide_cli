@@ -66,7 +66,7 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
   // Bind the session to the permission handler for late-binding permission checks
   if (session != null) {
     final permissionHandler = ref.read(permissionHandlerProvider);
-    permissionHandler?.setSession(session);
+    permissionHandler.setSession(session);
   }
 
   return session;

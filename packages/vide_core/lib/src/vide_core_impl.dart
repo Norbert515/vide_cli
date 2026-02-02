@@ -54,7 +54,7 @@ import 'api/vide_session.dart';
 class VideCore {
   final ProviderContainer _container;
   final bool _ownsContainer;
-  final PermissionHandler? _permissionHandler;
+  final PermissionHandler _permissionHandler;
   bool _disposed = false;
 
   /// Active sessions by ID.
@@ -63,7 +63,7 @@ class VideCore {
   VideCore._(
     this._container, {
     bool ownsContainer = true,
-    PermissionHandler? permissionHandler,
+    required PermissionHandler permissionHandler,
   }) : _ownsContainer = ownsContainer,
        _permissionHandler = permissionHandler;
 
@@ -102,8 +102,7 @@ class VideCore {
   /// The container will NOT be disposed when VideCore is disposed. The caller
   /// is responsible for managing the container lifecycle.
   ///
-  /// [permissionHandler] handles tool permission requests. If not provided,
-  /// all permissions are auto-allowed (no checking).
+  /// [permissionHandler] is required and handles tool permission requests.
   ///
   /// Example:
   /// ```dart
@@ -116,7 +115,7 @@ class VideCore {
   /// ```
   factory VideCore.fromContainer(
     ProviderContainer container, {
-    PermissionHandler? permissionHandler,
+    required PermissionHandler permissionHandler,
   }) {
     return VideCore._(
       container,
@@ -182,7 +181,7 @@ class VideCore {
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler?.setSession(session);
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -259,7 +258,7 @@ class VideCore {
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler?.setSession(session);
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -330,7 +329,7 @@ class VideCore {
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler?.setSession(session);
+    permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;

@@ -72,7 +72,7 @@ class PermissionCallbackContext {
   final String? permissionMode;
 
   /// The permission handler for late session binding.
-  final PermissionHandler? permissionHandler;
+  final PermissionHandler permissionHandler;
 
   const PermissionCallbackContext({
     required this.cwd,
@@ -80,15 +80,21 @@ class PermissionCallbackContext {
     this.agentName,
     this.agentType,
     this.permissionMode,
-    this.permissionHandler,
+    required this.permissionHandler,
   });
 }
 
 /// Provider for the permission handler.
 ///
-/// This should be overridden per-session with a PermissionHandler instance.
+/// This MUST be overridden per-session with a PermissionHandler instance.
 /// After the session is created, call handler.setSession(session) to enable
 /// permission checking.
-final permissionHandlerProvider = Provider<PermissionHandler?>((ref) {
-  return null; // Default: no permission checking
+///
+/// Throws [StateError] if accessed without being overridden - this is a
+/// security requirement to ensure permissions are always checked.
+final permissionHandlerProvider = Provider<PermissionHandler>((ref) {
+  throw StateError(
+    'permissionHandlerProvider must be overridden with a PermissionHandler. '
+    'This is required for security - permissions cannot be auto-allowed.',
+  );
 });

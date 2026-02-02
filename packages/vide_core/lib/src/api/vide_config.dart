@@ -22,14 +22,14 @@ class VideCoreConfig {
 
   /// Permission handler for processing tool permission requests.
   ///
-  /// If not provided, all permissions are auto-allowed (no checking).
+  /// Required for security - this handler controls which tools agents can use.
   /// The handler will be bound to each session after creation via
   /// [PermissionHandler.setSession].
-  final PermissionHandler? permissionHandler;
+  final PermissionHandler permissionHandler;
 
   const VideCoreConfig({
     this.configDir,
-    this.permissionHandler,
+    required this.permissionHandler,
   });
 }
 
