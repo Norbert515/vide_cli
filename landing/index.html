@@ -1,1225 +1,636 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vide - AI-Powered Flutter UI Development</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vide - The Meta-Agent for Vibe Engineering</title>
+    <meta
+      name="description"
+      content="Vide is the open source meta-agent that runs on top of Claude Code. A team of AI agents that research, implement, and test your code. Vibe engineering, supercharged."
+    />
+    <meta name="keywords" content="AI coding assistant, Flutter development, meta-agent, Claude Code, vibe coding, vibe engineering, AI developers, code automation, developer tools, open source" />
+    <meta name="author" content="Vide" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#080810" />
 
-    <!-- SEO Meta Tags -->
-    <meta name="description" content="Vide is an open-source multi-agent framework for Flutter development. Built on Claude SDK with vision AI for pixel-perfect UI validation.">
-    <meta name="keywords" content="Flutter, AI, development, Claude SDK, UI testing, vision AI, Moondream, multi-agent, open source">
-    <meta name="author" content="NKTech UG">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="https://vide.dev/">
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://vide.dev/" />
 
-    <!-- Open Graph / Social -->
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://vide.dev/">
-    <meta property="og:title" content="Vide - AI-Powered Flutter UI Development">
-    <meta property="og:description" content="Open-source multi-agent framework for Flutter. Built on Claude SDK with vision AI for pixel-perfect UI validation.">
-    <meta property="og:image" content="https://github.com/Norbert515/vide_cli/blob/main/docs/hero.png?raw=true">
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://vide.dev/" />
+    <meta property="og:title" content="Vide - The Meta-Agent for Vibe Engineering" />
+    <meta property="og:description" content="Vide is the open source meta-agent that runs on top of Claude Code. A team of AI agents that research, implement, and test your code." />
+    <meta property="og:image" content="https://vide.dev/assets/og-image.png" />
+    <meta property="og:site_name" content="Vide" />
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:url" content="https://vide.dev/">
-    <meta name="twitter:title" content="Vide - AI-Powered Flutter UI Development">
-    <meta name="twitter:description" content="Open-source multi-agent framework for Flutter. Built on Claude SDK with vision AI for pixel-perfect UI validation.">
-    <meta name="twitter:image" content="https://github.com/Norbert515/vide_cli/blob/main/docs/hero.png?raw=true">
-
-    <!-- Favicon -->
-    <link rel="icon" type="image/png" href="assets/logo.png">
-
-    <!-- Analytics -->
-    <script defer data-domain="vide.dev" src="https://plausible.io/js/script.js"></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        :root {
-            --bg: #09090b;
-            --text: #fafafa;
-            --text-dim: #a1a1aa;
-            --text-muted: #52525b;
-            --accent: #f59e0b;
-            --accent-dim: rgba(245, 158, 11, 0.15);
-            --success: #22c55e;
-            --surface: transparent;
-            --border: rgba(255, 255, 255, 0.12);
-        }
-
-        body {
-            font-family: 'Space Grotesk', -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        .mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .mono-accent {
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--accent);
-            font-weight: 500;
-        }
-
-        /* ===== BACKGROUND LAYERS ===== */
-
-        /* Noise - background only */
-        .noise {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .noise::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-            opacity: 0.008;
-        }
-
-        /* Light Rays - subtle, slow */
-        .light-rays {
-            position: fixed;
-            top: -50%;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 200vw;
-            height: 200vh;
-            pointer-events: none;
-            z-index: -1;
-        }
-
-        .light-rays::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: conic-gradient(
-                from 180deg at 50% 0%,
-                transparent 0deg,
-                rgba(255, 255, 255, 0.02) 8deg,
-                transparent 16deg,
-                transparent 40deg,
-                rgba(255, 255, 255, 0.015) 48deg,
-                transparent 56deg,
-                transparent 80deg,
-                rgba(255, 255, 255, 0.02) 88deg,
-                transparent 96deg,
-                transparent 120deg,
-                rgba(255, 255, 255, 0.015) 128deg,
-                transparent 136deg,
-                transparent 160deg,
-                rgba(255, 255, 255, 0.02) 168deg,
-                transparent 176deg,
-                transparent 180deg
-            );
-            animation: rayRotate 300s linear infinite;
-        }
-
-        .light-rays::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: radial-gradient(
-                ellipse 60% 40% at 50% 0%,
-                rgba(255, 255, 255, 0.03) 0%,
-                transparent 60%
-            );
-        }
-
-        @keyframes rayRotate {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ASCII Grid - very subtle */
-        .ascii-grid {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: -1;
-            opacity: 0.4;
-        }
-
-        /* ===== HEADER ===== */
-        header {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
-            padding: 1.5rem 2rem;
-            background: linear-gradient(180deg, var(--bg) 0%, transparent 100%);
-        }
-
-        .header-content {
-            max-width: 1100px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 1.25rem;
-            font-weight: 600;
-            letter-spacing: -0.02em;
-            color: var(--text);
-            text-decoration: none;
-        }
-
-        .logo img {
-            height: 28px;
-            width: auto;
-        }
-
-        .header-links {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
-
-        .header-link {
-            font-size: 0.875rem;
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .header-link:hover {
-            color: var(--text);
-        }
-
-        .github-star {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
-            color: var(--text-dim);
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .github-star:hover {
-            color: var(--text);
-            border-color: var(--text-dim);
-        }
-
-        .github-star svg {
-            opacity: 0.8;
-        }
-
-        /* ===== HERO ===== */
-        .hero {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 9rem 2rem 2rem;
-            position: relative;
-        }
-
-        .hero-content {
-            max-width: 720px;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            margin-bottom: 1.5rem;
-        }
-
-        .badge-dot {
-            width: 6px;
-            height: 6px;
-            background: var(--success);
-            border-radius: 50%;
-        }
-
-        .hero h1 {
-            font-size: clamp(2.5rem, 7vw, 4.5rem);
-            font-weight: 600;
-            line-height: 1.1;
-            letter-spacing: -0.03em;
-            margin-bottom: 1.5rem;
-        }
-
-        .hero h1 span {
-            color: var(--accent);
-        }
-
-        .hero-sub {
-            font-size: clamp(1rem, 2vw, 1.15rem);
-            color: var(--text-dim);
-            max-width: 460px;
-            margin: 0 auto;
-            line-height: 1.7;
-        }
-
-        .cta-group {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .cta-primary {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.875rem 1.75rem;
-            font-family: inherit;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--bg);
-            background: var(--text);
-            border: none;
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .cta-primary:hover {
-            background: var(--accent);
-            transform: translateY(-1px);
-        }
-
-        .cta-secondary {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.875rem 1.75rem;
-            font-family: inherit;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--text);
-            background: transparent;
-            border: 1px solid var(--border);
-            cursor: pointer;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-
-        .cta-secondary:hover {
-            border-color: var(--text-dim);
-        }
-
-        /* ===== INSTALL CHOOSER ===== */
-        .install-hero {
-            padding: 2rem 2rem 4rem;
-            text-align: center;
-        }
-
-        .install-tabs {
-            display: inline-flex;
-            gap: 0.5rem;
-            margin-bottom: 1.25rem;
-        }
-
-        .install-tab {
-            padding: 0.5rem 1rem;
-            font-family: inherit;
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .install-tab:hover {
-            color: var(--text-dim);
-        }
-
-        .install-tab.active {
-            color: var(--text);
-            border-color: var(--border);
-        }
-
-        .install-command-box {
-            display: inline-flex;
-            align-items: center;
-            gap: 1rem;
-            padding: 0.75rem 1.25rem;
-            background: transparent;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: border-color 0.2s;
-            margin-bottom: 0.75rem;
-        }
-
-        .install-command-box:hover {
-            border-color: var(--accent);
-        }
-
-        .install-command-box code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.9rem;
-            color: var(--accent);
-        }
-
-        .install-command-box .copy-btn {
-            color: var(--text-muted);
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .install-alt {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-        }
-
-        .install-alt a {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .install-alt a:hover {
-            color: var(--accent);
-        }
-
-        .install-content {
-            display: none;
-        }
-
-        .install-content.active {
-            display: block;
-        }
-
-        /* ===== HERO SCREENSHOT ===== */
-        .hero-screenshot {
-            padding: 0 2rem 6rem;
-            position: relative;
-        }
-
-        .screenshot-container {
-            max-width: 1100px;
-            margin: 0 auto;
-            perspective: 1500px;
-        }
-
-        .screenshot-window {
-            overflow: hidden;
-        }
-
-        .screenshot-window img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        /* ===== FEATURES ===== */
-        .features {
-            padding: 6rem 2rem;
-            position: relative;
-        }
-
-        .features-grid {
-            max-width: 1000px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 2rem;
-        }
-
-        .feature {
-            padding: 1.5rem 0;
-        }
-
-        .feature-icon {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: var(--accent);
-        }
-
-        .feature h3 {
-            font-size: 1.1rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-
-        .feature p {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            line-height: 1.6;
-        }
-
-        /* ===== DIFFERENTIATORS ===== */
-        .differentiators {
-            padding: 6rem 2rem;
-            position: relative;
-        }
-
-        .diff-grid {
-            max-width: 900px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 3rem 4rem;
-        }
-
-        .diff-item {
-            display: flex;
-            gap: 1rem;
-            align-items: flex-start;
-        }
-
-        .diff-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 8px;
-            background: var(--accent-dim);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 1rem;
-            color: var(--accent);
-            flex-shrink: 0;
-        }
-
-        .diff-content h3 {
-            font-size: 1rem;
-            font-weight: 500;
-            margin-bottom: 0.35rem;
-        }
-
-        .diff-content p {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            line-height: 1.6;
-        }
-
-        @media (max-width: 768px) {
-            .diff-grid {
-                grid-template-columns: 1fr;
-                gap: 2rem;
-            }
-        }
-
-        /* ===== VISION SECTION ===== */
-        .vision-section {
-            padding: 5rem 2rem;
-            position: relative;
-        }
-
-        .vision-content {
-            max-width: 900px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 4rem;
-            align-items: center;
-        }
-
-        .vision-text h2 {
-            font-size: clamp(1.5rem, 3vw, 2rem);
-            font-weight: 500;
-            margin-bottom: 1rem;
-            letter-spacing: -0.02em;
-        }
-
-        .vision-text h2 span {
-            color: var(--accent);
-        }
-
-        .vision-text > p {
-            color: var(--text-dim);
-            line-height: 1.7;
-            margin-bottom: 1.5rem;
-        }
-
-        .vision-features {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.6rem;
-        }
-
-        .vision-features li {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-
-        .vision-features .icon {
-            color: var(--accent);
-            font-size: 1rem;
-        }
-
-        .vision-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 1.5rem;
-            padding: 0.5rem 0;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        .vision-badge a {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        .vision-badge a:hover {
-            color: var(--accent);
-        }
-
-        .vision-demo {
-            position: relative;
-        }
-
-        .vision-demo-window {
-            background: #111;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .vision-demo-bar {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .vision-demo-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-muted);
-        }
-
-        .vision-demo-content {
-            padding: 1.5rem;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.8rem;
-            line-height: 1.8;
-        }
-
-        .vision-demo-line {
-            margin-bottom: 0.5rem;
-        }
-
-        .vision-demo-line .label {
-            color: var(--text-muted);
-        }
-
-        .vision-demo-line .value {
-            color: var(--text-dim);
-        }
-
-        .vision-demo-line .highlight {
-            color: var(--accent);
-        }
-
-        .vision-demo-line .success {
-            color: var(--success);
-        }
-
-        @media (max-width: 768px) {
-            .vision-content {
-                grid-template-columns: 1fr;
-                gap: 2rem;
-            }
-
-            .vision-demo {
-                order: -1;
-            }
-        }
-
-        /* ===== HOW IT WORKS ===== */
-        .how-it-works {
-            padding: 6rem 2rem;
-            position: relative;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 4rem;
-        }
-
-        .section-label {
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: var(--accent);
-            margin-bottom: 0.75rem;
-        }
-
-        .section-header h2 {
-            font-size: clamp(1.75rem, 4vw, 2.5rem);
-            font-weight: 500;
-            letter-spacing: -0.02em;
-        }
-
-        .workflow {
-            max-width: 800px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .workflow-step {
-            display: flex;
-            gap: 1.5rem;
-            align-items: flex-start;
-            padding: 1.5rem 2rem;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-        }
-
-        .step-number {
-            width: 32px;
-            height: 32px;
-            background: var(--accent-dim);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: var(--accent);
-            flex-shrink: 0;
-        }
-
-        .step-content h4 {
-            font-size: 1rem;
-            font-weight: 500;
-            margin-bottom: 0.25rem;
-        }
-
-        .step-content p {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-
-        /* ===== FOOTER ===== */
-        footer {
-            padding: 3rem 2rem;
-            text-align: center;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 0.85rem;
-        }
-
-        .footer-links {
-            margin-bottom: 1rem;
-        }
-
-        .footer-sep {
-            margin: 0 0.5rem;
-            opacity: 0.5;
-        }
-
-        .footer-legal {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        footer a {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-
-        footer a:hover {
-            color: var(--accent);
-        }
-
-        /* ===== RESPONSIVE ===== */
-        @media (max-width: 900px) {
-            .features-grid {
-                grid-template-columns: 1fr;
-                max-width: 500px;
-            }
-        }
-
-        @media (max-width: 600px) {
-            .header-links {
-                display: none;
-            }
-
-            .cta-group {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .cta-primary, .cta-secondary {
-                justify-content: center;
-            }
-
-            .install-hero {
-                padding: 2rem 1rem 3rem;
-            }
-
-            .install-tabs {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .install-tab {
-                padding: 0.4rem 0.75rem;
-                font-size: 0.8rem;
-            }
-
-            .install-command-box {
-                max-width: 100%;
-                overflow-x: auto;
-                padding: 0.75rem 1rem;
-            }
-
-            .install-command-box code {
-                font-size: 0.75rem;
-                white-space: nowrap;
-            }
-        }
-
-        /* ===== SELECTION ===== */
-        ::selection {
-            background: var(--accent);
-            color: var(--bg);
-        }
-
-        /* ===== REDUCED MOTION ===== */
-        @media (prefers-reduced-motion: reduce) {
-            .light-rays::before {
-                animation: none;
-            }
-        }
-    </style>
-</head>
-<body>
-    <!-- Background layers -->
-    <div class="noise"></div>
-    <div class="light-rays"></div>
-    <div class="ascii-grid">
-        <canvas id="grid"></canvas>
-    </div>
-
-    <!-- Header -->
-    <header>
-        <div class="header-content">
-            <a href="#" class="logo"><img src="assets/logo.png" alt="Vide" height="28"><span>Vide</span></a>
-            <div class="header-links">
-                <a href="https://github.com/Norbert515/vide_cli" class="github-star" target="_blank">
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-                    Star on GitHub
-                </a>
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://vide.dev/" />
+    <meta name="twitter:title" content="Vide - The Meta-Agent for Vibe Engineering" />
+    <meta name="twitter:description" content="Vide is the open source meta-agent that runs on top of Claude Code. A team of AI agents that research, implement, and test your code." />
+    <meta name="twitter:image" content="https://vide.dev/assets/og-image.png" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "Vide",
+      "description": "The open source meta-agent that orchestrates AI coding assistants. A team of AI agents that research, implement, and test your code.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "Vide",
+        "url": "https://github.com/Norbert515/vide_cli"
+      },
+      "codeRepository": "https://github.com/Norbert515/vide_cli",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0"
+    }
+    </script>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png" />
+    <link rel="icon" type="image/png" href="assets/logo.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Full-page background canvas -->
+    <canvas
+      id="vortex-canvas"
+      class="vortex-canvas"
+      aria-hidden="true"
+    ></canvas>
+
+    <main class="terminal-container">
+      <!-- Top Navbar -->
+      <header class="site-header">
+        <a href="/" class="site-brand">
+          <img src="assets/logo.png" alt="Vide" class="site-brand-icon" />
+          <span class="site-brand-name">Vide</span>
+        </a>
+        <nav class="site-nav">
+          <a href="/" class="active">Home</a>
+          <a href="https://github.com/Norbert515/vide_cli">GitHub</a>
+          <a href="https://discord.gg/st8Gup7xjB">Discord</a>
+        </nav>
+      </header>
+
+      <!-- Hero Section - Full Viewport Vortex -->
+      <section class="hero-section">
+        <h1 class="sr-only">Vide - The Meta-Agent for Vibe Coding</h1>
+
+        <!-- VIDE Logo - centered in hero section -->
+        <div class="hero-center">
+          <div class="vide-logo" aria-hidden="true">██╗   ██╗██╗██████╗ ███████╗
+██║   ██║██║██╔══██╗██╔════╝
+██║   ██║██║██║  ██║█████╗
+╚██╗ ██╔╝██║██║  ██║██╔══╝
+ ╚████╔╝ ██║██████╔╝███████╗
+  ╚═══╝  ╚═╝╚═════╝ ╚══════╝</div>
+          <p class="hero-subtitle">The open source meta-agent for vibe engineering.</p>
+          <div class="hero-install-wrapper">
+            <div class="os-tabs">
+              <button class="os-tab active" data-os="unix">macOS / Linux</button>
+              <button class="os-tab" data-os="windows">Windows</button>
             </div>
+            <div class="hero-install">
+              <code id="install-command">curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
+              <button class="copy-btn" onclick="copyInstallCommand()" aria-label="Copy to clipboard">
+                <svg class="copy-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path>
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+                </svg>
+                <svg class="check-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display: none;">
+                  <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <span class="hero-and">and</span>
+          <div class="hero-buttons">
+            <a href="https://github.com/Norbert515/vide_cli" class="hero-btn primary github-stars-btn">
+              <svg class="github-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              <span class="btn-text">Star on GitHub</span>
+              <span class="star-divider"></span>
+              <span class="star-count" id="github-stars">
+                <svg class="star-icon" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                  <path d="M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z"/>
+                </svg>
+                <span class="count-value">—</span>
+              </span>
+            </a>
+          </div>
         </div>
-    </header>
+      </section>
 
-    <main>
-        <!-- Hero -->
-        <section class="hero">
-            <div class="hero-content">
-                <div class="badge">
-                    <span class="badge-dot"></span>
-                    Open Source & Free
-                </div>
-                <h1>AI-powered <span class="mono-accent">Flutter</span> development</h1>
-                <p class="hero-sub">
-                    Multi-agent framework built on Claude SDK.
-                    Pixel-perfect UI validation with vision AI.
-                </p>
+      <!-- MINIMAL/TECHNICAL LAYOUT -->
+
+      <div class="minimal-wrapper">
+        <!-- What is Vide + Demo -->
+        <section class="what-is">
+          <p>
+            <strong>Vide</strong> orchestrates a team of AI agents on top of Claude Code.
+            A researcher explores your codebase, an implementer writes the code, and a tester verifies it works.
+            This isn't vibe coding—it's vibe engineering.
+          </p>
+          <div class="terminal-window">
+            <div class="terminal-header">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <span class="terminal-title">vide</span>
             </div>
+            <video autoplay loop muted playsinline class="demo-video">
+              <source src="assets/vide-demo.mp4" type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
         </section>
 
-        <!-- Install Chooser -->
-        <section class="install-hero">
-            <div class="install-tabs">
-                <button class="install-tab active" data-target="macos">macOS</button>
-                <button class="install-tab" data-target="linux">Linux</button>
-                <button class="install-tab" data-target="windows">Windows</button>
-                <button class="install-tab" data-target="source">Source</button>
-            </div>
-
-            <div class="install-content active" id="macos">
-                <div class="install-command-box" onclick="copyCommand(this)">
-                    <code>curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
-                    <span class="copy-btn">copy</span>
-                </div>
-                <p class="install-alt">or <a href="https://github.com/Norbert515/vide_cli/releases">download binary</a></p>
-            </div>
-
-            <div class="install-content" id="linux">
-                <div class="install-command-box" onclick="copyCommand(this)">
-                    <code>curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
-                    <span class="copy-btn">copy</span>
-                </div>
-                <p class="install-alt">or <a href="https://github.com/Norbert515/vide_cli/releases">download binary</a></p>
-            </div>
-
-            <div class="install-content" id="windows">
-                <div class="install-command-box" onclick="copyCommand(this)">
-                    <code>irm https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.ps1 | iex</code>
-                    <span class="copy-btn">copy</span>
-                </div>
-                <p class="install-alt">or <a href="https://github.com/Norbert515/vide_cli/releases">download .exe</a></p>
-            </div>
-
-            <div class="install-content" id="source">
-                <div class="install-command-box" onclick="copyCommand(this)">
-                    <code>git clone https://github.com/Norbert515/vide_cli && cd vide_cli && dart compile exe bin/vide.dart -o vide</code>
-                    <span class="copy-btn">copy</span>
-                </div>
-                <p class="install-alt"><a href="https://github.com/Norbert515/vide_cli#building-from-source">full instructions</a></p>
-            </div>
+        <!-- Features - Compact list -->
+        <section class="features-section">
+          <h2>Why Vide</h2>
+          <ul class="feature-list">
+            <li>
+              <span class="feature-check">✓</span>
+              <strong>Meta-agent</strong> — Orchestrates Claude Code, with more backends coming
+            </li>
+            <li>
+              <span class="feature-check">✓</span>
+              <strong>Agent teams</strong> — Researcher, Implementer, Tester working together
+            </li>
+            <li>
+              <span class="feature-check">✓</span>
+              <strong>Flutter-first</strong> — Hot reload, screenshots, UI interaction built-in
+            </li>
+            <li>
+              <span class="feature-check">✓</span> <strong>Vision AI</strong> —
+              Agents see and tap your app with Moondream
+            </li>
+            <li>
+              <span class="feature-check">✓</span> <strong>Vibe coding</strong> —
+              Describe what you want, agents figure out the rest
+            </li>
+            <li>
+              <span class="feature-check">✓</span>
+              <strong>Open source</strong> — Apache 2.0 licensed, extend with MCP servers
+            </li>
+          </ul>
         </section>
 
-        <!-- Hero Screenshot -->
-        <section class="hero-screenshot">
-            <div class="screenshot-container">
-                <div class="screenshot-window">
-                    <img src="https://github.com/Norbert515/vide_cli/blob/main/docs/hero.png?raw=true" alt="Vide - AI-powered Flutter development">
-                </div>
+        <!-- Features Bento Grid -->
+        <section class="bento-section">
+          <h2>Features</h2>
+          <div class="bento-grid">
+            <!-- Agent Teams - Large card -->
+            <div class="bento-card large">
+              <div class="bento-header">
+                <h3>Agent Teams</h3>
+              </div>
+              <p>Specialized agents working together on your codebase.</p>
+              <div class="bento-visual agents">
+                <span class="agent-chip researcher">Researcher</span>
+                <span class="agent-chip implementer">Implementer</span>
+                <span class="agent-chip tester">Tester</span>
+                <span class="agent-chip flutter-tester">Flutter Tester</span>
+                <span class="agent-chip architect">Solution Architect</span>
+                <span class="agent-chip qa">QA Breaker</span>
+                <span class="agent-chip reviewer">Code Reviewer</span>
+              </div>
             </div>
+
+            <!-- Flutter MCPs - Small card -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Flutter MCPs</h3>
+              </div>
+              <p>Pre-configured MCP servers for hot reload and screenshots.</p>
+            </div>
+
+            <!-- Performant TUI - Tall card -->
+            <div class="bento-card tall">
+              <div class="bento-header">
+                <h3>Performant TUI</h3>
+              </div>
+              <p>Built on <a href="https://nocterm.dev" target="_blank" rel="noopener noreferrer">nocterm</a>, a custom high-performance terminal UI framework.</p>
+              <ul class="tui-features">
+                <li><span class="tui-icon">⚡</span> 60fps rendering</li>
+                <li><span class="tui-icon">🎯</span> Zero flicker</li>
+                <li><span class="tui-icon">📦</span> Reactive updates</li>
+                <li><span class="tui-icon">🎨</span> True color</li>
+              </ul>
+            </div>
+
+            <!-- Git Integration - Small card -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Git Integration</h3>
+              </div>
+              <p>Full git support including worktrees.</p>
+            </div>
+
+            <!-- Open Source - Small card -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Open Source</h3>
+              </div>
+              <p>Apache 2.0 licensed. Extend with MCP.</p>
+            </div>
+
+            <!-- Multi-Backend - Small card with Coming Soon -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Multi-Backend</h3>
+                <span class="bento-badge">Coming Soon</span>
+              </div>
+              <p>Codex CLI and Gemini CLI next.</p>
+            </div>
+
+            <!-- Agent CLIs - Tall card -->
+            <div class="bento-card tall">
+              <div class="bento-header">
+                <h3>Agent CLIs</h3>
+              </div>
+              <p>Vide orchestrates existing AI coding CLIs headlessly—spawning, coordinating, and managing them as a team.</p>
+              <ul class="backends-list-mini">
+                <li class="available"><span class="status">Available</span> Claude Code</li>
+                <li class="planned"><span class="status">Planned</span> Codex CLI</li>
+                <li class="planned"><span class="status">Planned</span> Gemini CLI</li>
+              </ul>
+            </div>
+
+            <!-- Remote Control - Small card with Coming Soon -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Remote Control</h3>
+                <span class="bento-badge">Coming Soon</span>
+              </div>
+              <p>Native Flutter app for mobile.</p>
+            </div>
+
+            <!-- Active Development - Small card -->
+            <div class="bento-card small">
+              <div class="bento-header">
+                <h3>Active Development</h3>
+              </div>
+              <div class="activity-stats">
+                <div class="activity-stat">
+                  <span class="activity-value" id="last-commit">—</span>
+                  <span class="activity-label">last commit</span>
+                </div>
+                <div class="activity-stat">
+                  <span class="activity-value" id="commit-count">—</span>
+                  <span class="activity-label">commits</span>
+                </div>
+                <div class="activity-stat">
+                  <span class="activity-value" id="release-count">—</span>
+                  <span class="activity-label">releases</span>
+                </div>
+                <div class="activity-stat">
+                  <span class="activity-value" id="contributor-count">—</span>
+                  <span class="activity-label">contributors</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cross-Agent Review - Large card with Coming Soon -->
+            <div class="bento-card large">
+              <div class="bento-header">
+                <h3>Cross-Agent Review</h3>
+                <span class="bento-badge">Coming Soon</span>
+              </div>
+              <p>Your Claude Code agent spawns Codex or Gemini agents for code review—full agent SDKs, not API calls.</p>
+              <div class="bento-visual agent-list">
+                <div class="agent-list-header">Active Agents</div>
+                <div class="agent-row done"><span class="agent-status-icon">✓</span> <span class="agent-name">Claude</span> <span class="agent-task">Feature complete</span></div>
+                <div class="agent-row working"><span class="agent-status-icon braille-spinner"></span> <span class="agent-name">Codex</span> <span class="agent-task">Reviewing...</span></div>
+                <div class="agent-row working"><span class="agent-status-icon braille-spinner" style="animation-delay: -0.15s;"></span> <span class="agent-name">Gemini</span> <span class="agent-task">Reviewing...</span></div>
+              </div>
+            </div>
+          </div>
         </section>
 
-        <!-- Features -->
-        <section class="features">
-            <div class="features-grid">
-                <div class="feature">
-                    <div class="feature-icon">*</div>
-                    <h3>Pixel-Perfect Validation</h3>
-                    <p>Vision AI verifies your UI renders exactly as designed. Catch visual regressions before they ship.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">#</div>
-                    <h3>Built on Claude SDK</h3>
-                    <p>Powered by the official Claude Agent SDK. Specialized agents for planning, implementation, and testing.</p>
-                </div>
-                <div class="feature">
-                    <div class="feature-icon">></div>
-                    <h3>Automated App Testing</h3>
-                    <p>Launch apps, take screenshots, interact with UI elements. Hot reload and retest on every change.</p>
-                </div>
-            </div>
+        <!-- Flutter First-Class Citizen -->
+        <section class="flutter-section">
+          <h2>Flutter: First-Class Citizen</h2>
+          <p class="section-desc">
+            Vide works with any codebase, but Flutter gets special treatment. Deep integration
+            means agents don't just write code—they run your app, see it, and interact with it.
+          </p>
+          <ul class="flutter-features">
+            <li>
+              <span class="flutter-icon">⚡</span>
+              <div class="flutter-feature-content">
+                <strong>Hot Reload</strong>
+                <span>Agents trigger hot reload after changes, instantly seeing results</span>
+              </div>
+            </li>
+            <li>
+              <span class="flutter-icon">📸</span>
+              <div class="flutter-feature-content">
+                <strong>Screenshots</strong>
+                <span>Capture app state to verify UI changes actually work</span>
+              </div>
+            </li>
+            <li>
+              <span class="flutter-icon">👆</span>
+              <div class="flutter-feature-content">
+                <strong>UI Interaction</strong>
+                <span>Vision AI lets agents tap buttons and navigate your app</span>
+              </div>
+            </li>
+            <li>
+              <span class="flutter-icon">🔍</span>
+              <div class="flutter-feature-content">
+                <strong>Widget Inspection</strong>
+                <span>Query the widget tree to understand app structure</span>
+              </div>
+            </li>
+          </ul>
         </section>
 
-        <!-- What Makes Vide Different -->
-        <section class="differentiators">
-            <div class="section-header">
-                <p class="section-label">Architecture</p>
-                <h2>What makes Vide different</h2>
-            </div>
-            <div class="diff-grid">
-                <div class="diff-item">
-                    <div class="diff-icon">&&</div>
-                    <div class="diff-content">
-                        <h3>Multi-agent, not monolithic</h3>
-                        <p>Specialized agents for planning, implementation, context gathering, and testing. They collaborate asynchronously via message passing.</p>
-                    </div>
-                </div>
-                <div class="diff-item">
-                    <div class="diff-icon">>_</div>
-                    <div class="diff-content">
-                        <h3>Actually runs your app</h3>
-                        <p>Vide launches Flutter apps, takes screenshots, and interacts with UI elements. Hot reload on every code change.</p>
-                    </div>
-                </div>
-                <div class="diff-item">
-                    <div class="diff-icon">**</div>
-                    <div class="diff-content">
-                        <h3>Vision AI element detection</h3>
-                        <p>Find UI elements by description: "the blue submit button". No brittle test IDs or CSS selectors needed.</p>
-                    </div>
-                </div>
-                <div class="diff-item">
-                    <div class="diff-icon">[]</div>
-                    <div class="diff-content">
-                        <h3>Git worktrees built-in</h3>
-                        <p>Develop features in isolated worktrees. Switch contexts instantly without stashing changes.</p>
-                    </div>
-                </div>
-                <div class="diff-item">
-                    <div class="diff-icon">db</div>
-                    <div class="diff-content">
-                        <h3>Project memory</h3>
-                        <p>Vide remembers your build commands, preferred platforms, and setup across sessions. No repeated configuration.</p>
-                    </div>
-                </div>
-                <div class="diff-item">
-                    <div class="diff-icon">{}</div>
-                    <div class="diff-content">
-                        <h3>Transparent runtime injection</h3>
-                        <p>AI dev tools are injected at runtime. No changes to your app code, no test dependencies in production.</p>
-                    </div>
-                </div>
-            </div>
+        <!-- FAQ -->
+        <section class="faq-section">
+          <h2>FAQ</h2>
+          <div class="faq-list">
+            <details class="faq-item">
+              <summary>What is a meta-agent?</summary>
+              <p>Vide sits on top of AI coding CLIs like Claude Code. Instead of one conversation,
+              Vide orchestrates a team of specialized agents that can research, implement, and test
+              in parallel. Think of it as a manager for your AI coding assistants.</p>
+            </details>
+            <details class="faq-item">
+              <summary>Do I need Claude Code installed?</summary>
+              <p>Yes, Vide requires Claude Code CLI and uses the official Claude Code Agent SDK.
+              This means it uses your existing <a href="https://www.anthropic.com/claude-code" target="_blank" rel="noopener noreferrer">Claude Code subscription</a>.
+              Install it with <code>curl -fsSL https://claude.ai/install.sh | bash</code> (macOS/Linux)
+              or <code>irm https://claude.ai/install.ps1 | iex</code> (Windows).
+              Support for other backends like Codex and Gemini CLI is coming.</p>
+            </details>
+            <details class="faq-item">
+              <summary>Why Flutter-first?</summary>
+              <p>Vide has deep Flutter integration: hot reload, screenshot capture, and vision AI
+              that can see and tap your app's UI. Agents can actually run your Flutter app and
+              verify their changes work. Other frameworks work too, but Flutter gets superpowers.</p>
+            </details>
+            <details class="faq-item">
+              <summary>What's vibe coding? What's vibe engineering?</summary>
+              <p>Vibe coding means describing what you want in natural language and letting AI
+              figure out the implementation. Vide takes this further with <strong>vibe engineering</strong>:
+              instead of one AI writing code, you have a team of specialized agents that research,
+              implement, and test together. It's structured, parallel, and verified—not just vibes,
+              but actual engineering with AI doing the heavy lifting.</p>
+            </details>
+            <details class="faq-item">
+              <summary>Is it free?</summary>
+              <p>Vide is open source (Apache 2.0 license). You pay for the underlying AI API usage
+              (Claude, etc.) but Vide itself is free.</p>
+            </details>
+          </div>
         </section>
 
-        <!-- Vision AI Section -->
-        <section class="vision-section">
-            <div class="vision-content">
-                <div class="vision-text">
-                    <h2>AI that <span>sees</span> your UI</h2>
-                    <p>
-                        Vide uses Moondream, a lightweight vision model, to understand what's actually
-                        on screen. No brittle selectors or test IDs needed.
-                    </p>
-                    <ul class="vision-features">
-                        <li><span class="icon">*</span> Find elements by description: "the blue login button"</li>
-                        <li><span class="icon">*</span> Verify visual states: "loading spinner is visible"</li>
-                        <li><span class="icon">*</span> Detect layout issues: "text is cut off"</li>
-                        <li><span class="icon">*</span> Works with any Flutter widget</li>
-                    </ul>
-                    <div class="vision-badge">
-                        Powered by <a href="https://moondream.ai" target="_blank">Moondream</a>
-                    </div>
-                </div>
-                <div class="vision-demo">
-                    <div class="vision-demo-window">
-                        <div class="vision-demo-bar">
-                            <div class="vision-demo-dot"></div>
-                            <div class="vision-demo-dot"></div>
-                            <div class="vision-demo-dot"></div>
-                        </div>
-                        <div class="vision-demo-content">
-                            <div class="vision-demo-line">
-                                <span class="label">></span> <span class="highlight">flutterAct</span> <span class="value">"tap the submit button"</span>
-                            </div>
-                            <div class="vision-demo-line">
-                                <span class="label">  analyzing screenshot...</span>
-                            </div>
-                            <div class="vision-demo-line">
-                                <span class="label">  found:</span> <span class="value">Button at (234, 456)</span>
-                            </div>
-                            <div class="vision-demo-line">
-                                <span class="success">  + tapped successfully</span>
-                            </div>
-                            <div class="vision-demo-line" style="margin-top: 1rem;">
-                                <span class="label">></span> <span class="highlight">flutterAct</span> <span class="value">"verify success message"</span>
-                            </div>
-                            <div class="vision-demo-line">
-                                <span class="success">  + "Payment complete" visible</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- Links -->
+        <section class="links-section">
+          <a href="https://github.com/Norbert515/vide_cli" class="link-item"
+            >GitHub →</a
+          >
+          <a
+            href="https://github.com/Norbert515/vide_cli/releases"
+            class="link-item"
+            >Releases →</a
+          >
+          <a href="https://discord.gg/st8Gup7xjB" class="link-item"
+            >Discord →</a
+          >
         </section>
+      </div>
+      <!-- end minimal-wrapper -->
 
-        <!-- How it Works -->
-        <section class="how-it-works">
-            <div class="section-header">
-                <p class="section-label">Workflow</p>
-                <h2>Build UIs with confidence</h2>
+      <!-- Install CTA -->
+      <section class="install-section" id="install">
+        <div class="install-cta-card">
+          <h2>Get started now</h2>
+          <div class="hero-install-wrapper">
+            <div class="os-tabs">
+              <button class="os-tab active" data-os="unix">macOS / Linux</button>
+              <button class="os-tab" data-os="windows">Windows</button>
             </div>
-            <div class="workflow">
-                <div class="workflow-step">
-                    <div class="step-number">1</div>
-                    <div class="step-content">
-                        <h4>Describe your UI</h4>
-                        <p>Tell vide what you want to build in natural language</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-number">2</div>
-                    <div class="step-content">
-                        <h4>Agents implement</h4>
-                        <p>Implementation agent writes Flutter code following your project patterns</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-number">3</div>
-                    <div class="step-content">
-                        <h4>Vision AI validates</h4>
-                        <p>Flutter tester launches your app and verifies UI elements with screenshots</p>
-                    </div>
-                </div>
-                <div class="workflow-step">
-                    <div class="step-number">4</div>
-                    <div class="step-content">
-                        <h4>Iterate until perfect</h4>
-                        <p>Agents fix issues automatically, hot reload, and retest until everything passes</p>
-                    </div>
-                </div>
+            <div class="hero-install">
+              <code id="install-command-bottom">curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash</code>
+              <button class="copy-btn" onclick="copyInstallCommandBottom()" aria-label="Copy to clipboard">
+                <svg class="copy-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+                  <path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path>
+                  <path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path>
+                </svg>
+                <svg class="check-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" style="display: none;">
+                  <path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.75.75 0 0 1 1.06-1.06L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0Z"></path>
+                </svg>
+              </button>
             </div>
-        </section>
+          </div>
+        </div>
+      </section>
 
+      <!-- Footer -->
+      <footer class="minimal-footer">
+        <span
+          >Vide · Apache 2.0 License ·
+          <a href="https://github.com/Norbert515/vide_cli">GitHub</a></span
+        >
+      </footer>
     </main>
 
-    <!-- Footer -->
-    <footer>
-        <div class="footer-links">
-            <a href="https://github.com/Norbert515/vide_cli" target="_blank">GitHub</a>
-            <span class="footer-sep">·</span>
-            <a href="https://discord.gg/st8Gup7xjB" target="_blank">Discord</a>
-        </div>
-        <div class="footer-legal">
-            <a href="https://nktech.dev" target="_blank">NKTech UG (haftungsbeschränkt)</a>
-            <span class="footer-sep">·</span>
-            Funkerstraße 33, 76227 Karlsruhe, Germany
-        </div>
-    </footer>
-
+    <script src="vortex.js"></script>
     <script>
-        // ASCII Grid with mouse interaction
-        const canvas = document.getElementById('grid');
-        const ctx = canvas.getContext('2d');
+      const installCommands = {
+        unix: 'curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash',
+        windows: 'irm https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.ps1 | iex'
+      };
 
-        let mouseX = -1000;
-        let mouseY = -1000;
-        let targetMouseX = -1000;
-        let targetMouseY = -1000;
-        let time = 0;
+      // Detect OS and set default tab
+      function detectOS() {
+        const platform = navigator.platform.toLowerCase();
+        if (platform.includes('win')) return 'windows';
+        return 'unix';
+      }
 
-        const intersectionChars = ['+', '·', '*'];
-        const horizontalChars = ['-', '─'];
-        const verticalChars = ['|', '│'];
+      // Initialize OS tabs
+      document.addEventListener('DOMContentLoaded', () => {
+        const detectedOS = detectOS();
+        const tabs = document.querySelectorAll('.os-tab');
+        const commandEl = document.getElementById('install-command');
+        const commandElBottom = document.getElementById('install-command-bottom');
 
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        resize();
-        window.addEventListener('resize', resize);
-
-        document.addEventListener('mousemove', (e) => {
-            targetMouseX = e.clientX;
-            targetMouseY = e.clientY;
+        // Set initial state based on detected OS
+        tabs.forEach(tab => {
+          tab.classList.remove('active');
+          if (tab.dataset.os === detectedOS) {
+            tab.classList.add('active');
+          }
         });
+        commandEl.textContent = installCommands[detectedOS];
+        commandElBottom.textContent = installCommands[detectedOS];
 
-        document.addEventListener('mouseleave', () => {
-            targetMouseX = -1000;
-            targetMouseY = -1000;
-        });
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Smooth mouse following
-            mouseX += (targetMouseX - mouseX) * 0.08;
-            mouseY += (targetMouseY - mouseY) * 0.08;
-
-            const cellSize = 40;
-            const cols = Math.ceil(canvas.width / cellSize) + 1;
-            const rows = Math.ceil(canvas.height / cellSize) + 1;
-
-            ctx.font = '11px "JetBrains Mono", monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
-            for (let row = 0; row < rows; row++) {
-                for (let col = 0; col < cols; col++) {
-                    const x = col * cellSize;
-                    const y = row * cellSize;
-
-                    // Distance from mouse
-                    const dx = x - mouseX;
-                    const dy = y - mouseY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    const maxDist = 180;
-                    const influence = Math.max(0, 1 - dist / maxDist);
-
-                    // Slow pulse
-                    const pulse = Math.sin(time * 0.008 + col * 0.1 + row * 0.1) * 0.5 + 0.5;
-
-                    // Base opacity - more visible
-                    const baseOpacity = 0.07 + pulse * 0.05;
-                    const opacity = baseOpacity + influence * 0.22;
-
-                    // Character selection
-                    let char;
-                    const isIntersection = (col % 2 === 0 && row % 2 === 0);
-                    const isHorizontal = (col % 2 === 1 && row % 2 === 0);
-                    const isVertical = (col % 2 === 0 && row % 2 === 1);
-
-                    if (isIntersection) {
-                        const charIndex = Math.floor((pulse + influence) * intersectionChars.length) % intersectionChars.length;
-                        char = intersectionChars[charIndex];
-                    } else if (isHorizontal) {
-                        char = horizontalChars[influence > 0.3 ? 1 : 0];
-                    } else if (isVertical) {
-                        char = verticalChars[influence > 0.3 ? 1 : 0];
-                    } else {
-                        char = (pulse > 0.85 && influence > 0.2) ? '·' : '';
-                    }
-
-                    if (char) {
-                        // Color: white/gray, amber near mouse
-                        const amberInfluence = influence * 0.5;
-                        const r = Math.floor(232 + (245 - 232) * amberInfluence);
-                        const g = Math.floor(232 + (166 - 232) * amberInfluence);
-                        const b = Math.floor(232 + (35 - 232) * amberInfluence);
-
-                        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
-
-                        const drift = Math.sin(time * 0.004 + col * 0.5) * influence * 2;
-                        ctx.fillText(char, x + drift, y);
-                    }
-                }
-            }
-
-            time++;
-            requestAnimationFrame(draw);
-        }
-        draw();
-
-        // Install tabs
-        document.querySelectorAll('.install-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.install-content').forEach(c => c.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.target).classList.add('active');
+        // Add click handlers - sync all tabs
+        tabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            const os = tab.dataset.os;
+            // Update all tabs to match selection
+            tabs.forEach(t => {
+              t.classList.remove('active');
+              if (t.dataset.os === os) {
+                t.classList.add('active');
+              }
             });
+            // Update both command displays
+            commandEl.textContent = installCommands[os];
+            commandElBottom.textContent = installCommands[os];
+          });
         });
+      });
 
-        // Copy command
-        function copyCommand(el) {
-            const cmd = el.querySelector('code').textContent;
-            navigator.clipboard.writeText(cmd);
-            el.querySelector('.copy-btn').textContent = 'copied!';
-            setTimeout(() => {
-                document.querySelectorAll('.copy-btn').forEach(btn => btn.textContent = 'copy');
-            }, 2000);
+      function copyInstallCommand() {
+        const command = document.getElementById('install-command').textContent;
+        navigator.clipboard.writeText(command).then(() => {
+          const btn = document.querySelector('.hero-center .copy-btn');
+          const copyIcon = btn.querySelector('.copy-icon');
+          const checkIcon = btn.querySelector('.check-icon');
+          copyIcon.style.display = 'none';
+          checkIcon.style.display = 'block';
+          setTimeout(() => {
+            copyIcon.style.display = 'block';
+            checkIcon.style.display = 'none';
+          }, 2000);
+        });
+      }
+
+      function copyInstallCommandBottom() {
+        const command = document.getElementById('install-command-bottom').textContent;
+        navigator.clipboard.writeText(command).then(() => {
+          const btn = document.querySelector('.install-cta-card .copy-btn');
+          const copyIcon = btn.querySelector('.copy-icon');
+          const checkIcon = btn.querySelector('.check-icon');
+          copyIcon.style.display = 'none';
+          checkIcon.style.display = 'block';
+          setTimeout(() => {
+            copyIcon.style.display = 'block';
+            checkIcon.style.display = 'none';
+          }, 2000);
+        });
+      }
+
+      // Fetch GitHub stats
+      async function fetchGitHubStats() {
+        try {
+          // Fetch repo info for stars
+          const repoResponse = await fetch('https://api.github.com/repos/Norbert515/vide_cli');
+          if (repoResponse.ok) {
+            const repoData = await repoResponse.json();
+            const stars = repoData.stargazers_count;
+            const countEl = document.querySelector('.count-value');
+            if (countEl) {
+              countEl.textContent = stars >= 1000 ? (stars / 1000).toFixed(1) + 'k' : stars;
+            }
+          }
+
+          // Fetch last commit time and commit count
+          const commitsResponse = await fetch('https://api.github.com/repos/Norbert515/vide_cli/commits?per_page=1');
+          if (commitsResponse.ok) {
+            const commits = await commitsResponse.json();
+            if (commits.length > 0) {
+              const lastCommitDate = new Date(commits[0].commit.author.date);
+              const now = new Date();
+              const diffMs = now - lastCommitDate;
+              const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+              const diffDays = Math.floor(diffHours / 24);
+
+              const lastCommitEl = document.getElementById('last-commit');
+              if (lastCommitEl) {
+                if (diffHours < 1) {
+                  lastCommitEl.textContent = '<1h';
+                } else if (diffHours < 24) {
+                  lastCommitEl.textContent = diffHours + 'h';
+                } else if (diffDays < 7) {
+                  lastCommitEl.textContent = diffDays + 'd';
+                } else {
+                  lastCommitEl.textContent = Math.floor(diffDays / 7) + 'w';
+                }
+              }
+            }
+            // Get commit count from Link header
+            const linkHeader = commitsResponse.headers.get('Link');
+            if (linkHeader) {
+              const match = linkHeader.match(/page=(\d+)>; rel="last"/);
+              if (match) {
+                const commitCountEl = document.getElementById('commit-count');
+                if (commitCountEl) commitCountEl.textContent = parseInt(match[1]);
+              }
+            }
+          }
+
+          // Fetch release count
+          const releasesResponse = await fetch('https://api.github.com/repos/Norbert515/vide_cli/releases?per_page=1');
+          if (releasesResponse.ok) {
+            const linkHeader = releasesResponse.headers.get('Link');
+            if (linkHeader) {
+              const match = linkHeader.match(/page=(\d+)>; rel="last"/);
+              if (match) {
+                const releaseCountEl = document.getElementById('release-count');
+                if (releaseCountEl) releaseCountEl.textContent = parseInt(match[1]);
+              }
+            } else {
+              const releases = await releasesResponse.json();
+              const releaseCountEl = document.getElementById('release-count');
+              if (releaseCountEl) releaseCountEl.textContent = releases.length || '0';
+            }
+          }
+
+          // Fetch contributor count
+          const contributorsResponse = await fetch('https://api.github.com/repos/Norbert515/vide_cli/contributors?per_page=1');
+          if (contributorsResponse.ok) {
+            const linkHeader = contributorsResponse.headers.get('Link');
+            if (linkHeader) {
+              const match = linkHeader.match(/page=(\d+)>; rel="last"/);
+              if (match) {
+                const contributorCount = parseInt(match[1]);
+                const contributorEl = document.getElementById('contributor-count');
+                if (contributorEl) {
+                  contributorEl.textContent = contributorCount;
+                }
+              }
+            } else {
+              // If no Link header, count directly
+              const contributors = await contributorsResponse.json();
+              const contributorEl = document.getElementById('contributor-count');
+              if (contributorEl) contributorEl.textContent = contributors.length || '1';
+            }
+          }
+        } catch (e) {
+          // Silently fail - keep the dashes
         }
+      }
+      fetchGitHubStats();
     </script>
-</body>
+  </body>
 </html>
