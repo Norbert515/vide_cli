@@ -20,8 +20,11 @@ dependencies:
 import 'package:vide_core/api.dart';
 
 void main() async {
-  // Create VideCore instance
-  final core = VideCore(VideCoreConfig());
+  // Create VideCore instance with required permission handler
+  final permissionHandler = PermissionHandler();
+  final core = VideCore(VideCoreConfig(
+    permissionHandler: permissionHandler,
+  ));
 
   // Start a new session
   final session = await core.startSession(VideSessionConfig(

@@ -12,9 +12,14 @@ void main() async {
   print('Working directory: ${Directory.current.path}');
   print('');
 
-  // Create VideCore instance
+  // Create VideCore instance with a permission handler that auto-allows
+  // (acceptable for debug/example scripts)
+  final permissionHandler = PermissionHandler();
   final core = VideCore(
-    VideCoreConfig(configDir: '${Platform.environment['HOME']}/.vide'),
+    VideCoreConfig(
+      configDir: '${Platform.environment['HOME']}/.vide',
+      permissionHandler: permissionHandler,
+    ),
   );
 
   print('Starting session with enterprise team...');

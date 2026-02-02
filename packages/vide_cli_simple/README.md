@@ -117,7 +117,10 @@ This CLI demonstrates key vide_core integration patterns:
 
 **Creating a session:**
 ```dart
-final core = VideCore(VideCoreConfig());
+final permissionHandler = PermissionHandler();
+final core = VideCore(VideCoreConfig(
+  permissionHandler: permissionHandler,
+));
 final session = await core.startSession(VideSessionConfig(
   workingDirectory: '/path/to/project',
   initialMessage: 'Hello',

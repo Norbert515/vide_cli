@@ -8,6 +8,7 @@ import '../models/agent_id.dart';
 import '../mcp/mcp_server_type.dart';
 import '../utils/working_dir_provider.dart';
 import 'claude_client_factory.dart';
+import 'permission_provider.dart';
 import 'team_framework_loader.dart';
 
 /// Holds the initial Claude client created at app startup.
@@ -75,6 +76,7 @@ final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
   final factory = ClaudeClientFactoryImpl(
     getWorkingDirectory: () => workingDirectory,
     ref: ref,
+    permissionHandler: ref.read(permissionHandlerProvider),
   );
 
   // NOTE: We create a temporary fallback config synchronously to avoid blocking.
