@@ -25,6 +25,7 @@ void main() {
         overrides: [
           workingDirProvider.overrideWithValue(testWorkingDir.path),
           videConfigManagerProvider.overrideWithValue(configManager),
+          permissionHandlerProvider.overrideWithValue(PermissionHandler()),
         ],
       );
     });
