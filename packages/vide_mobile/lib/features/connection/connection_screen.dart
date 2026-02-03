@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/connection_repository.dart';
 import '../../domain/models/server_connection.dart';
 import 'connection_state.dart';
@@ -233,6 +234,7 @@ class _ConnectionStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     final (icon, label, color) = switch (status) {
       ConnectionStatus.disconnected => (
@@ -248,7 +250,7 @@ class _ConnectionStatusChip extends StatelessWidget {
       ConnectionStatus.connected => (
           Icons.check_circle_outline,
           'Connected',
-          Colors.green,
+          videColors.success,
         ),
       ConnectionStatus.error => (
           Icons.error_outline,

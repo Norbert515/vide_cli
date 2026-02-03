@@ -295,6 +295,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
     }
 
+    // Apply model override if provided
+    // This sets the model via --model CLI arg at client creation time
+    if (model != null) {
+      leadConfig = leadConfig.copyWith(model: model);
+    }
+
     // Create client synchronously - initialization happens in background
     // The client queues messages until ready, enabling instant navigation
     final mainAgentClaudeClient = _clientFactory.createSync(
@@ -303,11 +309,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       networkId: networkId,
       agentType: 'main',
     );
-
-    // Apply model override if provided (will take effect once client initializes)
-    if (model != null) {
-      mainAgentClaudeClient.setModel(model);
-    }
 
     // Use display name from personality, fallback to 'Klaus'
     final mainAgentDisplayName =

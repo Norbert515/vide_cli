@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
+import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
 
@@ -88,10 +89,11 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
     } catch (e) {
       if (mounted) {
         notifier.setIsCreating(false);
+        final videColors = Theme.of(context).extension<VideThemeColors>()!;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed to create session: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor: videColors.error,
           ),
         );
       }

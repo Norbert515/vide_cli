@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../core/router/app_router.dart';
+import '../../core/theme/vide_colors.dart';
 import '../../data/remote/vide_api_client.dart';
 import '../../data/repositories/connection_repository.dart';
 
@@ -138,8 +139,9 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final isReady = session.state == 'ready';
-    final statusColor = isReady ? Colors.green : Colors.orange;
+    final statusColor = isReady ? videColors.success : videColors.warning;
 
     // Format the working directory to show just the last part
     final dirParts = session.workingDirectory.split('/');

@@ -669,6 +669,8 @@ class ClaudeClientImpl implements ClaudeClient {
 
   @override
   Future<SetModelResponse> setModel(String model) async {
+    // Wait for initialization if not ready yet
+    await initialized;
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) {
       throw StateError('Client not initialized - cannot set model');

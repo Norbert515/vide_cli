@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/tokens.dart';
+import '../../../core/theme/vide_colors.dart';
 import '../../../domain/models/models.dart';
 
 /// A collapsible card displaying tool use and result.
@@ -25,16 +27,38 @@ class _ToolCardState extends State<ToolCard> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final hasResult = widget.result != null;
     final isError = widget.result?.isError ?? false;
 
+    final statusColor = isError
+        ? videColors.error
+        : hasResult
+            ? videColors.success
+            : videColors.accent;
+
+    final statusContainerColor = isError
+        ? videColors.errorContainer
+        : hasResult
+            ? videColors.successContainer
+            : videColors.accentSubtle;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Card(
-        margin: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: VideRadius.smAll,
+          border: Border(
+            left: BorderSide(color: statusColor, width: 3),
+          ),
+        ),
         child: InkWell(
           onTap: () => setState(() => _isExpanded = !_isExpanded),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: VideRadius.smAll,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -45,12 +69,8 @@ class _ToolCardState extends State<ToolCard> {
                     Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: isError
-                            ? colorScheme.errorContainer
-                            : hasResult
-                                ? Colors.green.withValues(alpha: 0.1)
-                                : colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(8),
+                        color: statusContainerColor,
+                        borderRadius: VideRadius.smAll,
                       ),
                       child: Icon(
                         isError
@@ -59,11 +79,7 @@ class _ToolCardState extends State<ToolCard> {
                                 ? Icons.check_circle_outline
                                 : Icons.sync,
                         size: 18,
-                        color: isError
-                            ? colorScheme.error
-                            : hasResult
-                                ? Colors.green
-                                : colorScheme.primary,
+                        color: statusColor,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -80,8 +96,9 @@ class _ToolCardState extends State<ToolCard> {
                           if (widget.toolUse.agentName != null)
                             Text(
                               'by ${widget.toolUse.agentName}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: videColors.textSecondary,
                               ),
                             ),
                         ],
@@ -89,19 +106,20 @@ class _ToolCardState extends State<ToolCard> {
                     ),
                     Icon(
                       _isExpanded ? Icons.expand_less : Icons.expand_more,
-                      color: colorScheme.onSurfaceVariant,
+                      color: videColors.textSecondary,
                     ),
                   ],
                 ),
                 if (_isExpanded) ...[
                   const SizedBox(height: 12),
-                  const Divider(height: 1),
+                  Divider(height: 1, color: colorScheme.outlineVariant),
                   const SizedBox(height: 12),
                   Text(
                     'Input',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colorScheme.primary,
+                    style: TextStyle(
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
+                      color: videColors.accent,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -110,9 +128,10 @@ class _ToolCardState extends State<ToolCard> {
                     const SizedBox(height: 12),
                     Text(
                       'Result',
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: isError ? colorScheme.error : Colors.green,
+                      style: TextStyle(
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
+                        color: isError ? videColors.error : videColors.success,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -144,14 +163,14 @@ class _JsonView extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: VideRadius.smAll,
+        border: Border.all(color: colorScheme.outlineVariant),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Text(
           prettyJson,
           style: TextStyle(
-            fontFamily: 'monospace',
             fontSize: 12,
             color: colorScheme.onSurface,
           ),
@@ -169,6 +188,7 @@ class _ResultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final resultData = result.result;
 
     String displayText;
@@ -190,12 +210,14 @@ class _ResultView extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: result.isError
-            ? colorScheme.errorContainer.withValues(alpha: 0.3)
+            ? videColors.errorContainer
             : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        border: result.isError
-            ? Border.all(color: colorScheme.error.withValues(alpha: 0.3))
-            : null,
+        borderRadius: VideRadius.smAll,
+        border: Border.all(
+          color: result.isError
+              ? videColors.error.withValues(alpha: 0.3)
+              : colorScheme.outlineVariant,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,9 +227,8 @@ class _ResultView extends StatelessWidget {
             child: Text(
               displayText,
               style: TextStyle(
-                fontFamily: 'monospace',
                 fontSize: 12,
-                color: result.isError ? colorScheme.error : colorScheme.onSurface,
+                color: result.isError ? videColors.error : colorScheme.onSurface,
               ),
             ),
           ),
@@ -215,8 +236,9 @@ class _ResultView extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '(truncated)',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
+              style: TextStyle(
+                fontSize: 12,
+                color: videColors.textSecondary,
                 fontStyle: FontStyle.italic,
               ),
             ),

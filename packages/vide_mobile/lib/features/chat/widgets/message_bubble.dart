@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 
+import '../../../core/theme/tokens.dart';
+import '../../../core/theme/vide_colors.dart';
 import '../../../domain/models/models.dart';
 
-/// A chat message bubble.
+/// A terminal-style message block.
+///
+/// User messages use `>` prefix with accent left border.
+/// Agent messages use `$` prefix with info-colored left border.
 class MessageBubble extends StatelessWidget {
   final ChatMessage message;
 
@@ -16,159 +21,113 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.role == MessageRole.user;
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    final borderColor = isUser ? videColors.accent : videColors.info;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!isUser) ...[
-            _AgentAvatar(
-              agentName: message.agentName ?? message.agentType,
-              colorScheme: colorScheme,
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: VideRadius.smAll,
+          border: Border(
+            left: BorderSide(color: borderColor, width: 3),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: prefix + name + timestamp
+            Row(
               children: [
-                if (!isUser && message.agentName != null) ...[
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4, bottom: 4),
-                    child: _AgentChip(
-                      agentName: message.agentName!,
-                      agentType: message.agentType,
-                    ),
+                Text(
+                  isUser ? '>' : '\$',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: borderColor,
+                    fontSize: 13,
                   ),
-                ],
-                Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  isUser ? 'you' : (message.agentName ?? message.agentType),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                    fontSize: 13,
                   ),
-                  decoration: BoxDecoration(
-                    color: isUser
-                        ? colorScheme.primaryContainer
-                        : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isUser ? 16 : 4),
-                      bottomRight: Radius.circular(isUser ? 4 : 16),
-                    ),
-                  ),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isUser)
-                        Text(
-                          message.content,
-                          style: TextStyle(
-                            color: colorScheme.onPrimaryContainer,
-                          ),
-                        )
-                      else
-                        MarkdownBody(
-                          data: message.content,
-                          styleSheet: MarkdownStyleSheet(
-                            p: TextStyle(
-                              color: colorScheme.onSurface,
-                              fontSize: 14,
-                            ),
-                            code: TextStyle(
-                              backgroundColor: colorScheme.surfaceContainerHigh,
-                              fontFamily: 'monospace',
-                              fontSize: 13,
-                            ),
-                            codeblockDecoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          selectable: true,
-                          softLineBreak: true,
-                        ),
-                      if (message.isStreaming) ...[
-                        const SizedBox(height: 4),
-                        const _StreamingIndicator(),
-                      ],
-                    ],
+                ),
+                const Spacer(),
+                Text(
+                  _formatTime(message.timestamp),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: videColors.textSecondary,
                   ),
                 ),
               ],
             ),
-          ),
-          if (isUser) const SizedBox(width: 8),
-        ],
-      ),
-    );
-  }
-}
-
-class _AgentAvatar extends StatelessWidget {
-  final String agentName;
-  final ColorScheme colorScheme;
-
-  const _AgentAvatar({
-    required this.agentName,
-    required this.colorScheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: colorScheme.primaryContainer,
-      child: Icon(
-        Icons.smart_toy_outlined,
-        size: 18,
-        color: colorScheme.onPrimaryContainer,
-      ),
-    );
-  }
-}
-
-class _AgentChip extends StatelessWidget {
-  final String agentName;
-  final String agentType;
-
-  const _AgentChip({
-    required this.agentName,
-    required this.agentType,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.secondaryContainer.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        agentName,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: colorScheme.onSecondaryContainer,
+            const SizedBox(height: 8),
+            // Content
+            if (isUser)
+              Text(
+                message.content,
+                style: TextStyle(color: colorScheme.onSurface),
+              )
+            else
+              MarkdownBody(
+                data: message.content,
+                styleSheet: MarkdownStyleSheet(
+                  p: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 14,
+                  ),
+                  code: TextStyle(
+                    backgroundColor: colorScheme.surfaceContainerHigh,
+                    fontSize: 13,
+                  ),
+                  codeblockDecoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHigh,
+                    borderRadius: VideRadius.smAll,
+                    border: Border.all(
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+                selectable: true,
+                softLineBreak: true,
+              ),
+            if (message.isStreaming) ...[
+              const SizedBox(height: 4),
+              const _BlinkingCursor(),
+            ],
+          ],
         ),
       ),
     );
   }
+
+  String _formatTime(DateTime time) {
+    final h = time.hour.toString().padLeft(2, '0');
+    final m = time.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
 }
 
-class _StreamingIndicator extends StatefulWidget {
-  const _StreamingIndicator();
+/// Blinking block cursor for streaming messages.
+class _BlinkingCursor extends StatefulWidget {
+  const _BlinkingCursor();
 
   @override
-  State<_StreamingIndicator> createState() => _StreamingIndicatorState();
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
 }
 
-class _StreamingIndicatorState extends State<_StreamingIndicator>
+class _BlinkingCursorState extends State<_BlinkingCursor>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
@@ -177,8 +136,8 @@ class _StreamingIndicatorState extends State<_StreamingIndicator>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat();
+      duration: VideDurations.cursorBlink,
+    )..repeat(reverse: true);
   }
 
   @override
@@ -189,33 +148,21 @@ class _StreamingIndicatorState extends State<_StreamingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (index) {
-            final delay = index * 0.2;
-            final value = ((_controller.value - delay) % 1.0).clamp(0.0, 1.0);
-            final opacity = (value < 0.5 ? value * 2 : (1 - value) * 2).clamp(0.3, 1.0);
-
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Opacity(
-                opacity: opacity,
-                child: Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            );
-          }),
+        return Opacity(
+          opacity: _controller.value > 0.5 ? 1.0 : 0.0,
+          child: Text(
+            '\u2588',
+            style: TextStyle(
+              fontSize: 14,
+              color: videColors.accent,
+              height: 1,
+            ),
+          ),
         );
       },
     );

@@ -136,6 +136,7 @@ class PermissionChecker {
     required String toolName,
     required ToolInput input,
     required String cwd,
+    String? permissionMode,
   }) async {
     // Load settings (if enabled)
     ClaudeSettings? settings;
@@ -203,6 +204,11 @@ class PermissionChecker {
           return const PermissionDeny('Blocked by deny list');
         }
       }
+    }
+
+    // Auto-approve write operations in acceptEdits mode
+    if (permissionMode == 'acceptEdits' && _isWriteOperation(toolName)) {
+      return const PermissionAllow('Auto-approved (acceptEdits mode)');
     }
 
     // Check safe bash commands (auto-approve read-only)
