@@ -156,6 +156,64 @@ class SessionRepository extends _$SessionRepository {
     return session;
   }
 
+  /// Connects to an existing session by ID.
+  ///
+  /// This is used when navigating to a session from the sessions list.
+  Future<Session> connectToExistingSession(String sessionId) async {
+    _log('Connecting to existing session: $sessionId');
+
+    // If already connected to this session, return
+    if (state.session?.sessionId == sessionId && state.isActive) {
+      _log('Already connected to session $sessionId');
+      return state.session!;
+    }
+
+    final connectionState = ref.read(connectionRepositoryProvider);
+    if (!connectionState.isConnected || connectionState.connection == null) {
+      throw SessionException('Not connected to server');
+    }
+
+    final connection = connectionState.connection!;
+
+    // Close existing session if different
+    if (state.session?.sessionId != sessionId) {
+      close();
+    }
+
+    // Update connection state to connecting
+    ref.read(webSocketConnectionProvider.notifier).setConnecting();
+
+    // Create vide_client instance
+    final videClient = vc.VideClient(
+      host: connection.host,
+      port: connection.port,
+    );
+
+    // Connect to existing session via WebSocket
+    final videSession = await videClient.connectToSession(sessionId);
+
+    _log('Connected to session: $sessionId');
+
+    // Create local session model
+    final session = Session(
+      sessionId: sessionId,
+      mainAgentId: '', // Will be set when we receive the connected event
+      createdAt: DateTime.now(),
+      workingDirectory: '', // Will be updated from server metadata
+    );
+
+    // Set up event listening with disconnect handling
+    _setupEventListening(videSession);
+
+    state = SessionState(
+      session: session,
+      videSession: videSession,
+      isActive: true,
+    );
+
+    return session;
+  }
+
   void _setupEventListening(vc.Session videSession) {
     _eventSubscription?.cancel();
     _eventSubscription = videSession.events.listen(
@@ -313,7 +371,10 @@ class SessionRepository extends _$SessionRepository {
           agentName: agentName,
           taskName: taskName,
           timestamp: event.timestamp,
-          events: events.map((e) => _convertEvent(e as vc.VideEvent)).toList(),
+          // Parse raw JSON maps into VideEvent objects before converting
+          events: events
+              .map((e) => _convertEvent(vc.VideEvent.fromJson(e as Map<String, dynamic>)))
+              .toList(),
         ),
       vc.MessageEvent(:final role, :final content, :final isPartial) =>
         local.MessageEvent(

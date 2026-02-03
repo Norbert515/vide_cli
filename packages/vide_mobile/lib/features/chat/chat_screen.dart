@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/connection_state_provider.dart';
+import '../../core/theme/vide_colors.dart';
 import '../../data/models/session_event.dart' as session_events;
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
@@ -47,6 +48,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _subscribeToEvents();
+    _connectToSessionIfNeeded();
+  }
+
+  /// Connects to the session if not already connected.
+  ///
+  /// This handles the case when navigating to a session from the sessions list.
+  void _connectToSessionIfNeeded() {
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    final currentState = ref.read(sessionRepositoryProvider);
+
+    // If already connected to this session, nothing to do
+    if (currentState.session?.sessionId == widget.sessionId && currentState.isActive) {
+      return;
+    }
+
+    // Connect to the session
+    sessionRepo.connectToExistingSession(widget.sessionId).then((_) {
+      // Successfully connected
+    }).catchError((e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to connect: $e')),
+        );
+      }
+    });
   }
 
   @override
@@ -164,6 +190,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }) {
     final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
     final state = ref.read(chatNotifierProvider(widget.sessionId));
+
+    // Deduplicate user messages by content
+    // We add user messages optimistically in _sendMessage(), then receive them
+    // back from the server with a different eventId. Skip if we already have it.
+    if (role == MessageRole.user) {
+      final isDuplicate = state.messages.any(
+        (m) => m.role == MessageRole.user && m.content == content,
+      );
+      if (isDuplicate) {
+        return; // Skip duplicate user message
+      }
+    }
 
     if (isPartial) {
       // Accumulate streaming content
@@ -425,11 +463,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         currentStatus == WebSocketConnectionStatus.connected) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
+          final videColors = Theme.of(context).extension<VideThemeColors>()!;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Connection restored'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: const Text('Connection restored'),
+              backgroundColor: videColors.success,
+              duration: const Duration(seconds: 2),
             ),
           );
         }

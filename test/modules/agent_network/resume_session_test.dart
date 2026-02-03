@@ -35,6 +35,7 @@ void main() {
           videConfigManagerProvider.overrideWithValue(
             VideConfigManager(configRoot: configDir.path),
           ),
+          permissionHandlerProvider.overrideWithValue(PermissionHandler()),
         ],
       );
     });

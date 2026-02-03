@@ -129,6 +129,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       agentId: agentId,
       agentName: config.name,
       agentType: agentType,
+      permissionMode: config.permissionMode,
     );
 
     final client = ClaudeClient.createNonBlocking(
@@ -177,6 +178,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       agentId: agentId,
       agentName: config.name,
       agentType: agentType,
+      permissionMode: config.permissionMode,
     );
 
     final client = await ClaudeClient.create(
@@ -235,6 +237,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       agentId: agentId,
       agentName: config.name,
       agentType: agentType,
+      permissionMode: config.permissionMode,
     );
 
     // Use createNonBlocking to avoid hanging on init
@@ -257,6 +260,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     required AgentId agentId,
     required String? agentName,
     required String? agentType,
+    String? permissionMode,
   }) {
     final handler = _permissionHandler;
     if (handler == null) {
@@ -269,6 +273,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       agentId: agentId,
       agentName: agentName,
       agentType: agentType,
+      permissionMode: permissionMode,
     );
   }
 }

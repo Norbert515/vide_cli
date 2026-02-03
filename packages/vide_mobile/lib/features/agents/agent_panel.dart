@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../core/theme/vide_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/models.dart';
@@ -134,7 +136,7 @@ class _AgentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final statusColor = _getStatusColor(agent.status);
+    final statusColor = _getStatusColor(context, agent.status);
 
     return Card(
       margin: EdgeInsets.zero,
@@ -229,12 +231,13 @@ class _AgentCard extends StatelessWidget {
     );
   }
 
-  Color _getStatusColor(AgentStatus status) {
+  Color _getStatusColor(BuildContext context, AgentStatus status) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     return switch (status) {
-      AgentStatus.working => Colors.green,
-      AgentStatus.waitingForAgent => Colors.orange,
-      AgentStatus.waitingForUser => Colors.blue,
-      AgentStatus.idle => Colors.grey,
+      AgentStatus.working => videColors.success,
+      AgentStatus.waitingForAgent => videColors.warning,
+      AgentStatus.waitingForUser => videColors.info,
+      AgentStatus.idle => videColors.textTertiary,
     };
   }
 

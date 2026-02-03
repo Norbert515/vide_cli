@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/connection_state_provider.dart';
+import '../../../core/theme/tokens.dart';
+import '../../../core/theme/vide_colors.dart';
 import '../../../data/repositories/session_repository.dart';
 import '../../../domain/services/network_monitor_service.dart';
 
@@ -28,63 +30,69 @@ class ConnectionStatusBanner extends ConsumerWidget {
     WebSocketConnectionState connectionState,
     NetworkStatus networkStatus,
   ) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     final (icon, message, showRetry, backgroundColor) = switch (connectionState.status) {
       WebSocketConnectionStatus.connecting => (
           Icons.sync,
           'Connecting...',
           false,
-          colorScheme.primaryContainer,
+          videColors.accentSubtle,
         ),
       WebSocketConnectionStatus.reconnecting => (
           Icons.sync,
           'Reconnecting (${connectionState.retryCount}/${connectionState.maxRetries})...',
           false,
-          colorScheme.tertiaryContainer,
+          videColors.warningContainer,
         ),
       WebSocketConnectionStatus.disconnected => networkStatus == NetworkStatus.offline
           ? (
               Icons.wifi_off,
               'No internet connection',
               false,
-              colorScheme.errorContainer,
+              videColors.errorContainer,
             )
           : (
               Icons.cloud_off,
               connectionState.errorMessage ?? 'Disconnected',
               false,
-              colorScheme.errorContainer,
+              videColors.errorContainer,
             ),
       WebSocketConnectionStatus.failed => (
           Icons.error_outline,
           connectionState.errorMessage ?? 'Connection failed',
           true,
-          colorScheme.errorContainer,
+          videColors.errorContainer,
         ),
       WebSocketConnectionStatus.connected => (
           Icons.check_circle,
           'Connected',
           false,
-          colorScheme.primaryContainer,
+          videColors.successContainer,
         ),
     };
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
+      duration: VideDurations.normal,
       color: backgroundColor,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.md,
+            vertical: VideSpacing.sm,
+          ),
           child: Row(
             children: [
               if (connectionState.status == WebSocketConnectionStatus.connecting ||
                   connectionState.status == WebSocketConnectionStatus.reconnecting)
-                const SizedBox(
+                SizedBox(
                   width: 20,
                   height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: videColors.accent,
+                  ),
                 )
               else
                 Icon(icon, size: 20),
@@ -118,29 +126,30 @@ class ConnectionStatusChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final connectionState = ref.watch(webSocketConnectionProvider);
     final networkStatus = ref.watch(networkMonitorProvider);
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     final (icon, color, label) = switch (connectionState.status) {
       WebSocketConnectionStatus.connected => (
           Icons.check_circle,
-          Colors.green,
+          videColors.success,
           null as String?,
         ),
       WebSocketConnectionStatus.connecting => (
           Icons.sync,
-          Colors.orange,
+          videColors.warning,
           'Connecting',
         ),
       WebSocketConnectionStatus.reconnecting => (
           Icons.sync,
-          Colors.orange,
+          videColors.warning,
           '${connectionState.retryCount}/${connectionState.maxRetries}',
         ),
       WebSocketConnectionStatus.disconnected => networkStatus == NetworkStatus.offline
-          ? (Icons.wifi_off, Colors.red, 'Offline')
-          : (Icons.cloud_off, Colors.red, 'Disconnected'),
+          ? (Icons.wifi_off, videColors.error, 'Offline')
+          : (Icons.cloud_off, videColors.error, 'Disconnected'),
       WebSocketConnectionStatus.failed => (
           Icons.error_outline,
-          Colors.red,
+          videColors.error,
           'Failed',
         ),
     };
@@ -154,7 +163,7 @@ class ConnectionStatusChip extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(VideRadius.sm),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(

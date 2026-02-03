@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Message input bar for the chat screen.
+import '../../../core/theme/tokens.dart';
+import '../../../core/theme/vide_colors.dart';
+
+/// Terminal-style message input bar.
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final bool enabled;
@@ -53,25 +56,37 @@ class _InputBarState extends State<InputBar> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Container(
       padding: EdgeInsets.only(
-        left: 16,
-        right: 8,
-        top: 8,
-        bottom: 8 + MediaQuery.of(context).padding.bottom,
+        left: VideSpacing.md,
+        right: VideSpacing.sm,
+        top: VideSpacing.sm,
+        bottom: VideSpacing.sm + MediaQuery.of(context).padding.bottom,
       ),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border(
-          top: BorderSide(
-            color: colorScheme.outlineVariant,
-          ),
+          top: BorderSide(color: colorScheme.outlineVariant),
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          // Terminal prompt
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Text(
+              '>',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                color: videColors.textTertiary,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 120),
@@ -86,11 +101,19 @@ class _InputBarState extends State<InputBar> {
                   filled: true,
                   fillColor: colorScheme.surfaceContainerHighest,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
+                    borderRadius: VideRadius.smAll,
+                    borderSide: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: VideRadius.smAll,
+                    borderSide: BorderSide(color: colorScheme.outlineVariant),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: VideRadius.smAll,
+                    borderSide: BorderSide(color: videColors.accent, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
+                    horizontal: 12,
                     vertical: 10,
                   ),
                 ),
@@ -122,20 +145,21 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       height: 44,
       width: 44,
       decoration: BoxDecoration(
-        color: enabled ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+        color: enabled ? videColors.accent : colorScheme.surfaceContainerHighest,
         shape: BoxShape.circle,
       ),
       child: IconButton(
         onPressed: enabled ? onSend : null,
         icon: Icon(
           Icons.arrow_upward_rounded,
-          color: enabled ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+          color: enabled ? VideColors.background : colorScheme.onSurfaceVariant,
         ),
         tooltip: 'Send',
       ),
@@ -150,20 +174,20 @@ class _AbortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Container(
       height: 44,
       width: 44,
       decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
+        color: videColors.errorContainer,
         shape: BoxShape.circle,
       ),
       child: IconButton(
         onPressed: onAbort,
         icon: Icon(
           Icons.stop_rounded,
-          color: colorScheme.error,
+          color: videColors.error,
         ),
         tooltip: 'Stop',
       ),

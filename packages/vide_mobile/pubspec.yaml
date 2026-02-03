@@ -22,6 +22,7 @@ dependencies:
   http: ^1.2.0
   uuid: ^4.2.2
   cupertino_icons: ^1.0.6
+  google_fonts: ^6.1.0
   vide_client:
     path: ../vide_client
 

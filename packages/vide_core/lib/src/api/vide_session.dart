@@ -792,58 +792,76 @@ class VideSession {
     }
 
     final currentMessageCount = conversation.messages.length;
-    final latestMessage = conversation.messages.last;
-    final currentContentLength = latestMessage.content.length;
 
-    // New message started
+    // Process ALL new messages since we last checked (not just the latest one).
+    // This is important for catching up on missed messages, e.g. when the session
+    // subscribes late and there are already multiple messages in the conversation.
     if (currentMessageCount > state.lastMessageCount) {
-      state.lastResponseCount = 0;
+      // Emit events for all messages we haven't seen yet
+      for (int i = state.lastMessageCount; i < currentMessageCount; i++) {
+        final message = conversation.messages[i];
 
-      // Generate new event ID for this message
-      final eventId = const Uuid().v4();
-      state.currentMessageEventId = eventId;
+        // Generate new event ID for this message
+        final eventId = const Uuid().v4();
 
-      if (latestMessage.content.isNotEmpty) {
-        _eventController.add(
-          MessageEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state.taskName,
-            eventId: eventId,
-            role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-            content: latestMessage.content,
-            isPartial: true,
-          ),
-        );
+        // If this is the last message, track it for streaming updates
+        if (i == currentMessageCount - 1) {
+          state.currentMessageEventId = eventId;
+          state.lastContentLength = message.content.length;
+          state.lastResponseCount = 0;
+        }
+
+        if (message.content.isNotEmpty) {
+          _eventController.add(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state.taskName,
+              eventId: eventId,
+              role: message.role == MessageRole.user ? 'user' : 'assistant',
+              content: message.content,
+              isPartial: i == currentMessageCount - 1, // Only latest is partial
+            ),
+          );
+        }
+
+        // Emit tool events for this message
+        if (i == currentMessageCount - 1) {
+          _emitToolEvents(agent, message, state);
+        }
       }
 
       state.lastMessageCount = currentMessageCount;
-      state.lastContentLength = currentContentLength;
     }
-    // Same message, content grew (streaming delta)
-    else if (currentContentLength > state.lastContentLength) {
-      final delta = latestMessage.content.substring(state.lastContentLength);
-      if (delta.isNotEmpty) {
-        final eventId = state.currentMessageEventId ?? const Uuid().v4();
-        _eventController.add(
-          MessageEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state.taskName,
-            eventId: eventId,
-            role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-            content: delta,
-            isPartial: true,
-          ),
-        );
-      }
-      state.lastContentLength = currentContentLength;
-    }
+    // Same message count, but latest message content grew (streaming delta)
+    else {
+      final latestMessage = conversation.messages.last;
+      final currentContentLength = latestMessage.content.length;
 
-    // Always check for new tool events
-    _emitToolEvents(agent, latestMessage, state);
+      if (currentContentLength > state.lastContentLength) {
+        final delta = latestMessage.content.substring(state.lastContentLength);
+        if (delta.isNotEmpty) {
+          final eventId = state.currentMessageEventId ?? const Uuid().v4();
+          _eventController.add(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state.taskName,
+              eventId: eventId,
+              role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
+              content: delta,
+              isPartial: true,
+            ),
+          );
+        }
+        state.lastContentLength = currentContentLength;
+      }
+
+      // Always check for new tool events on the latest message
+      _emitToolEvents(agent, latestMessage, state);
+    }
 
     // Check for errors
     if (conversation.currentError != null) {
@@ -920,6 +938,7 @@ class VideSession {
     required String? agentName,
     required String? agentType,
     required String cwd,
+    String? permissionMode,
   }) {
     return (
       String toolName,
@@ -948,6 +967,7 @@ class VideSession {
         toolName: toolName,
         input: typedInput,
         cwd: cwd,
+        permissionMode: permissionMode,
       );
 
       // Handle the result from PermissionChecker

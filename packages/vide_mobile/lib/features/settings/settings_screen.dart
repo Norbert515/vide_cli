@@ -2,13 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/vide_colors.dart';
+
 /// Settings screen for the app.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Scaffold(
       appBar: AppBar(
@@ -58,7 +60,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.delete_outline,
             title: 'Clear Data',
             subtitle: 'Clear all local data and settings',
-            iconColor: colorScheme.error,
+            iconColor: videColors.error,
             onTap: () {
               _showClearDataConfirmation(context);
             },
@@ -111,7 +113,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   void _showClearDataConfirmation(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     showDialog(
       context: context,
@@ -134,8 +136,7 @@ class SettingsScreen extends ConsumerWidget {
               );
             },
             style: FilledButton.styleFrom(
-              backgroundColor: colorScheme.error,
-              foregroundColor: colorScheme.onError,
+              backgroundColor: videColors.error,
             ),
             child: const Text('Clear'),
           ),
@@ -152,7 +153,7 @@ class SettingsScreen extends ConsumerWidget {
       applicationIcon: Icon(
         Icons.terminal_rounded,
         size: 48,
-        color: Theme.of(context).colorScheme.primary,
+        color: Theme.of(context).extension<VideThemeColors>()!.accent,
       ),
       children: [
         const Text(
@@ -170,14 +171,14 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: colorScheme.primary,
+          color: videColors.accent,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -204,19 +205,19 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: (iconColor ?? colorScheme.primary).withValues(alpha: 0.1),
+          color: (iconColor ?? videColors.accent).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
           icon,
           size: 22,
-          color: iconColor ?? colorScheme.primary,
+          color: iconColor ?? videColors.accent,
         ),
       ),
       title: Text(title),

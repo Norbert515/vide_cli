@@ -37,6 +37,7 @@ class PermissionHandler {
     required AgentId agentId,
     required String? agentName,
     required String? agentType,
+    String? permissionMode,
   }) {
     return (toolName, input, context) async {
       final session = _session;
@@ -54,6 +55,7 @@ class PermissionHandler {
         agentName: agentName,
         agentType: agentType,
         cwd: cwd,
+        permissionMode: permissionMode,
       );
       return callback(toolName, input, context);
     };

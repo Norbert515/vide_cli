@@ -765,9 +765,11 @@ class RemoteVideSession implements VideSession {
     if (role == 'user') {
       // Check if this user message already exists (from optimistic add)
       // We compare by content since IDs may differ between optimistic and server events
-      final isDuplicate = messages.isNotEmpty &&
-          messages.last.role == MessageRole.user &&
-          messages.last.content == content;
+      // Check ALL recent user messages, not just the last one, because an assistant
+      // message might have started before the server echoes back the user message
+      final isDuplicate = messages.any(
+        (m) => m.role == MessageRole.user && m.content == content,
+      );
 
       if (!isDuplicate) {
         messages.add(
@@ -1302,6 +1304,7 @@ class RemoteVideSession implements VideSession {
     required String? agentName,
     required String? agentType,
     required String cwd,
+    String? permissionMode,
   }) {
     throw UnimplementedError(
       'createPermissionCallback not used in remote mode',
