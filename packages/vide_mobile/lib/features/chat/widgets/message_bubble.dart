@@ -59,11 +59,10 @@ class MessageBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-                selectable: true,
+                selectable: false,
                 softLineBreak: true,
               ),
       ),
     );
   }
 }
-
