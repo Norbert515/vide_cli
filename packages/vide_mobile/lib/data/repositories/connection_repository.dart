@@ -1,17 +1,17 @@
 import 'dart:developer' as developer;
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../domain/models/server_connection.dart';
 import '../local/settings_storage.dart';
-import '../remote/vide_api_client.dart';
 
 part 'connection_repository.g.dart';
 
 /// State for the connection repository.
 class ConnectionState {
   final ServerConnection? connection;
-  final VideApiClient? client;
+  final vc.VideClient? client;
   final bool isConnected;
 
   const ConnectionState({
@@ -22,7 +22,7 @@ class ConnectionState {
 
   ConnectionState copyWith({
     ServerConnection? connection,
-    VideApiClient? client,
+    vc.VideClient? client,
     bool? isConnected,
   }) {
     return ConnectionState(
@@ -42,9 +42,6 @@ class ConnectionRepository extends _$ConnectionRepository {
 
   @override
   ConnectionState build() {
-    ref.onDispose(() {
-      state.client?.dispose();
-    });
     return const ConnectionState();
   }
 
@@ -52,39 +49,29 @@ class ConnectionRepository extends _$ConnectionRepository {
   Future<bool> testConnection(ServerConnection connection) async {
     _log('Testing connection to ${connection.host}:${connection.port}');
 
-    final client = VideApiClient(
+    final client = vc.VideClient(
       host: connection.host,
       port: connection.port,
-      isSecure: connection.isSecure,
     );
 
-    try {
-      final result = await client.healthCheck();
-      _log('Connection test result: $result');
-      return result;
-    } finally {
-      client.dispose();
-    }
+    final result = await client.checkHealth();
+    _log('Connection test result: $result');
+    return result;
   }
 
   /// Connects to a server.
   Future<void> connect(ServerConnection connection) async {
     _log('Connecting to ${connection.host}:${connection.port}');
 
-    // Dispose of existing client
-    state.client?.dispose();
-
-    final client = VideApiClient(
+    final client = vc.VideClient(
       host: connection.host,
       port: connection.port,
-      isSecure: connection.isSecure,
     );
 
     // Test the connection
-    final isHealthy = await client.healthCheck();
+    final isHealthy = await client.checkHealth();
     if (!isHealthy) {
-      client.dispose();
-      throw VideApiException('Server health check failed');
+      throw vc.VideClientException('Server health check failed');
     }
 
     // Save the connection
@@ -103,12 +90,11 @@ class ConnectionRepository extends _$ConnectionRepository {
   /// Disconnects from the current server.
   void disconnect() {
     _log('Disconnecting');
-    state.client?.dispose();
     state = const ConnectionState();
   }
 
   /// Gets the current API client.
-  VideApiClient? get client => state.client;
+  vc.VideClient? get client => state.client;
 
   /// Gets the current connection.
   ServerConnection? get connection => state.connection;

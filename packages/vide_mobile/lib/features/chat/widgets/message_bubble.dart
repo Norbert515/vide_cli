@@ -102,10 +102,17 @@ class MessageBubble extends StatelessWidget {
                 selectable: true,
                 softLineBreak: true,
               ),
-            if (message.isStreaming) ...[
-              const SizedBox(height: 4),
-              const _BlinkingCursor(),
-            ],
+            if (message.isStreaming)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '...',
+                  style: TextStyle(
+                    color: videColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -119,52 +126,3 @@ class MessageBubble extends StatelessWidget {
   }
 }
 
-/// Blinking block cursor for streaming messages.
-class _BlinkingCursor extends StatefulWidget {
-  const _BlinkingCursor();
-
-  @override
-  State<_BlinkingCursor> createState() => _BlinkingCursorState();
-}
-
-class _BlinkingCursorState extends State<_BlinkingCursor>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: VideDurations.cursorBlink,
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _controller.value > 0.5 ? 1.0 : 0.0,
-          child: Text(
-            '\u2588',
-            style: TextStyle(
-              fontSize: 14,
-              color: videColors.accent,
-              height: 1,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}

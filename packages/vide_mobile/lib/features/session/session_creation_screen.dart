@@ -5,25 +5,32 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
+import 'package:vide_client/vide_client.dart' as vc;
+
+import '../../data/repositories/connection_repository.dart';
 import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
 
-class _TeamInfo {
-  final String name;
-  final String description;
-
-  const _TeamInfo({required this.name, required this.description});
-}
-
-const _availableTeams = [
-  _TeamInfo(name: 'vide', description: 'Full-featured multi-agent team'),
-  _TeamInfo(name: 'startup', description: 'Fast and lean, minimal agents'),
-  _TeamInfo(
+final _fallbackTeams = [
+  vc.TeamInfo(name: 'vide', description: 'Full-featured multi-agent team', mainAgent: '', agents: []),
+  vc.TeamInfo(name: 'startup', description: 'Fast and lean, minimal agents', mainAgent: '', agents: []),
+  vc.TeamInfo(
     name: 'enterprise',
     description: 'Comprehensive with QA and review',
+    mainAgent: '',
+    agents: [],
   ),
-  _TeamInfo(name: 'research', description: 'Deep exploration and analysis'),
+  vc.TeamInfo(name: 'research', description: 'Deep exploration and analysis', mainAgent: '', agents: []),
 ];
+
+final availableTeamsProvider = FutureProvider<List<vc.TeamInfo>>((ref) async {
+  final connectionState = ref.watch(connectionRepositoryProvider);
+  final client = connectionState.client;
+  if (client == null) {
+    return _fallbackTeams;
+  }
+  return client.listTeams();
+});
 
 /// Screen for creating a new session.
 class SessionCreationScreen extends ConsumerStatefulWidget {
@@ -242,7 +249,7 @@ class _SessionCreationScreenState
   }
 }
 
-class _TeamSelector extends StatelessWidget {
+class _TeamSelector extends ConsumerWidget {
   final String selectedTeam;
   final bool enabled;
   final ValueChanged<String> onSelected;
@@ -254,12 +261,32 @@ class _TeamSelector extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final teamsAsync = ref.watch(availableTeamsProvider);
 
+    return teamsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => _buildTeamList(
+        _fallbackTeams,
+        colorScheme,
+        videColors,
+      ),
+      data: (teams) => _buildTeamList(teams, colorScheme, videColors),
+    );
+  }
+
+  Widget _buildTeamList(
+    List<vc.TeamInfo> teams,
+    ColorScheme colorScheme,
+    VideThemeColors videColors,
+  ) {
     return Column(
-      children: _availableTeams.map((team) {
+      children: teams.map((team) {
         final isSelected = team.name == selectedTeam;
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
@@ -267,7 +294,8 @@ class _TeamSelector extends StatelessWidget {
             onTap: enabled ? () => onSelected(team.name) : null,
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isSelected ? videColors.accentSubtle : null,
                 border: Border.all(
@@ -290,8 +318,9 @@ class _TeamSelector extends StatelessWidget {
                             color: isSelected
                                 ? videColors.accent
                                 : colorScheme.onSurface,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.w500,
                             fontSize: 15,
                           ),
                         ),
@@ -307,7 +336,8 @@ class _TeamSelector extends StatelessWidget {
                     ),
                   ),
                   if (isSelected)
-                    Icon(Icons.check_circle, size: 20, color: videColors.accent),
+                    Icon(Icons.check_circle,
+                        size: 20, color: videColors.accent),
                 ],
               ),
             ),

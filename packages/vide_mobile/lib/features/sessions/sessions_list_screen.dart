@@ -3,16 +3,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:vide_client/vide_client.dart' as vc;
+
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
-import '../../data/remote/vide_api_client.dart';
 import '../../data/repositories/connection_repository.dart';
 
 part 'sessions_list_screen.g.dart';
 
 /// Provider to fetch sessions list.
 @riverpod
-Future<List<SessionSummary>> sessionsList(Ref ref) async {
+Future<List<vc.SessionSummary>> sessionsList(Ref ref) async {
   final connectionState = ref.watch(connectionRepositoryProvider);
   if (!connectionState.isConnected || connectionState.client == null) {
     return [];
@@ -24,6 +25,51 @@ Future<List<SessionSummary>> sessionsList(Ref ref) async {
 /// Screen showing list of existing sessions.
 class SessionsListScreen extends ConsumerWidget {
   const SessionsListScreen({super.key});
+
+  Future<void> _stopSession(
+    BuildContext context,
+    WidgetRef ref,
+    vc.SessionSummary session,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Stop session?'),
+        content: Text(
+          'This will stop "${session.goal ?? 'Untitled Session'}" and terminate all agents.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Stop'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final connectionState = ref.read(connectionRepositoryProvider);
+    if (connectionState.client == null) return;
+
+    try {
+      await connectionState.client!.stopSession(session.sessionId);
+      ref.invalidate(sessionsListProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to stop session: $e'),
+            behavior: SnackBarBehavior.fixed,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -116,7 +162,10 @@ class SessionsListScreen extends ConsumerWidget {
               itemCount: sessions.length,
               itemBuilder: (context, index) {
                 final session = sessions[index];
-                return _SessionCard(session: session);
+                return _SessionCard(
+                  session: session,
+                  onStop: () => _stopSession(context, ref, session),
+                );
               },
             ),
           );
@@ -132,9 +181,10 @@ class SessionsListScreen extends ConsumerWidget {
 }
 
 class _SessionCard extends StatelessWidget {
-  final SessionSummary session;
+  final vc.SessionSummary session;
+  final VoidCallback? onStop;
 
-  const _SessionCard({required this.session});
+  const _SessionCard({required this.session, this.onStop});
 
   @override
   Widget build(BuildContext context) {
@@ -281,6 +331,22 @@ class _SessionCard extends StatelessWidget {
                           color: statusColor,
                           fontWeight: FontWeight.w500,
                         ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Stop button
+                  SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 18,
+                      icon: Icon(
+                        Icons.stop_circle_outlined,
+                        color: colorScheme.outline,
+                      ),
+                      onPressed: onStop,
+                      tooltip: 'Stop session',
+                    ),
                   ),
                 ],
               ),

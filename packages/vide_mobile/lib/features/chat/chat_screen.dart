@@ -3,15 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../core/providers/connection_state_provider.dart';
+import '../../core/theme/tokens.dart';
 import '../../core/theme/vide_colors.dart';
-import '../../data/models/session_event.dart' as session_events;
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
 import '../agents/agent_panel.dart';
 import '../permissions/permission_sheet.dart';
 import 'chat_state.dart';
+import 'widgets/agent_tab_bar.dart';
 import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
@@ -32,8 +34,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _inputController = TextEditingController();
-  final _scrollController = ScrollController();
-  StreamSubscription<session_events.SessionEvent>? _eventSubscription;
+  StreamSubscription<vc.VideEvent>? _eventSubscription;
 
   /// Tracks accumulated content for streaming messages by eventId.
   final Map<String, String> _streamingMessages = {};
@@ -41,14 +42,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
 
-  /// Track previous connection status for showing snackbar on reconnection.
-  WebSocketConnectionStatus? _previousConnectionStatus;
+  /// Currently selected tab index (0 = main agent, 1+ = other agents).
+  int _selectedTabIndex = 0;
+
+  /// Per-tab scroll controllers keyed by agent ID.
+  final Map<String, ScrollController> _scrollControllers = {};
+
+  /// Cached list of agent IDs in tab order, to track index shifts.
+  List<String> _agentTabIds = [];
+
+  /// True while processing history events — suppresses scroll animations and shows loading.
+  bool _isLoadingHistory = false;
 
   @override
   void initState() {
     super.initState();
     _subscribeToEvents();
-    _connectToSessionIfNeeded();
+    // Defer connection to post-frame to avoid modifying providers during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _connectToSessionIfNeeded();
+    });
   }
 
   /// Connects to the session if not already connected.
@@ -69,7 +82,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }).catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to connect: $e')),
+          SnackBar(
+            content: Text('Failed to connect: $e'),
+            behavior: SnackBarBehavior.fixed,
+          ),
         );
       }
     });
@@ -79,7 +95,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _eventSubscription?.cancel();
     _inputController.dispose();
-    _scrollController.dispose();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -88,60 +106,93 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _eventSubscription = sessionRepo.events.listen(_handleEvent);
   }
 
-  void _handleEvent(session_events.SessionEvent event) {
+  void _handleEvent(vc.VideEvent event) {
     final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
 
     switch (event) {
-      case session_events.ConnectedEvent(:final agents):
-        // Set initial agents from connected event
-        notifier.setAgents(agents);
+      case vc.ConnectedEvent(:final agents):
+        final domainAgents = agents.map((a) => Agent(
+          id: a.id,
+          type: a.type,
+          name: a.name,
+          taskName: a.taskName,
+        )).toList();
+        notifier.setAgents(domainAgents);
+        _syncAgentTabs(domainAgents);
 
-      case session_events.HistoryEvent(:final events):
-        // Process history events for reconnection
-        for (final historyEvent in events) {
-          _handleEvent(historyEvent);
+      case vc.HistoryEvent(:final events):
+        setState(() => _isLoadingHistory = true);
+        for (final rawEvent in events) {
+          _handleEvent(vc.VideEvent.fromJson(rawEvent as Map<String, dynamic>));
         }
+        setState(() => _isLoadingHistory = false);
+        _jumpToBottom();
 
-      case session_events.MessageEvent(
+      case vc.MessageEvent(
           :final eventId,
-          :final agentId,
-          :final agentType,
-          :final agentName,
           :final content,
           :final role,
           :final isPartial,
           :final timestamp,
         ):
+        final agentId = event.agent?.id ?? '';
+        final agentType = event.agent?.type ?? '';
+        final agentName = event.agent?.name;
         _handleMessageEvent(
-          eventId: eventId,
+          eventId: eventId ?? '',
           agentId: agentId,
           agentType: agentType,
           agentName: agentName,
           content: content,
-          role: role,
+          role: role == vc.MessageRole.user ? MessageRole.user : MessageRole.assistant,
           isPartial: isPartial,
           timestamp: timestamp,
         );
 
-      case session_events.StatusEvent(:final agentId, :final status, :final taskName):
-        notifier.updateAgentStatus(agentId, status, taskName);
-        // Update isAgentWorking based on any agent working
+      case vc.StatusEvent(:final status):
+        final agentId = event.agent?.id ?? '';
+        final taskName = event.agent?.taskName;
+        notifier.updateAgentStatus(agentId, _convertAgentStatus(status), taskName);
         final agents = ref.read(chatNotifierProvider(widget.sessionId)).agents;
         final anyWorking = agents.any((a) => a.status == AgentStatus.working);
         notifier.setIsAgentWorking(anyWorking);
 
-      case session_events.ToolUseEvent(:final toolUse):
-        notifier.addToolUse(toolUse);
+      case vc.ToolUseEvent(:final toolUseId, :final toolName, :final toolInput):
+        final agentId = event.agent?.id ?? '';
+        final agentName = event.agent?.name;
+        notifier.addToolUse(ToolUse(
+          toolUseId: toolUseId,
+          toolName: toolName,
+          input: toolInput,
+          agentId: agentId,
+          agentName: agentName,
+          timestamp: event.timestamp,
+        ));
         _scrollToBottom();
 
-      case session_events.ToolResultEvent(:final toolResult):
-        notifier.addToolResult(toolResult);
+      case vc.ToolResultEvent(:final toolUseId, :final toolName, :final result, :final isError):
+        notifier.addToolResult(ToolResult(
+          toolUseId: toolUseId,
+          toolName: toolName,
+          result: result,
+          isError: isError,
+          timestamp: event.timestamp,
+        ));
         _scrollToBottom();
 
-      case session_events.PermissionRequestEvent(:final request):
-        notifier.setPendingPermission(request);
+      case vc.PermissionRequestEvent(:final requestId, :final tool):
+        final agentId = event.agent?.id ?? '';
+        final agentName = event.agent?.name;
+        notifier.setPendingPermission(PermissionRequest(
+          requestId: requestId,
+          toolName: tool['name'] as String? ?? '',
+          toolInput: tool['input'] as Map<String, dynamic>? ?? {},
+          agentId: agentId,
+          agentName: agentName,
+          timestamp: event.timestamp,
+        ));
 
-      case session_events.PermissionTimeoutEvent(:final requestId):
+      case vc.PermissionTimeoutEvent(:final requestId):
         final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
         if (pending?.requestId == requestId) {
           notifier.setPendingPermission(null);
@@ -151,31 +202,88 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Permission request timed out')),
+              const SnackBar(
+                content: Text('Permission request timed out'),
+                behavior: SnackBarBehavior.fixed,
+              ),
             );
           }
         }
 
-      case session_events.AgentSpawnedEvent(:final agent):
+      case vc.AgentSpawnedEvent():
+        final agentId = event.agent?.id ?? '';
+        final agentType = event.agent?.type ?? '';
+        final agentName = event.agent?.name ?? 'Agent';
+        final taskName = event.agent?.taskName;
+        final agent = Agent(
+          id: agentId,
+          type: agentType,
+          name: agentName,
+          taskName: taskName,
+        );
         notifier.addAgent(agent);
+        _onAgentAdded(agent);
 
-      case session_events.AgentTerminatedEvent(:final terminatedAgentId):
+      case vc.AgentTerminatedEvent():
+        final terminatedAgentId = event.agent?.id ?? '';
         notifier.removeAgent(terminatedAgentId);
+        _onAgentRemoved(terminatedAgentId);
 
-      case session_events.DoneEvent():
+      case vc.DoneEvent():
         notifier.setIsAgentWorking(false);
 
-      case session_events.AbortedEvent():
+      case vc.AbortedEvent():
         notifier.setIsAgentWorking(false);
 
-      case session_events.ErrorEvent(:final message):
+      case vc.ErrorEvent(:final message):
         notifier.setError(message);
         notifier.setIsAgentWorking(false);
 
-      case session_events.UnknownEvent():
-        // Ignore unknown events
+      case vc.UnknownEvent():
         break;
     }
+  }
+
+  AgentStatus _convertAgentStatus(vc.AgentStatus status) {
+    return switch (status) {
+      vc.AgentStatus.working => AgentStatus.working,
+      vc.AgentStatus.waitingForAgent => AgentStatus.waitingForAgent,
+      vc.AgentStatus.waitingForUser => AgentStatus.waitingForUser,
+      vc.AgentStatus.idle => AgentStatus.idle,
+    };
+  }
+
+  void _syncAgentTabs(List<Agent> agents) {
+    setState(() {
+      _agentTabIds = agents.map((a) => a.id).toList();
+      for (final agent in agents) {
+        _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+      }
+    });
+  }
+
+  void _onAgentAdded(Agent agent) {
+    setState(() {
+      _agentTabIds.add(agent.id);
+      _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+    });
+  }
+
+  void _onAgentRemoved(String agentId) {
+    final removedIndex = _agentTabIds.indexOf(agentId);
+    if (removedIndex < 0) return;
+
+    setState(() {
+      _agentTabIds.remove(agentId);
+      _scrollControllers[agentId]?.dispose();
+      _scrollControllers.remove(agentId);
+
+      if (_selectedTabIndex == removedIndex) {
+        _selectedTabIndex = 0; // Fall back to first agent
+      } else if (_selectedTabIndex > removedIndex) {
+        _selectedTabIndex--;
+      }
+    });
   }
 
   void _handleMessageEvent({
@@ -300,14 +408,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(false);
   }
 
+  /// Returns the scroll controller for the currently active tab.
+  ScrollController get _activeScrollController {
+    if (_selectedTabIndex < _agentTabIds.length) {
+      final agentId = _agentTabIds[_selectedTabIndex];
+      final controller = _scrollControllers[agentId];
+      if (controller != null) return controller;
+    }
+    // Fallback: return the first available controller
+    return _scrollControllers.values.firstOrNull ?? ScrollController();
+  }
+
   void _scrollToBottom() {
+    if (_isLoadingHistory) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+      final controller = _activeScrollController;
+      if (controller.hasClients) {
+        controller.animateTo(
+          controller.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
+      }
+    });
+  }
+
+  /// Instantly jumps to bottom without animation (used after history load).
+  void _jumpToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final controller in _scrollControllers.values) {
+        if (controller.hasClients) {
+          controller.jumpTo(controller.position.maxScrollExtent);
+        }
       }
     });
   }
@@ -361,9 +493,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final connectionState = ref.watch(webSocketConnectionProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Show snackbar when connection is restored
-    _handleConnectionStatusChange(connectionState.status);
-
     // Show permission sheet if there's a pending permission
     if (state.pendingPermission != null && !_isPermissionSheetShowing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -376,6 +505,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Determine if input should be disabled
     final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
     final inputEnabled = !state.isAgentWorking && !isDisconnected;
+
+    final hasAgents = state.agents.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -412,12 +543,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           // Connection status banner
           const ConnectionStatusBanner(),
-          // Working indicator
-          if (state.isAgentWorking && connectionState.status == WebSocketConnectionStatus.connected)
-            LinearProgressIndicator(
-              backgroundColor: colorScheme.primaryContainer,
-              valueColor: AlwaysStoppedAnimation(colorScheme.primary),
-            ),
           // Error banner
           if (state.error != null)
             MaterialBanner(
@@ -432,16 +557,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ],
             ),
-          // Messages list
+          // Agent tab bar (only shown when agents exist)
+          if (hasAgents)
+            AgentTabBar(
+              agents: state.agents,
+              selectedIndex: _selectedTabIndex,
+              onTabSelected: (index) {
+                setState(() => _selectedTabIndex = index);
+              },
+            ),
+          // Messages area with per-tab filtering
           Expanded(
-            child: state.messages.isEmpty
-                ? _EmptyState()
-                : _MessageList(
-                    messages: state.messages,
-                    toolUses: state.toolUses,
-                    toolResults: state.toolResults,
-                    scrollController: _scrollController,
-                  ),
+            child: _isLoadingHistory
+                ? const Center(child: CircularProgressIndicator())
+                : _buildTabContent(state),
           ),
           // Input bar
           InputBar(
@@ -456,26 +585,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  void _handleConnectionStatusChange(WebSocketConnectionStatus currentStatus) {
-    // Show snackbar when reconnected
-    if (_previousConnectionStatus != null &&
-        _previousConnectionStatus != WebSocketConnectionStatus.connected &&
-        currentStatus == WebSocketConnectionStatus.connected) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          final videColors = Theme.of(context).extension<VideThemeColors>()!;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Connection restored'),
-              backgroundColor: videColors.success,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      });
+  /// Switches to the tab for the given agent ID, if it exists.
+  void _switchToAgentTab(String agentId) {
+    final index = _agentTabIds.indexOf(agentId);
+    if (index >= 0) {
+      setState(() => _selectedTabIndex = index);
     }
-    _previousConnectionStatus = currentStatus;
   }
+
+  Widget _buildTabContent(ChatState state) {
+    if (state.messages.isEmpty && state.toolUses.isEmpty) {
+      return _EmptyState();
+    }
+
+    // Build per-agent tab views
+    final tabViews = <Widget>[
+      for (final agentId in _agentTabIds)
+        _MessageList(
+          messages: state.messages.where((m) => m.agentId == agentId).toList(),
+          toolUses: state.toolUses.where((t) => t.agentId == agentId).toList(),
+          toolResults: state.toolResults,
+          agents: state.agents,
+          scrollController: _scrollControllers[agentId] ?? ScrollController(),
+          onAgentTap: _switchToAgentTab,
+        ),
+    ];
+
+    if (tabViews.isEmpty) {
+      return _EmptyState();
+    }
+
+    // Use IndexedStack to preserve scroll positions across tab switches
+    return IndexedStack(
+      index: _selectedTabIndex.clamp(0, tabViews.length - 1),
+      children: tabViews,
+    );
+  }
+
 }
 
 class _EmptyState extends StatelessWidget {
@@ -516,13 +662,17 @@ class _MessageList extends StatelessWidget {
   final List<ChatMessage> messages;
   final List<ToolUse> toolUses;
   final Map<String, ToolResult> toolResults;
+  final List<Agent> agents;
   final ScrollController scrollController;
+  final ValueChanged<String>? onAgentTap;
 
   const _MessageList({
     required this.messages,
     required this.toolUses,
     required this.toolResults,
+    required this.agents,
     required this.scrollController,
+    this.onAgentTap,
   });
 
   @override
@@ -541,6 +691,15 @@ class _MessageList extends StatelessWidget {
     // Sort by timestamp
     items.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
+    if (items.isEmpty) {
+      return const Center(
+        child: Text(
+          'No messages from this agent yet',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
     return ListView.builder(
       controller: scrollController,
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -549,12 +708,116 @@ class _MessageList extends StatelessWidget {
         final item = items[index];
         return item.when(
           message: (message) => MessageBubble(message: message),
-          tool: (toolUse, result) => ToolCard(
-            toolUse: toolUse,
-            result: result,
-          ),
+          tool: (toolUse, result) {
+            if (_isSpawnAgentTool(toolUse)) {
+              return _SpawnAgentCard(
+                toolUse: toolUse,
+                agents: agents,
+                onTap: onAgentTap,
+              );
+            }
+            return ToolCard(
+              toolUse: toolUse,
+              result: result,
+            );
+          },
         );
       },
+    );
+  }
+
+  bool _isSpawnAgentTool(ToolUse toolUse) {
+    return toolUse.toolName == 'mcp__vide-agent__spawnAgent';
+  }
+}
+
+/// A tappable card for spawnAgent tool uses that navigates to the agent's tab.
+class _SpawnAgentCard extends StatelessWidget {
+  final ToolUse toolUse;
+  final List<Agent> agents;
+  final ValueChanged<String>? onTap;
+
+  const _SpawnAgentCard({
+    required this.toolUse,
+    required this.agents,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final agentName = toolUse.input['name'] as String? ?? 'Agent';
+    final agentType = toolUse.input['agentType'] as String? ?? '';
+
+    // Find matching agent by name to get its ID
+    final matchingAgent = agents.cast<Agent?>().firstWhere(
+      (a) => a!.name == agentName,
+      orElse: () => null,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: GestureDetector(
+        onTap: matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: VideRadius.smAll,
+            border: Border.all(
+              color: videColors.glassBorder,
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.md,
+            vertical: 12,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: videColors.accent,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      agentName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: videColors.accent,
+                      ),
+                    ),
+                    if (agentType.isNotEmpty)
+                      Text(
+                        agentType,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: videColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (matchingAgent != null)
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: videColors.textTertiary,
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

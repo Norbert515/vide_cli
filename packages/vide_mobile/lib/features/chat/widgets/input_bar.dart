@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
@@ -90,31 +91,52 @@ class _InputBarState extends State<InputBar> {
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 120),
-              child: TextField(
-                controller: widget.controller,
-                enabled: widget.enabled && !widget.isLoading,
-                maxLines: null,
-                textInputAction: TextInputAction.newline,
-                keyboardType: TextInputType.multiline,
-                decoration: InputDecoration(
-                  hintText: widget.isLoading ? 'Agent is working...' : 'Type a message...',
-                  filled: true,
-                  fillColor: colorScheme.surfaceContainerHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: VideRadius.smAll,
-                    borderSide: BorderSide(color: colorScheme.outlineVariant),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: VideRadius.smAll,
-                    borderSide: BorderSide(color: colorScheme.outlineVariant),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: VideRadius.smAll,
-                    borderSide: BorderSide(color: videColors.accent, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+              child: KeyboardListener(
+                focusNode: FocusNode(),
+                onKeyEvent: (event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.enter &&
+                      !HardwareKeyboard.instance.isShiftPressed) {
+                    // Enter without shift: send message
+                    if (_hasText && widget.enabled && !widget.isLoading) {
+                      // Prevent the newline from being inserted
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        // Remove the trailing newline that was just inserted
+                        final text = widget.controller.text;
+                        if (text.endsWith('\n')) {
+                          widget.controller.text = text.substring(0, text.length - 1);
+                        }
+                        _handleSend();
+                      });
+                    }
+                  }
+                },
+                child: TextField(
+                  controller: widget.controller,
+                  enabled: widget.enabled && !widget.isLoading,
+                  maxLines: null,
+                  textInputAction: TextInputAction.newline,
+                  keyboardType: TextInputType.multiline,
+                  decoration: InputDecoration(
+                    hintText: widget.isLoading ? 'Agent is working...' : 'Type a message...',
+                    filled: true,
+                    fillColor: colorScheme.surfaceContainerHighest,
+                    border: OutlineInputBorder(
+                      borderRadius: VideRadius.smAll,
+                      borderSide: BorderSide(color: colorScheme.outlineVariant),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: VideRadius.smAll,
+                      borderSide: BorderSide(color: colorScheme.outlineVariant),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: VideRadius.smAll,
+                      borderSide: BorderSide(color: videColors.accent, width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
                   ),
                 ),
               ),

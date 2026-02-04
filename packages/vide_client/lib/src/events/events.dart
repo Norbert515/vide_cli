@@ -113,17 +113,15 @@ sealed class VideEvent {
         eventId: eventId,
         timestamp: timestamp,
         agent: agent,
-        // Required field - will throw if missing (intentional)
-        spawnedBy: data!['spawned-by'] as String,
+        spawnedBy: data?['spawned-by'] as String? ?? '',
       ),
       'agent-terminated' => AgentTerminatedEvent(
         seq: seq,
         eventId: eventId,
         timestamp: timestamp,
         agent: agent,
-        // Required field - will throw if missing (intentional)
-        terminatedBy: data!['terminated-by'] as String,
-        reason: data['reason'] as String?,
+        terminatedBy: data?['terminated-by'] as String? ?? '',
+        reason: data?['reason'] as String?,
       ),
       'done' => DoneEvent(
         seq: seq,
