@@ -189,6 +189,26 @@ class VideClient {
     return SessionDetails.fromJson(data);
   }
 
+  /// List available teams from the server.
+  ///
+  /// Returns a list of team definitions with name, description, and agents.
+  Future<List<TeamInfo>> listTeams() async {
+    final response = await http.get(
+      Uri.parse('$_httpUrl/api/v1/teams'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to list teams: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final teams = data['teams'] as List<dynamic>;
+    return teams
+        .map((t) => TeamInfo.fromJson(t as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Create a new session with an initial message.
   ///
   /// Returns a [Session] that provides a stream of typed events and
@@ -198,6 +218,7 @@ class VideClient {
     required String workingDirectory,
     String? model,
     String? permissionMode,
+    String? team,
   }) async {
     final response = await http.post(
       Uri.parse('$_httpUrl/sessions'),
@@ -207,6 +228,7 @@ class VideClient {
         'working-directory': workingDirectory,
         if (model != null) 'model': model,
         if (permissionMode != null) 'permission-mode': permissionMode,
+        if (team != null) 'team': team,
       }),
     );
 
@@ -246,6 +268,33 @@ class VideClient {
     if (response.statusCode != 200) {
       throw VideClientException('Failed to stop session: ${response.body}');
     }
+  }
+}
+
+/// Information about an available team.
+class TeamInfo {
+  final String name;
+  final String description;
+  final String? icon;
+  final String mainAgent;
+  final List<String> agents;
+
+  TeamInfo({
+    required this.name,
+    required this.description,
+    this.icon,
+    required this.mainAgent,
+    required this.agents,
+  });
+
+  factory TeamInfo.fromJson(Map<String, dynamic> json) {
+    return TeamInfo(
+      name: json['name'] as String,
+      description: json['description'] as String,
+      icon: json['icon'] as String?,
+      mainAgent: json['main-agent'] as String,
+      agents: (json['agents'] as List<dynamic>).cast<String>(),
+    );
   }
 }
 

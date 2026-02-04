@@ -109,6 +109,7 @@ Future<Response> createSession(
     initialMessage: req.initialMessage,
     model: req.model,
     permissionMode: req.permissionMode,
+    team: req.team ?? 'vide',
   ));
 
   _log.info('Session created: ${session.id}');

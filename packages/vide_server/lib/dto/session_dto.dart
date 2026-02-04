@@ -7,12 +7,14 @@ class CreateSessionRequest {
   final String workingDirectory;
   final String? model;
   final String? permissionMode;
+  final String? team;
 
   CreateSessionRequest({
     required this.initialMessage,
     required this.workingDirectory,
     this.model,
     this.permissionMode,
+    this.team,
   });
 
   factory CreateSessionRequest.fromJson(Map<String, dynamic> json) {
@@ -21,6 +23,7 @@ class CreateSessionRequest {
       workingDirectory: json['working-directory'] as String,
       model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
+      team: json['team'] as String?,
     );
   }
 }

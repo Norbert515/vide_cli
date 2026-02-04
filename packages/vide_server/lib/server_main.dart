@@ -19,6 +19,7 @@ import 'package:vide_core/vide_core.dart';
 import 'middleware/cors_middleware.dart';
 import 'routes/filesystem_routes.dart';
 import 'routes/session_routes.dart';
+import 'routes/team_routes.dart';
 import 'services/server_config.dart';
 
 /// Configuration for starting the server.
@@ -140,6 +141,11 @@ Handler _createHandler(
       sessionCache,
       serverConfig,
     )(request);
+  });
+
+  // Teams API
+  router.get('/api/v1/teams', (Request request) {
+    return listTeams(request);
   });
 
   // Filesystem browsing API
