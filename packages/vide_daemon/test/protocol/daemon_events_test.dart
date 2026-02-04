@@ -72,15 +72,9 @@ void main() {
     });
 
     test('throws on unknown event type', () {
-      final json = {
-        'type': 'unknown-event',
-        'data': 'something',
-      };
+      final json = {'type': 'unknown-event', 'data': 'something'};
 
-      expect(
-        () => DaemonEvent.fromJson(json),
-        throwsA(isA<ArgumentError>()),
-      );
+      expect(() => DaemonEvent.fromJson(json), throwsA(isA<ArgumentError>()));
     });
   });
 
@@ -195,10 +189,7 @@ void main() {
     });
 
     test('deserializes from JSON with required fields', () {
-      final json = {
-        'type': 'session-stopped',
-        'session-id': 'basic-stop',
-      };
+      final json = {'type': 'session-stopped', 'session-id': 'basic-stop'};
 
       final event = SessionStoppedEvent.fromJson(json);
 

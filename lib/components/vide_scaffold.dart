@@ -127,7 +127,8 @@ class _VideScaffoldState extends State<VideScaffold> {
         final effectiveSidebarWidth = (showSidebars && hasEnoughWidth)
             ? component.sidebarWidth
             : 0.0;
-        final effectiveGitSidebarWidth = (showSidebars && hasEnoughWidth && showGitSidebar)
+        final effectiveGitSidebarWidth =
+            (showSidebars && hasEnoughWidth && showGitSidebar)
             ? component.gitSidebarWidth
             : 0.0;
 

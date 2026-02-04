@@ -14,25 +14,29 @@ Future<Response> listTeams(Request request) async {
   final loader = TeamFrameworkLoader();
   final teams = await loader.loadTeams();
 
-  final teamsList = teams.values.map((team) => {
-    'name': team.name,
-    'description': team.description,
-    if (team.icon != null) 'icon': team.icon,
-    'main-agent': team.mainAgent,
-    'agents': team.agents,
-    'process': {
-      'planning': team.process.planning.name,
-      'review': team.process.review.name,
-      'testing': team.process.testing.name,
-      'documentation': team.process.documentation.name,
-    },
-    'communication': {
-      'verbosity': team.communication.verbosity.name,
-      'handoff-detail': team.communication.handoffDetail.name,
-      'status-updates': team.communication.statusUpdates.name,
-    },
-    'triggers': team.triggers,
-  }).toList();
+  final teamsList = teams.values
+      .map(
+        (team) => {
+          'name': team.name,
+          'description': team.description,
+          if (team.icon != null) 'icon': team.icon,
+          'main-agent': team.mainAgent,
+          'agents': team.agents,
+          'process': {
+            'planning': team.process.planning.name,
+            'review': team.process.review.name,
+            'testing': team.process.testing.name,
+            'documentation': team.process.documentation.name,
+          },
+          'communication': {
+            'verbosity': team.communication.verbosity.name,
+            'handoff-detail': team.communication.handoffDetail.name,
+            'status-updates': team.communication.statusUpdates.name,
+          },
+          'triggers': team.triggers,
+        },
+      )
+      .toList();
 
   _log.info('Found ${teamsList.length} teams');
 

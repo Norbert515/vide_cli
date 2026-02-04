@@ -38,83 +38,97 @@ void main() {
       }
     });
 
-    test('state.currentNetwork is set immediately with resumed network', () async {
-      // Create a network with multiple agents to resume
-      final agents = [
-        AgentMetadata(
-          id: 'main-agent',
-          name: 'Lead',
-          type: 'main',
+    test(
+      'state.currentNetwork is set immediately with resumed network',
+      () async {
+        // Create a network with multiple agents to resume
+        final agents = [
+          AgentMetadata(
+            id: 'main-agent',
+            name: 'Lead',
+            type: 'main',
+            createdAt: DateTime.now(),
+          ),
+          AgentMetadata(
+            id: 'impl-agent',
+            name: 'Implementer',
+            type: 'implementer',
+            spawnedBy: 'main-agent',
+            createdAt: DateTime.now(),
+          ),
+          AgentMetadata(
+            id: 'researcher-agent',
+            name: 'Researcher',
+            type: 'researcher',
+            spawnedBy: 'main-agent',
+            createdAt: DateTime.now(),
+          ),
+        ];
+
+        final networkToResume = AgentNetwork(
+          id: 'test-network-123',
+          goal: 'Test resume functionality',
+          agents: agents,
           createdAt: DateTime.now(),
-        ),
-        AgentMetadata(
-          id: 'impl-agent',
-          name: 'Implementer',
-          type: 'implementer',
-          spawnedBy: 'main-agent',
-          createdAt: DateTime.now(),
-        ),
-        AgentMetadata(
-          id: 'researcher-agent',
-          name: 'Researcher',
-          type: 'researcher',
-          spawnedBy: 'main-agent',
-          createdAt: DateTime.now(),
-        ),
-      ];
+          lastActiveAt: DateTime.now(),
+          team: 'vide',
+        );
 
-      final networkToResume = AgentNetwork(
-        id: 'test-network-123',
-        goal: 'Test resume functionality',
-        agents: agents,
-        createdAt: DateTime.now(),
-        lastActiveAt: DateTime.now(),
-        team: 'vide',
-      );
+        // Get the manager
+        final manager = container.read(agentNetworkManagerProvider.notifier);
 
-      // Get the manager
-      final manager = container.read(agentNetworkManagerProvider.notifier);
+        // Before resume, currentNetwork should be null
+        var state = container.read(agentNetworkManagerProvider);
+        expect(state.currentNetwork, isNull);
+        expect(state.agents, isEmpty);
 
-      // Before resume, currentNetwork should be null
-      var state = container.read(agentNetworkManagerProvider);
-      expect(state.currentNetwork, isNull);
-      expect(state.agents, isEmpty);
+        // Resume the network - this may fail due to team framework loading,
+        // but we're testing the immediate state update behavior
+        try {
+          await manager.resume(networkToResume);
+        } catch (e) {
+          // Expected: TeamFrameworkLoader may fail in test environment
+          // But the state should have been set BEFORE the error
+        }
 
-      // Resume the network - this may fail due to team framework loading,
-      // but we're testing the immediate state update behavior
-      try {
-        await manager.resume(networkToResume);
-      } catch (e) {
-        // Expected: TeamFrameworkLoader may fail in test environment
-        // But the state should have been set BEFORE the error
-      }
+        // After resume attempt, currentNetwork should be set with our agents
+        state = container.read(agentNetworkManagerProvider);
+        expect(state.currentNetwork, isNotNull);
+        expect(state.currentNetwork!.id, equals('test-network-123'));
+        expect(state.currentNetwork!.goal, equals('Test resume functionality'));
+        expect(state.agents.length, equals(3));
 
-      // After resume attempt, currentNetwork should be set with our agents
-      state = container.read(agentNetworkManagerProvider);
-      expect(state.currentNetwork, isNotNull);
-      expect(state.currentNetwork!.id, equals('test-network-123'));
-      expect(state.currentNetwork!.goal, equals('Test resume functionality'));
-      expect(state.agents.length, equals(3));
+        // Verify all agent IDs are present
+        final agentIds = state.agents.map((a) => a.id).toList();
+        expect(
+          agentIds,
+          containsAll(['main-agent', 'impl-agent', 'researcher-agent']),
+        );
 
-      // Verify all agent IDs are present
-      final agentIds = state.agents.map((a) => a.id).toList();
-      expect(agentIds, containsAll(['main-agent', 'impl-agent', 'researcher-agent']));
+        // Verify agent metadata is preserved
+        final mainAgent = state.agents.firstWhere((a) => a.id == 'main-agent');
+        expect(mainAgent.name, equals('Lead'));
+        expect(mainAgent.type, equals('main'));
 
-      // Verify agent metadata is preserved
-      final mainAgent = state.agents.firstWhere((a) => a.id == 'main-agent');
-      expect(mainAgent.name, equals('Lead'));
-      expect(mainAgent.type, equals('main'));
-
-      final implAgent = state.agents.firstWhere((a) => a.id == 'impl-agent');
-      expect(implAgent.name, equals('Implementer'));
-      expect(implAgent.type, equals('implementer'));
-      expect(implAgent.spawnedBy, equals('main-agent'));
-    });
+        final implAgent = state.agents.firstWhere((a) => a.id == 'impl-agent');
+        expect(implAgent.name, equals('Implementer'));
+        expect(implAgent.type, equals('implementer'));
+        expect(implAgent.spawnedBy, equals('main-agent'));
+      },
+    );
 
     test('state.agents convenience getter returns network agents', () async {
       final agents = [
-        TestFixtures.agentMetadata(id: 'agent-1', name: 'Agent 1', type: 'main'),
-        TestFixtures.agentMetadata(id: 'agent-2', name: 'Agent 2', type: 'implementer'),
+        TestFixtures.agentMetadata(
+          id: 'agent-1',
+          name: 'Agent 1',
+          type: 'main',
+        ),
+        TestFixtures.agentMetadata(
+          id: 'agent-2',
+          name: 'Agent 2',
+          type: 'implementer',
+        ),
       ];
 
       final network = TestFixtures.agentNetwork(
@@ -176,7 +190,9 @@ void main() {
         isTrue,
       );
       expect(
-        resumedNetwork.lastActiveAt!.isBefore(DateTime.now().add(Duration(seconds: 1))),
+        resumedNetwork.lastActiveAt!.isBefore(
+          DateTime.now().add(Duration(seconds: 1)),
+        ),
         isTrue,
       );
 

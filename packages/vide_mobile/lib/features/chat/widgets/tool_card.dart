@@ -89,9 +89,12 @@ class _ToolCardState extends State<ToolCard> {
                         children: [
                           Text(
                             widget.toolUse.toolName,
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
                           ),
                           if (widget.toolUse.agentName != null)
                             Text(
@@ -228,7 +231,8 @@ class _ResultView extends StatelessWidget {
               displayText,
               style: TextStyle(
                 fontSize: 12,
-                color: result.isError ? videColors.error : colorScheme.onSurface,
+                color:
+                    result.isError ? videColors.error : colorScheme.onSurface,
               ),
             ),
           ),

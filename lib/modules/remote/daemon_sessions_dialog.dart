@@ -131,7 +131,8 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
     if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        _selectedIndex = (_selectedIndex - 1 + sessions.length) % sessions.length;
+        _selectedIndex =
+            (_selectedIndex - 1 + sessions.length) % sessions.length;
       });
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
@@ -159,7 +160,9 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
         host: daemonState.host!,
         port: daemonState.port!,
       );
-      final clientSession = await videClient.connectToSession(session.sessionId);
+      final clientSession = await videClient.connectToSession(
+        session.sessionId,
+      );
 
       // Wrap with RemoteVideSession for business event handling
       final remoteSession = RemoteVideSession.fromClientSession(clientSession);
@@ -213,7 +216,9 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
               padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
               decoration: BoxDecoration(
                 border: BoxBorder(
-                  bottom: BorderSide(color: theme.base.outline.withOpacity(0.3)),
+                  bottom: BorderSide(
+                    color: theme.base.outline.withOpacity(0.3),
+                  ),
                 ),
               ),
               child: Row(
@@ -228,14 +233,18 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
                   Text(
                     ' - ${daemonState.host ?? '?'}:${daemonState.port ?? '?'}',
                     style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
                     ),
                   ),
                   Expanded(child: SizedBox()),
                   Text(
                     '[Esc] Close',
                     style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
                     ),
                   ),
                 ],
@@ -262,10 +271,12 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
                 _loading
                     ? 'Loading...'
                     : _error != null
-                        ? '[r] Retry  [q] Close'
-                        : '[j/k] Navigate  [Enter] Connect  [r] Refresh',
+                    ? '[r] Retry  [q] Close'
+                    : '[j/k] Navigate  [Enter] Connect  [r] Refresh',
                 style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
                 ),
               ),
             ),
@@ -367,7 +378,9 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
                   style: TextStyle(
                     color: isSelected
                         ? theme.base.onSurface
-                        : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                        : theme.base.onSurface.withOpacity(
+                            TextOpacity.secondary,
+                          ),
                     fontWeight: isSelected ? FontWeight.bold : null,
                   ),
                   maxLines: 1,

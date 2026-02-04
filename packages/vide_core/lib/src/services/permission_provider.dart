@@ -44,7 +44,10 @@ class PermissionHandler {
       if (session == null) {
         // This shouldn't happen - session should be set before any permission
         // callbacks are invoked. Assert in debug builds to catch initialization bugs.
-        assert(false, 'Permission requested before session was set via setSession()');
+        assert(
+          false,
+          'Permission requested before session was set via setSession()',
+        );
         // Auto-allow as fallback (production safety)
         return const PermissionResultAllow();
       }

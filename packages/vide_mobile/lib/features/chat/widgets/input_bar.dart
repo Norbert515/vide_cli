@@ -98,7 +98,8 @@ class _InputBarState extends State<InputBar> {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             final text = widget.controller.text;
                             if (text.endsWith('\n')) {
-                              widget.controller.text = text.substring(0, text.length - 1);
+                              widget.controller.text =
+                                  text.substring(0, text.length - 1);
                             }
                             _handleSend();
                           });
@@ -113,8 +114,11 @@ class _InputBarState extends State<InputBar> {
                       keyboardType: TextInputType.multiline,
                       style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
-                        hintText: widget.isLoading ? 'Agent is working...' : 'Type a message...',
-                        hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                        hintText: widget.isLoading
+                            ? 'Agent is working...'
+                            : 'Type a message...',
+                        hintStyle:
+                            TextStyle(color: colorScheme.onSurfaceVariant),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,

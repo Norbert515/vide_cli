@@ -14,10 +14,7 @@ class SettingsToggle extends StatelessComponent {
     final theme = VideTheme.of(context);
 
     if (value) {
-      return Text(
-        '[✓]',
-        style: TextStyle(color: theme.base.primary),
-      );
+      return Text('[✓]', style: TextStyle(color: theme.base.primary));
     } else {
       return Text(
         '[ ]',

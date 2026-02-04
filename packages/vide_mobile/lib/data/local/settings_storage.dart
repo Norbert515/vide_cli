@@ -33,7 +33,8 @@ class SettingsStorage extends _$SettingsStorage {
     final json = _prefs.getString(SettingsKeys.serverConnection);
     if (json == null) return null;
     try {
-      return ServerConnection.fromJson(jsonDecode(json) as Map<String, dynamic>);
+      return ServerConnection.fromJson(
+          jsonDecode(json) as Map<String, dynamic>);
     } catch (e) {
       return null;
     }

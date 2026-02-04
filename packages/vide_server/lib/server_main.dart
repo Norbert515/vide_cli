@@ -30,10 +30,7 @@ class VideServerConfig {
   /// Working directory override (defaults to current directory).
   final String? workingDirectory;
 
-  const VideServerConfig({
-    this.port,
-    this.workingDirectory,
-  });
+  const VideServerConfig({this.port, this.workingDirectory});
 }
 
 /// Start the vide_server and return the running HttpServer.
@@ -81,10 +78,7 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   // Create VideCore instance with permission handler - the single interface for session management
   final permissionHandler = PermissionHandler();
   final videCore = VideCore(
-    VideCoreConfig(
-      configDir: configRoot,
-      permissionHandler: permissionHandler,
-    ),
+    VideCoreConfig(configDir: configRoot, permissionHandler: permissionHandler),
   );
 
   // Simple session cache for WebSocket access
@@ -165,7 +159,9 @@ Handler _createHandler(
   // Build middleware pipeline
   // NOTE: logRequests() buffers the entire response, so it breaks streaming (WebSocket/SSE)
   // We use custom logging in the routes instead
-  final pipeline = Pipeline().addMiddleware(corsMiddleware()).addHandler(router);
+  final pipeline = Pipeline()
+      .addMiddleware(corsMiddleware())
+      .addHandler(router);
 
   return pipeline;
 }

@@ -203,10 +203,7 @@ void main() {
           expect(request.url.path, '/sessions');
           expect(request.method, 'GET');
 
-          return http.Response(
-            jsonEncode({'sessions': []}),
-            200,
-          );
+          return http.Response(jsonEncode({'sessions': []}), 200);
         });
 
         final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);

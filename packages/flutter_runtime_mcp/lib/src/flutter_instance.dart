@@ -1084,9 +1084,7 @@ class FlutterInstance {
       throw StateError('No isolate ID available for service extension call');
     }
 
-    final args = <String, String>{
-      'showFrame': showFrame.toString(),
-    };
+    final args = <String, String>{'showFrame': showFrame.toString()};
 
     if (preset != null) {
       args['preset'] = preset;
@@ -1097,11 +1095,11 @@ class FlutterInstance {
       if (devicePixelRatio != null) {
         args['devicePixelRatio'] = devicePixelRatio.toString();
       }
-      print('   Setting size to ${width}x$height @ ${devicePixelRatio ?? 1.0}x');
-    } else {
-      throw ArgumentError(
-        'Either preset or width+height must be provided',
+      print(
+        '   Setting size to ${width}x$height @ ${devicePixelRatio ?? 1.0}x',
       );
+    } else {
+      throw ArgumentError('Either preset or width+height must be provided');
     }
 
     print(
@@ -1121,9 +1119,7 @@ class FlutterInstance {
           ),
         );
 
-    print(
-      '📥 [FlutterInstance] Received response from setDeviceSize',
-    );
+    print('📥 [FlutterInstance] Received response from setDeviceSize');
 
     final json = response.json;
     if (json == null) {
@@ -1169,9 +1165,7 @@ class FlutterInstance {
           ),
         );
 
-    print(
-      '📥 [FlutterInstance] Received response from resetDeviceSize',
-    );
+    print('📥 [FlutterInstance] Received response from resetDeviceSize');
 
     final json = response.json;
     if (json == null) {
@@ -1219,9 +1213,7 @@ class FlutterInstance {
           ),
         );
 
-    print(
-      '📥 [FlutterInstance] Received response from getDeviceSize',
-    );
+    print('📥 [FlutterInstance] Received response from getDeviceSize');
 
     final json = response.json;
     if (json == null) {

@@ -39,26 +39,17 @@ void main() {
 
     group('isConfigured', () {
       test('returns true when both host and port are set', () {
-        const state = DaemonConnectionState(
-          host: 'localhost',
-          port: 8080,
-        );
+        const state = DaemonConnectionState(host: 'localhost', port: 8080);
         expect(state.isConfigured, isTrue);
       });
 
       test('returns false when host is null', () {
-        const state = DaemonConnectionState(
-          host: null,
-          port: 8080,
-        );
+        const state = DaemonConnectionState(host: null, port: 8080);
         expect(state.isConfigured, isFalse);
       });
 
       test('returns false when port is null', () {
-        const state = DaemonConnectionState(
-          host: 'localhost',
-          port: null,
-        );
+        const state = DaemonConnectionState(host: 'localhost', port: null);
         expect(state.isConfigured, isFalse);
       });
 
@@ -110,14 +101,8 @@ void main() {
       });
 
       test('overrides host and port', () {
-        const original = DaemonConnectionState(
-          host: 'localhost',
-          port: 8080,
-        );
-        final copied = original.copyWith(
-          host: '192.168.1.1',
-          port: 9090,
-        );
+        const original = DaemonConnectionState(host: 'localhost', port: 8080);
+        final copied = original.copyWith(host: '192.168.1.1', port: 9090);
         expect(copied.host, equals('192.168.1.1'));
         expect(copied.port, equals(9090));
       });

@@ -23,10 +23,8 @@ Future<void> _focusTextField(E2eTestHarness harness) async {
   String centerX, centerY;
   if (textField != null) {
     final bounds = textField['bounds'] as Map<String, dynamic>;
-    centerX =
-        ((bounds['x'] as num) + (bounds['width'] as num) / 2).toString();
-    centerY =
-        ((bounds['y'] as num) + (bounds['height'] as num) / 2).toString();
+    centerX = ((bounds['x'] as num) + (bounds['width'] as num) / 2).toString();
+    centerY = ((bounds['y'] as num) + (bounds['height'] as num) / 2).toString();
   } else {
     centerX = '200';
     centerY = '280';

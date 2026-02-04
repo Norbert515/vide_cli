@@ -64,10 +64,7 @@ class SessionSpawnConfig {
   /// Empty for compiled binaries.
   final List<String> baseArgs;
 
-  const SessionSpawnConfig({
-    required this.executable,
-    required this.baseArgs,
-  });
+  const SessionSpawnConfig({required this.executable, required this.baseArgs});
 
   /// Whether this is a compiled binary (no baseArgs means compiled).
   bool get isCompiled => baseArgs.isEmpty;

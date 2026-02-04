@@ -331,7 +331,8 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: VideRadius.mdAll,
           ),
-          side: BorderSide(color: VideColors.lightAccent.withValues(alpha: 0.4)),
+          side:
+              BorderSide(color: VideColors.lightAccent.withValues(alpha: 0.4)),
           textStyle: GoogleFonts.jetBrainsMono(
             fontWeight: FontWeight.w500,
           ),
@@ -405,7 +406,8 @@ class AppTheme {
             return VideColors.lightTextSecondary;
           }),
           side: WidgetStateProperty.all(
-            BorderSide(color: VideColors.lightTextTertiary.withValues(alpha: 0.3)),
+            BorderSide(
+                color: VideColors.lightTextTertiary.withValues(alpha: 0.3)),
           ),
         ),
       ),

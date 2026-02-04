@@ -38,7 +38,9 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   }
 
   void _onPortChanged() {
-    ref.read(connectionNotifierProvider.notifier).setPortFromString(_portController.text);
+    ref
+        .read(connectionNotifierProvider.notifier)
+        .setPortFromString(_portController.text);
   }
 
   @override
@@ -63,7 +65,9 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     _portController.text = lastConnection.port.toString();
 
     try {
-      await ref.read(connectionRepositoryProvider.notifier).connect(lastConnection);
+      await ref
+          .read(connectionRepositoryProvider.notifier)
+          .connect(lastConnection);
       if (mounted) {
         context.go(AppRoutes.sessions);
       }
@@ -71,7 +75,8 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
       if (mounted) {
         setState(() {
           _isAutoConnecting = false;
-          _autoConnectError = 'Could not connect to ${lastConnection.host}:${lastConnection.port}';
+          _autoConnectError =
+              'Could not connect to ${lastConnection.host}:${lastConnection.port}';
         });
       }
     }
@@ -133,8 +138,8 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
               Text(
                 'Connecting to saved server...',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                      color: colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -172,16 +177,16 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                 Text(
                   'Connect to Server',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Enter your Vide server details to get started',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                   textAlign: TextAlign.center,
                 ),
                 if (_autoConnectError != null) ...[

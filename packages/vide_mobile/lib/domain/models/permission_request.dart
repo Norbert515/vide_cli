@@ -12,7 +12,8 @@ class PermissionRequest with _$PermissionRequest {
     @JsonKey(name: 'tool-input') required Map<String, dynamic> toolInput,
     @JsonKey(name: 'agent-id') required String agentId,
     @JsonKey(name: 'agent-name') String? agentName,
-    @JsonKey(name: 'permission-suggestions') List<String>? permissionSuggestions,
+    @JsonKey(name: 'permission-suggestions')
+    List<String>? permissionSuggestions,
     required DateTime timestamp,
   }) = _PermissionRequest;
 

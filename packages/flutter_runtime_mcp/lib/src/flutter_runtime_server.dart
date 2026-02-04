@@ -2249,7 +2249,9 @@ For example:
           final buffer = StringBuffer();
           buffer.writeln('Navigation State:');
           buffer.writeln('');
-          buffer.writeln('Current Route: ${result['currentRoute'] ?? '(none)'}');
+          buffer.writeln(
+            'Current Route: ${result['currentRoute'] ?? '(none)'}',
+          );
           buffer.writeln('Can Go Back: ${result['canGoBack']}');
           buffer.writeln('Modal Routes: ${result['modalRoutes']}');
           buffer.writeln('');
@@ -2374,8 +2376,9 @@ For example:
                   (error['stackTrace'] as String).isNotEmpty) {
                 buffer.writeln('Stack Trace:');
                 // Limit stack trace to first 10 lines
-                final stackLines =
-                    (error['stackTrace'] as String).split('\n').take(10);
+                final stackLines = (error['stackTrace'] as String)
+                    .split('\n')
+                    .take(10);
                 for (final line in stackLines) {
                   buffer.writeln('  $line');
                 }
@@ -2782,9 +2785,7 @@ Breakpoints and MediaQuery will respond to the new size.''',
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to set theme mode: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to set theme mode: $e')],
           );
         }
       },
@@ -2827,9 +2828,7 @@ Breakpoints and MediaQuery will respond to the new size.''',
           final mode = await instance.getThemeMode();
 
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Current theme mode: $mode'),
-            ],
+            content: [TextContent(text: 'Current theme mode: $mode')],
           );
         } catch (e, stackTrace) {
           await _reportError(
@@ -2839,9 +2838,7 @@ Breakpoints and MediaQuery will respond to the new size.''',
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to get theme mode: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to get theme mode: $e')],
           );
         }
       },
@@ -2916,9 +2913,7 @@ Breakpoints and MediaQuery will respond to the new size.''',
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to set locale: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to set locale: $e')],
           );
         }
       },
@@ -2980,9 +2975,7 @@ Breakpoints and MediaQuery will respond to the new size.''',
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to reset locale: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to reset locale: $e')],
           );
         }
       },

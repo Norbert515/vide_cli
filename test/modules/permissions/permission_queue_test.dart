@@ -115,8 +115,14 @@ void main() {
           AskUserQuestionData(
             question: 'What color?',
             options: [
-              AskUserQuestionOptionData(label: 'Red', description: 'A red color'),
-              AskUserQuestionOptionData(label: 'Blue', description: 'A blue color'),
+              AskUserQuestionOptionData(
+                label: 'Red',
+                description: 'A red color',
+              ),
+              AskUserQuestionOptionData(
+                label: 'Blue',
+                description: 'A blue color',
+              ),
             ],
           ),
         ],
@@ -134,9 +140,7 @@ void main() {
         questions: [
           AskUserQuestionData(
             question: 'Question 1?',
-            options: [
-              AskUserQuestionOptionData(label: 'A', description: ''),
-            ],
+            options: [AskUserQuestionOptionData(label: 'A', description: '')],
           ),
         ],
       );
@@ -145,9 +149,7 @@ void main() {
         questions: [
           AskUserQuestionData(
             question: 'Question 2?',
-            options: [
-              AskUserQuestionOptionData(label: 'B', description: ''),
-            ],
+            options: [AskUserQuestionOptionData(label: 'B', description: '')],
           ),
         ],
       );

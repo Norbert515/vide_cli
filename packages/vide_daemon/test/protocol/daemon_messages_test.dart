@@ -5,10 +5,16 @@ void main() {
   group('SessionProcessState', () {
     test('has expected values', () {
       expect(SessionProcessState.values, hasLength(4));
-      expect(SessionProcessState.values, contains(SessionProcessState.starting));
+      expect(
+        SessionProcessState.values,
+        contains(SessionProcessState.starting),
+      );
       expect(SessionProcessState.values, contains(SessionProcessState.ready));
       expect(SessionProcessState.values, contains(SessionProcessState.error));
-      expect(SessionProcessState.values, contains(SessionProcessState.stopping));
+      expect(
+        SessionProcessState.values,
+        contains(SessionProcessState.stopping),
+      );
     });
   });
 

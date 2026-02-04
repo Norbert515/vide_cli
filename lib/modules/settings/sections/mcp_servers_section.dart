@@ -256,10 +256,7 @@ class _McpServerItem extends StatelessComponent {
                   ),
                 ),
                 // Status text on the right
-                Text(
-                  statusText,
-                  style: TextStyle(color: statusColor),
-                ),
+                Text(statusText, style: TextStyle(color: statusColor)),
               ],
             ),
           ),

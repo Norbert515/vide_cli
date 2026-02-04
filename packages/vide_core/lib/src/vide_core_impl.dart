@@ -12,7 +12,8 @@ import 'package:riverpod/riverpod.dart';
 import 'services/agent_network_manager.dart';
 import 'services/agent_network_persistence_manager.dart';
 import 'services/initial_claude_client.dart';
-import 'services/permission_provider.dart' show PermissionHandler, permissionHandlerProvider;
+import 'services/permission_provider.dart'
+    show PermissionHandler, permissionHandlerProvider;
 import 'services/vide_config_manager.dart';
 import 'utils/working_dir_provider.dart';
 import 'api/vide_agent.dart';

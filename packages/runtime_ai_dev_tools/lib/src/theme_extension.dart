@@ -86,7 +86,8 @@ void registerThemeExtension() {
         // Update the theme mode notifier
         themeModeNotifier.value = mode;
 
-        print('✅ [RuntimeAiDevTools] Theme mode set to ${_themeModeToString(mode)}');
+        print(
+            '✅ [RuntimeAiDevTools] Theme mode set to ${_themeModeToString(mode)}');
 
         return developer.ServiceExtensionResponse.result(
           json.encode({

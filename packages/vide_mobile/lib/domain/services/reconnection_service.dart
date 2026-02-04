@@ -57,7 +57,8 @@ class ReconnectionService {
     final cappedMs = min(exponentialMs, config.maxDelay.inMilliseconds);
 
     // Add jitter: random value between 0 and maxJitter * cappedMs
-    final jitterMs = (_random.nextDouble() * config.maxJitter * cappedMs).toInt();
+    final jitterMs =
+        (_random.nextDouble() * config.maxJitter * cappedMs).toInt();
 
     return Duration(milliseconds: cappedMs + jitterMs);
   }
@@ -66,7 +67,8 @@ class ReconnectionService {
   ///
   /// Returns a Future that completes when the delay has passed.
   /// Returns null if max retries exceeded.
-  Future<void>? scheduleReconnect({required Future<void> Function() onReconnect}) {
+  Future<void>? scheduleReconnect(
+      {required Future<void> Function() onReconnect}) {
     if (hasExceededMaxRetries) {
       return null;
     }

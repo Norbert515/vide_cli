@@ -96,10 +96,9 @@ class ImageValidator {
 
         if (_estimateBase64Size(result.length) <=
             ClaudeImageLimits.maxBase64Size) {
-          final note =
-              dimFactor < 1.0 || quality < 95
-                  ? 'Compressed: ${(dimFactor * 100).round()}% size, $quality% quality'
-                  : null;
+          final note = dimFactor < 1.0 || quality < 95
+              ? 'Compressed: ${(dimFactor * 100).round()}% size, $quality% quality'
+              : null;
           if (note != null) onWarning?.call(note);
 
           return ImageValidationResult(
@@ -136,10 +135,14 @@ class ImageValidator {
     var processedImage = image;
 
     if (dimensionFactor < 1.0) {
-      final newWidth =
-          (image.width * dimensionFactor).round().clamp(100, image.width);
-      final newHeight =
-          (image.height * dimensionFactor).round().clamp(100, image.height);
+      final newWidth = (image.width * dimensionFactor).round().clamp(
+        100,
+        image.width,
+      );
+      final newHeight = (image.height * dimensionFactor).round().clamp(
+        100,
+        image.height,
+      );
       processedImage = img.copyResize(
         image,
         width: newWidth,

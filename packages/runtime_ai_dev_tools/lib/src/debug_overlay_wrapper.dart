@@ -84,7 +84,8 @@ class _DebugOverlayWrapperState extends State<DebugOverlayWrapper> {
         builder: (context) {
           // Get the existing MediaQuery data or create default
           final existingData = MediaQuery.maybeOf(context) ??
-              MediaQueryData.fromView(ui.PlatformDispatcher.instance.views.first);
+              MediaQueryData.fromView(
+                  ui.PlatformDispatcher.instance.views.first);
 
           return MediaQuery(
             data: existingData.copyWith(platformBrightness: brightnessOverride),

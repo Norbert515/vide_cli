@@ -66,7 +66,8 @@ class GlassSurface extends StatelessWidget {
             color: videColors.glassTint.withValues(alpha: effectiveTintOpacity),
             borderRadius: borderRadius,
             border: Border.all(
-              color: videColors.glassBorder.withValues(alpha: effectiveBorderOpacity),
+              color: videColors.glassBorder
+                  .withValues(alpha: effectiveBorderOpacity),
             ),
           ),
           child: child,

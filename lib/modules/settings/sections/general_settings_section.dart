@@ -1,7 +1,11 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
-import 'package:vide_cli/main.dart' show ideModeEnabledProvider, gitSidebarEnabledProvider, daemonModeEnabledProvider;
+import 'package:vide_cli/main.dart'
+    show
+        ideModeEnabledProvider,
+        gitSidebarEnabledProvider,
+        daemonModeEnabledProvider;
 import 'package:vide_cli/modules/settings/components/section_header.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 import 'package:vide_cli/modules/settings/components/settings_text_input.dart';
@@ -133,7 +137,9 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
     final configManager = context.read(videConfigManagerProvider);
     final settings = configManager.readGlobalSettings();
     configManager.writeGlobalSettings(
-      settings.copyWith(daemonHost: value.trim().isEmpty ? '127.0.0.1' : value.trim()),
+      settings.copyWith(
+        daemonHost: value.trim().isEmpty ? '127.0.0.1' : value.trim(),
+      ),
     );
     setState(() => _editingIndex = null);
   }
@@ -142,9 +148,7 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
     final configManager = context.read(videConfigManagerProvider);
     final settings = configManager.readGlobalSettings();
     final port = int.tryParse(value.trim()) ?? 8080;
-    configManager.writeGlobalSettings(
-      settings.copyWith(daemonPort: port),
-    );
+    configManager.writeGlobalSettings(settings.copyWith(daemonPort: port));
     setState(() => _editingIndex = null);
   }
 
@@ -200,7 +204,10 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
               label: 'Daemon Mode',
               description: 'Run sessions on a persistent daemon process',
               value: daemonModeEnabled,
-              isSelected: component.focused && _selectedIndex == 2 && _editingIndex == null,
+              isSelected:
+                  component.focused &&
+                  _selectedIndex == 2 &&
+                  _editingIndex == null,
               onTap: () {
                 setState(() => _selectedIndex = 2);
                 _activateCurrentItem();
@@ -212,7 +219,10 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
               label: 'Daemon Host',
               description: 'Hostname or IP address of the daemon',
               value: settings.daemonHost,
-              isSelected: component.focused && _selectedIndex == 3 && _editingIndex == null,
+              isSelected:
+                  component.focused &&
+                  _selectedIndex == 3 &&
+                  _editingIndex == null,
               isEditing: _editingIndex == 3,
               controller: _hostController,
               onTap: () {
@@ -227,7 +237,10 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
               label: 'Daemon Port',
               description: 'Port number of the daemon',
               value: settings.daemonPort.toString(),
-              isSelected: component.focused && _selectedIndex == 4 && _editingIndex == null,
+              isSelected:
+                  component.focused &&
+                  _selectedIndex == 4 &&
+                  _editingIndex == null,
               isEditing: _editingIndex == 4,
               controller: _portController,
               onTap: () {
@@ -242,7 +255,10 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
               label: 'Streaming',
               description: 'Stream responses in real-time',
               value: streamingEnabled,
-              isSelected: component.focused && _selectedIndex == 5 && _editingIndex == null,
+              isSelected:
+                  component.focused &&
+                  _selectedIndex == 5 &&
+                  _editingIndex == null,
               onTap: () {
                 setState(() => _selectedIndex = 5);
                 _activateCurrentItem();

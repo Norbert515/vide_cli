@@ -850,7 +850,9 @@ class VideSession {
               agentName: agent.name,
               taskName: state.taskName,
               eventId: eventId,
-              role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
+              role: latestMessage.role == MessageRole.user
+                  ? 'user'
+                  : 'assistant',
               content: delta,
               isPartial: true,
             ),

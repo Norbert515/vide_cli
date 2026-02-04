@@ -15,11 +15,11 @@ class DeviceSizeSettings {
   });
 
   Map<String, dynamic> toJson() => {
-    'width': width,
-    'height': height,
-    'devicePixelRatio': devicePixelRatio,
-    'showFrame': showFrame,
-  };
+        'width': width,
+        'height': height,
+        'devicePixelRatio': devicePixelRatio,
+        'showFrame': showFrame,
+      };
 }
 
 /// Global state notifier for device size settings

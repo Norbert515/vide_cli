@@ -55,10 +55,9 @@ void main() async {
 
     bundledAssets[category] = {};
 
-    final files = categoryDir
-        .listSync()
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.md'));
+    final files = categoryDir.listSync().whereType<File>().where(
+      (f) => f.path.endsWith('.md'),
+    );
 
     for (final file in files) {
       final fileName = path.basenameWithoutExtension(file.path);
@@ -127,9 +126,7 @@ String _generateOutput(Map<String, Map<String, String>> bundledAssets) {
 
   // Generate a combined accessor
   buffer.writeln('/// All bundled team framework assets by category.');
-  buffer.writeln(
-    'const bundledTeamFramework = <String, Map<String, String>>{',
-  );
+  buffer.writeln('const bundledTeamFramework = <String, Map<String, String>>{');
   buffer.writeln("  'teams': bundledTeams,");
   buffer.writeln("  'agents': bundledAgents,");
   buffer.writeln("  'etiquette': bundledEtiquette,");

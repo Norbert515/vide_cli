@@ -95,11 +95,17 @@ void main() {
 
       // KEY ASSERTION: After resume, state.agents should be populated
       state = container.read(agentNetworkManagerProvider);
-      expect(state.currentNetwork, isNotNull,
-          reason: 'currentNetwork should be set after resume');
+      expect(
+        state.currentNetwork,
+        isNotNull,
+        reason: 'currentNetwork should be set after resume',
+      );
       expect(state.currentNetwork!.id, equals('session-123'));
-      expect(state.agents.length, equals(2),
-          reason: 'Both agents should be in state.agents');
+      expect(
+        state.agents.length,
+        equals(2),
+        reason: 'Both agents should be in state.agents',
+      );
 
       // Verify specific agents are present
       expect(state.agentIds, contains('main-agent-id'));
@@ -158,8 +164,11 @@ void main() {
       final state = container.read(agentNetworkManagerProvider);
       final agentList = state.agents;
 
-      expect(agentList.length, equals(3),
-          reason: 'TUI should see all 3 agents from resumed session');
+      expect(
+        agentList.length,
+        equals(3),
+        reason: 'TUI should see all 3 agents from resumed session',
+      );
       expect(
         agentList.map((a) => a.name).toList(),
         containsAll(['Agent One', 'Agent Two', 'Agent Three']),

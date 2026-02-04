@@ -114,9 +114,11 @@ class VideThemeColors extends ThemeExtension<VideThemeColors> {
       error: Color.lerp(error, other.error, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       info: Color.lerp(info, other.info, t)!,
-      successContainer: Color.lerp(successContainer, other.successContainer, t)!,
+      successContainer:
+          Color.lerp(successContainer, other.successContainer, t)!,
       errorContainer: Color.lerp(errorContainer, other.errorContainer, t)!,
-      warningContainer: Color.lerp(warningContainer, other.warningContainer, t)!,
+      warningContainer:
+          Color.lerp(warningContainer, other.warningContainer, t)!,
       infoContainer: Color.lerp(infoContainer, other.infoContainer, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,

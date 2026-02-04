@@ -12,15 +12,27 @@ import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
 
 final _fallbackTeams = [
-  vc.TeamInfo(name: 'vide', description: 'Full-featured multi-agent team', mainAgent: '', agents: []),
-  vc.TeamInfo(name: 'startup', description: 'Fast and lean, minimal agents', mainAgent: '', agents: []),
+  vc.TeamInfo(
+      name: 'vide',
+      description: 'Full-featured multi-agent team',
+      mainAgent: '',
+      agents: []),
+  vc.TeamInfo(
+      name: 'startup',
+      description: 'Fast and lean, minimal agents',
+      mainAgent: '',
+      agents: []),
   vc.TeamInfo(
     name: 'enterprise',
     description: 'Comprehensive with QA and review',
     mainAgent: '',
     agents: [],
   ),
-  vc.TeamInfo(name: 'research', description: 'Deep exploration and analysis', mainAgent: '', agents: []),
+  vc.TeamInfo(
+      name: 'research',
+      description: 'Deep exploration and analysis',
+      mainAgent: '',
+      agents: []),
 ];
 
 final availableTeamsProvider = FutureProvider<List<vc.TeamInfo>>((ref) async {
@@ -41,8 +53,7 @@ class SessionCreationScreen extends ConsumerStatefulWidget {
       _SessionCreationScreenState();
 }
 
-class _SessionCreationScreenState
-    extends ConsumerState<SessionCreationScreen> {
+class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
   final _messageController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -171,8 +182,8 @@ class _SessionCreationScreenState
                 Text(
                   'Initial Message',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -191,8 +202,8 @@ class _SessionCreationScreenState
                 Text(
                   'Working Directory',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 _WorkingDirectorySelector(
@@ -209,8 +220,8 @@ class _SessionCreationScreenState
                 Text(
                   'Team',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 _TeamSelector(
@@ -227,8 +238,8 @@ class _SessionCreationScreenState
                 Text(
                   'Permission Mode',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
                 const SizedBox(height: 8),
                 _PermissionModeSelector(
@@ -294,8 +305,7 @@ class _TeamSelector extends ConsumerWidget {
             onTap: enabled ? () => onSelected(team.name) : null,
             borderRadius: BorderRadius.circular(12),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
                 color: isSelected ? videColors.accentSubtle : null,
                 border: Border.all(
@@ -318,9 +328,8 @@ class _TeamSelector extends ConsumerWidget {
                             color: isSelected
                                 ? videColors.accent
                                 : colorScheme.onSurface,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
                             fontSize: 15,
                           ),
                         ),
@@ -482,8 +491,7 @@ class _DirectoryRow extends StatelessWidget {
         decoration: BoxDecoration(
           color: isSelected ? videColors.accentSubtle : null,
           border: Border.all(
-            color:
-                isSelected ? videColors.accent : colorScheme.outlineVariant,
+            color: isSelected ? videColors.accent : colorScheme.outlineVariant,
           ),
           borderRadius: BorderRadius.circular(8),
         ),
@@ -499,8 +507,7 @@ class _DirectoryRow extends StatelessWidget {
               child: Text(
                 path,
                 style: TextStyle(
-                  color:
-                      isSelected ? videColors.accent : colorScheme.onSurface,
+                  color: isSelected ? videColors.accent : colorScheme.onSurface,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 ),
                 maxLines: 1,

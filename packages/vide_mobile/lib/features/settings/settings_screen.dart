@@ -16,7 +16,8 @@ class SettingsScreen extends ConsumerWidget {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final connectionState = ref.watch(connectionRepositoryProvider);
 
-    final serverSubtitle = connectionState.isConnected && connectionState.connection != null
+    final serverSubtitle = connectionState.isConnected &&
+            connectionState.connection != null
         ? '${connectionState.connection!.host}:${connectionState.connection!.port}'
         : 'Not connected';
 
@@ -184,9 +185,9 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-          color: videColors.accent,
-          fontWeight: FontWeight.w600,
-        ),
+              color: videColors.accent,
+              fontWeight: FontWeight.w600,
+            ),
       ),
     );
   }

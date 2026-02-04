@@ -104,13 +104,15 @@ Future<Response> createSession(
   }
 
   // Create session via VideCore - the single interface
-  final session = await videCore.startSession(VideSessionConfig(
-    workingDirectory: canonicalPath,
-    initialMessage: req.initialMessage,
-    model: req.model,
-    permissionMode: req.permissionMode,
-    team: req.team ?? 'vide',
-  ));
+  final session = await videCore.startSession(
+    VideSessionConfig(
+      workingDirectory: canonicalPath,
+      initialMessage: req.initialMessage,
+      model: req.model,
+      permissionMode: req.permissionMode,
+      team: req.team ?? 'vide',
+    ),
+  );
 
   _log.info('Session created: ${session.id}');
 
@@ -176,7 +178,9 @@ class _SimplifiedStreamHandler {
       sessionId: sessionId,
       mainAgentId: session.mainAgent?.id ?? '',
       lastSeq: _broadcaster.history.length,
-      agents: agents.map((a) => AgentInfo(id: a.id, type: a.type, name: a.name)).toList(),
+      agents: agents
+          .map((a) => AgentInfo(id: a.id, type: a.type, name: a.name))
+          .toList(),
       metadata: {'working-directory': session.workingDirectory},
     );
     channel.sink.add(connectedEvent.toJsonString());
@@ -188,7 +192,9 @@ class _SimplifiedStreamHandler {
       events: _broadcaster.history,
     );
     channel.sink.add(historyEvent.toJsonString());
-    _log.info('[Session $sessionId] Sent history with ${_broadcaster.history.length} events');
+    _log.info(
+      '[Session $sessionId] Sent history with ${_broadcaster.history.length} events',
+    );
 
     // Register for live events (broadcaster handles storage)
     _unregister = _broadcaster.addClient(_handleBroadcastEvent);
@@ -207,7 +213,10 @@ class _SimplifiedStreamHandler {
   /// Handle event from broadcaster (already stored, just forward)
   void _handleBroadcastEvent(Map<String, dynamic> event) {
     // Start permission timeout if needed
-    if (event case {'type': 'permission-request', 'data': {'request-id': String requestId}}) {
+    if (event case {
+      'type': 'permission-request',
+      'data': {'request-id': String requestId},
+    }) {
       _startPermissionTimeout(requestId);
     }
 
@@ -220,26 +229,29 @@ class _SimplifiedStreamHandler {
     final timeoutSeconds = serverConfig.permissionTimeoutSeconds;
     if (timeoutSeconds <= 0) return; // No timeout configured
 
-    _permissionTimers[requestId] = Timer(
-      Duration(seconds: timeoutSeconds),
-      () {
-        _log.info('[Session $sessionId] Permission timeout: $requestId');
-        _permissionTimers.remove(requestId);
+    _permissionTimers[requestId] = Timer(Duration(seconds: timeoutSeconds), () {
+      _log.info('[Session $sessionId] Permission timeout: $requestId');
+      _permissionTimers.remove(requestId);
 
-        // Auto-deny on timeout
-        session.respondToPermission(requestId, allow: false, message: 'Permission timed out');
+      // Auto-deny on timeout
+      session.respondToPermission(
+        requestId,
+        allow: false,
+        message: 'Permission timed out',
+      );
 
-        // Send timeout event to this client only (not stored in history)
-        channel.sink.add(jsonEncode({
+      // Send timeout event to this client only (not stored in history)
+      channel.sink.add(
+        jsonEncode({
           'type': 'permission-timeout',
           'data': {
             'request-id': requestId,
             'message': 'Permission timed out after ${timeoutSeconds}s',
           },
           'timestamp': DateTime.now().toIso8601String(),
-        }));
-      },
-    );
+        }),
+      );
+    });
   }
 
   /// Handle incoming client message
@@ -259,7 +271,9 @@ class _SimplifiedStreamHandler {
     try {
       clientMsg = ClientMessage.fromJson(json);
     } catch (e) {
-      _log.warning('[Session $sessionId] Unknown message type: ${json['type']} - $e');
+      _log.warning(
+        '[Session $sessionId] Unknown message type: ${json['type']} - $e',
+      );
       _sendError(
         'Unknown message type: ${json['type']}',
         code: 'UNKNOWN_MESSAGE_TYPE',
@@ -284,7 +298,9 @@ class _SimplifiedStreamHandler {
   }
 
   void _handlePermissionResponse(PermissionResponse msg) {
-    _log.info('[Session $sessionId] Permission response: ${msg.requestId} = ${msg.allow}');
+    _log.info(
+      '[Session $sessionId] Permission response: ${msg.requestId} = ${msg.allow}',
+    );
 
     // Cancel timeout timer
     _permissionTimers.remove(msg.requestId)?.cancel();
@@ -309,17 +325,19 @@ class _SimplifiedStreamHandler {
     Map<String, dynamic>? originalMessage,
   }) {
     // Server errors go directly to this client only
-    channel.sink.add(jsonEncode({
-      'type': 'error',
-      'agent-id': 'server',
-      'agent-type': 'system',
-      'data': {
-        'message': message,
-        if (code != null) 'code': code,
-        if (originalMessage != null) 'original-message': originalMessage,
-      },
-      'timestamp': DateTime.now().toIso8601String(),
-    }));
+    channel.sink.add(
+      jsonEncode({
+        'type': 'error',
+        'agent-id': 'server',
+        'agent-type': 'system',
+        'data': {
+          'message': message,
+          if (code != null) 'code': code,
+          if (originalMessage != null) 'original-message': originalMessage,
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
+    );
   }
 
   void _cleanup() {
@@ -349,10 +367,12 @@ Handler streamSessionWebSocket(
     final session = sessionCache[sessionId];
     if (session == null) {
       _log.warning('[WebSocket] Session not found: $sessionId');
-      channel.sink.add(jsonEncode({
-        'type': 'error',
-        'data': {'message': 'Session not found', 'code': 'NOT_FOUND'},
-      }));
+      channel.sink.add(
+        jsonEncode({
+          'type': 'error',
+          'data': {'message': 'Session not found', 'code': 'NOT_FOUND'},
+        }),
+      );
       channel.sink.close();
       return;
     }
@@ -365,10 +385,12 @@ Handler streamSessionWebSocket(
 
     handler.setup().catchError((error, stack) {
       _log.severe('[WebSocket] Setup error: $error', error, stack);
-      channel.sink.add(jsonEncode({
-        'type': 'error',
-        'data': {'message': 'Failed to setup stream: $error'},
-      }));
+      channel.sink.add(
+        jsonEncode({
+          'type': 'error',
+          'data': {'message': 'Failed to setup stream: $error'},
+        }),
+      );
       channel.sink.close();
     });
   }, pingInterval: _keepalivePingInterval);

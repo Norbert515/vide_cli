@@ -13,11 +13,11 @@ class DevicePreset {
   });
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'width': width,
-    'height': height,
-    'devicePixelRatio': devicePixelRatio,
-  };
+        'name': name,
+        'width': width,
+        'height': height,
+        'devicePixelRatio': devicePixelRatio,
+      };
 }
 
 /// Standard device presets for common devices

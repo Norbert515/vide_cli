@@ -63,9 +63,9 @@ class ConnectionNotifier extends _$ConnectionNotifier {
       final url = Uri.parse('$protocol://${state.host}:${state.port}/health');
 
       final response = await http.get(url).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => throw Exception('Connection timed out'),
-      );
+            const Duration(seconds: 5),
+            onTimeout: () => throw Exception('Connection timed out'),
+          );
 
       if (response.statusCode == 200) {
         state = state.copyWith(status: ConnectionStatus.connected);

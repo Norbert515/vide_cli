@@ -195,9 +195,8 @@ class _SessionCard extends StatelessWidget {
 
     // Format the working directory to show just the last part
     final dirParts = session.workingDirectory.split('/');
-    final shortDir = dirParts.length > 1
-        ? '.../${dirParts.last}'
-        : session.workingDirectory;
+    final shortDir =
+        dirParts.length > 1 ? '.../${dirParts.last}' : session.workingDirectory;
 
     // Format time ago
     final timeAgo = _formatTimeAgo(session.createdAt);

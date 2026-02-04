@@ -70,9 +70,7 @@ class SettingsTextInput extends StatelessComponent {
                       else
                         Text(
                           value,
-                          style: TextStyle(
-                            color: theme.base.primary,
-                          ),
+                          style: TextStyle(color: theme.base.primary),
                         ),
                     ],
                   ),

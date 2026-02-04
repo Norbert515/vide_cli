@@ -95,7 +95,9 @@ class EventRenderer {
   void _renderAskUserQuestion(AskUserQuestionEvent e) {
     _finishAllStreaming();
     stdout.writeln('');
-    stdout.writeln('\x1B[33m❓ AskUserQuestion (${e.questions.length} questions)\x1B[0m');
+    stdout.writeln(
+      '\x1B[33m❓ AskUserQuestion (${e.questions.length} questions)\x1B[0m',
+    );
     for (var i = 0; i < e.questions.length; i++) {
       final q = e.questions[i];
       stdout.writeln('  Q${i + 1}: ${q.question}');

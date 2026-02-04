@@ -61,7 +61,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final currentState = ref.read(sessionRepositoryProvider);
 
     // If already connected to this session, nothing to do
-    if (currentState.session?.sessionId == widget.sessionId && currentState.isActive) {
+    if (currentState.session?.sessionId == widget.sessionId &&
+        currentState.isActive) {
       return;
     }
 
@@ -98,12 +99,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     switch (event) {
       case vc.ConnectedEvent(:final agents):
-        final domainAgents = agents.map((a) => Agent(
-          id: a.id,
-          type: a.type,
-          name: a.name,
-          taskName: a.taskName,
-        )).toList();
+        final domainAgents = agents
+            .map((a) => Agent(
+                  id: a.id,
+                  type: a.type,
+                  name: a.name,
+                  taskName: a.taskName,
+                ))
+            .toList();
         notifier.setAgents(domainAgents);
 
       case vc.HistoryEvent(:final events):
@@ -130,7 +133,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           agentType: agentType,
           agentName: agentName,
           content: content,
-          role: role == vc.MessageRole.user ? MessageRole.user : MessageRole.assistant,
+          role: role == vc.MessageRole.user
+              ? MessageRole.user
+              : MessageRole.assistant,
           isPartial: isPartial,
           timestamp: timestamp,
         );
@@ -138,7 +143,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case vc.StatusEvent(:final status):
         final agentId = event.agent?.id ?? '';
         final taskName = event.agent?.taskName;
-        notifier.updateAgentStatus(agentId, _convertAgentStatus(status), taskName);
+        notifier.updateAgentStatus(
+            agentId, _convertAgentStatus(status), taskName);
         final agents = ref.read(chatNotifierProvider(widget.sessionId)).agents;
         final anyWorking = agents.any((a) => a.status == AgentStatus.working);
         notifier.setIsAgentWorking(anyWorking);
@@ -156,7 +162,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ));
         _scrollToBottom();
 
-      case vc.ToolResultEvent(:final toolUseId, :final toolName, :final result, :final isError):
+      case vc.ToolResultEvent(
+          :final toolUseId,
+          :final toolName,
+          :final result,
+          :final isError
+        ):
         notifier.addToolResult(ToolResult(
           toolUseId: toolUseId,
           toolName: toolName,
@@ -179,7 +190,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ));
 
       case vc.PermissionTimeoutEvent(:final requestId):
-        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
+        final pending =
+            ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
         if (pending?.requestId == requestId) {
           notifier.setPendingPermission(null);
           if (_isPermissionSheetShowing && mounted) {
@@ -264,10 +276,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (isPartial) {
       // Accumulate streaming content
-      _streamingMessages[eventId] = (_streamingMessages[eventId] ?? '') + content;
+      _streamingMessages[eventId] =
+          (_streamingMessages[eventId] ?? '') + content;
 
       // Check if we already have a message with this eventId
-      final existingIndex = state.messages.indexWhere((m) => m.eventId == eventId);
+      final existingIndex =
+          state.messages.indexWhere((m) => m.eventId == eventId);
 
       if (existingIndex >= 0) {
         // Update existing message with accumulated content
@@ -297,7 +311,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final finalContent = accumulatedContent + content;
       _streamingMessages.remove(eventId);
 
-      final existingIndex = state.messages.indexWhere((m) => m.eventId == eventId);
+      final existingIndex =
+          state.messages.indexWhere((m) => m.eventId == eventId);
 
       if (existingIndex >= 0) {
         // Mark message as complete
@@ -356,7 +371,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _abort() {
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
     sessionRepo.abort();
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(false);
+    ref
+        .read(chatNotifierProvider(widget.sessionId).notifier)
+        .setIsAgentWorking(false);
   }
 
   void _scrollToBottom() {
@@ -392,7 +409,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       allow,
     );
 
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(null);
+    ref
+        .read(chatNotifierProvider(widget.sessionId).notifier)
+        .setPendingPermission(null);
     _isPermissionSheetShowing = false;
     Navigator.of(context).pop(); // Close the permission sheet
   }
@@ -431,7 +450,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     // Determine if input should be disabled
-    final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
+    final isDisconnected =
+        connectionState.status != WebSocketConnectionStatus.connected;
     final inputEnabled = !state.isAgentWorking && !isDisconnected;
 
     return Scaffold(
@@ -461,7 +481,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    ref.read(chatNotifierProvider(widget.sessionId).notifier).setError(null);
+                    ref
+                        .read(chatNotifierProvider(widget.sessionId).notifier)
+                        .setError(null);
                   },
                   child: const Text('Dismiss'),
                 ),
@@ -508,7 +530,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       scrollController: _scrollController,
     );
   }
-
 }
 
 class _EmptyState extends StatelessWidget {
@@ -529,15 +550,15 @@ class _EmptyState extends StatelessWidget {
           Text(
             'Start a conversation',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
+                  color: colorScheme.onSurfaceVariant,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
             'Send a message to begin',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-            ),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                ),
           ),
         ],
       ),

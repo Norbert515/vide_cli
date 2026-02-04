@@ -67,10 +67,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     super.dispose();
   }
 
-  Component _buildAgentChat(
-    BuildContext context,
-    List<String> agentIds,
-  ) {
+  Component _buildAgentChat(BuildContext context, List<String> agentIds) {
     // Get selected agent ID from provider, or use the first agent
     final selectedAgentIdNotifier = context.read(
       selectedAgentIdProvider.notifier,
@@ -489,10 +486,7 @@ class _AgentChatState extends State<_AgentChat> {
     final session = context.read(currentVideSessionProvider);
 
     // Send the response through the session (unified path for local and remote)
-    session?.respondToAskUserQuestion(
-      request.requestId,
-      answers: answers,
-    );
+    session?.respondToAskUserQuestion(request.requestId, answers: answers);
 
     // Dequeue the current request to show the next one
     context.read(askUserQuestionStateProvider.notifier).dequeueRequest();

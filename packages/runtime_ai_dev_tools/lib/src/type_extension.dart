@@ -339,7 +339,8 @@ class _InterceptingBinaryMessenger implements BinaryMessenger {
 /// Searches both descendants AND ancestors since EditableTextState is a child.
 TextInputClient? _findTextInputClient() {
   final focusNode = FocusManager.instance.primaryFocus;
-  print('🔍 [RuntimeAiDevTools] _findTextInputClient: primaryFocus=${focusNode?.debugLabel ?? focusNode?.runtimeType.toString() ?? 'null'}');
+  print(
+      '🔍 [RuntimeAiDevTools] _findTextInputClient: primaryFocus=${focusNode?.debugLabel ?? focusNode?.runtimeType.toString() ?? 'null'}');
 
   if (focusNode == null) {
     // No focused element - try searching from root as last resort
@@ -348,13 +349,15 @@ TextInputClient? _findTextInputClient() {
 
   final context = focusNode.context;
   if (context == null) {
-    print('🔍 [RuntimeAiDevTools] _findTextInputClient: focusNode has no context');
+    print(
+        '🔍 [RuntimeAiDevTools] _findTextInputClient: focusNode has no context');
     return _findTextInputClientFromRoot();
   }
 
   // Check if focused element itself is TextInputClient
   if (context is StatefulElement && context.state is TextInputClient) {
-    print('🔍 [RuntimeAiDevTools] _findTextInputClient: found directly on focused element');
+    print(
+        '🔍 [RuntimeAiDevTools] _findTextInputClient: found directly on focused element');
     return context.state as TextInputClient;
   }
 
@@ -389,7 +392,8 @@ TextInputClient? _findTextInputClient() {
     return client;
   }
 
-  print('🔍 [RuntimeAiDevTools] _findTextInputClient: not found near focus, trying root search');
+  print(
+      '🔍 [RuntimeAiDevTools] _findTextInputClient: not found near focus, trying root search');
   return _findTextInputClientFromRoot();
 }
 
@@ -407,7 +411,8 @@ TextInputClient? _findTextInputClientFromRoot() {
       // Only use clients that have an active connection (are currently editing)
       if (candidate.currentTextEditingValue != null) {
         client = candidate;
-        print('🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: found active TextInputClient');
+        print(
+            '🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: found active TextInputClient');
         return;
       }
     }
@@ -416,7 +421,8 @@ TextInputClient? _findTextInputClientFromRoot() {
 
   rootElement.visitChildren(visit);
   if (client == null) {
-    print('🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: no active TextInputClient found');
+    print(
+        '🔍 [RuntimeAiDevTools] _findTextInputClientFromRoot: no active TextInputClient found');
   }
   return client;
 }

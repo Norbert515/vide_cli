@@ -72,7 +72,8 @@ class _PermissionSheetState extends State<PermissionSheet> {
     final progress = _remainingSeconds / widget.timeout.inSeconds;
 
     return GlassSurface.heavy(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(VideRadius.glass)),
+      borderRadius:
+          const BorderRadius.vertical(top: Radius.circular(VideRadius.glass)),
       child: Container(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).padding.bottom + 16,
@@ -116,17 +117,23 @@ class _PermissionSheetState extends State<PermissionSheet> {
                           children: [
                             Text(
                               'Permission Request',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                             ),
                             Text(
                               'Auto-deny in ${_remainingSeconds}s',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: _remainingSeconds < 15
-                                    ? videColors.error
-                                    : videColors.textSecondary,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(
+                                    color: _remainingSeconds < 15
+                                        ? videColors.error
+                                        : videColors.textSecondary,
+                                  ),
                             ),
                           ],
                         ),
@@ -155,9 +162,12 @@ class _PermissionSheetState extends State<PermissionSheet> {
                             const SizedBox(width: 8),
                             Text(
                               widget.request.toolName,
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                             ),
                           ],
                         ),
@@ -165,9 +175,10 @@ class _PermissionSheetState extends State<PermissionSheet> {
                           const SizedBox(height: 4),
                           Text(
                             'by ${widget.request.agentName}',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: videColors.textSecondary,
-                            ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: videColors.textSecondary,
+                                    ),
                           ),
                         ],
                       ],
@@ -176,7 +187,8 @@ class _PermissionSheetState extends State<PermissionSheet> {
                   const SizedBox(height: 12),
                   // Collapsible tool input
                   InkWell(
-                    onTap: () => setState(() => _inputExpanded = !_inputExpanded),
+                    onTap: () =>
+                        setState(() => _inputExpanded = !_inputExpanded),
                     borderRadius: BorderRadius.circular(12),
                     child: Container(
                       padding: const EdgeInsets.all(12),
@@ -191,13 +203,18 @@ class _PermissionSheetState extends State<PermissionSheet> {
                             children: [
                               Text(
                                 'Tool Input',
-                                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelMedium
+                                    ?.copyWith(
+                                      fontWeight: FontWeight.w500,
+                                    ),
                               ),
                               const Spacer(),
                               Icon(
-                                _inputExpanded ? Icons.expand_less : Icons.expand_more,
+                                _inputExpanded
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
                                 size: 20,
                                 color: videColors.textSecondary,
                               ),
@@ -210,7 +227,8 @@ class _PermissionSheetState extends State<PermissionSheet> {
                               constraints: const BoxConstraints(maxHeight: 150),
                               child: SingleChildScrollView(
                                 child: Text(
-                                  const JsonEncoder.withIndent('  ').convert(widget.request.toolInput),
+                                  const JsonEncoder.withIndent('  ')
+                                      .convert(widget.request.toolInput),
                                   style: TextStyle(
                                     fontFamily: 'monospace',
                                     fontSize: 12,
@@ -228,7 +246,8 @@ class _PermissionSheetState extends State<PermissionSheet> {
                   // Always allow checkbox
                   CheckboxListTile(
                     value: _alwaysAllow,
-                    onChanged: (value) => setState(() => _alwaysAllow = value ?? false),
+                    onChanged: (value) =>
+                        setState(() => _alwaysAllow = value ?? false),
                     title: const Text('Always allow this tool'),
                     subtitle: const Text('Add to auto-approve list'),
                     contentPadding: EdgeInsets.zero,

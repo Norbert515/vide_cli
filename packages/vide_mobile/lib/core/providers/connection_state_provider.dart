@@ -26,7 +26,8 @@ enum WebSocketConnectionStatus {
 @freezed
 class WebSocketConnectionState with _$WebSocketConnectionState {
   const factory WebSocketConnectionState({
-    @Default(WebSocketConnectionStatus.disconnected) WebSocketConnectionStatus status,
+    @Default(WebSocketConnectionStatus.disconnected)
+    WebSocketConnectionStatus status,
     @Default(0) int retryCount,
     @Default(5) int maxRetries,
     @Default(0) int lastSeq,

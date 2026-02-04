@@ -102,21 +102,21 @@ class PatternInference {
     //
     // Match redirects at word boundaries (preceded by space or start, followed by space or end)
     final redirectPattern = RegExp(
-      r'(?:^|\s)'                   // Start or preceded by whitespace
+      r'(?:^|\s)' // Start or preceded by whitespace
       r'(?:'
-      r'[0-9]*>&[0-9]+'             // fd redirect: 2>&1, >&2
+      r'[0-9]*>&[0-9]+' // fd redirect: 2>&1, >&2
       r'|'
-      r'&>>[^\s]*'                  // append both: &>>file
+      r'&>>[^\s]*' // append both: &>>file
       r'|'
-      r'&>[^\s]*'                   // redirect both: &>/dev/null
+      r'&>[^\s]*' // redirect both: &>/dev/null
       r'|'
-      r'[0-9]*>>[^\s]*'             // append: >>file, 2>>file
+      r'[0-9]*>>[^\s]*' // append: >>file, 2>>file
       r'|'
-      r'[0-9]*>[^\s]*'              // output: >file, 2>/dev/null
+      r'[0-9]*>[^\s]*' // output: >file, 2>/dev/null
       r'|'
-      r'<[^\s]+'                    // input: <file
+      r'<[^\s]+' // input: <file
       r')'
-      r'(?=\s|$)',                  // Followed by whitespace or end
+      r'(?=\s|$)', // Followed by whitespace or end
     );
 
     // Remove all redirect patterns and clean up extra whitespace

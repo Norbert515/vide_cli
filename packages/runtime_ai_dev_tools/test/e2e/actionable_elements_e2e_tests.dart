@@ -25,8 +25,7 @@ void actionableElementsTests(E2eTestHarness harness) {
 
       expect(types, contains('button'),
           reason: 'Should find the Increment button');
-      expect(types, contains('textfield'),
-          reason: 'Should find the TextField');
+      expect(types, contains('textfield'), reason: 'Should find the TextField');
       // CheckboxListTile may be detected as 'checkbox' via semantics
       // or as 'tappable' via widget tree fallback. Accept either.
       final hasCheckboxType =

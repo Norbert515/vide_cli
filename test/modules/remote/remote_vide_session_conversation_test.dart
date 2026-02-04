@@ -40,7 +40,13 @@ void main() {
         _simulateMessage(session, agentId, 'user', 'Hi back!', seq: ++seq);
 
         // Simulate more assistant text (should create new message)
-        _simulateMessage(session, agentId, 'assistant', 'How can I help?', seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'How can I help?',
+          seq: ++seq,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(3));
@@ -53,21 +59,52 @@ void main() {
     group('assistant messages', () {
       test('accumulates text in single message during turn', () {
         // Simulate streaming text
-        _simulateMessage(session, agentId, 'assistant', 'Hello', seq: ++seq, isPartial: true);
-        _simulateMessage(session, agentId, 'assistant', ' world', seq: ++seq, isPartial: true);
-        _simulateMessage(session, agentId, 'assistant', '!', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Hello',
+          seq: ++seq,
+          isPartial: true,
+        );
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          ' world',
+          seq: ++seq,
+          isPartial: true,
+        );
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          '!',
+          seq: ++seq,
+          isPartial: false,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].content, equals('Hello world!'));
         // Each text chunk creates a TextResponse
         expect(conversation.messages[0].responses.length, equals(3));
-        expect(conversation.messages[0].responses.every((r) => r is TextResponse), isTrue);
+        expect(
+          conversation.messages[0].responses.every((r) => r is TextResponse),
+          isTrue,
+        );
       });
 
       test('marks message complete on done event', () {
         // Simulate text then done
-        _simulateMessage(session, agentId, 'assistant', 'Response', seq: ++seq, isPartial: true);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Response',
+          seq: ++seq,
+          isPartial: true,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
@@ -79,8 +116,17 @@ void main() {
     group('tool use and result', () {
       test('adds tool use to current assistant message', () {
         // Simulate text then tool use
-        _simulateMessage(session, agentId, 'assistant', 'Let me check...', seq: ++seq, isPartial: true);
-        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {'command': 'ls'}, seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Let me check...',
+          seq: ++seq,
+          isPartial: true,
+        );
+        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {
+          'command': 'ls',
+        }, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
@@ -88,45 +134,93 @@ void main() {
         expect(conversation.messages[0].responses[0], isA<TextResponse>());
         expect(conversation.messages[0].responses[1], isA<ToolUseResponse>());
 
-        final toolUse = conversation.messages[0].responses[1] as ToolUseResponse;
+        final toolUse =
+            conversation.messages[0].responses[1] as ToolUseResponse;
         expect(toolUse.toolName, equals('Bash'));
         expect(toolUse.parameters['command'], equals('ls'));
       });
 
       test('adds tool result to current assistant message', () {
         // Simulate tool use then result
-        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {'command': 'ls'}, seq: ++seq);
-        _simulateToolResult(session, agentId, 'tool-1', 'file1.txt\nfile2.txt', seq: ++seq);
+        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {
+          'command': 'ls',
+        }, seq: ++seq);
+        _simulateToolResult(
+          session,
+          agentId,
+          'tool-1',
+          'file1.txt\nfile2.txt',
+          seq: ++seq,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].responses.length, equals(2));
         expect(conversation.messages[0].responses[0], isA<ToolUseResponse>());
-        expect(conversation.messages[0].responses[1], isA<ToolResultResponse>());
+        expect(
+          conversation.messages[0].responses[1],
+          isA<ToolResultResponse>(),
+        );
 
-        final toolResult = conversation.messages[0].responses[1] as ToolResultResponse;
+        final toolResult =
+            conversation.messages[0].responses[1] as ToolResultResponse;
         expect(toolResult.content, equals('file1.txt\nfile2.txt'));
         expect(toolResult.isError, isFalse);
       });
 
       test('handles tool error result', () {
-        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {'command': 'invalid'}, seq: ++seq);
-        _simulateToolResult(session, agentId, 'tool-1', 'Command not found', seq: ++seq, isError: true);
+        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {
+          'command': 'invalid',
+        }, seq: ++seq);
+        _simulateToolResult(
+          session,
+          agentId,
+          'tool-1',
+          'Command not found',
+          seq: ++seq,
+          isError: true,
+        );
 
         final conversation = session.getConversation(agentId);
-        final toolResult = conversation!.messages[0].responses[1] as ToolResultResponse;
+        final toolResult =
+            conversation!.messages[0].responses[1] as ToolResultResponse;
         expect(toolResult.isError, isTrue);
       });
 
       test('interleaves text, tool use, result, more text in single message', () {
         // Simulate complex turn: text -> tool -> result -> text -> tool -> result -> text
-        _simulateMessage(session, agentId, 'assistant', 'Checking...', seq: ++seq, isPartial: true);
-        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {'command': 'ls'}, seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Checking...',
+          seq: ++seq,
+          isPartial: true,
+        );
+        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {
+          'command': 'ls',
+        }, seq: ++seq);
         _simulateToolResult(session, agentId, 'tool-1', 'file.txt', seq: ++seq);
-        _simulateMessage(session, agentId, 'assistant', 'Found file.txt. ', seq: ++seq, isPartial: true);
-        _simulateToolUse(session, agentId, 'tool-2', 'Read', {'file_path': '/file.txt'}, seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Found file.txt. ',
+          seq: ++seq,
+          isPartial: true,
+        );
+        _simulateToolUse(session, agentId, 'tool-2', 'Read', {
+          'file_path': '/file.txt',
+        }, seq: ++seq);
         _simulateToolResult(session, agentId, 'tool-2', 'contents', seq: ++seq);
-        _simulateMessage(session, agentId, 'assistant', 'Done!', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Done!',
+          seq: ++seq,
+          isPartial: false,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
@@ -149,7 +243,9 @@ void main() {
 
       test('creates assistant message if tool use arrives first', () {
         // Tool use without prior text
-        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {'command': 'ls'}, seq: ++seq);
+        _simulateToolUse(session, agentId, 'tool-1', 'Bash', {
+          'command': 'ls',
+        }, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
@@ -159,7 +255,13 @@ void main() {
 
       test('tool result without matching tool use is handled gracefully', () {
         // Send tool result without tool use (edge case)
-        _simulateToolResult(session, agentId, 'orphan-tool', 'result', seq: ++seq);
+        _simulateToolResult(
+          session,
+          agentId,
+          'orphan-tool',
+          'result',
+          seq: ++seq,
+        );
 
         // Should not crash - result added to empty or created message
         final conversation = session.getConversation(agentId);
@@ -171,17 +273,33 @@ void main() {
     group('conversation stream', () {
       test('emits updates when messages change', () async {
         final updates = <Conversation>[];
-        final subscription = session.conversationStream(agentId).listen(updates.add);
+        final subscription = session
+            .conversationStream(agentId)
+            .listen(updates.add);
 
         // Allow subscription to be set up
         await Future.delayed(Duration.zero);
 
-        _simulateMessage(session, agentId, 'assistant', 'Hello', seq: ++seq, isPartial: true);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Hello',
+          seq: ++seq,
+          isPartial: true,
+        );
 
         // Allow event to propagate
         await Future.delayed(Duration.zero);
 
-        _simulateMessage(session, agentId, 'assistant', '!', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          '!',
+          seq: ++seq,
+          isPartial: false,
+        );
 
         await Future.delayed(Duration.zero);
 
@@ -230,14 +348,28 @@ void main() {
         session.addPendingUserMessage('Question 1?');
 
         // First assistant response
-        _simulateMessage(session, agentId, 'assistant', 'Answer 1', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Answer 1',
+          seq: ++seq,
+          isPartial: false,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         // Second user message
         _simulateMessage(session, agentId, 'user', 'Question 2?', seq: ++seq);
 
         // Second assistant response
-        _simulateMessage(session, agentId, 'assistant', 'Answer 2', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Answer 2',
+          seq: ++seq,
+          isPartial: false,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
@@ -254,14 +386,28 @@ void main() {
 
       test('each assistant turn is a separate message', () {
         // Turn 1
-        _simulateMessage(session, agentId, 'assistant', 'Turn 1', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Turn 1',
+          seq: ++seq,
+          isPartial: false,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         // User
         _simulateMessage(session, agentId, 'user', 'Follow up', seq: ++seq);
 
         // Turn 2
-        _simulateMessage(session, agentId, 'assistant', 'Turn 2', seq: ++seq, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Turn 2',
+          seq: ++seq,
+          isPartial: false,
+        );
         _simulateDone(session, agentId, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
@@ -276,8 +422,22 @@ void main() {
     group('sequence deduplication', () {
       test('ignores duplicate seq numbers', () {
         // Send same seq twice
-        _simulateMessage(session, agentId, 'assistant', 'First', seq: 1, isPartial: true);
-        _simulateMessage(session, agentId, 'assistant', 'Duplicate', seq: 1, isPartial: true);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'First',
+          seq: 1,
+          isPartial: true,
+        );
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Duplicate',
+          seq: 1,
+          isPartial: true,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
@@ -286,9 +446,30 @@ void main() {
       });
 
       test('accepts increasing seq numbers', () {
-        _simulateMessage(session, agentId, 'assistant', 'A', seq: 1, isPartial: true);
-        _simulateMessage(session, agentId, 'assistant', 'B', seq: 2, isPartial: true);
-        _simulateMessage(session, agentId, 'assistant', 'C', seq: 3, isPartial: false);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'A',
+          seq: 1,
+          isPartial: true,
+        );
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'B',
+          seq: 2,
+          isPartial: true,
+        );
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'C',
+          seq: 3,
+          isPartial: false,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages[0].content, equals('ABC'));
@@ -439,11 +620,7 @@ void main() {
           'last-seq': 0,
           'timestamp': ts,
           'agents': [
-            {
-              'id': mainAgentIdFromServer,
-              'type': 'main',
-              'name': 'Main Agent',
-            },
+            {'id': mainAgentIdFromServer, 'type': 'main', 'name': 'Main Agent'},
           ],
         });
         session.handleWebSocketMessage(connectedJson);
@@ -492,7 +669,10 @@ void main() {
         // Agents should be populated from history
         // Note: pending session placeholder + main from connected + spawned from history
         // But the pending placeholder should have different ID than main from connected
-        expect(session.agents.any((a) => a.id == mainAgentIdFromServer), isTrue);
+        expect(
+          session.agents.any((a) => a.id == mainAgentIdFromServer),
+          isTrue,
+        );
         expect(session.agents.any((a) => a.id == 'spawned-1'), isTrue);
         expect(session.agents.any((a) => a.name == 'Implementer'), isTrue);
       });
@@ -531,7 +711,10 @@ void main() {
 
         // Verify the stream emitted with the agents
         expect(emittedAgents, isNotNull);
-        expect(emittedAgents!.any((a) => a.id == mainAgentIdFromServer), isTrue);
+        expect(
+          emittedAgents!.any((a) => a.id == mainAgentIdFromServer),
+          isTrue,
+        );
 
         await subscription.cancel();
       });
@@ -548,11 +731,7 @@ void main() {
           'last-seq': 10, // High lastSeq
           'timestamp': ts,
           'agents': [
-            {
-              'id': mainAgentIdFromServer,
-              'type': 'main',
-              'name': 'Main',
-            },
+            {'id': mainAgentIdFromServer, 'type': 'main', 'name': 'Main'},
           ],
         });
         session.handleWebSocketMessage(connectedJson);
@@ -598,11 +777,7 @@ void main() {
           'last-seq': 0,
           'timestamp': ts,
           'agents': [
-            {
-              'id': mainAgentIdFromServer,
-              'type': 'main',
-              'name': 'Main',
-            },
+            {'id': mainAgentIdFromServer, 'type': 'main', 'name': 'Main'},
           ],
         });
         session.handleWebSocketMessage(connectedJson);
@@ -689,21 +864,30 @@ void main() {
     });
 
     group('optimistic message deduplication', () {
-      test('optimistic user message is not duplicated when server echoes it', () {
-        // Add optimistic message
-        session.addPendingUserMessage('Hello server!');
+      test(
+        'optimistic user message is not duplicated when server echoes it',
+        () {
+          // Add optimistic message
+          session.addPendingUserMessage('Hello server!');
 
-        var conversation = session.getConversation(agentId);
-        expect(conversation!.messages.length, equals(1));
+          var conversation = session.getConversation(agentId);
+          expect(conversation!.messages.length, equals(1));
 
-        // Server echoes the same message back
-        _simulateMessage(session, agentId, 'user', 'Hello server!', seq: ++seq);
+          // Server echoes the same message back
+          _simulateMessage(
+            session,
+            agentId,
+            'user',
+            'Hello server!',
+            seq: ++seq,
+          );
 
-        // Should still be just one message (deduplicated)
-        conversation = session.getConversation(agentId);
-        expect(conversation!.messages.length, equals(1));
-        expect(conversation.messages[0].content, equals('Hello server!'));
-      });
+          // Should still be just one message (deduplicated)
+          conversation = session.getConversation(agentId);
+          expect(conversation!.messages.length, equals(1));
+          expect(conversation.messages[0].content, equals('Hello server!'));
+        },
+      );
 
       test('different user message is not deduplicated', () {
         // Add optimistic message
@@ -713,7 +897,13 @@ void main() {
         expect(conversation!.messages.length, equals(1));
 
         // Server sends a different message
-        _simulateMessage(session, agentId, 'user', 'Different message', seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'user',
+          'Different message',
+          seq: ++seq,
+        );
 
         // Should have two messages
         conversation = session.getConversation(agentId);
@@ -728,7 +918,13 @@ void main() {
         _simulateMessage(session, agentId, 'user', 'Hello server!', seq: ++seq);
 
         // Server sends assistant response
-        _simulateMessage(session, agentId, 'assistant', 'Hello human!', seq: ++seq);
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'Hello human!',
+          seq: ++seq,
+        );
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(2));
@@ -755,10 +951,7 @@ void _simulateMessage(
     'agent-id': agentId,
     'event-id': 'evt-$seq',
     'is-partial': isPartial,
-    'data': {
-      'role': role,
-      'content': content,
-    },
+    'data': {'role': role, 'content': content},
   });
   session.handleWebSocketMessage(json);
 }
@@ -816,9 +1009,7 @@ void _simulateDone(
     'type': 'done',
     'seq': seq,
     'agent-id': agentId,
-    'data': {
-      'reason': 'complete',
-    },
+    'data': {'reason': 'complete'},
   });
   session.handleWebSocketMessage(json);
 }
@@ -837,9 +1028,7 @@ void _simulateAgentSpawned(
     'agent-id': agentId,
     'agent-type': agentType,
     'agent-name': agentName,
-    'data': {
-      'spawned-by': spawnedBy,
-    },
+    'data': {'spawned-by': spawnedBy},
   });
   session.handleWebSocketMessage(json);
 }

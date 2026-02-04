@@ -32,7 +32,8 @@ class ConnectionStatusBanner extends ConsumerWidget {
   ) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
-    final (icon, message, showRetry, backgroundColor) = switch (connectionState.status) {
+    final (icon, message, showRetry, backgroundColor) =
+        switch (connectionState.status) {
       WebSocketConnectionStatus.connecting => (
           Icons.sync,
           'Connecting...',
@@ -45,19 +46,20 @@ class ConnectionStatusBanner extends ConsumerWidget {
           false,
           videColors.warningContainer,
         ),
-      WebSocketConnectionStatus.disconnected => networkStatus == NetworkStatus.offline
-          ? (
-              Icons.wifi_off,
-              'No internet connection',
-              false,
-              videColors.errorContainer,
-            )
-          : (
-              Icons.cloud_off,
-              connectionState.errorMessage ?? 'Disconnected',
-              false,
-              videColors.errorContainer,
-            ),
+      WebSocketConnectionStatus.disconnected =>
+        networkStatus == NetworkStatus.offline
+            ? (
+                Icons.wifi_off,
+                'No internet connection',
+                false,
+                videColors.errorContainer,
+              )
+            : (
+                Icons.cloud_off,
+                connectionState.errorMessage ?? 'Disconnected',
+                false,
+                videColors.errorContainer,
+              ),
       WebSocketConnectionStatus.failed => (
           Icons.error_outline,
           connectionState.errorMessage ?? 'Connection failed',
@@ -84,8 +86,10 @@ class ConnectionStatusBanner extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              if (connectionState.status == WebSocketConnectionStatus.connecting ||
-                  connectionState.status == WebSocketConnectionStatus.reconnecting)
+              if (connectionState.status ==
+                      WebSocketConnectionStatus.connecting ||
+                  connectionState.status ==
+                      WebSocketConnectionStatus.reconnecting)
                 SizedBox(
                   width: 20,
                   height: 20,
@@ -106,7 +110,9 @@ class ConnectionStatusBanner extends ConsumerWidget {
               if (showRetry)
                 TextButton(
                   onPressed: () {
-                    ref.read(sessionRepositoryProvider.notifier).manualReconnect();
+                    ref
+                        .read(sessionRepositoryProvider.notifier)
+                        .manualReconnect();
                   },
                   child: const Text('Retry'),
                 ),
@@ -144,9 +150,10 @@ class ConnectionStatusChip extends ConsumerWidget {
           videColors.warning,
           '${connectionState.retryCount}/${connectionState.maxRetries}',
         ),
-      WebSocketConnectionStatus.disconnected => networkStatus == NetworkStatus.offline
-          ? (Icons.wifi_off, videColors.error, 'Offline')
-          : (Icons.cloud_off, videColors.error, 'Disconnected'),
+      WebSocketConnectionStatus.disconnected =>
+        networkStatus == NetworkStatus.offline
+            ? (Icons.wifi_off, videColors.error, 'Offline')
+            : (Icons.cloud_off, videColors.error, 'Disconnected'),
       WebSocketConnectionStatus.failed => (
           Icons.error_outline,
           videColors.error,
@@ -186,8 +193,8 @@ class ConnectionStatusChip extends ConsumerWidget {
             Text(
               label,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color,
-              ),
+                    color: color,
+                  ),
             ),
           ],
         ],

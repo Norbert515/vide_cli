@@ -87,11 +87,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     // Clean up existing connection
     _disconnect();
 
-    state = DaemonConnectionState(
-      isConnecting: true,
-      host: host,
-      port: port,
-    );
+    state = DaemonConnectionState(isConnecting: true, host: host, port: port);
 
     final client = DaemonClient(host: host, port: port);
 
@@ -162,10 +158,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     () async {
       try {
         // Use vide_client to create the session
-        final videClient = vc.VideClient(
-          host: state.host!,
-          port: state.port!,
-        );
+        final videClient = vc.VideClient(host: state.host!, port: state.port!);
         final clientSession = await videClient.createSession(
           initialMessage: initialMessage,
           workingDirectory: workingDirectory,
@@ -199,10 +192,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     }
 
     // Use vide_client to create session (handles both REST + WebSocket)
-    final videClient = vc.VideClient(
-      host: state.host!,
-      port: state.port!,
-    );
+    final videClient = vc.VideClient(host: state.host!, port: state.port!);
     final clientSession = await videClient.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
@@ -260,20 +250,20 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
 ///
 /// Automatically reinitializes when daemon mode or settings change.
 final daemonConnectionProvider =
-    StateNotifierProvider<DaemonConnectionNotifier, DaemonConnectionState>(
-  (ref) {
-    final notifier = DaemonConnectionNotifier(ref);
+    StateNotifierProvider<DaemonConnectionNotifier, DaemonConnectionState>((
+      ref,
+    ) {
+      final notifier = DaemonConnectionNotifier(ref);
 
-    // Watch for daemon mode changes and reinitialize
-    ref.listen(daemonModeEnabledProvider, (_, __) {
-      notifier.reconnect();
+      // Watch for daemon mode changes and reinitialize
+      ref.listen(daemonModeEnabledProvider, (_, __) {
+        notifier.reconnect();
+      });
+
+      // Watch for settings changes
+      ref.listen(videConfigManagerProvider, (_, __) {
+        notifier.reconnect();
+      });
+
+      return notifier;
     });
-
-    // Watch for settings changes
-    ref.listen(videConfigManagerProvider, (_, __) {
-      notifier.reconnect();
-    });
-
-    return notifier;
-  },
-);

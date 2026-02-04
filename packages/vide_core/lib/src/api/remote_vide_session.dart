@@ -147,8 +147,8 @@ class RemoteVideSession implements VideSession {
   RemoteVideSession.fromClientSession(
     vc.Session clientSession, {
     String? mainAgentId,
-  })  : _sessionId = clientSession.id,
-        _clientSession = clientSession {
+  }) : _sessionId = clientSession.id,
+       _clientSession = clientSession {
     _initWithMainAgent(mainAgentId);
     _setupEventListening();
   }
@@ -158,8 +158,8 @@ class RemoteVideSession implements VideSession {
   /// This enables optimistic navigation - we can navigate immediately while
   /// the HTTP call to create the session happens in the background.
   RemoteVideSession.pending()
-      : _sessionId = const Uuid().v4(),
-        _isPending = true {
+    : _sessionId = const Uuid().v4(),
+      _isPending = true {
     // Pre-populate with a placeholder main agent
     final placeholderId = const Uuid().v4();
     _mainAgentId = placeholderId;
@@ -471,8 +471,10 @@ class RemoteVideSession implements VideSession {
         if (finalMessage != null) {
           // Use the final non-partial message (it should have full content)
           // But server sends empty content for final, so accumulate from partials
-          final accumulatedContent =
-              messages.where((m) => m.isPartial).map((m) => m.content).join();
+          final accumulatedContent = messages
+              .where((m) => m.isPartial)
+              .map((m) => m.content)
+              .join();
           consolidatedMessages[position] = vc.MessageEvent(
             seq: finalMessage.seq,
             eventId: finalMessage.eventId,

@@ -92,7 +92,8 @@ class _HomePageState extends State<HomePage> {
 
   /// Abbreviates the path by replacing home directory with ~
   String _abbreviatePath(String fullPath) {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home != null && fullPath.startsWith(home)) {
       return '~${fullPath.substring(home.length)}';
     }
@@ -120,7 +121,8 @@ class _HomePageState extends State<HomePage> {
                   final current = context.read(remoteVideSessionProvider);
                   if (current != null) {
                     // Re-set to trigger dependents to rebuild
-                    context.read(remoteVideSessionProvider.notifier).state = current;
+                    context.read(remoteVideSessionProvider.notifier).state =
+                        current;
                   }
                 }
               },
@@ -147,7 +149,9 @@ class _HomePageState extends State<HomePage> {
 
         // Update the networks list for home page display
         // The session is now active and will be found via currentSessionIdProvider
-        await context.read(agentNetworksStateNotifierProvider.notifier).reload();
+        await context
+            .read(agentNetworksStateNotifierProvider.notifier)
+            .reload();
 
         sessionId = session.id;
       }
@@ -187,7 +191,9 @@ class _HomePageState extends State<HomePage> {
 
         final configManager = container.read(videConfigManagerProvider);
         final settings = configManager.readGlobalSettings();
-        configManager.writeGlobalSettings(settings.copyWith(ideModeEnabled: !current));
+        configManager.writeGlobalSettings(
+          settings.copyWith(ideModeEnabled: !current),
+        );
       },
       showGitPopup: () async {
         final repoPath = context.read(currentRepoPathProvider);
@@ -234,7 +240,8 @@ class _HomePageState extends State<HomePage> {
     final daemonEnabled = context.read(daemonModeEnabledProvider);
     if (!daemonEnabled) return false;
 
-    if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.escape) {
+    if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.escape) {
       // Go to team selector or text field
       if (_availableTeams.isNotEmpty) {
         setState(() => _focusState = 'teamSelector');
@@ -255,19 +262,24 @@ class _HomePageState extends State<HomePage> {
   bool _handleTeamSelectorKeyEvent(KeyboardEvent event) {
     if (_availableTeams.isEmpty) return false;
 
-    if (event.logicalKey == LogicalKey.arrowLeft || event.logicalKey == LogicalKey.keyH) {
+    if (event.logicalKey == LogicalKey.arrowLeft ||
+        event.logicalKey == LogicalKey.keyH) {
       setState(() {
         _selectedTeamIndex--;
-        if (_selectedTeamIndex < 0) _selectedTeamIndex = _availableTeams.length - 1;
+        if (_selectedTeamIndex < 0)
+          _selectedTeamIndex = _availableTeams.length - 1;
       });
       return true;
-    } else if (event.logicalKey == LogicalKey.arrowRight || event.logicalKey == LogicalKey.keyL) {
+    } else if (event.logicalKey == LogicalKey.arrowRight ||
+        event.logicalKey == LogicalKey.keyL) {
       setState(() {
         _selectedTeamIndex++;
-        if (_selectedTeamIndex >= _availableTeams.length) _selectedTeamIndex = 0;
+        if (_selectedTeamIndex >= _availableTeams.length)
+          _selectedTeamIndex = 0;
       });
       return true;
-    } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    } else if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       // Navigate up to daemon indicator if daemon mode is enabled
       final daemonEnabled = context.read(daemonModeEnabledProvider);
       if (daemonEnabled) {
@@ -280,7 +292,8 @@ class _HomePageState extends State<HomePage> {
         event.logicalKey == LogicalKey.escape) {
       // Select current team and go back to text field
       if (_selectedTeamIndex < _availableTeams.length) {
-        context.read(currentTeamProvider.notifier).state = _availableTeams[_selectedTeamIndex];
+        context.read(currentTeamProvider.notifier).state =
+            _availableTeams[_selectedTeamIndex];
       }
       setState(() => _focusState = 'textField');
       return true;
@@ -290,13 +303,20 @@ class _HomePageState extends State<HomePage> {
 
   /// Handle key events when the networks list is focused.
   /// Returns true if the event was handled.
-  bool _handleNetworkListKeyEvent(KeyboardEvent event, List<AgentNetwork> networks) {
+  bool _handleNetworkListKeyEvent(
+    KeyboardEvent event,
+    List<AgentNetwork> networks,
+  ) {
     if (networks.isEmpty) return false;
 
-    if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       setState(() {
         _selectedNetworkIndex++;
-        _selectedNetworkIndex = _selectedNetworkIndex.clamp(0, networks.length - 1);
+        _selectedNetworkIndex = _selectedNetworkIndex.clamp(
+          0,
+          networks.length - 1,
+        );
         _pendingDeleteIndex = null;
       });
       // Ensure visible after render - account for spacers: network i is at child index i*2
@@ -304,7 +324,8 @@ class _HomePageState extends State<HomePage> {
         _scrollController.ensureIndexVisible(index: _selectedNetworkIndex * 2);
       });
       return true;
-    } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    } else if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       // If at the top of the list, move focus back to text field
       if (_selectedNetworkIndex == 0) {
         setState(() {
@@ -315,7 +336,10 @@ class _HomePageState extends State<HomePage> {
       }
       setState(() {
         _selectedNetworkIndex--;
-        _selectedNetworkIndex = _selectedNetworkIndex.clamp(0, networks.length - 1);
+        _selectedNetworkIndex = _selectedNetworkIndex.clamp(
+          0,
+          networks.length - 1,
+        );
         _pendingDeleteIndex = null;
       });
       // Ensure visible after render - account for spacers: network i is at child index i*2
@@ -326,11 +350,16 @@ class _HomePageState extends State<HomePage> {
     } else if (event.logicalKey == LogicalKey.backspace) {
       if (_pendingDeleteIndex == _selectedNetworkIndex) {
         // Second press - actually delete the network
-        context.read(agentNetworksStateNotifierProvider.notifier).deleteNetwork(_selectedNetworkIndex);
+        context
+            .read(agentNetworksStateNotifierProvider.notifier)
+            .deleteNetwork(_selectedNetworkIndex);
         setState(() {
           _pendingDeleteIndex = null;
           if (_selectedNetworkIndex >= networks.length - 1) {
-            _selectedNetworkIndex = (networks.length - 2).clamp(0, networks.length - 1);
+            _selectedNetworkIndex = (networks.length - 2).clamp(
+              0,
+              networks.length - 1,
+            );
           }
         });
       } else {
@@ -375,7 +404,10 @@ class _HomePageState extends State<HomePage> {
 
     // Clamp selection if list length changed
     if (networks.isNotEmpty && _selectedNetworkIndex >= networks.length) {
-      _selectedNetworkIndex = (networks.length - 1).clamp(0, networks.length - 1);
+      _selectedNetworkIndex = (networks.length - 1).clamp(
+        0,
+        networks.length - 1,
+      );
     }
 
     return Focusable(
@@ -405,12 +437,19 @@ class _HomePageState extends State<HomePage> {
           // When text field is focused: only reserve space for the hint line (~3 lines)
           // When networks list is focused: reserve full space for the list
           final textFieldFocused =
-              _focusState == 'textField' || _focusState == 'teamSelector' || _focusState == 'daemonIndicator';
-          final networksHeight = networks.isNotEmpty && !textFieldFocused ? (totalHeight * 0.4).clamp(8.0, 20.0) : 0.0;
+              _focusState == 'textField' ||
+              _focusState == 'teamSelector' ||
+              _focusState == 'daemonIndicator';
+          final networksHeight = networks.isNotEmpty && !textFieldFocused
+              ? (totalHeight * 0.4).clamp(8.0, 20.0)
+              : 0.0;
           // Reserve a small amount for the hint when text field is focused
-          final hintHeight = networks.isNotEmpty && textFieldFocused ? 4.0 : 0.0;
+          final hintHeight = networks.isNotEmpty && textFieldFocused
+              ? 4.0
+              : 0.0;
           final availableForMain = totalHeight - networksHeight - hintHeight;
-          final topPadding = ((availableForMain - _mainContentHeight) / 2).clamp(0.0, double.infinity);
+          final topPadding = ((availableForMain - _mainContentHeight) / 2)
+              .clamp(0.0, double.infinity);
 
           return Stack(
             children: [
@@ -447,15 +486,26 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               Text(
                                 'Running in ',
-                                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                                style: TextStyle(
+                                  color: theme.base.onSurface.withOpacity(
+                                    TextOpacity.secondary,
+                                  ),
+                                ),
                               ),
                               Text(
                                 ' $abbreviatedPath ',
-                                style: TextStyle(color: theme.base.background, backgroundColor: theme.base.primary),
+                                style: TextStyle(
+                                  color: theme.base.background,
+                                  backgroundColor: theme.base.primary,
+                                ),
                               ),
                               Text(
                                 ' on ',
-                                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+                                style: TextStyle(
+                                  color: theme.base.onSurface.withOpacity(
+                                    TextOpacity.secondary,
+                                  ),
+                                ),
                               ),
                               GitBranchIndicator(repoPath: currentDir),
                             ],
@@ -463,11 +513,17 @@ class _HomePageState extends State<HomePage> {
                           // Daemon mode indicator
                           Builder(
                             builder: (context) {
-                              final daemonState = context.watch(daemonConnectionProvider);
-                              final daemonEnabled = context.watch(daemonModeEnabledProvider);
-                              if (!daemonEnabled) return const SizedBox.shrink();
+                              final daemonState = context.watch(
+                                daemonConnectionProvider,
+                              );
+                              final daemonEnabled = context.watch(
+                                daemonModeEnabledProvider,
+                              );
+                              if (!daemonEnabled)
+                                return const SizedBox.shrink();
 
-                              final daemonIndicatorFocused = _focusState == 'daemonIndicator';
+                              final daemonIndicatorFocused =
+                                  _focusState == 'daemonIndicator';
 
                               return Padding(
                                 padding: EdgeInsets.only(top: 1),
@@ -477,44 +533,74 @@ class _HomePageState extends State<HomePage> {
                                     if (daemonState.isConnecting)
                                       Text(
                                         '⟳ Connecting to daemon...',
-                                        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                                        style: TextStyle(
+                                          color: theme.base.onSurface
+                                              .withOpacity(
+                                                TextOpacity.tertiary,
+                                              ),
+                                        ),
                                       )
                                     else if (daemonState.error != null)
-                                      Text('⚠ ${daemonState.error}', style: TextStyle(color: theme.base.error))
+                                      Text(
+                                        '⚠ ${daemonState.error}',
+                                        style: TextStyle(
+                                          color: theme.base.error,
+                                        ),
+                                      )
                                     else
                                       Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text('◉ ', style: TextStyle(color: theme.status.idle)),
+                                          Text(
+                                            '◉ ',
+                                            style: TextStyle(
+                                              color: theme.status.idle,
+                                            ),
+                                          ),
                                           if (daemonIndicatorFocused)
                                             Text(
                                               ' daemon ${daemonState.host}:${daemonState.port} ',
                                               style: TextStyle(
                                                 color: theme.base.background,
-                                                backgroundColor: theme.base.primary,
+                                                backgroundColor:
+                                                    theme.base.primary,
                                               ),
                                             )
                                           else ...[
                                             Text(
                                               'daemon ',
                                               style: TextStyle(
-                                                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                                                color: theme.base.onSurface
+                                                    .withOpacity(
+                                                      TextOpacity.secondary,
+                                                    ),
                                               ),
                                             ),
                                             Text(
                                               '${daemonState.host}:${daemonState.port}',
                                               style: TextStyle(
-                                                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                                                color: theme.base.onSurface
+                                                    .withOpacity(
+                                                      TextOpacity.tertiary,
+                                                    ),
                                               ),
                                             ),
                                           ],
                                           if (daemonIndicatorFocused)
-                                            Text('  ⏎ sessions', style: TextStyle(color: theme.base.primary))
+                                            Text(
+                                              '  ⏎ sessions',
+                                              style: TextStyle(
+                                                color: theme.base.primary,
+                                              ),
+                                            )
                                           else
                                             Text(
                                               '  ↑ sessions',
                                               style: TextStyle(
-                                                color: theme.base.onSurface.withOpacity(TextOpacity.disabled),
+                                                color: theme.base.onSurface
+                                                    .withOpacity(
+                                                      TextOpacity.disabled,
+                                                    ),
                                               ),
                                             ),
                                         ],
@@ -528,8 +614,11 @@ class _HomePageState extends State<HomePage> {
                           // Team selector (inline with all teams visible)
                           Builder(
                             builder: (context) {
-                              final currentTeam = context.watch(currentTeamProvider);
-                              final teamSelectorFocused = _focusState == 'teamSelector';
+                              final currentTeam = context.watch(
+                                currentTeamProvider,
+                              );
+                              final teamSelectorFocused =
+                                  _focusState == 'teamSelector';
 
                               if (_availableTeams.isEmpty) {
                                 return const SizedBox.shrink();
@@ -538,7 +627,9 @@ class _HomePageState extends State<HomePage> {
                               // Show all teams inline, highlight the selected/current one
                               final displayIndex = teamSelectorFocused
                                   ? _selectedTeamIndex
-                                  : _availableTeams.indexOf(currentTeam).clamp(0, _availableTeams.length - 1);
+                                  : _availableTeams
+                                        .indexOf(currentTeam)
+                                        .clamp(0, _availableTeams.length - 1);
 
                               return Center(
                                 child: Row(
@@ -546,19 +637,36 @@ class _HomePageState extends State<HomePage> {
                                   children: [
                                     // Show arrow hint when focused
                                     if (teamSelectorFocused)
-                                      Text('← ', style: TextStyle(color: theme.base.primary))
+                                      Text(
+                                        '← ',
+                                        style: TextStyle(
+                                          color: theme.base.primary,
+                                        ),
+                                      )
                                     else
                                       Text(
                                         '↑ ',
-                                        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                                        style: TextStyle(
+                                          color: theme.base.onSurface
+                                              .withOpacity(
+                                                TextOpacity.tertiary,
+                                              ),
+                                        ),
                                       ),
                                     // Show all teams
-                                    for (int i = 0; i < _availableTeams.length; i++) ...[
+                                    for (
+                                      int i = 0;
+                                      i < _availableTeams.length;
+                                      i++
+                                    ) ...[
                                       if (i > 0)
                                         Text(
                                           ' · ',
                                           style: TextStyle(
-                                            color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                                            color: theme.base.onSurface
+                                                .withOpacity(
+                                                  TextOpacity.tertiary,
+                                                ),
                                           ),
                                         ),
                                       if (i == displayIndex)
@@ -573,14 +681,23 @@ class _HomePageState extends State<HomePage> {
                                         Text(
                                           _availableTeams[i],
                                           style: TextStyle(
-                                            color: theme.base.onSurface.withOpacity(
-                                              teamSelectorFocused ? TextOpacity.secondary : TextOpacity.tertiary,
-                                            ),
+                                            color: theme.base.onSurface
+                                                .withOpacity(
+                                                  teamSelectorFocused
+                                                      ? TextOpacity.secondary
+                                                      : TextOpacity.tertiary,
+                                                ),
                                           ),
                                         ),
                                     ],
                                     // Show arrow hint when focused
-                                    if (teamSelectorFocused) Text(' →', style: TextStyle(color: theme.base.primary)),
+                                    if (teamSelectorFocused)
+                                      Text(
+                                        ' →',
+                                        style: TextStyle(
+                                          color: theme.base.primary,
+                                        ),
+                                      ),
                                   ],
                                 ),
                               );
@@ -591,16 +708,22 @@ class _HomePageState extends State<HomePage> {
                             padding: EdgeInsets.all(1),
                             child: Builder(
                               builder: (context) {
-                                final promptHistory = context.watch(promptHistoryProvider);
+                                final promptHistory = context.watch(
+                                  promptHistoryProvider,
+                                );
                                 return AttachmentTextField(
-                                  focused: _focusState == 'textField' && !sidebarFocused,
-                                  placeholder: 'Describe your goal (you can attach images)',
+                                  focused:
+                                      _focusState == 'textField' &&
+                                      !sidebarFocused,
+                                  placeholder:
+                                      'Describe your goal (you can attach images)',
                                   onSubmit: _handleSubmit,
                                   onCommand: _handleCommand,
                                   commandSuggestions: _getCommandSuggestions,
                                   promptHistory: promptHistory,
-                                  onPromptSubmitted: (prompt) =>
-                                      context.read(promptHistoryProvider.notifier).addPrompt(prompt),
+                                  onPromptSubmitted: (prompt) => context
+                                      .read(promptHistoryProvider.notifier)
+                                      .addPrompt(prompt),
                                   // No sidebar on home page, so no onLeftEdge handler
                                   onDownEdge: networks.isNotEmpty
                                       ? () => setState(() {
@@ -626,7 +749,9 @@ class _HomePageState extends State<HomePage> {
                                 style: TextStyle(
                                   color: _commandResultIsError
                                       ? theme.base.error
-                                      : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                                      : theme.base.onSurface.withOpacity(
+                                          TextOpacity.secondary,
+                                        ),
                                 ),
                               ),
                             ),
@@ -641,7 +766,11 @@ class _HomePageState extends State<HomePage> {
                       child: Center(
                         child: Text(
                           'Enter: start a new conversation',
-                          style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                          style: TextStyle(
+                            color: theme.base.onSurface.withOpacity(
+                              TextOpacity.tertiary,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -655,7 +784,11 @@ class _HomePageState extends State<HomePage> {
                       Center(
                         child: Text(
                           '↓ ${networks.length} previous conversation${networks.length != 1 ? 's' : ''}',
-                          style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                          style: TextStyle(
+                            color: theme.base.onSurface.withOpacity(
+                              TextOpacity.tertiary,
+                            ),
+                          ),
                         ),
                       )
                     else
@@ -668,23 +801,37 @@ class _HomePageState extends State<HomePage> {
                             children: [
                               Text(
                                 '─── ',
-                                style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.separator)),
+                                style: TextStyle(
+                                  color: theme.base.outline.withOpacity(
+                                    TextOpacity.separator,
+                                  ),
+                                ),
                               ),
                               Text(
                                 'Previous Conversations',
                                 style: TextStyle(
-                                  color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                                  color: theme.base.onSurface.withOpacity(
+                                    TextOpacity.secondary,
+                                  ),
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
                               Text(
                                 ' (↑↓ ⏎ ⌫⌫) ',
-                                style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                                style: TextStyle(
+                                  color: theme.base.onSurface.withOpacity(
+                                    TextOpacity.tertiary,
+                                  ),
+                                ),
                               ),
                               Expanded(
                                 child: Text(
                                   '─────────────────────────────────────────',
-                                  style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.separator)),
+                                  style: TextStyle(
+                                    color: theme.base.outline.withOpacity(
+                                      TextOpacity.separator,
+                                    ),
+                                  ),
                                   overflow: TextOverflow.clip,
                                 ),
                               ),
@@ -710,9 +857,11 @@ class _HomePageState extends State<HomePage> {
                                   NetworkSummaryComponent(
                                     network: networks[i],
                                     selected: _selectedNetworkIndex == i,
-                                    showDeleteConfirmation: _pendingDeleteIndex == i,
+                                    showDeleteConfirmation:
+                                        _pendingDeleteIndex == i,
                                   ),
-                                  if (i < networks.length - 1) SizedBox(height: 1),
+                                  if (i < networks.length - 1)
+                                    SizedBox(height: 1),
                                 ],
                               ],
                             ),

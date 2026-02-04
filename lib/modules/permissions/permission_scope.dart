@@ -159,7 +159,9 @@ class _PermissionScopeState extends State<PermissionScope> {
             event,
             session.workingDirectory,
           );
-          context.read(permissionStateProvider.notifier).enqueueRequest(request);
+          context
+              .read(permissionStateProvider.notifier)
+              .enqueueRequest(request);
 
         case AskUserQuestionEvent():
           // Convert to UI request

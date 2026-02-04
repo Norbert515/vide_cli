@@ -165,7 +165,9 @@ class SessionEventMonitor {
     );
     _reconnectAttempt++;
 
-    _log.fine('Scheduling reconnect in ${delaySecs}s (attempt $_reconnectAttempt)');
+    _log.fine(
+      'Scheduling reconnect in ${delaySecs}s (attempt $_reconnectAttempt)',
+    );
 
     Future.delayed(Duration(seconds: delaySecs), () {
       if (!_stopping) {

@@ -225,7 +225,9 @@ class SessionRepository extends _$SessionRepository {
         // Handle connected event
         if (event is vc.ConnectedEvent) {
           _reconnectionService.reset();
-          ref.read(webSocketConnectionProvider.notifier).setConnected(lastSeq: event.lastSeq);
+          ref
+              .read(webSocketConnectionProvider.notifier)
+              .setConnected(lastSeq: event.lastSeq);
         }
 
         // Emit vide_client events directly — no conversion layer
@@ -255,8 +257,8 @@ class SessionRepository extends _$SessionRepository {
     if (networkStatus == NetworkStatus.offline) {
       _log('Network is offline, waiting for network');
       ref.read(webSocketConnectionProvider.notifier).setDisconnected(
-        errorMessage: 'No internet connection',
-      );
+            errorMessage: 'No internet connection',
+          );
       return;
     }
 
@@ -268,15 +270,16 @@ class SessionRepository extends _$SessionRepository {
     if (_reconnectionService.hasExceededMaxRetries) {
       _log('Max retries exceeded');
       ref.read(webSocketConnectionProvider.notifier).setFailed(
-        errorMessage: 'Unable to reconnect after ${_reconnectionService.maxRetries} attempts',
-      );
+            errorMessage:
+                'Unable to reconnect after ${_reconnectionService.maxRetries} attempts',
+          );
       return;
     }
 
     ref.read(webSocketConnectionProvider.notifier).setReconnecting(
-      retryCount: _reconnectionService.retryCount + 1,
-      maxRetries: _reconnectionService.maxRetries,
-    );
+          retryCount: _reconnectionService.retryCount + 1,
+          maxRetries: _reconnectionService.maxRetries,
+        );
 
     _log('Scheduling reconnect attempt ${_reconnectionService.retryCount + 1}');
 
@@ -313,7 +316,8 @@ class SessionRepository extends _$SessionRepository {
     );
 
     // Connect to existing session
-    final videSession = await videClient.connectToSession(currentSession.sessionId);
+    final videSession =
+        await videClient.connectToSession(currentSession.sessionId);
 
     // Set up event listening
     _setupEventListening(videSession);

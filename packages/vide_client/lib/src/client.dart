@@ -120,7 +120,7 @@ class VideClient {
   final int port;
 
   VideClient({String host = '127.0.0.1', required this.port})
-      : host = _cleanHost(host);
+    : host = _cleanHost(host);
 
   /// Strip protocol prefix and trailing slashes from host.
   static String _cleanHost(String host) {

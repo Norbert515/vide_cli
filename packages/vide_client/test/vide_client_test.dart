@@ -26,14 +26,23 @@ void main() {
   group('Enums', () {
     test('MessageRole.fromString parses correctly', () {
       expect(MessageRole.fromString('user'), equals(MessageRole.user));
-      expect(MessageRole.fromString('assistant'), equals(MessageRole.assistant));
+      expect(
+        MessageRole.fromString('assistant'),
+        equals(MessageRole.assistant),
+      );
       expect(MessageRole.fromString('unknown'), equals(MessageRole.assistant));
     });
 
     test('AgentStatus.fromString parses correctly', () {
       expect(AgentStatus.fromString('working'), equals(AgentStatus.working));
-      expect(AgentStatus.fromString('waiting-for-agent'), equals(AgentStatus.waitingForAgent));
-      expect(AgentStatus.fromString('waiting-for-user'), equals(AgentStatus.waitingForUser));
+      expect(
+        AgentStatus.fromString('waiting-for-agent'),
+        equals(AgentStatus.waitingForAgent),
+      );
+      expect(
+        AgentStatus.fromString('waiting-for-user'),
+        equals(AgentStatus.waitingForUser),
+      );
       expect(AgentStatus.fromString('idle'), equals(AgentStatus.idle));
       expect(AgentStatus.fromString(null), equals(AgentStatus.idle));
     });
@@ -74,10 +83,7 @@ void main() {
         'event-id': 'evt-123',
         'timestamp': '2024-01-01T00:00:00Z',
         'is-partial': false,
-        'data': {
-          'role': 'assistant',
-          'content': 'Hello!',
-        },
+        'data': {'role': 'assistant', 'content': 'Hello!'},
       });
 
       expect(event, isA<MessageEvent>());

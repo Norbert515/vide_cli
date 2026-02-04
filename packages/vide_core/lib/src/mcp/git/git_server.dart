@@ -623,7 +623,8 @@ Returns the absolute path to the new worktree, which can be used with spawnAgent
           return CallToolResult.fromContent(
             content: [
               TextContent(
-                text: '''Worktree added successfully.
+                text:
+                    '''Worktree added successfully.
 
 Path: $absoluteWorktreePath
 Branch: ${branch ?? '(detached HEAD)'}

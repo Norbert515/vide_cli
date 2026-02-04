@@ -43,8 +43,9 @@ class DaemonServer {
 
     final handler = _createHandler();
 
-    final address =
-        bindAllInterfaces ? InternetAddress.anyIPv4 : InternetAddress.loopbackIPv4;
+    final address = bindAllInterfaces
+        ? InternetAddress.anyIPv4
+        : InternetAddress.loopbackIPv4;
     _server = await shelf_io.serve(handler, address, port);
 
     final host = bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';

@@ -27,10 +27,7 @@ void main() {
   group('ImageValidationResult', () {
     test('creates with required fields', () {
       final bytes = Uint8List.fromList([1, 2, 3]);
-      final result = ImageValidationResult(
-        bytes: bytes,
-        mimeType: 'image/png',
-      );
+      final result = ImageValidationResult(bytes: bytes, mimeType: 'image/png');
 
       expect(result.bytes, equals(bytes));
       expect(result.mimeType, equals('image/png'));
@@ -211,10 +208,12 @@ void main() {
 
     test('handles invalid image data gracefully - truncates if oversized', () {
       // Create invalid bytes that exceed the limit
-      final invalidBytes = Uint8List.fromList(List.generate(
-        6 * 1024 * 1024, // 6MB - over limit
-        (i) => i % 256,
-      ));
+      final invalidBytes = Uint8List.fromList(
+        List.generate(
+          6 * 1024 * 1024, // 6MB - over limit
+          (i) => i % 256,
+        ),
+      );
 
       final warnings = <String>[];
       final result = ImageValidator.ensureWithinLimits(
@@ -225,21 +224,23 @@ void main() {
 
       // Should be truncated to fit within limit
       final resultBase64Size = (result.bytes.length * 4 / 3).ceil();
-      expect(resultBase64Size, lessThanOrEqualTo(ClaudeImageLimits.maxBase64Size));
+      expect(
+        resultBase64Size,
+        lessThanOrEqualTo(ClaudeImageLimits.maxBase64Size),
+      );
       expect(result.wasCompressed, isTrue);
       expect(warnings.any((w) => w.contains('Could not decode')), isTrue);
-      expect(
-        warnings.any((w) => w.contains('emergency truncation')),
-        isTrue,
-      );
+      expect(warnings.any((w) => w.contains('emergency truncation')), isTrue);
     });
 
     test('handles small invalid image data gracefully - returns unchanged', () {
       // Create invalid bytes that are within the limit
-      final invalidBytes = Uint8List.fromList(List.generate(
-        1024, // 1KB - well under limit
-        (i) => i % 256,
-      ));
+      final invalidBytes = Uint8List.fromList(
+        List.generate(
+          1024, // 1KB - well under limit
+          (i) => i % 256,
+        ),
+      );
 
       final warnings = <String>[];
       final result = ImageValidator.ensureWithinLimits(

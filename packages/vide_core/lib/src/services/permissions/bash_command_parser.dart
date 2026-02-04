@@ -286,7 +286,9 @@ class BashCommandParser {
 
   /// Check if a character is a digit
   static bool _isDigit(String char) {
-    return char.length == 1 && char.codeUnitAt(0) >= 48 && char.codeUnitAt(0) <= 57;
+    return char.length == 1 &&
+        char.codeUnitAt(0) >= 48 &&
+        char.codeUnitAt(0) <= 57;
   }
 
   /// Detect the type of command

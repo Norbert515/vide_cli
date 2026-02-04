@@ -27,10 +27,7 @@ class VideCoreConfig {
   /// [PermissionHandler.setSession].
   final PermissionHandler permissionHandler;
 
-  const VideCoreConfig({
-    this.configDir,
-    required this.permissionHandler,
-  });
+  const VideCoreConfig({this.configDir, required this.permissionHandler});
 }
 
 /// Configuration for starting a new session.

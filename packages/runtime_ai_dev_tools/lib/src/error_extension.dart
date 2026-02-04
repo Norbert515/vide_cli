@@ -125,8 +125,7 @@ class _ErrorCaptureState {
 /// - ext.runtime_ai_dev_tools.getErrors - Get captured errors
 /// - ext.runtime_ai_dev_tools.clearErrors - Clear the error buffer
 void registerErrorExtension() {
-  print(
-      '🔧 [RuntimeAiDevTools] Registering error capture service extensions');
+  print('🔧 [RuntimeAiDevTools] Registering error capture service extensions');
 
   // Enable/disable error capture
   developer.registerExtension(

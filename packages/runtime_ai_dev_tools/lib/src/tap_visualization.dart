@@ -228,8 +228,7 @@ class TapVisualizationService {
 
   /// Clears the scroll end indicator overlay
   void clearScrollEndIndicator() {
-    _safeRemove(
-        _scrollEndIndicatorOverlay, _scrollEndIndicatorOverlayInserted);
+    _safeRemove(_scrollEndIndicatorOverlay, _scrollEndIndicatorOverlayInserted);
     _scrollEndIndicatorOverlay = null;
     _scrollEndIndicatorOverlayInserted = false;
   }
