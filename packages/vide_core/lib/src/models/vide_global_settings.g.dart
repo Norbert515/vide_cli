@@ -19,6 +19,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       daemonModeEnabled: json['daemonModeEnabled'] as bool? ?? false,
       daemonHost: json['daemonHost'] as String? ?? '127.0.0.1',
       daemonPort: (json['daemonPort'] as num?)?.toInt() ?? 8080,
+      telemetryEnabled: json['telemetryEnabled'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
@@ -33,4 +34,5 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'daemonModeEnabled': instance.daemonModeEnabled,
       'daemonHost': instance.daemonHost,
       'daemonPort': instance.daemonPort,
+      'telemetryEnabled': instance.telemetryEnabled,
     };

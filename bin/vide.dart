@@ -59,10 +59,7 @@ void main(List<String> args) async {
       negatable: false,
       help: 'Generate auth token for daemon (only used with --serve)',
     )
-    ..addOption(
-      'token',
-      help: 'Auth token for daemon (only used with --serve)',
-    )
+    ..addOption('token', help: 'Auth token for daemon (only used with --serve)')
     ..addFlag(
       'verbose',
       negatable: false,
@@ -222,6 +219,10 @@ DESCRIPTION:
     asynchronously to help with software development tasks. It features
     Flutter-native testing capabilities and purpose-built MCP servers.
 
+TELEMETRY:
+    Vide collects anonymous usage data. Opt out with:
+      export DO_NOT_TRACK=1
+
 For more information, visit: https://github.com/Norbert515/vide_cli
 ''');
 }
@@ -246,10 +247,9 @@ Future<void> _startSessionServer(ArgResults argResults) async {
   Directory.current = workingDir;
 
   // Start the server
-  await server.startServer(server.VideServerConfig(
-    port: port,
-    workingDirectory: workingDir,
-  ));
+  await server.startServer(
+    server.VideServerConfig(port: port, workingDirectory: workingDir),
+  );
 
   // Keep the process alive
   await Completer<void>().future;

@@ -58,6 +58,10 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: 8080)
   final int daemonPort;
 
+  /// Whether telemetry (anonymous usage analytics) is enabled.
+  @JsonKey(defaultValue: true)
+  final bool telemetryEnabled;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -69,6 +73,7 @@ class VideGlobalSettings {
     this.daemonModeEnabled = false,
     this.daemonHost = '127.0.0.1',
     this.daemonPort = 8080,
+    this.telemetryEnabled = true,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -89,6 +94,7 @@ class VideGlobalSettings {
     bool? daemonModeEnabled,
     String? daemonHost,
     int? daemonPort,
+    bool? telemetryEnabled,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -102,6 +108,7 @@ class VideGlobalSettings {
       daemonModeEnabled: daemonModeEnabled ?? this.daemonModeEnabled,
       daemonHost: daemonHost ?? this.daemonHost,
       daemonPort: daemonPort ?? this.daemonPort,
+      telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
     );
   }
 }

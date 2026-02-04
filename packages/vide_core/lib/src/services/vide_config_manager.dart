@@ -151,6 +151,17 @@ class VideConfigManager {
     final settings = readGlobalSettings();
     writeGlobalSettings(settings.copyWith(theme: () => themeName));
   }
+
+  /// Check if telemetry (anonymous usage analytics) is enabled.
+  bool isTelemetryEnabled() {
+    return readGlobalSettings().telemetryEnabled;
+  }
+
+  /// Enable or disable telemetry (anonymous usage analytics).
+  void setTelemetryEnabled(bool enabled) {
+    final settings = readGlobalSettings();
+    writeGlobalSettings(settings.copyWith(telemetryEnabled: enabled));
+  }
 }
 
 /// Riverpod provider for VideConfigManager

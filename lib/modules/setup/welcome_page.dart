@@ -18,6 +18,7 @@ class WelcomePage extends StatefulComponent {
 
 enum _VerificationStep {
   selectTheme,
+  telemetryNotice,
   findingClaude,
   testingClaude,
   complete,
@@ -264,6 +265,11 @@ class _WelcomePageState extends State<WelcomePage>
       return _buildThemeSelectionView(context, theme);
     }
 
+    // Show telemetry notice after theme selection
+    if (_step == _VerificationStep.telemetryNotice) {
+      return _buildTelemetryNoticeView(context, theme);
+    }
+
     // Show loading state while completing
     if (_step == _VerificationStep.completing) {
       return Center(
@@ -306,12 +312,11 @@ class _WelcomePageState extends State<WelcomePage>
             // Theme selector
             ThemeSelector(
               onThemeSelected: (themeId) {
-                // Save theme selection and proceed to verification
+                // Save theme selection and proceed to telemetry notice
                 setState(() {
                   _selectedThemeId = themeId;
-                  _step = _VerificationStep.findingClaude;
+                  _step = _VerificationStep.telemetryNotice;
                 });
-                _startVerification();
               },
               onPreviewTheme: (previewTheme) {
                 setState(() {
@@ -320,6 +325,126 @@ class _WelcomePageState extends State<WelcomePage>
               },
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Component _buildTelemetryNoticeView(
+    BuildContext context,
+    VideThemeData theme,
+  ) {
+    return KeyboardListener(
+      autofocus: true,
+      onKeyEvent: (key) {
+        if (key == LogicalKey.enter) {
+          setState(() {
+            _step = _VerificationStep.findingClaude;
+          });
+          _startVerification();
+          return true;
+        }
+        return false;
+      },
+      child: Center(
+        child: Container(
+          decoration: BoxDecoration(
+            border: BoxBorder.all(color: theme.base.outline),
+          ),
+          padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ASCII Logo
+              ..._buildLogo(theme),
+              SizedBox(height: 1),
+
+              // Tagline
+              Text(
+                'Your AI-powered terminal IDE',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              SizedBox(height: 2),
+
+              // Telemetry header
+              Text(
+                'Telemetry',
+                style: TextStyle(
+                  color: theme.base.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text('---------', style: TextStyle(color: theme.base.outline)),
+              SizedBox(height: 1),
+
+              // Telemetry description
+              Text(
+                'Vide collects anonymous usage data to help',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              Text(
+                'improve the tool.',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              Text(
+                'No personal data, project names, or code is',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              Text(
+                'ever collected.',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              SizedBox(height: 1),
+
+              // Opt-out instructions
+              Text(
+                'You can opt out at any time by setting:',
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
+                  ),
+                ),
+              ),
+              Text(
+                '  export DO_NOT_TRACK=1',
+                style: TextStyle(color: theme.base.warning),
+              ),
+              SizedBox(height: 2),
+
+              // Footer
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Press ', style: TextStyle(color: theme.base.outline)),
+                  Text('Enter', style: TextStyle(color: theme.base.success)),
+                  Text(
+                    ' to continue',
+                    style: TextStyle(color: theme.base.outline),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

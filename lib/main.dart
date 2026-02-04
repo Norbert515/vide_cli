@@ -148,7 +148,8 @@ Future<void> main(
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
   final configManager = container.read(videConfigManagerProvider);
-  BashboardService.init(configManager);
+  final telemetryEnabled = configManager.isTelemetryEnabled();
+  BashboardService.init(configManager, telemetryEnabled: telemetryEnabled);
 
   // Note: Pending updates are applied by the wrapper script at ~/.local/bin/vide
   // before launching the actual binary. The version indicator shows "ready" when

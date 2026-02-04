@@ -19,7 +19,12 @@ class BashboardService {
   /// Safe to call multiple times.
   ///
   /// The [configManager] parameter provides access to the config directory for storing the distinct ID.
-  static void init(VideConfigManager configManager) {
+  /// If [telemetryEnabled] is false, initialization is skipped entirely.
+  static void init(
+    VideConfigManager configManager, {
+    bool telemetryEnabled = true,
+  }) {
+    if (!telemetryEnabled) return;
     if (_initialized || _initializing) return;
     _initializing = true;
 
@@ -59,7 +64,9 @@ class BashboardService {
   }
 
   /// Load existing distinct ID or create a new one.
-  static Future<String> _loadOrCreateDistinctId(VideConfigManager configManager) async {
+  static Future<String> _loadOrCreateDistinctId(
+    VideConfigManager configManager,
+  ) async {
     final configDir = configManager.configRoot;
     final idFile = File('$configDir/bashboard_distinct_id');
 
