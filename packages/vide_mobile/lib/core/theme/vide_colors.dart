@@ -67,8 +67,8 @@ class VideThemeColors extends ThemeExtension<VideThemeColors> {
     textTertiary: tokens.VideColors.lightTextTertiary,
     glassTint: tokens.VideColors.lightGlassTint,
     glassBorder: tokens.VideColors.lightGlassBorder,
-    accent: tokens.VideColors.accent,
-    accentSubtle: tokens.VideColors.accentSubtle,
+    accent: tokens.VideColors.lightAccent,
+    accentSubtle: tokens.VideColors.lightAccentSubtle,
   );
 
   @override

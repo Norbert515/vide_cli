@@ -13,6 +13,8 @@ class SettingsKeys {
   static const serverConnection = 'server_connection';
   static const lastWorkingDir = 'last_working_dir';
   static const recentConnections = 'recent_connections';
+  static const recentWorkingDirectories = 'recent_working_directories';
+  static const lastTeam = 'last_team';
 }
 
 /// Wrapper for SharedPreferences to persist app settings.
@@ -95,11 +97,51 @@ class SettingsStorage extends _$SettingsStorage {
     );
   }
 
+  /// Gets the list of recent working directories.
+  Future<List<String>> getRecentWorkingDirectories() async {
+    await future;
+    final json = _prefs.getString(SettingsKeys.recentWorkingDirectories);
+    if (json == null) return [];
+    try {
+      final list = jsonDecode(json) as List<dynamic>;
+      return list.cast<String>();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Adds a directory to the recent list. Deduplicates, max 10, most recent first.
+  Future<void> addRecentWorkingDirectory(String path) async {
+    await future;
+    final recent = await getRecentWorkingDirectories();
+    recent.remove(path);
+    recent.insert(0, path);
+    final trimmed = recent.take(10).toList();
+    await _prefs.setString(
+      SettingsKeys.recentWorkingDirectories,
+      jsonEncode(trimmed),
+    );
+  }
+
+  /// Gets the last used team name.
+  Future<String?> getLastTeam() async {
+    await future;
+    return _prefs.getString(SettingsKeys.lastTeam);
+  }
+
+  /// Saves the last used team name.
+  Future<void> saveLastTeam(String team) async {
+    await future;
+    await _prefs.setString(SettingsKeys.lastTeam, team);
+  }
+
   /// Clears all stored settings.
   Future<void> clear() async {
     await future;
     await _prefs.remove(SettingsKeys.serverConnection);
     await _prefs.remove(SettingsKeys.lastWorkingDir);
     await _prefs.remove(SettingsKeys.recentConnections);
+    await _prefs.remove(SettingsKeys.recentWorkingDirectories);
+    await _prefs.remove(SettingsKeys.lastTeam);
   }
 }

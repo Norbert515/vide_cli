@@ -6,7 +6,7 @@ part of 'settings_storage.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$settingsStorageHash() => r'65a1aa29de9c0a225d1c282dc988abed32c50184';
+String _$settingsStorageHash() => r'35bdee1509371c6527578381a88d02fe0f5c25f8';
 
 /// Wrapper for SharedPreferences to persist app settings.
 ///

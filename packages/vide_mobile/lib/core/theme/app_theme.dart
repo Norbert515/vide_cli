@@ -28,14 +28,14 @@ class AppTheme {
       onSurface: VideColors.textPrimary,
       onSurfaceVariant: VideColors.textSecondary,
       outline: VideColors.textTertiary,
-      outlineVariant: Color(0xFF2A3040),
+      outlineVariant: Color(0xFF2D2D2D),
       shadow: Colors.black,
       scrim: Colors.black,
       inverseSurface: VideColors.textPrimary,
       onInverseSurface: VideColors.background,
       surfaceContainerHighest: VideColors.surfaceElevated,
-      surfaceContainerHigh: Color(0xFF192028),
-      surfaceContainerLow: Color(0xFF111620),
+      surfaceContainerHigh: Color(0xFF1A1A1A),
+      surfaceContainerLow: Color(0xFF121212),
       surfaceContainerLowest: VideColors.background,
     );
 
@@ -71,7 +71,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: VideRadius.smAll,
           side: BorderSide(
-            color: VideColors.accent.withValues(alpha: 0.15),
+            color: Color(0xFF2D2D2D),
           ),
         ),
       ),
@@ -220,10 +220,10 @@ class AppTheme {
   static ThemeData lightTheme() {
     final colorScheme = ColorScheme(
       brightness: Brightness.light,
-      primary: VideColors.accent,
+      primary: VideColors.lightAccent,
       onPrimary: Colors.white,
-      primaryContainer: VideColors.accentSubtle,
-      onPrimaryContainer: VideColors.accentDim,
+      primaryContainer: VideColors.lightAccentSubtle,
+      onPrimaryContainer: VideColors.lightAccentDim,
       secondary: VideColors.lightTextSecondary,
       onSecondary: Colors.white,
       secondaryContainer: VideColors.lightSurfaceElevated,
@@ -298,7 +298,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: VideRadius.smAll,
-          borderSide: BorderSide(color: VideColors.accent, width: 2),
+          borderSide: BorderSide(color: VideColors.lightAccent, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: VideRadius.smAll,
@@ -312,7 +312,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: VideColors.accent,
+          backgroundColor: VideColors.lightAccent,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
@@ -326,12 +326,12 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: VideColors.accentDim,
+          foregroundColor: VideColors.lightAccentDim,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: VideRadius.mdAll,
           ),
-          side: BorderSide(color: VideColors.accent.withValues(alpha: 0.4)),
+          side: BorderSide(color: VideColors.lightAccent.withValues(alpha: 0.4)),
           textStyle: GoogleFonts.jetBrainsMono(
             fontWeight: FontWeight.w500,
           ),
@@ -339,7 +339,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: VideColors.accentDim,
+          foregroundColor: VideColors.lightAccentDim,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           shape: RoundedRectangleBorder(
             borderRadius: VideRadius.mdAll,
@@ -350,7 +350,7 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: VideColors.accent,
+        backgroundColor: VideColors.lightAccent,
         foregroundColor: Colors.white,
         elevation: 0,
         shape: RoundedRectangleBorder(
@@ -394,13 +394,13 @@ class AppTheme {
         style: ButtonStyle(
           backgroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
-              return VideColors.accentSubtle;
+              return VideColors.lightAccentSubtle;
             }
             return VideColors.lightSurface;
           }),
           foregroundColor: WidgetStateProperty.resolveWith((states) {
             if (states.contains(WidgetState.selected)) {
-              return VideColors.accentDim;
+              return VideColors.lightAccentDim;
             }
             return VideColors.lightTextSecondary;
           }),
@@ -410,13 +410,13 @@ class AppTheme {
         ),
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: VideColors.accent,
-        linearTrackColor: VideColors.accent.withValues(alpha: 0.1),
+        color: VideColors.lightAccent,
+        linearTrackColor: VideColors.lightAccent.withValues(alpha: 0.1),
       ),
       checkboxTheme: CheckboxThemeData(
         fillColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return VideColors.accent;
+            return VideColors.lightAccent;
           }
           return Colors.transparent;
         }),

@@ -18,7 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$SessionCreationState {
   String get initialMessage => throw _privateConstructorUsedError;
   String get workingDirectory => throw _privateConstructorUsedError;
-  ClaudeModel get model => throw _privateConstructorUsedError;
+  String get team => throw _privateConstructorUsedError;
   PermissionMode get permissionMode => throw _privateConstructorUsedError;
   bool get isCreating => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
@@ -39,7 +39,7 @@ abstract class $SessionCreationStateCopyWith<$Res> {
   $Res call(
       {String initialMessage,
       String workingDirectory,
-      ClaudeModel model,
+      String team,
       PermissionMode permissionMode,
       bool isCreating,
       String? error});
@@ -63,7 +63,7 @@ class _$SessionCreationStateCopyWithImpl<$Res,
   $Res call({
     Object? initialMessage = null,
     Object? workingDirectory = null,
-    Object? model = null,
+    Object? team = null,
     Object? permissionMode = null,
     Object? isCreating = null,
     Object? error = freezed,
@@ -77,10 +77,10 @@ class _$SessionCreationStateCopyWithImpl<$Res,
           ? _value.workingDirectory
           : workingDirectory // ignore: cast_nullable_to_non_nullable
               as String,
-      model: null == model
-          ? _value.model
-          : model // ignore: cast_nullable_to_non_nullable
-              as ClaudeModel,
+      team: null == team
+          ? _value.team
+          : team // ignore: cast_nullable_to_non_nullable
+              as String,
       permissionMode: null == permissionMode
           ? _value.permissionMode
           : permissionMode // ignore: cast_nullable_to_non_nullable
@@ -108,7 +108,7 @@ abstract class _$$SessionCreationStateImplCopyWith<$Res>
   $Res call(
       {String initialMessage,
       String workingDirectory,
-      ClaudeModel model,
+      String team,
       PermissionMode permissionMode,
       bool isCreating,
       String? error});
@@ -129,7 +129,7 @@ class __$$SessionCreationStateImplCopyWithImpl<$Res>
   $Res call({
     Object? initialMessage = null,
     Object? workingDirectory = null,
-    Object? model = null,
+    Object? team = null,
     Object? permissionMode = null,
     Object? isCreating = null,
     Object? error = freezed,
@@ -143,10 +143,10 @@ class __$$SessionCreationStateImplCopyWithImpl<$Res>
           ? _value.workingDirectory
           : workingDirectory // ignore: cast_nullable_to_non_nullable
               as String,
-      model: null == model
-          ? _value.model
-          : model // ignore: cast_nullable_to_non_nullable
-              as ClaudeModel,
+      team: null == team
+          ? _value.team
+          : team // ignore: cast_nullable_to_non_nullable
+              as String,
       permissionMode: null == permissionMode
           ? _value.permissionMode
           : permissionMode // ignore: cast_nullable_to_non_nullable
@@ -169,7 +169,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
   const _$SessionCreationStateImpl(
       {this.initialMessage = '',
       this.workingDirectory = '',
-      this.model = ClaudeModel.sonnet,
+      this.team = 'vide',
       this.permissionMode = PermissionMode.defaultMode,
       this.isCreating = false,
       this.error});
@@ -182,7 +182,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
   final String workingDirectory;
   @override
   @JsonKey()
-  final ClaudeModel model;
+  final String team;
   @override
   @JsonKey()
   final PermissionMode permissionMode;
@@ -194,7 +194,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
 
   @override
   String toString() {
-    return 'SessionCreationState(initialMessage: $initialMessage, workingDirectory: $workingDirectory, model: $model, permissionMode: $permissionMode, isCreating: $isCreating, error: $error)';
+    return 'SessionCreationState(initialMessage: $initialMessage, workingDirectory: $workingDirectory, team: $team, permissionMode: $permissionMode, isCreating: $isCreating, error: $error)';
   }
 
   @override
@@ -206,7 +206,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
                 other.initialMessage == initialMessage) &&
             (identical(other.workingDirectory, workingDirectory) ||
                 other.workingDirectory == workingDirectory) &&
-            (identical(other.model, model) || other.model == model) &&
+            (identical(other.team, team) || other.team == team) &&
             (identical(other.permissionMode, permissionMode) ||
                 other.permissionMode == permissionMode) &&
             (identical(other.isCreating, isCreating) ||
@@ -216,7 +216,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
 
   @override
   int get hashCode => Object.hash(runtimeType, initialMessage, workingDirectory,
-      model, permissionMode, isCreating, error);
+      team, permissionMode, isCreating, error);
 
   /// Create a copy of SessionCreationState
   /// with the given fields replaced by the non-null parameter values.
@@ -233,7 +233,7 @@ abstract class _SessionCreationState implements SessionCreationState {
   const factory _SessionCreationState(
       {final String initialMessage,
       final String workingDirectory,
-      final ClaudeModel model,
+      final String team,
       final PermissionMode permissionMode,
       final bool isCreating,
       final String? error}) = _$SessionCreationStateImpl;
@@ -243,7 +243,7 @@ abstract class _SessionCreationState implements SessionCreationState {
   @override
   String get workingDirectory;
   @override
-  ClaudeModel get model;
+  String get team;
   @override
   PermissionMode get permissionMode;
   @override

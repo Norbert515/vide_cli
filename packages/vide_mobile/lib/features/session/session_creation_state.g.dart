@@ -7,7 +7,7 @@ part of 'session_creation_state.dart';
 // **************************************************************************
 
 String _$sessionCreationNotifierHash() =>
-    r'dfdf8a68a8a602c1f01151e99963c1d94f83b16e';
+    r'5e5709c45c1cf71cc7656c454d80cf45cfeb47da';
 
 /// Provider for session creation state.
 ///

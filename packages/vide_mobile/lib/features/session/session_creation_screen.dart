@@ -4,57 +4,73 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
+import '../../data/local/settings_storage.dart';
 import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
+
+class _TeamInfo {
+  final String name;
+  final String description;
+
+  const _TeamInfo({required this.name, required this.description});
+}
+
+const _availableTeams = [
+  _TeamInfo(name: 'vide', description: 'Full-featured multi-agent team'),
+  _TeamInfo(name: 'startup', description: 'Fast and lean, minimal agents'),
+  _TeamInfo(
+    name: 'enterprise',
+    description: 'Comprehensive with QA and review',
+  ),
+  _TeamInfo(name: 'research', description: 'Deep exploration and analysis'),
+];
 
 /// Screen for creating a new session.
 class SessionCreationScreen extends ConsumerStatefulWidget {
   const SessionCreationScreen({super.key});
 
   @override
-  ConsumerState<SessionCreationScreen> createState() => _SessionCreationScreenState();
+  ConsumerState<SessionCreationScreen> createState() =>
+      _SessionCreationScreenState();
 }
 
-class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
+class _SessionCreationScreenState
+    extends ConsumerState<SessionCreationScreen> {
   final _messageController = TextEditingController();
-  final _directoryController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
     _messageController.addListener(_onMessageChanged);
-    _directoryController.addListener(_onDirectoryChanged);
+    _loadDefaults();
   }
 
   void _onMessageChanged() {
-    ref.read(sessionCreationNotifierProvider.notifier).setInitialMessage(_messageController.text);
+    ref
+        .read(sessionCreationNotifierProvider.notifier)
+        .setInitialMessage(_messageController.text);
   }
 
-  void _onDirectoryChanged() {
-    ref.read(sessionCreationNotifierProvider.notifier).setWorkingDirectory(_directoryController.text);
+  Future<void> _loadDefaults() async {
+    final storage = ref.read(settingsStorageProvider.notifier);
+    final lastTeam = await storage.getLastTeam();
+    final lastDir = await storage.getLastWorkingDirectory();
+
+    if (lastTeam != null) {
+      ref.read(sessionCreationNotifierProvider.notifier).setTeam(lastTeam);
+    }
+    if (lastDir != null) {
+      ref
+          .read(sessionCreationNotifierProvider.notifier)
+          .setWorkingDirectory(lastDir);
+    }
   }
 
   @override
   void dispose() {
     _messageController.dispose();
-    _directoryController.dispose();
     super.dispose();
-  }
-
-  Future<void> _selectDirectory() async {
-    // Show a dialog to enter directory path manually
-    // In a real app, this would use a file picker
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) => _DirectoryInputDialog(
-        initialPath: _directoryController.text,
-      ),
-    );
-
-    if (result != null) {
-      _directoryController.text = result;
-    }
   }
 
   Future<void> _createSession() async {
@@ -75,12 +91,17 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
     try {
       final state = ref.read(sessionCreationNotifierProvider);
       final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+      final settingsStorage = ref.read(settingsStorageProvider.notifier);
 
       final session = await sessionRepo.createSession(
         initialMessage: state.initialMessage,
         workingDirectory: state.workingDirectory,
-        model: state.model.value,
+        model: 'sonnet',
+        team: state.team,
       );
+
+      await settingsStorage.addRecentWorkingDirectory(state.workingDirectory);
+      await settingsStorage.saveLastTeam(state.team);
 
       if (mounted) {
         notifier.setIsCreating(false);
@@ -167,34 +188,31 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                TextFormField(
-                  controller: _directoryController,
-                  decoration: InputDecoration(
-                    hintText: '/path/to/project',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.folder_open_outlined),
-                      onPressed: state.isCreating ? null : _selectDirectory,
-                      tooltip: 'Browse',
-                    ),
-                  ),
-                  readOnly: true,
-                  onTap: state.isCreating ? null : _selectDirectory,
+                _WorkingDirectorySelector(
+                  selectedDirectory: state.workingDirectory,
                   enabled: !state.isCreating,
+                  onSelected: (dir) {
+                    ref
+                        .read(sessionCreationNotifierProvider.notifier)
+                        .setWorkingDirectory(dir);
+                  },
                 ),
                 const SizedBox(height: 24),
-                // Model selection
+                // Team selection
                 Text(
-                  'Model',
+                  'Team',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 8),
-                _ModelSelector(
-                  selectedModel: state.model,
+                _TeamSelector(
+                  selectedTeam: state.team,
                   enabled: !state.isCreating,
-                  onSelected: (model) {
-                    ref.read(sessionCreationNotifierProvider.notifier).setModel(model);
+                  onSelected: (team) {
+                    ref
+                        .read(sessionCreationNotifierProvider.notifier)
+                        .setTeam(team);
                   },
                 ),
                 const SizedBox(height: 24),
@@ -210,7 +228,9 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                   selectedMode: state.permissionMode,
                   enabled: !state.isCreating,
                   onSelected: (mode) {
-                    ref.read(sessionCreationNotifierProvider.notifier).setPermissionMode(mode);
+                    ref
+                        .read(sessionCreationNotifierProvider.notifier)
+                        .setPermissionMode(mode);
                   },
                 ),
               ],
@@ -222,13 +242,13 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
   }
 }
 
-class _ModelSelector extends StatelessWidget {
-  final ClaudeModel selectedModel;
+class _TeamSelector extends StatelessWidget {
+  final String selectedTeam;
   final bool enabled;
-  final ValueChanged<ClaudeModel> onSelected;
+  final ValueChanged<String> onSelected;
 
-  const _ModelSelector({
-    required this.selectedModel,
+  const _TeamSelector({
+    required this.selectedTeam,
     required this.enabled,
     required this.onSelected,
   });
@@ -236,31 +256,231 @@ class _ModelSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
-    return SegmentedButton<ClaudeModel>(
-      segments: ClaudeModel.values.map((model) {
-        return ButtonSegment<ClaudeModel>(
-          value: model,
-          label: Text(model.displayName.replaceFirst('Claude ', '')),
-          icon: Icon(
-            model == ClaudeModel.opus
-                ? Icons.auto_awesome
-                : model == ClaudeModel.haiku
-                    ? Icons.bolt
-                    : Icons.assistant,
-            size: 18,
+    return Column(
+      children: _availableTeams.map((team) {
+        final isSelected = team.name == selectedTeam;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            onTap: enabled ? () => onSelected(team.name) : null,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? videColors.accentSubtle : null,
+                border: Border.all(
+                  color: isSelected
+                      ? videColors.accent
+                      : colorScheme.outlineVariant,
+                  width: isSelected ? 2 : 1,
+                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          team.name,
+                          style: TextStyle(
+                            color: isSelected
+                                ? videColors.accent
+                                : colorScheme.onSurface,
+                            fontWeight:
+                                isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          team.description,
+                          style: TextStyle(
+                            color: videColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (isSelected)
+                    Icon(Icons.check_circle, size: 20, color: videColors.accent),
+                ],
+              ),
+            ),
           ),
         );
       }).toList(),
-      selected: {selectedModel},
-      onSelectionChanged: enabled ? (selection) => onSelected(selection.first) : null,
-      style: ButtonStyle(
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) {
-            return colorScheme.primaryContainer;
-          }
-          return null;
-        }),
+    );
+  }
+}
+
+class _WorkingDirectorySelector extends ConsumerStatefulWidget {
+  final String selectedDirectory;
+  final bool enabled;
+  final ValueChanged<String> onSelected;
+
+  const _WorkingDirectorySelector({
+    required this.selectedDirectory,
+    required this.enabled,
+    required this.onSelected,
+  });
+
+  @override
+  ConsumerState<_WorkingDirectorySelector> createState() =>
+      _WorkingDirectorySelectorState();
+}
+
+class _WorkingDirectorySelectorState
+    extends ConsumerState<_WorkingDirectorySelector> {
+  bool _showCustomInput = false;
+  final _customController = TextEditingController();
+  List<String> _recentDirs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRecentDirectories();
+  }
+
+  Future<void> _loadRecentDirectories() async {
+    final storage = ref.read(settingsStorageProvider.notifier);
+    final dirs = await storage.getRecentWorkingDirectories();
+    if (mounted) {
+      setState(() => _recentDirs = dirs);
+    }
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final dir in _recentDirs)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _DirectoryRow(
+              path: dir,
+              isSelected: dir == widget.selectedDirectory,
+              onTap: widget.enabled ? () => widget.onSelected(dir) : null,
+            ),
+          ),
+        if (_showCustomInput)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _customController,
+                    decoration: const InputDecoration(
+                      hintText: '/path/to/project',
+                      isDense: true,
+                    ),
+                    autofocus: true,
+                    onSubmitted: (value) {
+                      if (value.isNotEmpty) {
+                        widget.onSelected(value);
+                        setState(() => _showCustomInput = false);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.check),
+                  onPressed: () {
+                    if (_customController.text.isNotEmpty) {
+                      widget.onSelected(_customController.text);
+                      setState(() => _showCustomInput = false);
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() => _showCustomInput = false);
+                    _customController.clear();
+                  },
+                ),
+              ],
+            ),
+          )
+        else
+          TextButton.icon(
+            onPressed: widget.enabled
+                ? () => setState(() => _showCustomInput = true)
+                : null,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Enter custom path'),
+          ),
+      ],
+    );
+  }
+}
+
+class _DirectoryRow extends StatelessWidget {
+  final String path;
+  final bool isSelected;
+  final VoidCallback? onTap;
+
+  const _DirectoryRow({
+    required this.path,
+    required this.isSelected,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? videColors.accentSubtle : null,
+          border: Border.all(
+            color:
+                isSelected ? videColors.accent : colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.folder_outlined,
+              size: 18,
+              color: videColors.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                path,
+                style: TextStyle(
+                  color:
+                      isSelected ? videColors.accent : colorScheme.onSurface,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check, size: 18, color: videColors.accent),
+          ],
+        ),
       ),
     );
   }
@@ -295,56 +515,6 @@ class _PermissionModeSelector extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
         );
       }).toList(),
-    );
-  }
-}
-
-class _DirectoryInputDialog extends StatefulWidget {
-  final String initialPath;
-
-  const _DirectoryInputDialog({required this.initialPath});
-
-  @override
-  State<_DirectoryInputDialog> createState() => _DirectoryInputDialogState();
-}
-
-class _DirectoryInputDialogState extends State<_DirectoryInputDialog> {
-  late final TextEditingController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initialPath);
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Working Directory'),
-      content: TextField(
-        controller: _controller,
-        decoration: const InputDecoration(
-          hintText: '/path/to/project',
-          helperText: 'Enter the absolute path to your project',
-        ),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: const Text('Select'),
-        ),
-      ],
     );
   }
 }
