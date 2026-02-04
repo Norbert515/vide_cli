@@ -4,17 +4,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'session_creation_state.freezed.dart';
 part 'session_creation_state.g.dart';
 
-/// Available Claude models.
-enum ClaudeModel {
-  sonnet('sonnet', 'Claude Sonnet'),
-  opus('opus', 'Claude Opus'),
-  haiku('haiku', 'Claude Haiku');
-
-  const ClaudeModel(this.value, this.displayName);
-  final String value;
-  final String displayName;
-}
-
 /// Permission mode for tool execution.
 enum PermissionMode {
   defaultMode('default', 'Ask for each tool'),
@@ -31,7 +20,7 @@ class SessionCreationState with _$SessionCreationState {
   const factory SessionCreationState({
     @Default('') String initialMessage,
     @Default('') String workingDirectory,
-    @Default(ClaudeModel.sonnet) ClaudeModel model,
+    @Default('vide') String team,
     @Default(PermissionMode.defaultMode) PermissionMode permissionMode,
     @Default(false) bool isCreating,
     String? error,
@@ -54,8 +43,8 @@ class SessionCreationNotifier extends _$SessionCreationNotifier {
     state = state.copyWith(workingDirectory: directory);
   }
 
-  void setModel(ClaudeModel model) {
-    state = state.copyWith(model: model);
+  void setTeam(String team) {
+    state = state.copyWith(team: team);
   }
 
   void setPermissionMode(PermissionMode mode) {

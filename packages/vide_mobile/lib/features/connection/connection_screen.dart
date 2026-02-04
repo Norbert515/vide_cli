@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
+import '../../data/local/settings_storage.dart';
 import '../../data/repositories/connection_repository.dart';
 import '../../domain/models/server_connection.dart';
 import 'connection_state.dart';
@@ -21,12 +22,15 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   final _hostController = TextEditingController(text: 'localhost');
   final _portController = TextEditingController(text: '8080');
   final _formKey = GlobalKey<FormState>();
+  bool _isAutoConnecting = false;
+  String? _autoConnectError;
 
   @override
   void initState() {
     super.initState();
     _hostController.addListener(_onHostChanged);
     _portController.addListener(_onPortChanged);
+    _attemptAutoConnect();
   }
 
   void _onHostChanged() {
@@ -44,36 +48,55 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     super.dispose();
   }
 
-  Future<void> _testConnection() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _attemptAutoConnect() async {
+    final settingsStorage = ref.read(settingsStorageProvider.notifier);
+    final lastConnection = await settingsStorage.getLastConnection();
 
-    final success = await ref.read(connectionNotifierProvider.notifier).testConnection();
+    if (lastConnection == null || !mounted) return;
 
-    if (mounted && !success) {
-      final error = ref.read(connectionNotifierProvider).error;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error ?? 'Connection failed'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+    setState(() {
+      _isAutoConnecting = true;
+      _autoConnectError = null;
+    });
+
+    _hostController.text = lastConnection.host;
+    _portController.text = lastConnection.port.toString();
+
+    try {
+      await ref.read(connectionRepositoryProvider.notifier).connect(lastConnection);
+      if (mounted) {
+        context.go(AppRoutes.sessions);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAutoConnecting = false;
+          _autoConnectError = 'Could not connect to ${lastConnection.host}:${lastConnection.port}';
+        });
+      }
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connectToServer() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final notifier = ref.read(connectionNotifierProvider.notifier);
+
+    // Test connection first
+    final success = await notifier.testConnection();
+    if (!success || !mounted) return;
+
+    // If test passed, connect
     final state = ref.read(connectionNotifierProvider);
-    if (state.status != ConnectionStatus.connected) return;
+    final connection = ServerConnection(
+      host: state.host,
+      port: state.port,
+    );
 
     try {
-      // Connect via the repository to store the connection state
-      final connection = ServerConnection(
-        host: state.host,
-        port: state.port,
-      );
       await ref.read(connectionRepositoryProvider.notifier).connect(connection);
-
       if (mounted) {
-        context.push(AppRoutes.sessions);
+        context.go(AppRoutes.sessions);
       }
     } catch (e) {
       if (mounted) {
@@ -92,7 +115,32 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     final connectionState = ref.watch(connectionNotifierProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final isTesting = connectionState.status == ConnectionStatus.testing;
-    final isConnected = connectionState.status == ConnectionStatus.connected;
+
+    if (_isAutoConnecting) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.terminal_rounded,
+                size: 80,
+                color: colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Connecting to saved server...',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -136,6 +184,10 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
+                if (_autoConnectError != null) ...[
+                  const SizedBox(height: 16),
+                  _AutoConnectErrorBanner(message: _autoConnectError!),
+                ],
                 const SizedBox(height: 48),
                 // Host field
                 TextFormField(
@@ -182,37 +234,28 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                     }
                     return null;
                   },
-                  onFieldSubmitted: (_) => _testConnection(),
+                  onFieldSubmitted: (_) => _connectToServer(),
                 ),
                 const SizedBox(height: 24),
                 // Connection status indicator
                 if (connectionState.status != ConnectionStatus.disconnected)
                   _ConnectionStatusChip(status: connectionState.status),
-                const SizedBox(height: 24),
-                // Test Connection button
-                OutlinedButton.icon(
-                  onPressed: isTesting ? null : _testConnection,
+                if (connectionState.status != ConnectionStatus.disconnected)
+                  const SizedBox(height: 24),
+                // Single Connect button
+                FilledButton.icon(
+                  onPressed: isTesting ? null : _connectToServer,
                   icon: isTesting
                       ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: colorScheme.primary,
+                            color: colorScheme.onPrimary,
                           ),
                         )
-                      : const Icon(Icons.wifi_find_outlined),
-                  label: Text(isTesting ? 'Testing...' : 'Test Connection'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Connect button
-                FilledButton.icon(
-                  onPressed: isConnected ? _connect : null,
-                  icon: const Icon(Icons.login_outlined),
-                  label: const Text('Connect'),
+                      : const Icon(Icons.login_outlined),
+                  label: Text(isTesting ? 'Connecting...' : 'Connect'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                   ),
@@ -221,6 +264,44 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AutoConnectErrorBanner extends StatelessWidget {
+  final String message;
+
+  const _AutoConnectErrorBanner({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: colorScheme.onErrorContainer,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(
+                color: colorScheme.onErrorContainer,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

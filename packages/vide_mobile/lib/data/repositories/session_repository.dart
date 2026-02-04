@@ -100,6 +100,7 @@ class SessionRepository extends _$SessionRepository {
     required String initialMessage,
     required String workingDirectory,
     String? model,
+    String? team,
   }) async {
     _log('Creating session with message: $initialMessage');
 

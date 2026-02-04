@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
+import '../../data/local/settings_storage.dart';
+import '../../data/repositories/connection_repository.dart';
 
 /// Settings screen for the app.
 class SettingsScreen extends ConsumerWidget {
@@ -11,6 +14,11 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final connectionState = ref.watch(connectionRepositoryProvider);
+
+    final serverSubtitle = connectionState.isConnected && connectionState.connection != null
+        ? '${connectionState.connection!.host}:${connectionState.connection!.port}'
+        : 'Not connected';
 
     return Scaffold(
       appBar: AppBar(
@@ -26,21 +34,25 @@ class SettingsScreen extends ConsumerWidget {
           // Connection section
           const _SectionHeader(title: 'Connection'),
           _SettingsTile(
-            icon: Icons.history,
-            title: 'Connection History',
-            subtitle: 'View and manage saved connections',
-            onTap: () {
-              _showConnectionHistory(context);
-            },
-          ),
-          _SettingsTile(
             icon: Icons.dns_outlined,
-            title: 'Default Server',
-            subtitle: 'Set your default Vide server',
+            title: 'Current Server',
+            subtitle: serverSubtitle,
+            trailing: const Icon(Icons.chevron_right),
             onTap: () {
-              // TODO: Implement default server selection
+              context.go(AppRoutes.connection);
             },
           ),
+          if (connectionState.isConnected)
+            _SettingsTile(
+              icon: Icons.link_off,
+              title: 'Disconnect',
+              subtitle: 'Disconnect and return to setup',
+              onTap: () {
+                ref.read(connectionRepositoryProvider.notifier).disconnect();
+                ref.read(settingsStorageProvider.notifier).clear();
+                context.go(AppRoutes.connection);
+              },
+            ),
           const Divider(height: 32),
           // Appearance section
           const _SectionHeader(title: 'Appearance'),
@@ -62,7 +74,7 @@ class SettingsScreen extends ConsumerWidget {
             subtitle: 'Clear all local data and settings',
             iconColor: videColors.error,
             onTap: () {
-              _showClearDataConfirmation(context);
+              _showClearDataConfirmation(context, ref);
             },
           ),
           const Divider(height: 32),
@@ -98,13 +110,6 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showConnectionHistory(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => const _ConnectionHistorySheet(),
-    );
-  }
-
   void _showThemeSelector(BuildContext context) {
     showDialog(
       context: context,
@@ -112,7 +117,7 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showClearDataConfirmation(BuildContext context) {
+  void _showClearDataConfirmation(BuildContext context, WidgetRef ref) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     showDialog(
@@ -129,7 +134,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              // TODO: Clear data
+              ref.read(connectionRepositoryProvider.notifier).disconnect();
+              ref.read(settingsStorageProvider.notifier).clear();
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Data cleared')),
@@ -226,112 +232,6 @@ class _SettingsTile extends StatelessWidget {
       onTap: onTap,
     );
   }
-}
-
-class _ConnectionHistorySheet extends StatelessWidget {
-  const _ConnectionHistorySheet();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    // Placeholder - in real implementation, this would read from shared preferences
-    final connections = <_ConnectionItem>[
-      _ConnectionItem('localhost:8080', DateTime.now().subtract(const Duration(hours: 1))),
-      _ConnectionItem('192.168.1.100:8080', DateTime.now().subtract(const Duration(days: 1))),
-      _ConnectionItem('vide.example.com:443', DateTime.now().subtract(const Duration(days: 7))),
-    ];
-
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Text(
-                  'Connection History',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () {
-                    // TODO: Clear history
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Clear'),
-                ),
-              ],
-            ),
-          ),
-          const Divider(),
-          if (connections.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('No connection history'),
-            )
-          else
-            ListView.builder(
-              shrinkWrap: true,
-              itemCount: connections.length,
-              itemBuilder: (context, index) {
-                final conn = connections[index];
-                return ListTile(
-                  leading: const Icon(Icons.computer_outlined),
-                  title: Text(conn.address),
-                  subtitle: Text(_formatDate(conn.lastUsed)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () {
-                      // TODO: Remove from history
-                    },
-                  ),
-                  onTap: () {
-                    // TODO: Use this connection
-                    Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-
-    if (diff.inMinutes < 60) {
-      return '${diff.inMinutes}m ago';
-    } else if (diff.inHours < 24) {
-      return '${diff.inHours}h ago';
-    } else {
-      return '${diff.inDays}d ago';
-    }
-  }
-}
-
-class _ConnectionItem {
-  final String address;
-  final DateTime lastUsed;
-
-  _ConnectionItem(this.address, this.lastUsed);
 }
 
 class _ThemeSelectorDialog extends StatelessWidget {
