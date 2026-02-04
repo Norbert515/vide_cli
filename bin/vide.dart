@@ -83,6 +83,12 @@ void main(List<String> args) async {
       'working-dir',
       hide: true,
       help: 'Internal: Working directory for session server',
+    )
+    ..addFlag(
+      'dangerously-skip-permissions',
+      negatable: false,
+      help:
+          'Skip all permission checks (DANGEROUS: only for sandboxed environments)',
     );
 
   ArgResults argResults;
@@ -125,13 +131,16 @@ void main(List<String> args) async {
     exit(1);
   }
   final configRoot = path.join(homeDir, '.vide');
+  final configManager = VideConfigManager(configRoot: configRoot);
+
+  // Parse --dangerously-skip-permissions flag (session-only, not persisted)
+  final dangerouslySkipPermissions =
+      argResults['dangerously-skip-permissions'] as bool;
 
   // Create provider overrides for TUI
   final overrides = [
     // Override VideConfigManager with TUI-specific config root
-    videConfigManagerProvider.overrideWithValue(
-      VideConfigManager(configRoot: configRoot),
-    ),
+    videConfigManagerProvider.overrideWithValue(configManager),
     // Override working directory provider with current directory
     workingDirProvider.overrideWithValue(Directory.current.path),
   ];
@@ -155,6 +164,7 @@ void main(List<String> args) async {
     remoteConfig: remoteConfig,
     forceLocal: forceLocal,
     forceDaemon: forceDaemon,
+    dangerouslySkipPermissions: dangerouslySkipPermissions,
   );
 }
 
@@ -195,6 +205,12 @@ ${parser.usage}
 
 ENVIRONMENT VARIABLES:
     DISABLE_AUTOUPDATER=1    Disable automatic updates
+
+SAFETY:
+    Use --dangerously-skip-permissions ONLY in sandboxed environments
+    (Docker, VMs) where filesystem isolation protects the host system.
+    This flag applies only to the current session (not persisted).
+    Use Settings > Permissions to toggle persistent skip.
 
 REMOTE MODE:
     Use --connect to connect to a running vide_daemon:

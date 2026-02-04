@@ -116,6 +116,7 @@ Future<void> main(
   RemoteConfig? remoteConfig,
   bool forceLocal = false,
   bool forceDaemon = false,
+  bool dangerouslySkipPermissions = false,
 }) async {
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
@@ -135,6 +136,9 @@ Future<void> main(
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
       if (forceLocal) forceLocalModeProvider.overrideWith((ref) => true),
       if (forceDaemon) forceDaemonModeProvider.overrideWith((ref) => true),
+      // Session-scoped skip permissions (CLI flag, not persisted)
+      if (dangerouslySkipPermissions)
+        dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       ...overrides,
     ],
   );

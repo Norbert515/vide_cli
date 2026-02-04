@@ -4,6 +4,7 @@ import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_provider.dart';
+import '../utils/dangerously_skip_permissions_provider.dart';
 import 'permission_provider.dart';
 import 'vide_config_manager.dart';
 
@@ -85,9 +86,20 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     return configManager.readGlobalSettings().enableStreaming;
   }
 
-  /// Gets the dangerouslySkipPermissions setting from global settings.
+  /// Gets the dangerouslySkipPermissions setting.
+  ///
+  /// Returns true if EITHER:
+  /// - The session-scoped provider is true (set via CLI flag, session-only)
+  /// - The global setting is true (set via settings UI, persistent)
+  ///
   /// DANGEROUS: Only true in sandboxed environments (Docker).
   bool get _dangerouslySkipPermissions {
+    // Check session-scoped override first (CLI flag)
+    final sessionOverride = _ref.read(dangerouslySkipPermissionsProvider);
+    if (sessionOverride) {
+      return true;
+    }
+    // Fall back to global setting (settings UI)
     final configManager = _ref.read(videConfigManagerProvider);
     return configManager.readGlobalSettings().dangerouslySkipPermissions;
   }

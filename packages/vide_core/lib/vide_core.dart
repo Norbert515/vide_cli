@@ -103,6 +103,7 @@ export 'src/mcp/knowledge/knowledge_mcp_server.dart';
 // =============================================================================
 export 'src/utils/project_detector.dart';
 export 'src/utils/working_dir_provider.dart';
+export 'src/utils/dangerously_skip_permissions_provider.dart';
 
 // =============================================================================
 // State Management
