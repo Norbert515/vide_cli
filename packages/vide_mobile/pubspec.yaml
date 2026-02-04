@@ -23,6 +23,7 @@ dependencies:
   uuid: ^4.2.2
   cupertino_icons: ^1.0.6
   google_fonts: ^6.1.0
+  liquid_glass_renderer: ^0.2.0-dev.4
   vide_client:
     path: ../vide_client
 

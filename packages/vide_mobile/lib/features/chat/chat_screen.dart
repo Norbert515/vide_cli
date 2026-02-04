@@ -6,14 +6,10 @@ import 'package:go_router/go_router.dart';
 import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../core/providers/connection_state_provider.dart';
-import '../../core/theme/tokens.dart';
-import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
-import '../agents/agent_panel.dart';
 import '../permissions/permission_sheet.dart';
 import 'chat_state.dart';
-import 'widgets/agent_tab_bar.dart';
 import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
@@ -42,14 +38,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
 
-  /// Currently selected tab index (0 = main agent, 1+ = other agents).
-  int _selectedTabIndex = 0;
-
-  /// Per-tab scroll controllers keyed by agent ID.
-  final Map<String, ScrollController> _scrollControllers = {};
-
-  /// Cached list of agent IDs in tab order, to track index shifts.
-  List<String> _agentTabIds = [];
+  final ScrollController _scrollController = ScrollController();
 
   /// True while processing history events — suppresses scroll animations and shows loading.
   bool _isLoadingHistory = false;
@@ -95,9 +84,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _eventSubscription?.cancel();
     _inputController.dispose();
-    for (final controller in _scrollControllers.values) {
-      controller.dispose();
-    }
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -118,7 +105,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           taskName: a.taskName,
         )).toList();
         notifier.setAgents(domainAgents);
-        _syncAgentTabs(domainAgents);
 
       case vc.HistoryEvent(:final events):
         setState(() => _isLoadingHistory = true);
@@ -222,12 +208,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           taskName: taskName,
         );
         notifier.addAgent(agent);
-        _onAgentAdded(agent);
 
       case vc.AgentTerminatedEvent():
         final terminatedAgentId = event.agent?.id ?? '';
         notifier.removeAgent(terminatedAgentId);
-        _onAgentRemoved(terminatedAgentId);
 
       case vc.DoneEvent():
         notifier.setIsAgentWorking(false);
@@ -251,39 +235,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       vc.AgentStatus.waitingForUser => AgentStatus.waitingForUser,
       vc.AgentStatus.idle => AgentStatus.idle,
     };
-  }
-
-  void _syncAgentTabs(List<Agent> agents) {
-    setState(() {
-      _agentTabIds = agents.map((a) => a.id).toList();
-      for (final agent in agents) {
-        _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
-      }
-    });
-  }
-
-  void _onAgentAdded(Agent agent) {
-    setState(() {
-      _agentTabIds.add(agent.id);
-      _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
-    });
-  }
-
-  void _onAgentRemoved(String agentId) {
-    final removedIndex = _agentTabIds.indexOf(agentId);
-    if (removedIndex < 0) return;
-
-    setState(() {
-      _agentTabIds.remove(agentId);
-      _scrollControllers[agentId]?.dispose();
-      _scrollControllers.remove(agentId);
-
-      if (_selectedTabIndex == removedIndex) {
-        _selectedTabIndex = 0; // Fall back to first agent
-      } else if (_selectedTabIndex > removedIndex) {
-        _selectedTabIndex--;
-      }
-    });
   }
 
   void _handleMessageEvent({
@@ -408,24 +359,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatNotifierProvider(widget.sessionId).notifier).setIsAgentWorking(false);
   }
 
-  /// Returns the scroll controller for the currently active tab.
-  ScrollController get _activeScrollController {
-    if (_selectedTabIndex < _agentTabIds.length) {
-      final agentId = _agentTabIds[_selectedTabIndex];
-      final controller = _scrollControllers[agentId];
-      if (controller != null) return controller;
-    }
-    // Fallback: return the first available controller
-    return _scrollControllers.values.firstOrNull ?? ScrollController();
-  }
-
   void _scrollToBottom() {
     if (_isLoadingHistory) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final controller = _activeScrollController;
-      if (controller.hasClients) {
-        controller.animateTo(
-          controller.position.maxScrollExtent,
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -436,21 +375,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Instantly jumps to bottom without animation (used after history load).
   void _jumpToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (final controller in _scrollControllers.values) {
-        if (controller.hasClients) {
-          controller.jumpTo(controller.position.maxScrollExtent);
-        }
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
     });
-  }
-
-  void _showAgentPanel() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (context) => AgentPanel(sessionId: widget.sessionId),
-    );
   }
 
   void _handlePermission(bool allow) {
@@ -506,8 +434,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
     final inputEnabled = !state.isAgentWorking && !isDisconnected;
 
-    final hasAgents = state.agents.isNotEmpty;
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -521,22 +447,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Center(child: ConnectionStatusChip()),
           ),
-          // Agent count badge
-          if (state.agents.isNotEmpty)
-            Badge(
-              label: Text('${state.agents.length}'),
-              child: IconButton(
-                icon: const Icon(Icons.group_outlined),
-                onPressed: _showAgentPanel,
-                tooltip: 'Agents',
-              ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.group_outlined),
-              onPressed: _showAgentPanel,
-              tooltip: 'Agents',
-            ),
         ],
       ),
       body: Column(
@@ -557,68 +467,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ],
             ),
-          // Agent tab bar (only shown when agents exist)
-          if (hasAgents)
-            AgentTabBar(
-              agents: state.agents,
-              selectedIndex: _selectedTabIndex,
-              onTabSelected: (index) {
-                setState(() => _selectedTabIndex = index);
-              },
-            ),
-          // Messages area with per-tab filtering
+          // Messages area with floating input bar overlay
           Expanded(
-            child: _isLoadingHistory
-                ? const Center(child: CircularProgressIndicator())
-                : _buildTabContent(state),
-          ),
-          // Input bar
-          InputBar(
-            controller: _inputController,
-            enabled: inputEnabled,
-            isLoading: state.isAgentWorking,
-            onSend: _sendMessage,
-            onAbort: _abort,
+            child: Stack(
+              children: [
+                // Messages
+                _isLoadingHistory
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildMessageList(state),
+                // Floating input bar
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: InputBar(
+                    controller: _inputController,
+                    enabled: inputEnabled,
+                    isLoading: state.isAgentWorking,
+                    onSend: _sendMessage,
+                    onAbort: _abort,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Switches to the tab for the given agent ID, if it exists.
-  void _switchToAgentTab(String agentId) {
-    final index = _agentTabIds.indexOf(agentId);
-    if (index >= 0) {
-      setState(() => _selectedTabIndex = index);
-    }
-  }
-
-  Widget _buildTabContent(ChatState state) {
+  Widget _buildMessageList(ChatState state) {
     if (state.messages.isEmpty && state.toolUses.isEmpty) {
       return _EmptyState();
     }
 
-    // Build per-agent tab views
-    final tabViews = <Widget>[
-      for (final agentId in _agentTabIds)
-        _MessageList(
-          messages: state.messages.where((m) => m.agentId == agentId).toList(),
-          toolUses: state.toolUses.where((t) => t.agentId == agentId).toList(),
-          toolResults: state.toolResults,
-          agents: state.agents,
-          scrollController: _scrollControllers[agentId] ?? ScrollController(),
-          onAgentTap: _switchToAgentTab,
-        ),
-    ];
-
-    if (tabViews.isEmpty) {
-      return _EmptyState();
-    }
-
-    // Use IndexedStack to preserve scroll positions across tab switches
-    return IndexedStack(
-      index: _selectedTabIndex.clamp(0, tabViews.length - 1),
-      children: tabViews,
+    return _MessageList(
+      messages: state.messages,
+      toolUses: state.toolUses,
+      toolResults: state.toolResults,
+      scrollController: _scrollController,
     );
   }
 
@@ -662,17 +549,13 @@ class _MessageList extends StatelessWidget {
   final List<ChatMessage> messages;
   final List<ToolUse> toolUses;
   final Map<String, ToolResult> toolResults;
-  final List<Agent> agents;
   final ScrollController scrollController;
-  final ValueChanged<String>? onAgentTap;
 
   const _MessageList({
     required this.messages,
     required this.toolUses,
     required this.toolResults,
-    required this.agents,
     required this.scrollController,
-    this.onAgentTap,
   });
 
   @override
@@ -694,7 +577,7 @@ class _MessageList extends StatelessWidget {
     if (items.isEmpty) {
       return const Center(
         child: Text(
-          'No messages from this agent yet',
+          'No messages yet',
           style: TextStyle(color: Colors.grey),
         ),
       );
@@ -702,122 +585,18 @@ class _MessageList extends StatelessWidget {
 
     return ListView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.only(top: 16, bottom: 80),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
         return item.when(
           message: (message) => MessageBubble(message: message),
-          tool: (toolUse, result) {
-            if (_isSpawnAgentTool(toolUse)) {
-              return _SpawnAgentCard(
-                toolUse: toolUse,
-                agents: agents,
-                onTap: onAgentTap,
-              );
-            }
-            return ToolCard(
-              toolUse: toolUse,
-              result: result,
-            );
-          },
+          tool: (toolUse, result) => ToolCard(
+            toolUse: toolUse,
+            result: result,
+          ),
         );
       },
-    );
-  }
-
-  bool _isSpawnAgentTool(ToolUse toolUse) {
-    return toolUse.toolName == 'mcp__vide-agent__spawnAgent';
-  }
-}
-
-/// A tappable card for spawnAgent tool uses that navigates to the agent's tab.
-class _SpawnAgentCard extends StatelessWidget {
-  final ToolUse toolUse;
-  final List<Agent> agents;
-  final ValueChanged<String>? onTap;
-
-  const _SpawnAgentCard({
-    required this.toolUse,
-    required this.agents,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    final agentName = toolUse.input['name'] as String? ?? 'Agent';
-    final agentType = toolUse.input['agentType'] as String? ?? '';
-
-    // Find matching agent by name to get its ID
-    final matchingAgent = agents.cast<Agent?>().firstWhere(
-      (a) => a!.name == agentName,
-      orElse: () => null,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: VideSpacing.sm,
-        vertical: VideSpacing.xs,
-      ),
-      child: GestureDetector(
-        onTap: matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
-        child: Container(
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: VideRadius.smAll,
-            border: Border.all(
-              color: videColors.glassBorder,
-              width: 1,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: VideSpacing.md,
-            vertical: 12,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 18,
-                color: videColors.accent,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      agentName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: videColors.accent,
-                      ),
-                    ),
-                    if (agentType.isNotEmpty)
-                      Text(
-                        agentType,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: videColors.textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              if (matchingAgent != null)
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: videColors.textTertiary,
-                ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
