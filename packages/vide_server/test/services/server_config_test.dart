@@ -9,16 +9,16 @@ void main() {
     test('default config has expected values', () {
       final config = ServerConfig();
 
-      expect(config.permissionTimeoutSeconds, 60);
+      expect(config.permissionTimeoutSeconds, 0); // 0 = no timeout
       expect(config.autoApproveAll, false);
-      expect(config.permissionTimeout, const Duration(seconds: 60));
+      expect(config.permissionTimeout, Duration.zero);
       expect(config.filesystemRoot, isNotEmpty);
     });
 
     test('defaultConfig matches default constructor', () {
       final defaultConfig = ServerConfig.defaultConfig;
 
-      expect(defaultConfig.permissionTimeoutSeconds, 60);
+      expect(defaultConfig.permissionTimeoutSeconds, 0); // 0 = no timeout
       expect(defaultConfig.autoApproveAll, false);
       expect(defaultConfig.filesystemRoot, isNotEmpty);
     });
@@ -53,7 +53,7 @@ void main() {
         // ServerConfig.load() uses HOME env var, so we can't easily test
         // file loading without modifying env. Instead, test the default case.
         final config = ServerConfig.defaultConfig;
-        expect(config.permissionTimeoutSeconds, 60);
+        expect(config.permissionTimeoutSeconds, 0); // 0 = no timeout
         expect(config.autoApproveAll, false);
         expect(config.filesystemRoot, isNotEmpty);
       });

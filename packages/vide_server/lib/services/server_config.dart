@@ -8,13 +8,15 @@ import 'package:path/path.dart' as p;
 /// Configuration file format:
 /// ```json
 /// {
-///   "permission-timeout-seconds": 60,
+///   "permission-timeout-seconds": 0,
 ///   "auto-approve-all": false,
 ///   "filesystem-root": "/Users/chris/projects"
 /// }
 /// ```
 class ServerConfig {
-  /// Timeout for permission requests in seconds (default: 60)
+  /// Timeout for permission requests in seconds.
+  /// Default is 0 (no timeout) - user can take as long as needed to respond.
+  /// Set to a positive value to auto-deny after that many seconds.
   final int permissionTimeoutSeconds;
 
   /// If true, auto-approve all permission requests without prompting
@@ -27,7 +29,7 @@ class ServerConfig {
   final String filesystemRoot;
 
   ServerConfig({
-    this.permissionTimeoutSeconds = 60,
+    this.permissionTimeoutSeconds = 0,
     this.autoApproveAll = false,
     String? filesystemRoot,
   }) : filesystemRoot = filesystemRoot ?? _defaultFilesystemRoot();
@@ -60,8 +62,7 @@ class ServerConfig {
     final json = jsonDecode(content) as Map<String, dynamic>;
 
     return ServerConfig(
-      permissionTimeoutSeconds:
-          json['permission-timeout-seconds'] as int? ?? 60,
+      permissionTimeoutSeconds: json['permission-timeout-seconds'] as int? ?? 0,
       autoApproveAll: json['auto-approve-all'] as bool? ?? false,
       filesystemRoot: json['filesystem-root'] as String?,
     );
