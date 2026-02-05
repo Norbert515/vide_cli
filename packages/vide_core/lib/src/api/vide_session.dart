@@ -16,7 +16,9 @@ import '../services/agent_network_manager.dart';
 import '../services/claude_manager.dart';
 import '../services/permissions/permission_checker.dart';
 import '../services/permissions/tool_input.dart';
+import '../services/vide_config_manager.dart';
 import '../state/agent_status_manager.dart';
+import '../utils/dangerously_skip_permissions_provider.dart';
 import 'conversation_state.dart';
 import 'vide_agent.dart';
 import 'vide_event.dart';
@@ -925,13 +927,26 @@ class VideSession {
     state.lastResponseCount = responses.length;
   }
 
+  /// Whether to skip all permission checks (auto-approve everything).
+  ///
+  /// Returns true if EITHER:
+  /// - The session-scoped provider is true (set via CLI flag, session-only)
+  /// - The global setting is true (set via settings UI, persistent)
+  bool get _dangerouslySkipPermissions {
+    final sessionOverride = _container.read(dangerouslySkipPermissionsProvider);
+    if (sessionOverride) return true;
+    final configManager = _container.read(videConfigManagerProvider);
+    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+  }
+
   /// Creates a permission callback that integrates with [PermissionChecker]
   /// and emits [PermissionRequestEvent] when user approval is needed.
   ///
   /// The callback:
-  /// 1. Checks if the tool is auto-allowed/denied by PermissionChecker
-  /// 2. If user approval is needed, emits PermissionRequestEvent
-  /// 3. Waits for [respondToPermission] to be called
+  /// 1. If dangerouslySkipPermissions is set, auto-approves everything
+  /// 2. Checks if the tool is auto-allowed/denied by PermissionChecker
+  /// 3. If user approval is needed, emits PermissionRequestEvent
+  /// 4. Waits for [respondToPermission] to be called
   ///
   /// Special handling for AskUserQuestion tool: emits [AskUserQuestionEvent]
   /// and waits for [respondToAskUserQuestion] instead.
@@ -947,6 +962,11 @@ class VideSession {
       Map<String, dynamic> input,
       ToolPermissionContext context,
     ) async {
+      // Skip all permission checks when dangerously-skip-permissions is enabled
+      if (_dangerouslySkipPermissions) {
+        return const PermissionResultAllow();
+      }
+
       // Get current task name
       final state = _agentStates[agentId];
 

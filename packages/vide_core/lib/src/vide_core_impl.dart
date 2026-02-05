@@ -15,6 +15,7 @@ import 'services/initial_claude_client.dart';
 import 'services/permission_provider.dart'
     show PermissionHandler, permissionHandlerProvider;
 import 'services/vide_config_manager.dart';
+import 'utils/dangerously_skip_permissions_provider.dart';
 import 'utils/working_dir_provider.dart';
 import 'api/vide_agent.dart';
 import 'api/vide_config.dart';
@@ -144,6 +145,7 @@ class VideCore {
 
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
+    final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
 
     // Use the permission handler passed to VideCore (shared across sessions)
     final permissionHandler = _permissionHandler;
@@ -160,6 +162,9 @@ class VideCore {
         workingDirProvider.overrideWithValue(config.workingDirectory),
         // Provide permission handler for late session binding
         permissionHandlerProvider.overrideWithValue(permissionHandler),
+        // Copy skip permissions flag from parent
+        if (skipPermissions)
+          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       ],
     );
 
@@ -224,6 +229,9 @@ class VideCore {
       // requires all providers in the dependency chain to be overridden when
       // any dependency is overridden, which becomes unwieldy.
       final videConfigManager = _container.read(videConfigManagerProvider);
+      final skipPermissions = _container.read(
+        dangerouslySkipPermissionsProvider,
+      );
       sessionContainer = ProviderContainer(
         overrides: [
           // Copy config from parent
@@ -232,6 +240,9 @@ class VideCore {
           workingDirProvider.overrideWithValue(workingDirectory),
           // Provide permission handler for late session binding
           permissionHandlerProvider.overrideWithValue(permissionHandler),
+          // Copy skip permissions flag from parent
+          if (skipPermissions)
+            dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
         ],
       );
     } else {
@@ -300,6 +311,7 @@ class VideCore {
 
     // Get config from parent container
     final videConfigManager = _container.read(videConfigManagerProvider);
+    final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
 
     // Use the permission handler passed to VideCore (shared across sessions)
     final permissionHandler = _permissionHandler;
@@ -316,6 +328,9 @@ class VideCore {
         workingDirProvider.overrideWithValue(workingDir),
         // Provide permission handler for late session binding
         permissionHandlerProvider.overrideWithValue(permissionHandler),
+        // Copy skip permissions flag from parent
+        if (skipPermissions)
+          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       ],
     );
 
