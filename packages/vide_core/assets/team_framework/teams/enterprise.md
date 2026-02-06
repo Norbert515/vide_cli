@@ -14,42 +14,12 @@ agents:
   - session-synthesizer
   - code-reviewer
 
-process:
-  planning: thorough
-  review: required
-  testing: comprehensive
-  documentation: full
-
-communication:
-  verbosity: high
-  handoff-detail: comprehensive
-  status-updates: continuous
-
-triggers:
-  - "production"
-  - "enterprise"
-  - "security"
-  - "payment"
-  - "compliance"
-  - "migration"
-  - "critical"
-  - "thorough"
-  - "rigorous"
-
-anti-triggers:
-  - "prototype"
-  - "quick"
-  - "hack"
-  - "experiment"
-
-# Lifecycle triggers - spawn agents at specific points
-lifecycle-triggers:
-  onSessionEnd:
-    enabled: false
-    spawn: session-synthesizer
-  onTaskComplete:
-    enabled: false
-    spawn: code-reviewer
+include:
+  - etiquette/messaging
+  - etiquette/completion
+  - etiquette/reporting
+  - etiquette/escalation
+  - etiquette/handoff
 ---
 
 # Enterprise Team
@@ -76,17 +46,19 @@ Enterprise Lead (Orchestrator)
 ├── Feature Team A ─────────┐
 │   ├── Feature Lead        │
 │   ├── Implementer(s)      │ parallel
-│   └── QA Breaker          │
+│   └── (internal QA)       │
 │                           │
 ├── Feature Team B ─────────┤
 │   ├── Feature Lead        │
 │   ├── Implementer(s)      │
-│   └── QA Breaker          │
+│   └── (internal QA)       │
 │                           ┘
-├── Integration Team (when features complete)
-│   ├── Feature Lead
-│   ├── Implementer
-│   └── QA Breaker
+├── Integration (when features complete)
+│
+├── QA Review (MANDATORY) ──────────┐
+│   ├── QA Breaker reviews all work │
+│   ├── Issues? → Implementer fixes │ up to 2-3 rounds
+│   └── QA Breaker re-reviews ──────┘
 │
 └── Final Report to User
 ```
@@ -166,10 +138,12 @@ Independent features run in parallel:
 
 ### Iterative Quality
 
-Each team owns their quality:
-- Feature Lead coordinates implement → QA → fix → QA loops
-- Teams don't report "done" until QA approves
-- Enterprise-lead sees completion, not iteration details
+Quality is enforced at two levels:
+- **Within teams**: Feature Lead coordinates implement → test loops internally
+- **At the top**: Enterprise-lead ALWAYS spawns a qa-breaker after features complete
+- The qa-breaker tries to break the implementation adversarially
+- If issues are found: implementer fixes → qa-breaker re-reviews (up to 2-3 rounds)
+- Nothing ships without QA approval
 
 ## Workflow
 
@@ -178,7 +152,9 @@ Each team owns their quality:
 3. **Team Formation** - Enterprise-lead spawns feature leads for each feature
 4. **Parallel Execution** - Feature teams work simultaneously
 5. **Integration** - Integration team connects completed features
-6. **Completion** - Enterprise-lead synthesizes all team reports
+6. **QA Review** - Enterprise-lead spawns qa-breaker to review all work (MANDATORY)
+7. **Fix Loop** - If QA finds issues: implementer fixes → QA re-reviews (2-3 rounds max)
+8. **Completion** - Enterprise-lead synthesizes all team reports
 
 ## When to Use Enterprise
 

@@ -1,6 +1,6 @@
 ---
 name: vide
-description: Default vide workflow. Lean orchestration with specialized sub-agents.
+description: Lean vide workflow. Simple orchestration with specialized sub-agents.
 icon: 🎯
 
 main-agent: main
@@ -9,19 +9,12 @@ agents:
   - implementer
   - tester
 
-process:
-  planning: minimal
-  review: skip
-  testing: recommended
-  documentation: skip
-
-communication:
-  verbosity: low
-  handoff-detail: standard
-  status-updates: on-completion
-
-triggers:
-  - default
+include:
+  - etiquette/messaging
+  - etiquette/completion
+  - etiquette/reporting
+  - etiquette/escalation
+  - etiquette/handoff
 ---
 
 # Vide Team

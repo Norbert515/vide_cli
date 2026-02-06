@@ -7,25 +7,12 @@ main-agent: test-coordinator
 agents:
   - test-runner
 
-process:
-  planning: minimal
-  review: skip
-  testing: comprehensive
-  documentation: skip
-
-communication:
-  verbosity: low
-  handoff-detail: minimal
-  status-updates: on-completion
-
-triggers:
-  - flutter qa
-  - parallel flutter testing
-  - flutter test suite
-  - comprehensive flutter testing
-  - test all screens
-  - batch flutter testing
-  - exp flutter qa
+include:
+  - etiquette/messaging
+  - etiquette/completion
+  - etiquette/brief-reporting
+  - etiquette/escalation
+  - etiquette/handoff
 ---
 
 # Exp. Flutter QA Team

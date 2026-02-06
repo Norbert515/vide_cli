@@ -16,7 +16,7 @@ class AgentNetwork {
     required this.createdAt,
     this.lastActiveAt,
     this.worktreePath,
-    this.team = 'vide',
+    this.team = 'enterprise',
   });
 
   final AgentNetworkId id;

@@ -1,7 +1,6 @@
 ---
 name: escalation
 description: When and how to escalate issues
-applies-to: all
 ---
 
 # Escalation Protocol

@@ -8,10 +8,7 @@ tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent
 
 model: haiku
-permissionMode: acceptEdits
 
-include:
-  - etiquette/brief-reporting
 ---
 
 # Isolated Test Runner
@@ -42,7 +39,7 @@ The coordinator provides everything you need:
 3. **Run tests** - Tap, type, verify via element IDs
 4. **Report** - PASS/FAIL + errors
 5. **Stop app** - `flutterStop`
-6. **Done** - `sendMessageToAgent` then `setAgentStatus("idle")`
+6. **Done** - Report per Completion Protocol
 
 ## Flutter Runtime Tools
 
@@ -86,32 +83,6 @@ flutterTapElement(instanceId: "...", elementId: "button_0")
 
 // Verify - check elements changed as expected
 flutterGetElements(instanceId: "...")
-```
-
-## Reporting Format
-
-**Everything passed:**
-```
-sendMessageToAgent(
-  targetAgentId: "{parent-id}",
-  message: "✅ PASS"
-)
-```
-
-**Something failed:**
-```
-sendMessageToAgent(
-  targetAgentId: "{parent-id}",
-  message: "❌ FAIL: Back button doesn't navigate to previous screen"
-)
-```
-
-**App won't start:**
-```
-sendMessageToAgent(
-  targetAgentId: "{parent-id}",
-  message: "❌ BLOCKED: App failed to start - analysis errors"
-)
 ```
 
 ## Rules

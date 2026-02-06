@@ -39,6 +39,7 @@ class TeamDefinition {
     required this.mainAgent,
     this.icon,
     this.agents = const [],
+    this.include = const [],
     this.process = const ProcessConfig(),
     this.communication = const CommunicationConfig(),
     this.triggers = const [],
@@ -64,6 +65,9 @@ class TeamDefinition {
 
   /// List of agent personality names available to spawn
   final List<String> agents;
+
+  /// Include paths resolved for all agents in this team (e.g., "etiquette/messaging")
+  final List<String> include;
 
   /// Process configuration for this team
   final ProcessConfig process;
@@ -124,6 +128,10 @@ class TeamDefinition {
     final agentsYaml = yaml['agents'] as YamlList?;
     final agents = agentsYaml?.cast<String>().toList() ?? [];
 
+    // Parse include list
+    final includeYaml = yaml['include'] as YamlList?;
+    final include = includeYaml?.cast<String>().toList() ?? [];
+
     // Parse process config
     final processYaml = yaml['process'] as YamlMap?;
     final process = processYaml != null
@@ -166,6 +174,7 @@ class TeamDefinition {
       mainAgent: mainAgent,
       icon: yaml['icon'] as String?,
       agents: agents,
+      include: include,
       process: process,
       communication: communication,
       triggers: triggers,

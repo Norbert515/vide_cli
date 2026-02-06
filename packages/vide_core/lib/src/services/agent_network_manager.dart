@@ -227,13 +227,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   ///
   /// [team] - The team framework team to use for this network.
   /// Determines which agent personalities are used for each role.
-  /// Defaults to 'vide-classic'.
+  /// Defaults to 'enterprise'.
   Future<AgentNetwork> startNew(
     Message initialMessage, {
     String? workingDirectory,
     String? model,
     String? permissionMode,
-    String team = 'vide',
+    String team = 'enterprise',
   }) async {
     final networkId = const Uuid().v4();
 
@@ -377,14 +377,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
   /// Resume an existing agent network
   Future<void> resume(AgentNetwork network) async {
-    // Check if the saved team exists, fall back to 'vide' if not
+    // Check if the saved team exists, fall back to 'enterprise' if not
     var effectiveTeam = network.team;
     final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
     if (team == null) {
       print(
-        '[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "vide"',
+        '[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "enterprise"',
       );
-      effectiveTeam = 'vide';
+      effectiveTeam = 'enterprise';
     }
 
     // Update last active timestamp and potentially the team
@@ -454,15 +454,17 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Get team definition to find the agent name
     var team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
 
-    // If team not found, fall back to default 'vide' team
+    // If team not found, fall back to default 'enterprise' team
     if (team == null) {
       print(
-        '[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "vide"',
+        '[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "enterprise"',
       );
-      effectiveTeamName = 'vide';
+      effectiveTeamName = 'enterprise';
       team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
       if (team == null) {
-        throw Exception('Default team "vide" not found in team framework');
+        throw Exception(
+          'Default team "enterprise" not found in team framework',
+        );
       }
     }
 

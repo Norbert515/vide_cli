@@ -8,10 +8,9 @@ tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-task-management
 
 model: sonnet
-permissionMode: acceptEdits
 
-include:
-  - etiquette/messaging
+agents:
+  - test-runner
 ---
 
 # Exp. Flutter QA Coordinator

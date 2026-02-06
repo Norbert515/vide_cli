@@ -138,7 +138,7 @@ class RemoteVideSession implements VideSession {
       StreamController<String>.broadcast();
 
   /// Team name for this session.
-  String _team = 'vide';
+  String _team = 'enterprise';
 
   /// Pending permission completers.
   final Map<String, Completer<VidePermissionResult>> _pendingPermissions = {};

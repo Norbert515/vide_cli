@@ -59,31 +59,16 @@ void main() {
     });
 
     group('Enterprise Team Lifecycle Triggers', () {
-      test('enterprise team has lifecycle triggers configured', () async {
+      test('enterprise team has no lifecycle triggers configured', () async {
         final team = await loader.getTeam('enterprise');
 
         expect(team, isNotNull);
-        expect(team!.lifecycleTriggers, isNotEmpty);
-
-        // Check onSessionEnd trigger
-        final sessionEndTrigger = team.lifecycleTriggers['onSessionEnd'];
         expect(
-          sessionEndTrigger,
-          isNotNull,
-          reason: 'onSessionEnd trigger should be configured',
+          team!.lifecycleTriggers,
+          isEmpty,
+          reason:
+              'enterprise team should not have lifecycle triggers (removed as not yet supported)',
         );
-        expect(sessionEndTrigger!.enabled, isFalse);
-        expect(sessionEndTrigger.spawn, equals('session-synthesizer'));
-
-        // Check onTaskComplete trigger
-        final taskCompleteTrigger = team.lifecycleTriggers['onTaskComplete'];
-        expect(
-          taskCompleteTrigger,
-          isNotNull,
-          reason: 'onTaskComplete trigger should be configured',
-        );
-        expect(taskCompleteTrigger!.enabled, isFalse);
-        expect(taskCompleteTrigger.spawn, equals('code-reviewer'));
       });
 
       test('session-synthesizer agent exists and can be loaded', () async {
@@ -259,135 +244,10 @@ void main() {
     });
 
     group('End-to-End Trigger Flow Simulation', () {
-      test('simulate onSessionEnd trigger for enterprise team', () async {
-        // 1. Load the team
+      test('enterprise team has no lifecycle triggers to simulate', () async {
         final team = await loader.getTeam('enterprise');
         expect(team, isNotNull);
-
-        // 2. Check trigger config
-        final triggerConfig = team!.lifecycleTriggers['onSessionEnd'];
-        expect(triggerConfig, isNotNull);
-        expect(triggerConfig!.enabled, isFalse);
-        expect(triggerConfig.spawn, equals('session-synthesizer'));
-
-        // 3. Load the agent to be spawned
-        final agentPersonality = await loader.getAgent(triggerConfig.spawn);
-        expect(agentPersonality, isNotNull);
-        expect(agentPersonality!.displayName, equals('Sage'));
-
-        // 4. Build the agent configuration
-        final config = await loader.buildAgentConfiguration(
-          triggerConfig.spawn,
-          teamName: 'enterprise',
-        );
-        expect(config, isNotNull);
-
-        // 5. Create trigger context
-        final network = AgentNetwork(
-          id: 'session-123',
-          goal: 'Build feature X',
-          agents: [
-            AgentMetadata(
-              id: 'main-1',
-              name: 'Elena',
-              type: 'enterprise-lead',
-              createdAt: DateTime.now(),
-              shortDescription: 'Organizes teams',
-            ),
-          ],
-          createdAt: DateTime.now(),
-          lastActiveAt: DateTime.now(),
-          team: 'enterprise',
-        );
-
-        final context = TriggerContext(
-          triggerPoint: TriggerPoint.onSessionEnd,
-          network: network,
-          teamName: 'enterprise',
-        );
-
-        // 6. Verify context generation
-        final contextSection = context.buildContextSection();
-        expect(contextSection, contains('onSessionEnd'));
-        expect(contextSection, contains('session-123'));
-        expect(contextSection, contains('Build feature X'));
-
-        // This would be the prompt sent to the triggered agent
-        print('--- Simulated Trigger Prompt ---');
-        print(
-          'Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})',
-        );
-        print('Trigger: onSessionEnd');
-        print('Context:\n$contextSection');
-        print('--- End ---');
-      });
-
-      test('simulate onTaskComplete trigger for enterprise team', () async {
-        // 1. Load the team
-        final team = await loader.getTeam('enterprise');
-        expect(team, isNotNull);
-
-        // 2. Check trigger config
-        final triggerConfig = team!.lifecycleTriggers['onTaskComplete'];
-        expect(triggerConfig, isNotNull);
-        expect(triggerConfig!.enabled, isFalse);
-        expect(triggerConfig.spawn, equals('code-reviewer'));
-
-        // 3. Load the agent to be spawned
-        final agentPersonality = await loader.getAgent(triggerConfig.spawn);
-        expect(agentPersonality, isNotNull);
-        expect(agentPersonality!.displayName, equals('Tim'));
-
-        // 4. Create trigger context with files changed
-        final network = AgentNetwork(
-          id: 'session-456',
-          goal: 'Add authentication',
-          agents: [
-            AgentMetadata(
-              id: 'main-1',
-              name: 'Elena',
-              type: 'enterprise-lead',
-              createdAt: DateTime.now(),
-            ),
-            AgentMetadata(
-              id: 'impl-1',
-              name: 'Bert',
-              type: 'implementer',
-              createdAt: DateTime.now(),
-              shortDescription: 'Writes code',
-            ),
-          ],
-          createdAt: DateTime.now(),
-          lastActiveAt: DateTime.now(),
-          team: 'enterprise',
-        );
-
-        final context = TriggerContext(
-          triggerPoint: TriggerPoint.onTaskComplete,
-          network: network,
-          teamName: 'enterprise',
-          taskName: 'Implement JWT authentication',
-          filesChanged: [
-            'lib/auth/jwt_service.dart',
-            'lib/auth/auth_middleware.dart',
-            'test/auth/jwt_service_test.dart',
-          ],
-        );
-
-        // 5. Verify context generation
-        final contextSection = context.buildContextSection();
-        expect(contextSection, contains('onTaskComplete'));
-        expect(contextSection, contains('Implement JWT authentication'));
-        expect(contextSection, contains('lib/auth/jwt_service.dart'));
-        expect(contextSection, contains('lib/auth/auth_middleware.dart'));
-
-        print('--- Simulated Trigger Prompt ---');
-        print(
-          'Agent to spawn: ${agentPersonality.displayName} (${agentPersonality.name})',
-        );
-        print('Trigger: onTaskComplete');
-        print('Context:\n$contextSection');
-        print('--- End ---');
+        expect(team!.lifecycleTriggers, isEmpty);
       });
     });
   });

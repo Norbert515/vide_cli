@@ -21,8 +21,8 @@ void main(List<String> args) async {
       'team',
       abbr: 't',
       help:
-          'Team to use: vide, enterprise, startup, balanced, research, ideator',
-      defaultsTo: 'vide',
+          'Team to use: enterprise, vide, flutter, parallel, exp-flutter-qa',
+      defaultsTo: 'enterprise',
     )
     ..addFlag('help', abbr: 'h', help: 'Show this help', negatable: false)
     ..addFlag('version', abbr: 'v', help: 'Show version', negatable: false);

@@ -24,6 +24,7 @@ class AgentPersonality {
     this.traits = const [],
     this.avoids = const [],
     this.include = const [],
+    this.agents = const [],
     this.extendsAgent,
     this.content = '',
   });
@@ -74,6 +75,11 @@ class AgentPersonality {
 
   /// Etiquette protocols/sections to include in system prompt
   final List<String> include;
+
+  /// Sub-agent types this agent can spawn.
+  /// Enables recursive team composition - an agent carries its own team
+  /// definition regardless of which team it belongs to.
+  final List<String> agents;
 
   /// Name of base agent to extend
   final String? extendsAgent;
@@ -127,6 +133,7 @@ class AgentPersonality {
       traits: _parseStringList(yaml['traits']),
       avoids: _parseStringList(yaml['avoids']),
       include: _parseStringList(yaml['include']),
+      agents: _parseStringList(yaml['agents']),
       extendsAgent: yaml['extends'] as String?,
       content: body.trim(),
     );
@@ -152,6 +159,7 @@ class AgentPersonality {
       traits: [...base.traits, ...traits],
       avoids: [...base.avoids, ...avoids],
       include: [...base.include, ...include],
+      agents: agents.isNotEmpty ? agents : base.agents,
       extendsAgent: null, // Already merged
       content: '${base.content}\n\n${content}',
     );

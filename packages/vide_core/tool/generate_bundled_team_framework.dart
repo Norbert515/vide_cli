@@ -46,7 +46,7 @@ void main() async {
   // Read all assets by category
   final bundledAssets = <String, Map<String, String>>{};
 
-  for (final category in ['teams', 'agents', 'etiquette']) {
+  for (final category in ['teams', 'agents', 'etiquette', 'behaviors']) {
     final categoryDir = Directory(path.join(assetsPath, category));
     if (!categoryDir.existsSync()) {
       print('Warning: Category directory not found: ${categoryDir.path}');
@@ -101,7 +101,7 @@ String _generateOutput(Map<String, Map<String, String>> bundledAssets) {
   buffer.writeln();
 
   // Generate constants for each category
-  for (final category in ['teams', 'agents', 'etiquette']) {
+  for (final category in ['teams', 'agents', 'etiquette', 'behaviors']) {
     final assets = bundledAssets[category] ?? {};
 
     buffer.writeln('/// Bundled $category assets.');
@@ -130,6 +130,7 @@ String _generateOutput(Map<String, Map<String, String>> bundledAssets) {
   buffer.writeln("  'teams': bundledTeams,");
   buffer.writeln("  'agents': bundledAgents,");
   buffer.writeln("  'etiquette': bundledEtiquette,");
+  buffer.writeln("  'behaviors': bundledBehaviors,");
   buffer.writeln('};');
 
   return buffer.toString();
