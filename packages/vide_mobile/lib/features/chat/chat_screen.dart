@@ -125,16 +125,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           :final isPartial,
           :final timestamp,
         ):
-        final agentId = event.agent?.id ?? '';
-        final agentType = event.agent?.type ?? '';
-        final agentName = event.agent?.name;
         _handleMessageEvent(
-          eventId: eventId ?? '',
-          agentId: agentId,
-          agentType: agentType,
-          agentName: agentName,
+          eventId: eventId,
+          agentId: event.agentId,
+          agentType: event.agentType,
+          agentName: event.agentName,
           content: content,
-          role: role == vc.MessageRole.user
+          role: role == 'user'
               ? MessageRole.user
               : MessageRole.assistant,
           isPartial: isPartial,
@@ -142,23 +139,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
 
       case vc.StatusEvent(:final status):
-        final agentId = event.agent?.id ?? '';
-        final taskName = event.agent?.taskName;
         notifier.updateAgentStatus(
-            agentId, _convertAgentStatus(status), taskName);
+            event.agentId, _convertAgentStatus(status), event.taskName);
         final agents = ref.read(chatNotifierProvider(widget.sessionId)).agents;
         final anyWorking = agents.any((a) => a.status == AgentStatus.working);
         notifier.setIsAgentWorking(anyWorking);
 
       case vc.ToolUseEvent(:final toolUseId, :final toolName, :final toolInput):
-        final agentId = event.agent?.id ?? '';
-        final agentName = event.agent?.name;
         notifier.addToolUse(ToolUse(
           toolUseId: toolUseId,
           toolName: toolName,
           input: toolInput,
-          agentId: agentId,
-          agentName: agentName,
+          agentId: event.agentId,
+          agentName: event.agentName,
           timestamp: event.timestamp,
         ));
         _scrollToBottom();
@@ -178,15 +171,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ));
         _scrollToBottom();
 
-      case vc.PermissionRequestEvent(:final requestId, :final tool):
-        final agentId = event.agent?.id ?? '';
-        final agentName = event.agent?.name;
+      case vc.PermissionRequestEvent(:final requestId, :final toolName, :final toolInput):
         notifier.setPendingPermission(PermissionRequest(
           requestId: requestId,
-          toolName: tool['name'] as String? ?? '',
-          toolInput: tool['input'] as Map<String, dynamic>? ?? {},
-          agentId: agentId,
-          agentName: agentName,
+          toolName: toolName,
+          toolInput: toolInput,
+          agentId: event.agentId,
+          agentName: event.agentName,
           timestamp: event.timestamp,
         ));
 
@@ -210,23 +201,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
 
       case vc.AgentSpawnedEvent():
-        final agentId = event.agent?.id ?? '';
-        final agentType = event.agent?.type ?? '';
-        final agentName = event.agent?.name ?? 'Agent';
-        final taskName = event.agent?.taskName;
         final agent = Agent(
-          id: agentId,
-          type: agentType,
-          name: agentName,
-          taskName: taskName,
+          id: event.agentId,
+          type: event.agentType,
+          name: event.agentName ?? 'Agent',
+          taskName: event.taskName,
         );
         notifier.addAgent(agent);
 
       case vc.AgentTerminatedEvent():
-        final terminatedAgentId = event.agent?.id ?? '';
-        notifier.removeAgent(terminatedAgentId);
+        notifier.removeAgent(event.agentId);
 
-      case vc.DoneEvent():
+      case vc.TurnCompleteEvent():
         notifier.setIsAgentWorking(false);
 
       case vc.AbortedEvent():
@@ -250,12 +236,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  AgentStatus _convertAgentStatus(vc.AgentStatus status) {
+  AgentStatus _convertAgentStatus(vc.VideAgentStatus status) {
     return switch (status) {
-      vc.AgentStatus.working => AgentStatus.working,
-      vc.AgentStatus.waitingForAgent => AgentStatus.waitingForAgent,
-      vc.AgentStatus.waitingForUser => AgentStatus.waitingForUser,
-      vc.AgentStatus.idle => AgentStatus.idle,
+      vc.VideAgentStatus.working => AgentStatus.working,
+      vc.VideAgentStatus.waitingForAgent => AgentStatus.waitingForAgent,
+      vc.VideAgentStatus.waitingForUser => AgentStatus.waitingForUser,
+      vc.VideAgentStatus.idle => AgentStatus.idle,
     };
   }
 

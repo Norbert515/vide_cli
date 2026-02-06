@@ -27,6 +27,10 @@ dependencies:
   vide_client:
     path: ../vide_client
 
+dependency_overrides:
+  vide_interface:
+    path: ../vide_interface
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
