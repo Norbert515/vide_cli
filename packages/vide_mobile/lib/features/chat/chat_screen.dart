@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../core/providers/connection_state_provider.dart';
+import '../../core/router/app_router.dart';
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
 import '../permissions/permission_sheet.dart';
@@ -467,7 +468,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.sessions),
         ),
         title: const Text('Session'),
         actions: [

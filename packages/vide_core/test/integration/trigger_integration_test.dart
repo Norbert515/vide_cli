@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/services/trigger_service.dart';
 
 /// Get path to the source assets directory for testing.
 String _getSourceAssetsPath() {

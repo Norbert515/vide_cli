@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/services/agent_network_manager.dart';
 
 /// Tests for resuming sessions correctly populating agents in the TUI's container.
 ///

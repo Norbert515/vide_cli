@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/models/claude_settings.dart';
 
 void main() {
   group('LocalSettingsManager', () {

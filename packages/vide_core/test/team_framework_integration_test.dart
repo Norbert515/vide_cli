@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/mcp/mcp_server_type.dart';
 
 void main() {
   group('TeamFrameworkLoader - Integration Tests', () {

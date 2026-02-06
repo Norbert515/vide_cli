@@ -164,7 +164,7 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
         title: const Text('New Session'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.sessions),
         ),
       ),
       floatingActionButton: FilledButton.icon(
