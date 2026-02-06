@@ -19,3 +19,9 @@ pubspec_overrides.yaml
 
 # Experiments package (not ready for release)
 packages/vide_experiments/
+
+# Build artifacts
+build/
+
+# Specs (local design docs)
+specs/
