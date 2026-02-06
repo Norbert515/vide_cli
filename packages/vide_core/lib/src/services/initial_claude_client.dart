@@ -67,7 +67,7 @@ class InitialClaudeClient {
 /// The client is created lazily on first access. Call `ref.read(initialClaudeClientProvider)`
 /// early (e.g., in initState) to trigger initialization.
 ///
-/// Loads the main agent configuration from the team framework. Uses 'vide' team
+/// Loads the main agent configuration from the team framework. Uses 'enterprise' team
 /// as the default team for the main (lead) agent.
 final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
   final workingDirectory = ref.watch(workingDirProvider);
@@ -140,10 +140,10 @@ Future<void> _loadAndApplyRealConfig({
   required AgentId agentId,
 }) async {
   try {
-    // Get main agent from default team (vide)
-    final team = await teamFrameworkLoader.getTeam('vide');
+    // Get main agent from default team (enterprise)
+    final team = await teamFrameworkLoader.getTeam('enterprise');
     if (team == null) {
-      print('Warning: Team "vide" not found in team framework');
+      print('Warning: Team "enterprise" not found in team framework');
       return;
     }
 
@@ -151,7 +151,7 @@ Future<void> _loadAndApplyRealConfig({
 
     final config = await teamFrameworkLoader.buildAgentConfiguration(
       mainAgentName,
-      teamName: 'vide',
+      teamName: 'enterprise',
     );
     if (config == null) {
       print('Warning: Agent configuration not found for: $mainAgentName');

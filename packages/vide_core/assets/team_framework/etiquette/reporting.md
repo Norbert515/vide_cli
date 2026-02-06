@@ -1,7 +1,6 @@
 ---
 name: reporting
 description: How to report status and completion
-applies-to: all
 ---
 
 # Reporting Protocol

@@ -1,7 +1,6 @@
 ---
 name: handoff
 description: How to pass work between agents
-applies-to: all                 # all | specific roles
 ---
 
 # Handoff Protocol

@@ -9,25 +9,12 @@ agents:
   - implementer
   - flutter-tester
 
-process:
-  planning: minimal
-  review: skip
-  testing: recommended
-  documentation: skip
-
-communication:
-  verbosity: low
-  handoff-detail: standard
-  status-updates: on-completion
-
-triggers:
-  - flutter
-  - mobile app
-  - ios
-  - android
-  - widget
-  - hot reload
-  - ui testing
+include:
+  - etiquette/messaging
+  - etiquette/completion
+  - etiquette/reporting
+  - etiquette/escalation
+  - etiquette/handoff
 ---
 
 # Flutter Team

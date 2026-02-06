@@ -39,6 +39,7 @@ class TeamFrameworkLoader {
   // Caches
   Map<String, TeamDefinition>? _teamsCache;
   Map<String, EtiquetteProtocol>? _etiquetteCache;
+  Map<String, EtiquetteProtocol>? _behaviorsCache;
   Map<String, AgentPersonality>? _agentsCache;
 
   /// Load all team definitions.
@@ -64,6 +65,18 @@ class TeamFrameworkLoader {
       getName: (e) => e.name,
     );
     return _etiquetteCache!;
+  }
+
+  /// Load all behavior includes.
+  Future<Map<String, EtiquetteProtocol>> loadBehaviors() async {
+    if (_behaviorsCache != null) return _behaviorsCache!;
+
+    _behaviorsCache = await _loadDefinitions<EtiquetteProtocol>(
+      subdir: 'behaviors',
+      parser: EtiquetteProtocol.fromMarkdown,
+      getName: (b) => b.name,
+    );
+    return _behaviorsCache!;
   }
 
   /// Load all agent personalities.
@@ -94,6 +107,12 @@ class TeamFrameworkLoader {
     return etiquette[name];
   }
 
+  /// Get a specific behavior by name.
+  Future<EtiquetteProtocol?> getBehavior(String name) async {
+    final behaviors = await loadBehaviors();
+    return behaviors[name];
+  }
+
   /// Get a specific agent personality by name.
   Future<AgentPersonality?> getAgent(String name) async {
     final agents = await loadAgents();
@@ -118,19 +137,32 @@ class TeamFrameworkLoader {
 
     // If no triggers matched, return default team
     if (bestTeam == null || bestScore == 0) {
-      return teams['vide'] ?? teams.values.first;
+      return teams['enterprise'] ?? teams.values.first;
     }
 
     return bestTeam;
   }
 
   /// Build the complete system prompt for an agent personality.
-  /// Includes the agent's content plus any included etiquette protocols.
-  Future<String> buildAgentPrompt(AgentPersonality agent) async {
+  ///
+  /// Resolves includes from both the team (if provided) and the agent,
+  /// deduplicating any overlapping include paths. Team includes come first.
+  Future<String> buildAgentPrompt(
+    AgentPersonality agent, {
+    List<String> teamIncludes = const [],
+  }) async {
     final parts = <String>[];
 
-    // Add included etiquette protocols
-    for (final includePath in agent.include) {
+    // Merge team and agent includes, deduplicating (team first)
+    final allIncludes = <String>[...teamIncludes];
+    for (final inc in agent.include) {
+      if (!allIncludes.contains(inc)) {
+        allIncludes.add(inc);
+      }
+    }
+
+    // Resolve all includes
+    for (final includePath in allIncludes) {
       final protocol = await _resolveInclude(includePath);
       if (protocol != null) {
         parts.add(protocol);
@@ -162,20 +194,33 @@ class TeamFrameworkLoader {
       return null;
     }
 
-    // Build the complete system prompt with includes
-    var systemPrompt = await buildAgentPrompt(agent);
+    // Load team if specified (used for includes and available agents)
+    TeamDefinition? team;
+    if (teamName != null) {
+      team = await getTeam(teamName);
+    }
 
-    // If team is specified and agent has vide-agent MCP, inject available agent types
-    if (teamName != null &&
-        agent.mcpServers.any(
-          (s) => s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent',
-        )) {
-      final team = await getTeam(teamName);
-      if (team != null) {
-        final availableAgents = _buildAvailableAgentsSection(team);
-        if (availableAgents.isNotEmpty) {
-          systemPrompt = '$availableAgents\n\n$systemPrompt';
-        }
+    // Build the complete system prompt with team + agent includes
+    var systemPrompt = await buildAgentPrompt(
+      agent,
+      teamIncludes: team?.include ?? const [],
+    );
+
+    // If agent has vide-agent MCP, inject available agent types.
+    // Agent-level agents take precedence over team-level agents.
+    if (agent.mcpServers.any(
+      (s) => s.toLowerCase() == 'vide-agent' || s.toLowerCase() == 'agent',
+    )) {
+      final agentTypes = agent.agents.isNotEmpty
+          ? agent.agents
+          : team?.agents ?? const <String>[];
+      if (agentTypes.isNotEmpty) {
+        final teamName = team?.name ?? 'this';
+        final availableAgents = _buildAvailableAgentsSection(
+          agentTypes,
+          teamName,
+        );
+        systemPrompt = '$availableAgents\n\n$systemPrompt';
       }
     }
 
@@ -236,17 +281,18 @@ class TeamFrameworkLoader {
 
   /// Build the available agents section for injection into agent prompts.
   ///
-  /// This tells the agent what agent types they can spawn in their team.
-  String _buildAvailableAgentsSection(TeamDefinition team) {
-    if (team.agents.isEmpty) {
-      return '';
-    }
+  /// This tells the agent what agent types they can spawn.
+  /// [agentTypes] is the list of agent type names (from agent or team).
+  /// [teamName] is the team name for context.
+  String _buildAvailableAgentsSection(
+    List<String> agentTypes,
+    String teamName,
+  ) {
+    final agentsList = agentTypes.map((a) => '- `$a`').join('\n');
 
-    final agentsList = team.agents.map((a) => '- `$a`').join('\n');
+    return '''## Available Agent Types
 
-    return '''## Available Agent Types in This Team
-
-When using \`spawnAgent\`, you MUST use one of these agent type names from the "${team.name}" team:
+When using \`spawnAgent\`, you MUST use one of these agent type names from the "$teamName" team:
 
 $agentsList
 
@@ -254,7 +300,7 @@ $agentsList
   }
 
   /// Resolve an include path to content.
-  /// Supports paths like "etiquette/handoff"
+  /// Supports paths like "etiquette/handoff" or "behaviors/qa-review-cycle"
   Future<String?> _resolveInclude(String includePath) async {
     final parts = includePath.split('/');
     if (parts.length != 2) return null;
@@ -266,6 +312,9 @@ $agentsList
       case 'etiquette':
         final protocol = await getEtiquette(name);
         return protocol?.content;
+      case 'behaviors':
+        final behavior = await getBehavior(name);
+        return behavior?.content;
       default:
         return null;
     }
@@ -338,6 +387,7 @@ $agentsList
       'teams' => bundledTeams,
       'agents' => bundledAgents,
       'etiquette' => bundledEtiquette,
+      'behaviors' => bundledBehaviors,
       _ => <String, String>{},
     };
 
@@ -388,6 +438,7 @@ $agentsList
   void clearCache() {
     _teamsCache = null;
     _etiquetteCache = null;
+    _behaviorsCache = null;
     _agentsCache = null;
   }
 }

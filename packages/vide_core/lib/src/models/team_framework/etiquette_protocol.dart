@@ -1,19 +1,14 @@
 import 'package:yaml/yaml.dart';
 
-/// Represents an etiquette protocol loaded from a .md file.
+/// Represents an etiquette protocol or behavior loaded from a .md file.
 ///
-/// Etiquette protocols define HOW agents communicate, including:
-/// - Handoff formats
-/// - Escalation procedures
-/// - Reporting standards
-/// - Messaging conventions
+/// Used for both etiquette protocols and behaviors - composable prompt
+/// fragments that can be included by agents or teams via the `include:` field.
 class EtiquetteProtocol {
   const EtiquetteProtocol({
     required this.name,
     required this.description,
     required this.filePath,
-    this.appliesTo = AppliesTo.all,
-    this.specificRoles = const [],
     this.content = '',
   });
 
@@ -25,12 +20,6 @@ class EtiquetteProtocol {
 
   /// Path to the source markdown file
   final String filePath;
-
-  /// Who this protocol applies to
-  final AppliesTo appliesTo;
-
-  /// Specific roles this applies to (if appliesTo is 'specific')
-  final List<String> specificRoles;
 
   /// The markdown body content (the actual protocol instructions)
   final String content;
@@ -60,55 +49,18 @@ class EtiquetteProtocol {
       throw FormatException('Missing required field "name" in $filePath');
     }
 
-    // Parse applies-to
-    final appliesToValue = yaml['applies-to'] as String?;
-    AppliesTo appliesTo;
-    List<String> specificRoles = [];
-
-    if (appliesToValue == null || appliesToValue == 'all') {
-      appliesTo = AppliesTo.all;
-    } else if (appliesToValue.contains(',')) {
-      // List of specific roles
-      appliesTo = AppliesTo.specific;
-      specificRoles = appliesToValue
-          .split(',')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-    } else {
-      appliesTo = AppliesTo.specific;
-      specificRoles = [appliesToValue];
-    }
-
     return EtiquetteProtocol(
       name: name,
       description: description,
       filePath: filePath,
-      appliesTo: appliesTo,
-      specificRoles: specificRoles,
       content: body.trim(),
     );
   }
 
-  /// Check if this protocol applies to the given role.
-  bool appliesToRole(String roleName) {
-    if (appliesTo == AppliesTo.all) return true;
-    return specificRoles.contains(roleName);
-  }
-
   @override
   String toString() {
-    return 'EtiquetteProtocol(name: $name, appliesTo: ${appliesTo.name})';
+    return 'EtiquetteProtocol(name: $name)';
   }
-}
-
-/// Who the protocol applies to
-enum AppliesTo {
-  /// Applies to all roles/agents
-  all,
-
-  /// Applies to specific roles only
-  specific,
 }
 
 /// Extract YAML frontmatter and markdown body from content.

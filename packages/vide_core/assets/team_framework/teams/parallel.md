@@ -7,23 +7,12 @@ main-agent: dispatcher
 agents:
   - worker
 
-process:
-  planning: minimal
-  review: skip
-  testing: recommended
-  documentation: skip
-
-communication:
-  verbosity: low
-  handoff-detail: standard
-  status-updates: on-completion
-
-triggers:
-  - "parallel"
-  - "worktree"
-  - "isolated"
-  - "multiple features"
-  - "branch"
+include:
+  - etiquette/messaging
+  - etiquette/completion
+  - etiquette/reporting
+  - etiquette/escalation
+  - etiquette/handoff
 ---
 
 # Parallel Team

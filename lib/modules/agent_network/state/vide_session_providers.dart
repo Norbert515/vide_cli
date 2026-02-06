@@ -174,10 +174,10 @@ final conversationStateChangedProvider = StreamProvider<void>((ref) {
 
 /// Provider for the current team name.
 ///
-/// Defaults to 'vide' if not set.
+/// Defaults to 'enterprise' if not set.
 /// This should be persisted to settings when changed.
 final currentTeamProvider = StateProvider<String>((ref) {
-  return 'vide';
+  return 'enterprise';
 });
 
 /// Provider for the current team definition.

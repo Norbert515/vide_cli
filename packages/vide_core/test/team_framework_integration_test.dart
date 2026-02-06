@@ -117,22 +117,28 @@ void main() {
       });
 
       test('includes are resolved correctly in implementer', () async {
-        final config = await loader.buildAgentConfiguration('implementer');
+        final config = await loader.buildAgentConfiguration(
+          'implementer',
+          teamName: 'vide',
+        );
 
         expect(config, isNotNull);
-        // Should include etiquette/messaging content
+        // Etiquette comes from the team includes
         expect(
           config!.systemPrompt,
           contains('sendMessageToAgent'),
-          reason: 'Missing messaging etiquette content',
+          reason: 'Missing messaging etiquette content from team',
         );
       });
 
       test('includes are resolved correctly in main', () async {
-        final config = await loader.buildAgentConfiguration('main');
+        final config = await loader.buildAgentConfiguration(
+          'main',
+          teamName: 'vide',
+        );
 
         expect(config, isNotNull);
-        // Should include messaging and handoff etiquette
+        // Main agent content includes orchestrator guidance
         expect(
           config!.systemPrompt,
           contains('ORCHESTRATOR'),
@@ -178,15 +184,18 @@ void main() {
         expect(config!.model, 'opus');
       });
 
-      test('implementer has acceptEdits permission mode', () async {
+      test('implementer has no permission mode (managed externally)', () async {
         final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
-        expect(config!.permissionMode, 'acceptEdits');
+        expect(config!.permissionMode, isNull);
       });
 
       test('system prompt contains complete guidance', () async {
-        final config = await loader.buildAgentConfiguration('implementer');
+        final config = await loader.buildAgentConfiguration(
+          'implementer',
+          teamName: 'vide',
+        );
 
         expect(config, isNotNull);
         final prompt = config!.systemPrompt;
@@ -241,17 +250,32 @@ void main() {
     });
 
     group('Include resolution', () {
-      test('etiquette includes are resolved', () async {
+      test('team includes are resolved into agent prompt', () async {
+        final team = await loader.getTeam('vide');
+        expect(team, isNotNull);
+        expect(team!.include.isNotEmpty, true);
+
         final agent = await loader.getAgent('implementer');
         expect(agent, isNotNull);
-        expect(agent!.include.isNotEmpty, true);
+
+        final prompt = await loader.buildAgentPrompt(
+          agent!,
+          teamIncludes: team.include,
+        );
+        expect(
+          prompt,
+          contains('sendMessageToAgent'),
+          reason: 'Prompt should include team etiquette content',
+        );
       });
 
       test('resolved include content appears in prompt', () async {
-        final agent = await loader.getAgent('implementer');
+        final agent = await loader.getAgent('feature-lead');
         expect(agent, isNotNull);
+        // feature-lead has behaviors/qa-review-cycle in its own includes
+        expect(agent!.include.isNotEmpty, true);
 
-        final prompt = await loader.buildAgentPrompt(agent!);
+        final prompt = await loader.buildAgentPrompt(agent);
         expect(
           prompt.length,
           greaterThan(agent.content.length),

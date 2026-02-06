@@ -1,7 +1,6 @@
 ---
 name: messaging
 description: Core rules for agent-to-agent messaging
-applies-to: all
 ---
 
 # Messaging Protocol

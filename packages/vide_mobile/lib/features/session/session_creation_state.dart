@@ -20,7 +20,7 @@ class SessionCreationState with _$SessionCreationState {
   const factory SessionCreationState({
     @Default('') String initialMessage,
     @Default('') String workingDirectory,
-    @Default('vide') String team,
+    @Default('enterprise') String team,
     @Default(PermissionMode.defaultMode) PermissionMode permissionMode,
     @Default(false) bool isCreating,
     String? error,

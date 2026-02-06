@@ -8,10 +8,9 @@ disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
 mcpServers: vide-agent, vide-git, vide-task-management
 
 model: opus
-permissionMode: acceptEdits
 
-include:
-  - etiquette/messaging
+agents:
+  - worker
 ---
 
 # DISPATCHER - DELEGATE IMMEDIATELY

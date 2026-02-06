@@ -1,7 +1,6 @@
 ---
 name: brief-reporting
 description: Minimal reporting for high-throughput agents
-applies-to: test-runner, worker
 ---
 
 # Brief Reporting Protocol

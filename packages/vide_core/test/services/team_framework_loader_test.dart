@@ -25,7 +25,7 @@ Future<String> _createTestVideHome() async {
   final tempDir = await Directory.systemTemp.createTemp('vide_test_');
   final defaultsDir = Directory(path.join(tempDir.path, 'defaults'));
 
-  for (final subdir in ['teams', 'agents', 'etiquette']) {
+  for (final subdir in ['teams', 'agents', 'etiquette', 'behaviors']) {
     final targetDir = Directory(path.join(defaultsDir.path, subdir));
     await targetDir.create(recursive: true);
 
@@ -173,11 +173,14 @@ void main() {
         expect(config.model, isNotNull);
       });
 
-      test('buildAgentConfiguration includes etiquette', () async {
-        final config = await loader.buildAgentConfiguration('main');
+      test('buildAgentConfiguration includes etiquette from team', () async {
+        final config = await loader.buildAgentConfiguration(
+          'main',
+          teamName: 'vide',
+        );
 
         expect(config, isNotNull);
-        // Main agent includes etiquette/messaging
+        // Etiquette comes from the team, not the agent
         expect(config!.systemPrompt.toLowerCase(), contains('message'));
       });
 
@@ -189,19 +192,37 @@ void main() {
     });
 
     group('Team Selection', () {
-      test('findBestTeam returns vide for generic tasks', () async {
+      test('findBestTeam returns enterprise for generic tasks', () async {
         final team = await loader.findBestTeam('add a button');
 
         expect(team, isNotNull);
-        // Default should be vide
-        expect(team!.name, 'vide');
+        // Default should be enterprise
+        expect(team!.name, 'enterprise');
+      });
+    });
+
+    group('Behavior Loading', () {
+      test('qa-review-cycle behavior loads', () async {
+        final behavior = await loader.getBehavior('qa-review-cycle');
+
+        expect(behavior, isNotNull);
+        expect(behavior!.name, 'qa-review-cycle');
+        expect(behavior.content, contains('qa-breaker'));
       });
 
-      test('findBestTeam considers triggers', () async {
-        final team = await loader.findBestTeam('production security fix');
+      test('behavior includes resolve in agent prompts', () async {
+        final config = await loader.buildAgentConfiguration('enterprise-lead');
 
-        expect(team, isNotNull);
-        expect(team!.name, 'enterprise');
+        expect(config, isNotNull);
+        // enterprise-lead includes behaviors/qa-review-cycle
+        expect(config!.systemPrompt, contains('QA Review Cycle'));
+      });
+
+      test('feature-lead includes qa-review-cycle behavior', () async {
+        final config = await loader.buildAgentConfiguration('feature-lead');
+
+        expect(config, isNotNull);
+        expect(config!.systemPrompt, contains('QA Review Cycle'));
       });
     });
 

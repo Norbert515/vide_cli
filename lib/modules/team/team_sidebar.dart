@@ -48,7 +48,7 @@ class _TeamSidebarState extends State<TeamSidebar>
   double _currentWidth = 5.0;
 
   // Team data
-  String _currentTeamName = 'vide';
+  String _currentTeamName = 'enterprise';
   Map<String, dynamic>? _currentTeamData;
   List<String> _availableTeams = [];
   bool _teamsLoading = false;
