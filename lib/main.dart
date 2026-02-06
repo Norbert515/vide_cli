@@ -136,6 +136,10 @@ Future<void> main(
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
       if (forceLocal) forceLocalModeProvider.overrideWith((ref) => true),
       if (forceDaemon) forceDaemonModeProvider.overrideWith((ref) => true),
+      if (forceLocal)
+        daemonModeEnabledProvider.overrideWith((ref) => false)
+      else if (forceDaemon || remoteConfig != null)
+        daemonModeEnabledProvider.overrideWith((ref) => true),
       // Session-scoped skip permissions (CLI flag, not persisted)
       if (dangerouslySkipPermissions)
         dangerouslySkipPermissionsProvider.overrideWith((ref) => true),

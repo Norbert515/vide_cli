@@ -184,6 +184,7 @@ class VideCore {
     final session = VideSession.create(
       networkId: network.id,
       container: finalContainer,
+      initialMessage: config.initialMessage,
     );
 
     // Bind session to permission handler (enables late binding)
@@ -267,6 +268,7 @@ class VideCore {
     final session = VideSession.create(
       networkId: network.id,
       container: sessionContainer,
+      initialMessage: message.text,
     );
 
     // Bind session to permission handler (enables late binding)
@@ -428,6 +430,9 @@ class VideCore {
       networkId: networkId,
       container: _container,
     );
+
+    // Bind session to permission handler (enables late binding)
+    _permissionHandler.setSession(session);
 
     _activeSessions[networkId] = session;
     return session;

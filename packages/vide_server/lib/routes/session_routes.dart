@@ -181,7 +181,11 @@ class _SimplifiedStreamHandler {
       agents: agents
           .map((a) => AgentInfo(id: a.id, type: a.type, name: a.name))
           .toList(),
-      metadata: {'working-directory': session.workingDirectory},
+      metadata: {
+        'working-directory': session.workingDirectory,
+        'goal': session.goal,
+        'team': session.team,
+      },
     );
     channel.sink.add(connectedEvent.toJsonString());
     _log.info('[Session $sessionId] Sent connected event');
@@ -287,14 +291,20 @@ class _SimplifiedStreamHandler {
         _handleUserMessage(msg);
       case PermissionResponse msg:
         _handlePermissionResponse(msg);
+      case AskUserQuestionResponseMessage msg:
+        _handleAskUserQuestionResponse(msg);
+      case SessionCommandMessage msg:
+        unawaited(_handleSessionCommand(msg));
       case AbortMessage _:
         _handleAbort();
     }
   }
 
   void _handleUserMessage(UserMessage msg) {
-    _log.info('[Session $sessionId] User message: ${msg.content}');
-    session.sendMessage(Message.text(msg.content));
+    _log.info(
+      '[Session $sessionId] User message: ${msg.content} (agent=${msg.agentId ?? "main"})',
+    );
+    session.sendMessage(Message.text(msg.content), agentId: msg.agentId);
   }
 
   void _handlePermissionResponse(PermissionResponse msg) {
@@ -311,6 +321,173 @@ class _SimplifiedStreamHandler {
       allow: msg.allow,
       message: msg.message,
     );
+  }
+
+  void _handleAskUserQuestionResponse(AskUserQuestionResponseMessage msg) {
+    _log.info(
+      '[Session $sessionId] AskUserQuestion response: ${msg.requestId} (${msg.answers.length} answers)',
+    );
+
+    session.respondToAskUserQuestion(msg.requestId, answers: msg.answers);
+  }
+
+  Future<void> _handleSessionCommand(SessionCommandMessage msg) async {
+    _log.info('[Session $sessionId] Session command: ${msg.command}');
+
+    try {
+      final result = await _executeSessionCommand(msg.command, msg.data);
+      _sendCommandResult(
+        CommandResultEvent(
+          requestId: msg.requestId,
+          command: msg.command,
+          success: true,
+          result: result,
+        ),
+      );
+    } catch (e) {
+      _log.warning(
+        '[Session $sessionId] Session command failed: ${msg.command} - $e',
+      );
+      _sendCommandResult(
+        CommandResultEvent(
+          requestId: msg.requestId,
+          command: msg.command,
+          success: false,
+          errorMessage: e.toString(),
+          errorCode: 'COMMAND_FAILED',
+        ),
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>?> _executeSessionCommand(
+    String command,
+    Map<String, dynamic> data,
+  ) async {
+    switch (command) {
+      case 'abort-agent':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        await session.abortAgent(agentId);
+        return null;
+
+      case 'clear-conversation':
+        await session.clearConversation(agentId: data['agent-id'] as String?);
+        return null;
+
+      case 'set-worktree-path':
+        await session.setWorktreePath(data['path'] as String?);
+        return {'working-directory': session.workingDirectory};
+
+      case 'terminate-agent':
+        final agentId = data['agent-id'] as String?;
+        final terminatedBy = data['terminated-by'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        if (terminatedBy == null || terminatedBy.isEmpty) {
+          throw ArgumentError('Missing required field: terminated-by');
+        }
+        await session.terminateAgent(
+          agentId,
+          terminatedBy: terminatedBy,
+          reason: data['reason'] as String?,
+        );
+        return null;
+
+      case 'fork-agent':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        final newAgentId = await session.forkAgent(
+          agentId,
+          name: data['name'] as String?,
+        );
+        return {'agent-id': newAgentId};
+
+      case 'spawn-agent':
+        final agentType = data['agent-type'] as String?;
+        final name = data['name'] as String?;
+        final initialPrompt = data['initial-prompt'] as String?;
+        final spawnedBy = data['spawned-by'] as String?;
+        if (agentType == null || agentType.isEmpty) {
+          throw ArgumentError('Missing required field: agent-type');
+        }
+        if (name == null || name.isEmpty) {
+          throw ArgumentError('Missing required field: name');
+        }
+        if (initialPrompt == null || initialPrompt.isEmpty) {
+          throw ArgumentError('Missing required field: initial-prompt');
+        }
+        if (spawnedBy == null || spawnedBy.isEmpty) {
+          throw ArgumentError('Missing required field: spawned-by');
+        }
+
+        final newAgentId = await session.spawnAgent(
+          agentType: agentType,
+          name: name,
+          initialPrompt: initialPrompt,
+          spawnedBy: spawnedBy,
+        );
+        return {'agent-id': newAgentId};
+
+      case 'get-queued-message':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        return {'message': await session.getQueuedMessage(agentId)};
+
+      case 'clear-queued-message':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        await session.clearQueuedMessage(agentId);
+        return null;
+
+      case 'get-model':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        return {'model': await session.getModel(agentId)};
+
+      case 'add-session-permission-pattern':
+        final pattern = data['pattern'] as String?;
+        if (pattern == null || pattern.isEmpty) {
+          throw ArgumentError('Missing required field: pattern');
+        }
+        await session.addSessionPermissionPattern(pattern);
+        return null;
+
+      case 'is-allowed-by-session-cache':
+        final toolName = data['tool-name'] as String?;
+        final input = data['input'] as Map<String, dynamic>?;
+        if (toolName == null || toolName.isEmpty) {
+          throw ArgumentError('Missing required field: tool-name');
+        }
+        if (input == null) {
+          throw ArgumentError('Missing required field: input');
+        }
+        return {
+          'allowed': await session.isAllowedBySessionCache(toolName, input),
+        };
+
+      case 'clear-session-permission-cache':
+        await session.clearSessionPermissionCache();
+        return null;
+
+      default:
+        throw ArgumentError('Unknown session command: $command');
+    }
+  }
+
+  void _sendCommandResult(CommandResultEvent event) {
+    channel.sink.add(event.toJsonString());
   }
 
   void _handleAbort() {

@@ -60,6 +60,10 @@ abstract class ClientMessage {
         return UserMessage.fromJson(json);
       case 'permission-response':
         return PermissionResponse.fromJson(json);
+      case 'ask-user-question-response':
+        return AskUserQuestionResponseMessage.fromJson(json);
+      case 'session-command':
+        return SessionCommandMessage.fromJson(json);
       case 'abort':
         return AbortMessage();
       default:
@@ -74,14 +78,21 @@ class UserMessage implements ClientMessage {
   String get type => 'user-message';
 
   final String content;
+  final String? agentId;
   final String? model;
   final String? permissionMode;
 
-  UserMessage({required this.content, this.model, this.permissionMode});
+  UserMessage({
+    required this.content,
+    this.agentId,
+    this.model,
+    this.permissionMode,
+  });
 
   factory UserMessage.fromJson(Map<String, dynamic> json) {
     return UserMessage(
       content: json['content'] as String,
+      agentId: json['agent-id'] as String?,
       model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
     );
@@ -112,10 +123,99 @@ class PermissionResponse implements ClientMessage {
   }
 }
 
+/// AskUserQuestion response (client -> server)
+class AskUserQuestionResponseMessage implements ClientMessage {
+  @override
+  String get type => 'ask-user-question-response';
+
+  final String requestId;
+  final Map<String, String> answers;
+
+  AskUserQuestionResponseMessage({
+    required this.requestId,
+    required this.answers,
+  });
+
+  factory AskUserQuestionResponseMessage.fromJson(Map<String, dynamic> json) {
+    final rawAnswers = json['answers'] as Map<String, dynamic>? ?? {};
+    return AskUserQuestionResponseMessage(
+      requestId: json['request-id'] as String,
+      answers: rawAnswers.map(
+        (key, value) => MapEntry(key, value?.toString() ?? ''),
+      ),
+    );
+  }
+}
+
+/// Generic session command request (client -> server)
+class SessionCommandMessage implements ClientMessage {
+  @override
+  String get type => 'session-command';
+
+  final String requestId;
+  final String command;
+  final Map<String, dynamic> data;
+
+  SessionCommandMessage({
+    required this.requestId,
+    required this.command,
+    required this.data,
+  });
+
+  factory SessionCommandMessage.fromJson(Map<String, dynamic> json) {
+    return SessionCommandMessage(
+      requestId: json['request-id'] as String,
+      command: json['command'] as String,
+      data: Map<String, dynamic>.from(
+        json['data'] as Map<String, dynamic>? ?? const {},
+      ),
+    );
+  }
+}
+
 /// Abort message (client → server)
 class AbortMessage implements ClientMessage {
   @override
   String get type => 'abort';
+}
+
+/// Command result event (server -> requesting client only)
+class CommandResultEvent {
+  final String requestId;
+  final String command;
+  final bool success;
+  final Map<String, dynamic>? result;
+  final String? errorMessage;
+  final String? errorCode;
+  final DateTime timestamp;
+
+  CommandResultEvent({
+    required this.requestId,
+    required this.command,
+    required this.success,
+    this.result,
+    this.errorMessage,
+    this.errorCode,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'type': 'command-result',
+    'timestamp': timestamp.toIso8601String(),
+    'data': {
+      'request-id': requestId,
+      'command': command,
+      'success': success,
+      if (result != null) 'result': result,
+      if (errorMessage != null)
+        'error': {
+          'message': errorMessage,
+          if (errorCode != null) 'code': errorCode,
+        },
+    },
+  };
+
+  String toJsonString() => jsonEncode(toJson());
 }
 
 /// Sequence number generator for session events

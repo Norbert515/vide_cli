@@ -624,6 +624,8 @@ void main() {
         expect(connectedEvent!['agents'], isA<List>());
         expect(connectedEvent!['metadata'], isA<Map>());
         expect(connectedEvent!['metadata']['working-directory'], isNotEmpty);
+        expect(connectedEvent!['metadata']['goal'], isNotEmpty);
+        expect(connectedEvent!['metadata']['team'], isNotEmpty);
       });
 
       // NOTE: This test is expected to FAIL until status events are implemented

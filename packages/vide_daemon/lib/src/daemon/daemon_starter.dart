@@ -292,6 +292,7 @@ class DaemonStarter {
     print('║    GET    /sessions        - List all sessions               ║');
     print('║    GET    /sessions/:id    - Get session details             ║');
     print('║    DELETE /sessions/:id    - Stop a session                  ║');
+    print('║    WS     /sessions/:id/stream - Session event stream        ║');
     print('║    WS     /daemon          - Real-time daemon events         ║');
     print('╚══════════════════════════════════════════════════════════════╝');
     print('');

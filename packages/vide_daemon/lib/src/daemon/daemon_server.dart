@@ -22,7 +22,7 @@ class DaemonServer {
   final DateTime startedAt = DateTime.now();
 
   HttpServer? _server;
-  final List<WebSocketChannel> _wsClients = [];
+  final Map<WebSocketChannel, _DaemonWebSocketClientContext> _wsClients = {};
   StreamSubscription<DaemonEvent>? _eventSubscription;
 
   final Logger _log = Logger('DaemonServer');
@@ -59,7 +59,7 @@ class DaemonServer {
     await _eventSubscription?.cancel();
 
     // Close all WebSocket connections
-    for (final client in _wsClients) {
+    for (final client in _wsClients.keys.toList()) {
       await client.sink.close();
     }
     _wsClients.clear();
@@ -77,6 +77,7 @@ class DaemonServer {
     // Session management
     router.post('/sessions', _handleCreateSession);
     router.get('/sessions', _handleListSessions);
+    router.get('/sessions/<sessionId>/stream', _handleSessionStreamWebSocket);
     router.get('/sessions/<sessionId>', _handleGetSession);
     router.delete('/sessions/<sessionId>', _handleStopSession);
 
@@ -125,6 +126,13 @@ class DaemonServer {
           return handler(request);
         }
 
+        // WebSocket clients often pass auth token as query parameter
+        // because custom headers are not consistently available.
+        final queryToken = request.url.queryParameters['token'];
+        if (_isWebSocketAuthPath(request.url.path) && queryToken == authToken) {
+          return handler(request);
+        }
+
         // Check Authorization header
         final authHeader = request.headers['authorization'];
         if (authHeader == null) {
@@ -153,6 +161,10 @@ class DaemonServer {
         return handler(request);
       };
     };
+  }
+
+  bool _isWebSocketAuthPath(String path) {
+    return path == 'daemon' || path.endsWith('/stream');
   }
 
   Future<Response> _handleHealth(Request request) async {
@@ -186,8 +198,8 @@ class DaemonServer {
       final response = CreateSessionResponse(
         sessionId: session.sessionId,
         mainAgentId: session.mainAgentId,
-        wsUrl: session.wsUrl,
-        httpUrl: session.httpUrl,
+        wsUrl: _buildSessionProxyWsUrl(request, session.sessionId),
+        httpUrl: _buildDaemonBaseHttpUrl(request),
         port: session.port,
         createdAt: session.createdAt,
       );
@@ -224,11 +236,116 @@ class DaemonServer {
       );
     }
 
-    final response = session.toDetails();
+    final sessionDetails = session.toDetails();
+    final response = SessionDetailsResponse(
+      sessionId: sessionDetails.sessionId,
+      workingDirectory: sessionDetails.workingDirectory,
+      goal: sessionDetails.goal,
+      wsUrl: _buildSessionProxyWsUrl(request, sessionId),
+      httpUrl: _buildDaemonBaseHttpUrl(request),
+      port: sessionDetails.port,
+      createdAt: sessionDetails.createdAt,
+      lastActiveAt: sessionDetails.lastActiveAt,
+      state: sessionDetails.state,
+      connectedClients: sessionDetails.connectedClients,
+      pid: sessionDetails.pid,
+    );
     return Response.ok(
       jsonEncode(response.toJson()),
       headers: {'Content-Type': 'application/json'},
     );
+  }
+
+  FutureOr<Response> _handleSessionStreamWebSocket(
+    Request request,
+    String sessionId,
+  ) {
+    final session = registry.getSession(sessionId);
+    if (session == null) {
+      return Response.notFound(
+        jsonEncode({'error': 'Session not found'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    return webSocketHandler((WebSocketChannel clientChannel, String? protocol) {
+      final upstreamUrl = session.wsUrl;
+      final upstreamChannel = WebSocketChannel.connect(Uri.parse(upstreamUrl));
+      var closed = false;
+
+      void closeProxy() {
+        if (closed) return;
+        closed = true;
+        unawaited(clientChannel.sink.close());
+        unawaited(upstreamChannel.sink.close());
+      }
+
+      clientChannel.stream.listen(
+        (message) {
+          if (closed) return;
+          try {
+            upstreamChannel.sink.add(message);
+          } catch (error) {
+            _log.warning(
+              'Failed forwarding client message for session $sessionId: $error',
+            );
+            closeProxy();
+          }
+        },
+        onError: (error) {
+          _log.warning('Session proxy client error for $sessionId: $error');
+          closeProxy();
+        },
+        onDone: closeProxy,
+      );
+
+      upstreamChannel.stream.listen(
+        (message) {
+          if (closed) return;
+          try {
+            clientChannel.sink.add(message);
+          } catch (error) {
+            _log.warning(
+              'Failed forwarding upstream message for session $sessionId: $error',
+            );
+            closeProxy();
+          }
+        },
+        onError: (error) {
+          _log.warning('Session proxy upstream error for $sessionId: $error');
+          closeProxy();
+        },
+        onDone: closeProxy,
+      );
+    })(request);
+  }
+
+  String _buildDaemonBaseHttpUrl(Request request) {
+    final uri = request.requestedUri;
+    final defaultPort = uri.scheme == 'https' ? 443 : 80;
+    final baseUri = uri.port == defaultPort
+        ? Uri(scheme: uri.scheme, host: uri.host)
+        : Uri(scheme: uri.scheme, host: uri.host, port: uri.port);
+    return baseUri.toString();
+  }
+
+  String _buildSessionProxyWsUrl(Request request, String sessionId) {
+    final uri = request.requestedUri;
+    final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
+    final defaultPort = wsScheme == 'wss' ? 443 : 80;
+    final streamUri = uri.port == defaultPort
+        ? Uri(
+            scheme: wsScheme,
+            host: uri.host,
+            path: '/sessions/$sessionId/stream',
+          )
+        : Uri(
+            scheme: wsScheme,
+            host: uri.host,
+            port: uri.port,
+            path: '/sessions/$sessionId/stream',
+          );
+    return streamUri.toString();
   }
 
   Future<Response> _handleStopSession(Request request, String sessionId) async {
@@ -256,9 +373,10 @@ class DaemonServer {
   }
 
   FutureOr<Response> _handleDaemonWebSocket(Request request) {
+    final clientContext = _DaemonWebSocketClientContext.fromRequest(request);
     return webSocketHandler((WebSocketChannel channel, String? protocol) {
       _log.info('WebSocket client connected');
-      _wsClients.add(channel);
+      _wsClients[channel] = clientContext;
 
       // Send initial status
       channel.sink.add(
@@ -287,13 +405,77 @@ class DaemonServer {
   }
 
   void _broadcastEvent(DaemonEvent event) {
-    final message = event.toJsonString();
-    for (final client in _wsClients) {
+    for (final entry in _wsClients.entries) {
+      final client = entry.key;
+      final clientContext = entry.value;
+      final message = _rewriteEventForClient(
+        event,
+        clientContext,
+      ).toJsonString();
       try {
         client.sink.add(message);
       } catch (e) {
         _log.warning('Failed to send event to client: $e');
       }
     }
+  }
+
+  DaemonEvent _rewriteEventForClient(
+    DaemonEvent event,
+    _DaemonWebSocketClientContext clientContext,
+  ) {
+    if (event is! SessionCreatedEvent) {
+      return event;
+    }
+
+    return SessionCreatedEvent(
+      sessionId: event.sessionId,
+      workingDirectory: event.workingDirectory,
+      wsUrl: clientContext.sessionStreamWsUrl(event.sessionId),
+      httpUrl: clientContext.httpBaseUrl,
+      port: event.port,
+      createdAt: event.createdAt,
+    );
+  }
+}
+
+class _DaemonWebSocketClientContext {
+  final String httpBaseUrl;
+  final String wsBaseUrl;
+
+  const _DaemonWebSocketClientContext({
+    required this.httpBaseUrl,
+    required this.wsBaseUrl,
+  });
+
+  factory _DaemonWebSocketClientContext.fromRequest(Request request) {
+    final requestedUri = request.requestedUri;
+    final httpDefaultPort = requestedUri.scheme == 'https' ? 443 : 80;
+    final wsScheme = requestedUri.scheme == 'https' ? 'wss' : 'ws';
+    final wsDefaultPort = wsScheme == 'wss' ? 443 : 80;
+
+    final httpBaseUri = requestedUri.port == httpDefaultPort
+        ? Uri(scheme: requestedUri.scheme, host: requestedUri.host)
+        : Uri(
+            scheme: requestedUri.scheme,
+            host: requestedUri.host,
+            port: requestedUri.port,
+          );
+    final wsBaseUri = requestedUri.port == wsDefaultPort
+        ? Uri(scheme: wsScheme, host: requestedUri.host)
+        : Uri(
+            scheme: wsScheme,
+            host: requestedUri.host,
+            port: requestedUri.port,
+          );
+
+    return _DaemonWebSocketClientContext(
+      httpBaseUrl: httpBaseUri.toString(),
+      wsBaseUrl: wsBaseUri.toString(),
+    );
+  }
+
+  String sessionStreamWsUrl(String sessionId) {
+    return '$wsBaseUrl/sessions/$sessionId/stream';
   }
 }

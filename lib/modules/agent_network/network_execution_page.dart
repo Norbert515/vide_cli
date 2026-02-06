@@ -32,9 +32,14 @@ class NetworkExecutionPage extends StatefulComponent {
 
   const NetworkExecutionPage({required this.networkId, super.key});
 
-  static Future<void> push(BuildContext context, String networkId) async {
-    // Set the current session ID so currentVideSessionProvider can find it
-    context.read(currentSessionIdProvider.notifier).state = networkId;
+  static Future<void> push(
+    BuildContext context,
+    String networkId, {
+    VideSession? session,
+  }) async {
+    context
+        .read(sessionSelectionProvider.notifier)
+        .selectSession(networkId, session: session);
 
     return Navigator.of(context).push<void>(
       PageRoute(
@@ -64,6 +69,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   void dispose() {
     // Back to home page
     context.read(isOnHomePageProvider.notifier).state = true;
+    context.read(sessionSelectionProvider.notifier).clear();
     super.dispose();
   }
 
@@ -241,6 +247,16 @@ class _AgentChatState extends State<_AgentChat> {
   String? _queuedMessage;
   String? _model;
 
+  Future<void> _loadInitialAgentRuntimeMetadata(VideSession session) async {
+    final queuedMessage = await session.getQueuedMessage(component.agentId);
+    final model = await session.getModel(component.agentId);
+    if (!mounted) return;
+    setState(() {
+      _queuedMessage = queuedMessage;
+      _model = model;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -268,13 +284,13 @@ class _AgentChatState extends State<_AgentChat> {
     ) {
       setState(() => _queuedMessage = text);
     });
-    _queuedMessage = session.getQueuedMessage(component.agentId);
 
     // Listen to model updates
     _modelSubscription = session.modelStream(component.agentId).listen((model) {
       setState(() => _model = model);
     });
-    _model = session.getModel(component.agentId);
+
+    unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
   void _syncTokenStats(Conversation conversation, VideSession session) {
@@ -447,7 +463,9 @@ class _AgentChatState extends State<_AgentChat> {
         // Add to session cache (in-memory only) using inferred pattern
         final pattern =
             patternOverride ?? PatternInference.inferPattern(toolName, input);
-        session?.addSessionPermissionPattern(pattern);
+        if (session != null) {
+          await session.addSessionPermissionPattern(pattern);
+        }
       } else {
         // Add to persistent whitelist with inferred pattern (or override)
         final settingsManager = ClaudeSettingsManager(projectRoot: request.cwd);
@@ -499,7 +517,7 @@ class _AgentChatState extends State<_AgentChat> {
 
       // If there's a queued message, clear it first
       if (_queuedMessage != null) {
-        session.clearQueuedMessage(component.agentId);
+        unawaited(session.clearQueuedMessage(component.agentId));
         return true;
       }
       // Otherwise abort the current processing
@@ -669,7 +687,11 @@ class _AgentChatState extends State<_AgentChat> {
                     queuedText: _queuedMessage!,
                     onClear: () {
                       final session = context.read(currentVideSessionProvider);
-                      session?.clearQueuedMessage(component.agentId);
+                      if (session != null) {
+                        unawaited(
+                          session.clearQueuedMessage(component.agentId),
+                        );
+                      }
                     },
                   ),
 
@@ -851,7 +873,9 @@ class _AgentChatState extends State<_AgentChat> {
                           if (session == null) return;
                           // If there's a queued message, clear it first
                           if (_queuedMessage != null) {
-                            session.clearQueuedMessage(component.agentId);
+                            unawaited(
+                              session.clearQueuedMessage(component.agentId),
+                            );
                           } else {
                             // Otherwise abort the current processing
                             session.abortAgent(component.agentId);

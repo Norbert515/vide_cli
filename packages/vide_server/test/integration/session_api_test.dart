@@ -218,6 +218,8 @@ void main() {
         expect(connected['agents'], isA<List>());
         expect(connected['metadata'], isA<Map>());
         expect(connected['metadata']['working-directory'], isNotEmpty);
+        expect(connected['metadata']['goal'], isNotEmpty);
+        expect(connected['metadata']['team'], isNotEmpty);
 
         // Verify history event format
         final historyEvents = events.where((e) => e['type'] == 'history');

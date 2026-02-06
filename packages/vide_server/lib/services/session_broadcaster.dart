@@ -46,8 +46,7 @@ class SessionBroadcaster {
   }
 
   void _handleEvent(VideEvent event) {
-    final json = _mapToJson(event);
-    if (json == null) return;
+    final json = event.toJson();
 
     // Add sequence number
     json['seq'] = _nextSeq++;
@@ -63,110 +62,6 @@ class SessionBroadcaster {
       client(json);
     }
   }
-
-  /// Create base event map with common attribution fields.
-  Map<String, dynamic> _baseEvent(String type, VideEvent event) => {
-    'type': type,
-    'agent-id': event.agentId,
-    'agent-type': event.agentType,
-    'agent-name': event.agentName,
-    'task-name': event.taskName,
-    'timestamp': DateTime.now().toIso8601String(),
-  };
-
-  Map<String, dynamic>? _mapToJson(VideEvent event) {
-    switch (event) {
-      case MessageEvent e:
-        return _baseEvent('message', e)..addAll({
-          'event-id': e.eventId,
-          'data': {'role': e.role, 'content': e.content},
-          'is-partial': e.isPartial,
-        });
-
-      case ToolUseEvent e:
-        return _baseEvent('tool-use', e)
-          ..['data'] = {
-            'tool-use-id': e.toolUseId,
-            'tool-name': e.toolName,
-            'tool-input': e.toolInput,
-          };
-
-      case ToolResultEvent e:
-        return _baseEvent('tool-result', e)
-          ..['data'] = {
-            'tool-use-id': e.toolUseId,
-            'tool-name': e.toolName,
-            'result': e.result,
-            'is-error': e.isError,
-          };
-
-      case StatusEvent e:
-        return _baseEvent('status', e)
-          ..['data'] = {'status': _mapStatus(e.status)};
-
-      case TurnCompleteEvent e:
-        // Use 'complete' for backward compatibility with existing API
-        return _baseEvent('done', e)..['data'] = {'reason': 'complete'};
-
-      case AgentSpawnedEvent e:
-        return _baseEvent('agent-spawned', e)
-          ..['data'] = {'spawned-by': e.spawnedBy};
-
-      case AgentTerminatedEvent e:
-        return _baseEvent('agent-terminated', e)
-          ..['data'] = {'reason': e.reason, 'terminated-by': e.terminatedBy};
-
-      case PermissionRequestEvent e:
-        return _baseEvent('permission-request', e)
-          ..['data'] = {
-            'request-id': e.requestId,
-            'tool': {
-              'name': e.toolName,
-              'input': e.toolInput,
-              if (e.inferredPattern != null)
-                'permission-suggestions': [e.inferredPattern],
-            },
-          };
-
-      case AskUserQuestionEvent e:
-        return _baseEvent('ask-user-question', e)
-          ..['data'] = {
-            'request-id': e.requestId,
-            'questions': e.questions
-                .map(
-                  (q) => {
-                    'question': q.question,
-                    'header': q.header,
-                    'multi-select': q.multiSelect,
-                    'options': q.options
-                        .map(
-                          (o) => {
-                            'label': o.label,
-                            'description': o.description,
-                          },
-                        )
-                        .toList(),
-                  },
-                )
-                .toList(),
-          };
-
-      case ErrorEvent e:
-        return _baseEvent('error', e)
-          ..['data'] = {'message': e.message, 'code': 'ERROR'};
-
-      case TaskNameChangedEvent _:
-        // Internal event, not sent to clients
-        return null;
-    }
-  }
-
-  String _mapStatus(VideAgentStatus status) => switch (status) {
-    VideAgentStatus.working => 'working',
-    VideAgentStatus.waitingForAgent => 'waiting-for-agent',
-    VideAgentStatus.waitingForUser => 'waiting-for-user',
-    VideAgentStatus.idle => 'idle',
-  };
 
   void dispose() {
     if (_disposed) return;

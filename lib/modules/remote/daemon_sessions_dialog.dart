@@ -2,10 +2,7 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_client/vide_client.dart' as vc;
-import 'package:vide_core/vide_core.dart' show RemoteVideSession;
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
-import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -153,28 +150,20 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
 
   Future<void> _connectToSession(SessionSummary session) async {
     try {
-      final daemonState = context.read(daemonConnectionProvider);
-
-      // Use vide_client to connect to the session
-      final videClient = vc.VideClient(
-        host: daemonState.host!,
-        port: daemonState.port!,
-      );
-      final clientSession = await videClient.connectToSession(
+      final notifier = context.read(daemonConnectionProvider.notifier);
+      final connectedSession = await notifier.connectToSession(
         session.sessionId,
       );
-
-      // Wrap with RemoteVideSession for business event handling
-      final remoteSession = RemoteVideSession.fromClientSession(clientSession);
-
-      // Store in provider
-      context.read(remoteVideSessionProvider.notifier).state = remoteSession;
 
       // Close dialog and navigate
       Navigator.of(context).pop(true);
 
       // Navigate to execution page
-      await NetworkExecutionPage.push(context, session.sessionId);
+      await NetworkExecutionPage.push(
+        context,
+        session.sessionId,
+        session: connectedSession,
+      );
     } catch (e) {
       setState(() {
         _error = 'Failed to connect: $e';

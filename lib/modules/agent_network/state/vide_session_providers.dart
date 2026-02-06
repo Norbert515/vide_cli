@@ -13,63 +13,87 @@ final videoCoreProvider = Provider<VideCore>((ref) {
   throw UnimplementedError('videoCoreProvider must be overridden in main.dart');
 });
 
-/// Provider for a remote VideSession when connected to a daemon.
+/// Unified TUI session selection state.
 ///
-/// This is set by [SessionPickerPage] when connecting to a remote session.
-/// When set, [currentVideSessionProvider] will return this instead of the local session.
-final remoteVideSessionProvider = StateProvider<RemoteVideSession?>(
-  (ref) => null,
-);
+/// [sessionId] is the selected network/session ID.
+/// [session] is an optional already-instantiated session object (local or remote).
+class SessionSelectionState {
+  final String? sessionId;
+  final VideSession? session;
 
-/// Provider that triggers rebuilds when the remote session connection state changes.
+  const SessionSelectionState({this.sessionId, this.session});
+}
+
+/// Controls the current session selection for the TUI.
+class SessionSelectionNotifier extends StateNotifier<SessionSelectionState> {
+  SessionSelectionNotifier() : super(const SessionSelectionState());
+
+  /// Select a session by ID, optionally supplying a live session instance.
+  void selectSession(String sessionId, {VideSession? session}) {
+    final retainedSession =
+        session ?? (state.session?.id == sessionId ? state.session : null);
+    state = SessionSelectionState(
+      sessionId: sessionId,
+      session: retainedSession,
+    );
+  }
+
+  /// Set the current session object and select its ID.
+  void setSession(VideSession session) {
+    state = SessionSelectionState(sessionId: session.id, session: session);
+  }
+
+  /// Clear selected session state.
+  void clear() {
+    state = const SessionSelectionState();
+  }
+}
+
+/// Single source of truth for TUI session selection.
+final sessionSelectionProvider =
+    StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
+      (ref) => SessionSelectionNotifier(),
+    );
+
+/// Provider that triggers rebuilds when the selected session connection changes.
 ///
-/// This watches the [RemoteVideSession.connectionStateStream] to detect when
-/// the WebSocket connects or disconnects. Without this, setting the session
-/// provider doesn't trigger rebuilds when internal state changes.
-final remoteSessionConnectionProvider = StreamProvider<bool>((ref) {
-  final remoteSession = ref.watch(remoteVideSessionProvider);
-  if (remoteSession == null) return const Stream.empty();
-
-  return remoteSession.connectionStateStream;
+/// For local sessions this stream is empty. Transport-backed sessions emit
+/// connectivity changes.
+final sessionConnectionProvider = StreamProvider<bool>((ref) {
+  final session = ref.watch(sessionSelectionProvider.select((s) => s.session));
+  return session?.connectionStateStream ?? const Stream<bool>.empty();
 });
 
-/// Provider for the ID of the currently active session.
-///
-/// This is the primary way to track which session is active.
-/// Set this when creating or resuming a session.
-/// Set to null when no session is active (e.g., on home page).
-final currentSessionIdProvider = StateProvider<String?>((ref) => null);
+/// Backward-compatible alias while callsites migrate away from the remote-only
+/// name.
+@Deprecated('Use sessionConnectionProvider')
+final remoteSessionConnectionProvider = sessionConnectionProvider;
 
 /// Provider for the current VideSession based on the active session ID.
 ///
 /// Returns null if no session is currently active.
-/// In remote mode, returns the [RemoteVideSession] instead.
 ///
 /// This is the unified session accessor - use this to get the current session
 /// regardless of whether it's local or remote.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
-  // Check if we're in remote mode first
-  final remoteSession = ref.watch(remoteVideSessionProvider);
-  if (remoteSession != null) {
-    // Also watch connection state to rebuild when connected
-    ref.watch(remoteSessionConnectionProvider);
-    return remoteSession;
+  final selection = ref.watch(sessionSelectionProvider);
+  final sessionId = selection.sessionId;
+  final activeSession = selection.session;
+
+  // Active session override works for both local and remote sessions.
+  // Only prefer it when it matches the requested session ID (if any).
+  if (activeSession != null &&
+      (sessionId == null || activeSession.id == sessionId)) {
+    // Rebuild when transport connectivity changes (if any).
+    ref.watch(sessionConnectionProvider);
+    return activeSession;
   }
+
+  if (sessionId == null) return activeSession;
 
   // Local mode - use session ID + VideCore lookup
-  final sessionId = ref.watch(currentSessionIdProvider);
-  if (sessionId == null) return null;
-
   final core = ref.watch(videoCoreProvider);
-  final session = core.getSessionForNetwork(sessionId);
-
-  // Bind the session to the permission handler for late-binding permission checks
-  if (session != null) {
-    final permissionHandler = ref.read(permissionHandlerProvider);
-    permissionHandler.setSession(session);
-  }
-
-  return session;
+  return core.getSessionForNetwork(sessionId) ?? activeSession;
 });
 
 /// Provider for the current session's goal/task name.

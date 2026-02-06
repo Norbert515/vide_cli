@@ -45,6 +45,9 @@ sealed class VideEvent {
                 ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
                 .toList() ??
             [],
+        metadata: Map<String, dynamic>.from(
+          json['metadata'] as Map<String, dynamic>? ?? const {},
+        ),
       ),
       'history' => HistoryEvent(
         seq: seq,
@@ -108,6 +111,24 @@ sealed class VideEvent {
         // Required field - will throw if missing (intentional)
         requestId: data!['request-id'] as String,
       ),
+      'ask-user-question' => AskUserQuestionEvent(
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        requestId: data?['request-id'] as String? ?? '',
+        questions: (data?['questions'] as List<dynamic>? ?? const [])
+            .map((q) => Map<String, dynamic>.from(q as Map))
+            .toList(),
+      ),
+      'task-name-changed' => TaskNameChangedEvent(
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        newGoal: data?['new-goal'] as String? ?? '',
+        previousGoal: data?['previous-goal'] as String?,
+      ),
       'agent-spawned' => AgentSpawnedEvent(
         seq: seq,
         eventId: eventId,
@@ -145,6 +166,24 @@ sealed class VideEvent {
         message: data!['message'] as String,
         code: data['code'] as String?,
       ),
+      'command-result' => CommandResultEvent(
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        requestId: data?['request-id'] as String? ?? '',
+        command: data?['command'] as String? ?? '',
+        success: data?['success'] as bool? ?? false,
+        result: (data?['result'] is Map)
+            ? Map<String, dynamic>.from(data?['result'] as Map)
+            : null,
+        errorMessage: (data?['error'] is Map)
+            ? (data?['error'] as Map)['message'] as String?
+            : null,
+        errorCode: (data?['error'] is Map)
+            ? (data?['error'] as Map)['code'] as String?
+            : null,
+      ),
       _ => UnknownEvent(
         seq: seq,
         eventId: eventId,
@@ -163,6 +202,7 @@ class ConnectedEvent extends VideEvent {
   final String mainAgentId;
   final int lastSeq;
   final List<AgentInfo> agents;
+  final Map<String, dynamic> metadata;
 
   const ConnectedEvent({
     super.seq,
@@ -173,6 +213,7 @@ class ConnectedEvent extends VideEvent {
     required this.mainAgentId,
     required this.lastSeq,
     required this.agents,
+    required this.metadata,
   });
 }
 
@@ -287,6 +328,36 @@ class PermissionTimeoutEvent extends VideEvent {
   });
 }
 
+/// AskUserQuestion request from agent.
+class AskUserQuestionEvent extends VideEvent {
+  final String requestId;
+  final List<Map<String, dynamic>> questions;
+
+  const AskUserQuestionEvent({
+    super.seq,
+    super.eventId,
+    required super.timestamp,
+    super.agent,
+    required this.requestId,
+    required this.questions,
+  });
+}
+
+/// Session/network task name changed.
+class TaskNameChangedEvent extends VideEvent {
+  final String newGoal;
+  final String? previousGoal;
+
+  const TaskNameChangedEvent({
+    super.seq,
+    super.eventId,
+    required super.timestamp,
+    super.agent,
+    required this.newGoal,
+    this.previousGoal,
+  });
+}
+
 /// New agent spawned.
 class AgentSpawnedEvent extends VideEvent {
   final String spawnedBy;
@@ -350,6 +421,29 @@ class ErrorEvent extends VideEvent {
     super.agent,
     required this.message,
     this.code,
+  });
+}
+
+/// Result of a session command request (client-specific, not part of history contract).
+class CommandResultEvent extends VideEvent {
+  final String requestId;
+  final String command;
+  final bool success;
+  final Map<String, dynamic>? result;
+  final String? errorMessage;
+  final String? errorCode;
+
+  const CommandResultEvent({
+    super.seq,
+    super.eventId,
+    required super.timestamp,
+    super.agent,
+    required this.requestId,
+    required this.command,
+    required this.success,
+    this.result,
+    this.errorMessage,
+    this.errorCode,
   });
 }
 

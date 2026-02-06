@@ -3,10 +3,20 @@ import 'dart:async';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_client/vide_client.dart' as vc;
 import 'package:vide_core/vide_core.dart'
-    show videConfigManagerProvider, RemoteVideSession;
+    show
+        createPendingRemoteVideSession,
+        createRemoteVideSessionFromClientSession,
+        videConfigManagerProvider,
+        VideSession;
 import 'package:vide_daemon/vide_daemon.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'package:vide_cli/main.dart' show daemonModeEnabledProvider;
+import 'package:vide_cli/main.dart'
+    show
+        daemonModeEnabledProvider,
+        forceDaemonModeProvider,
+        forceLocalModeProvider,
+        remoteConfigProvider;
 
 /// State for daemon connection.
 class DaemonConnectionState {
@@ -15,6 +25,7 @@ class DaemonConnectionState {
   final String? error;
   final String? host;
   final int? port;
+  final String? authToken;
 
   const DaemonConnectionState({
     this.client,
@@ -22,6 +33,7 @@ class DaemonConnectionState {
     this.error,
     this.host,
     this.port,
+    this.authToken,
   });
 
   /// Whether connected and healthy.
@@ -36,15 +48,15 @@ class DaemonConnectionState {
     String? error,
     String? host,
     int? port,
-    bool clearClient = false,
-    bool clearError = false,
+    String? authToken,
   }) {
     return DaemonConnectionState(
-      client: clearClient ? null : (client ?? this.client),
+      client: client ?? this.client,
       isConnecting: isConnecting ?? this.isConnecting,
-      error: clearError ? null : (error ?? this.error),
+      error: error ?? this.error,
       host: host ?? this.host,
       port: port ?? this.port,
+      authToken: authToken ?? this.authToken,
     );
   }
 }
@@ -62,34 +74,60 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
 
   /// Initialize connection based on current settings.
   Future<void> _initialize() async {
-    final daemonEnabled = _ref.read(daemonModeEnabledProvider);
+    final forceLocalMode = _ref.read(forceLocalModeProvider);
+    final forceDaemonMode = _ref.read(forceDaemonModeProvider);
+    final remoteConfig = _ref.read(remoteConfigProvider);
+    final daemonEnabledInSettings = _ref.read(daemonModeEnabledProvider);
+    final daemonEnabled =
+        !forceLocalMode &&
+        (forceDaemonMode || remoteConfig != null || daemonEnabledInSettings);
+
     if (!daemonEnabled) {
       _disconnect();
       return;
     }
 
-    final configManager = _ref.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
+    final String targetHost;
+    final int targetPort;
+    final String? targetAuthToken;
 
-    // Check if settings changed
-    if (state.host == settings.daemonHost &&
-        state.port == settings.daemonPort &&
-        state.client != null &&
-        state.error == null) {
-      return; // Already connected with same settings
+    if (remoteConfig != null) {
+      targetHost = remoteConfig.host;
+      targetPort = remoteConfig.port;
+      targetAuthToken = remoteConfig.authToken;
+    } else {
+      final configManager = _ref.read(videConfigManagerProvider);
+      final settings = configManager.readGlobalSettings();
+      targetHost = settings.daemonHost;
+      targetPort = settings.daemonPort;
+      targetAuthToken = null;
     }
 
-    await _connect(settings.daemonHost, settings.daemonPort);
+    // Check if target changed
+    if (state.host == targetHost &&
+        state.port == targetPort &&
+        state.authToken == targetAuthToken &&
+        state.client != null &&
+        state.error == null) {
+      return; // Already connected with same target
+    }
+
+    await _connect(targetHost, targetPort, authToken: targetAuthToken);
   }
 
   /// Connect to daemon at the given host/port.
-  Future<void> _connect(String host, int port) async {
+  Future<void> _connect(String host, int port, {String? authToken}) async {
     // Clean up existing connection
     _disconnect();
 
-    state = DaemonConnectionState(isConnecting: true, host: host, port: port);
+    state = DaemonConnectionState(
+      isConnecting: true,
+      host: host,
+      port: port,
+      authToken: authToken,
+    );
 
-    final client = DaemonClient(host: host, port: port);
+    final client = DaemonClient(host: host, port: port, authToken: authToken);
 
     try {
       final healthy = await client.isHealthy();
@@ -101,10 +139,11 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
         return;
       }
 
-      state = state.copyWith(
+      state = DaemonConnectionState(
         client: client,
-        isConnecting: false,
-        clearError: true,
+        host: state.host,
+        port: state.port,
+        authToken: authToken,
       );
     } catch (e) {
       state = state.copyWith(
@@ -127,7 +166,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     await _initialize();
   }
 
-  /// Create a session on the daemon and return a RemoteVideSession immediately.
+  /// Create a session on the daemon and return a [VideSession] immediately.
   ///
   /// This returns a "pending" session that can be used right away for navigation.
   /// The actual HTTP call to create the session happens in the background.
@@ -137,7 +176,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   /// WebSocket connection started). Use this to trigger a UI rebuild.
   ///
   /// Throws synchronously if not connected to daemon.
-  RemoteVideSession createSessionOptimistic({
+  VideSession createSessionOptimistic({
     required String initialMessage,
     required String workingDirectory,
     String permissionMode = 'ask',
@@ -149,39 +188,42 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     }
 
     // Create a pending session immediately for instant navigation
-    final remoteSession = RemoteVideSession.pending();
-
-    // Set up callback to notify when ready
-    remoteSession.onPendingComplete = onReady;
+    final pendingSession = createPendingRemoteVideSession(
+      initialMessage: initialMessage,
+      onReady: onReady,
+    );
 
     // Do the HTTP call in background
     () async {
       try {
-        // Use vide_client to create the session
-        final videClient = vc.VideClient(host: state.host!, port: state.port!);
-        final clientSession = await videClient.createSession(
+        // Use auth-aware daemon client to create the session.
+        final response = await daemonClient.createSession(
           initialMessage: initialMessage,
           workingDirectory: workingDirectory,
           permissionMode: permissionMode,
         );
+        final clientSession = _createClientSession(
+          response.sessionId,
+          response.wsUrl,
+        );
 
         // Complete the pending session with the client session
-        remoteSession.completePending(clientSession);
+        pendingSession.completeWithClientSession(clientSession);
       } catch (e) {
-        remoteSession.failPending('Failed to create session: $e');
+        pendingSession.fail('Failed to create session: $e');
       }
     }();
 
-    return remoteSession;
+    return pendingSession.session;
   }
 
-  /// Create a session on the daemon and return a RemoteVideSession.
+  /// Create a session on the daemon and return a [VideSession].
   ///
   /// This waits for the HTTP call to complete before returning.
   /// Use [createSessionOptimistic] for instant navigation.
   ///
   /// Throws if not connected to daemon or if session creation fails.
-  Future<RemoteVideSession> createSession({
+  Future<VideSession> createSession({
     required String initialMessage,
     required String workingDirectory,
     String permissionMode = 'ask',
@@ -191,16 +233,66 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
       throw StateError('Not connected to daemon');
     }
 
-    // Use vide_client to create session (handles both REST + WebSocket)
-    final videClient = vc.VideClient(host: state.host!, port: state.port!);
-    final clientSession = await videClient.createSession(
+    // Use auth-aware daemon client for creation.
+    final response = await daemonClient.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
     );
+    final clientSession = _createClientSession(
+      response.sessionId,
+      response.wsUrl,
+    );
 
-    // Wrap with RemoteVideSession for full business event handling
-    return RemoteVideSession.fromClientSession(clientSession);
+    // Wrap with unified VideSession implementation
+    return createRemoteVideSessionFromClientSession(clientSession);
+  }
+
+  /// Connect to an existing daemon session and return a [VideSession].
+  ///
+  /// Throws if not connected to daemon or if connection fails.
+  Future<VideSession> connectToSession(String sessionId) async {
+    final daemonClient = state.client;
+    if (daemonClient == null || !state.isConnected) {
+      throw StateError('Not connected to daemon');
+    }
+
+    final details = await daemonClient.getSession(sessionId);
+    final clientSession = _createClientSession(sessionId, details.wsUrl);
+    return createRemoteVideSessionFromClientSession(clientSession);
+  }
+
+  vc.Session _createClientSession(String sessionId, String wsUrl) {
+    final rewrittenUri = Uri.parse(_rewriteWsUrlForDaemonHost(wsUrl));
+    final authorizedUri = _applySessionStreamAuth(rewrittenUri);
+    final channel = WebSocketChannel.connect(authorizedUri);
+    return vc.Session(id: sessionId, channel: channel);
+  }
+
+  String _rewriteWsUrlForDaemonHost(String wsUrl) {
+    final configuredHost = state.host;
+    if (configuredHost == null || configuredHost.isEmpty) return wsUrl;
+
+    final uri = Uri.parse(wsUrl);
+    if (!_isLoopbackHost(uri.host) || _isLoopbackHost(configuredHost)) {
+      return wsUrl;
+    }
+
+    return uri.replace(host: configuredHost, port: uri.port).toString();
+  }
+
+  bool _isLoopbackHost(String host) {
+    return host == '127.0.0.1' || host == 'localhost' || host == '::1';
+  }
+
+  Uri _applySessionStreamAuth(Uri wsUri) {
+    final token = state.authToken;
+    if (token == null || token.isEmpty) return wsUri;
+    if (wsUri.queryParameters.containsKey('token')) return wsUri;
+
+    final params = Map<String, String>.from(wsUri.queryParameters);
+    params['token'] = token;
+    return wsUri.replace(queryParameters: params);
   }
 
   /// List sessions from the daemon.
@@ -257,6 +349,17 @@ final daemonConnectionProvider =
 
       // Watch for daemon mode changes and reinitialize
       ref.listen(daemonModeEnabledProvider, (_, __) {
+        notifier.reconnect();
+      });
+
+      // Watch for runtime mode overrides and remote config.
+      ref.listen(forceLocalModeProvider, (_, __) {
+        notifier.reconnect();
+      });
+      ref.listen(forceDaemonModeProvider, (_, __) {
+        notifier.reconnect();
+      });
+      ref.listen(remoteConfigProvider, (_, __) {
         notifier.reconnect();
       });
 

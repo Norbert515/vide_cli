@@ -20,6 +20,7 @@ import '../services/vide_config_manager.dart';
 import '../state/agent_status_manager.dart';
 import '../utils/dangerously_skip_permissions_provider.dart';
 import 'conversation_state.dart';
+import 'session_event_hub.dart';
 import 'vide_agent.dart';
 import 'vide_event.dart';
 
@@ -57,10 +58,7 @@ import 'vide_event.dart';
 class VideSession {
   final String _networkId;
   final ProviderContainer _container;
-  final StreamController<VideEvent> _eventController;
-
-  /// Buffered stream that replays events to late subscribers.
-  late final _BufferedEventStream<VideEvent> _bufferedEvents;
+  final SessionEventHub _hub;
 
   /// Subscriptions to clean up on dispose.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -79,11 +77,6 @@ class VideSession {
   /// Permission checker for business logic (allow lists, deny lists, etc.).
   late final PermissionChecker _permissionChecker;
 
-  /// Conversation state manager that accumulates events from the start.
-  ///
-  /// This is created immediately when the session is created, so no events are missed.
-  late final ConversationStateManager _conversationStateManager;
-
   /// Whether the session has been disposed.
   bool _disposed = false;
 
@@ -93,20 +86,11 @@ class VideSession {
     PermissionCheckerConfig? permissionConfig,
   }) : _networkId = networkId,
        _container = container,
-       _eventController = StreamController<VideEvent>.broadcast(sync: true) {
-    // Create buffered event stream that replays events to late subscribers
-    _bufferedEvents = _BufferedEventStream(_eventController.stream);
-
+       _hub = SessionEventHub(syncController: true) {
     // Create permission checker for this session
     _permissionChecker = PermissionChecker(
       config: permissionConfig ?? PermissionCheckerConfig.tui,
     );
-
-    // Create conversation state manager immediately and subscribe to events
-    _conversationStateManager = ConversationStateManager();
-    _eventController.stream.listen((event) {
-      _conversationStateManager.handleEvent(event);
-    });
   }
 
   /// Creates a new VideSession for an existing network.
@@ -117,6 +101,7 @@ class VideSession {
     required String networkId,
     required ProviderContainer container,
     PermissionCheckerConfig? permissionConfig,
+    String? initialMessage,
   }) {
     final session = VideSession._(
       networkId: networkId,
@@ -124,6 +109,15 @@ class VideSession {
       permissionConfig: permissionConfig,
     );
     session._initialize();
+    // Emit the initial user message so it appears in the event stream
+    // and server history. The message was already sent to the agent by
+    // AgentNetworkManager.startNew before the session was created.
+    if (initialMessage != null) {
+      final mainAgentId = session.mainAgent?.id;
+      if (mainAgentId != null) {
+        session._emitUserMessage(initialMessage, agentId: mainAgentId);
+      }
+    }
     return session;
   }
 
@@ -147,7 +141,8 @@ class VideSession {
   ///
   /// This accumulates all events into a renderable conversation structure.
   /// The manager is created when the session is created, so all events are captured.
-  ConversationStateManager get conversationState => _conversationStateManager;
+  ConversationStateManager get conversationState =>
+      _hub.conversationStateManager;
 
   /// Stream of all events from all agents in the session.
   ///
@@ -166,7 +161,7 @@ class VideSession {
   /// then replays all buffered events. This ensures late subscribers (like UI
   /// components that subscribe during build) don't miss early events like
   /// permission requests.
-  Stream<VideEvent> get events => _bufferedEvents.stream;
+  Stream<VideEvent> get events => _hub.events;
 
   /// Current agents in the session.
   ///
@@ -187,7 +182,7 @@ class VideSession {
   /// The stream emits the full list of agents (not just the changed agent)
   /// for convenience in UI rebuilding.
   Stream<List<VideAgent>> get agentsStream {
-    return _bufferedEvents.stream
+    return _hub.events
         .where((e) => e is AgentSpawnedEvent || e is AgentTerminatedEvent)
         .map((_) => agents);
   }
@@ -241,10 +236,14 @@ class VideSession {
   ///
   /// This is derived from network changes where the goal field is updated.
   Stream<String> get goalStream {
-    return _bufferedEvents.stream
-        .where((e) => e is TaskNameChangedEvent)
-        .map((_) => goal);
+    return _hub.events.where((e) => e is TaskNameChangedEvent).map((_) => goal);
   }
+
+  /// Stream that emits when session transport connectivity changes.
+  ///
+  /// Local in-process sessions do not have transport connectivity changes, so
+  /// the default implementation is an empty stream.
+  Stream<bool> get connectionStateStream => const Stream<bool>.empty();
 
   /// The team name for this session (e.g., 'vide', 'enterprise').
   String get team {
@@ -256,6 +255,9 @@ class VideSession {
   ///
   /// If [agentId] is not specified, the message is sent to the main agent.
   /// The [message] can include attachments (e.g., images).
+  ///
+  /// Emits a [MessageEvent] with `role: 'user'` so the message appears
+  /// in the event stream and server history.
   void sendMessage(Message message, {String? agentId}) {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
@@ -263,7 +265,25 @@ class VideSession {
     if (targetAgent == null) {
       throw StateError('No agents in session');
     }
+    _emitUserMessage(message.text, agentId: targetAgent);
     manager.sendMessage(targetAgent, message);
+  }
+
+  /// Emit a user [MessageEvent] into the event stream.
+  ///
+  /// This makes user messages part of the session history so they survive
+  /// reconnections and are visible to all subscribers.
+  void _emitUserMessage(String content, {required String agentId}) {
+    _hub.emit(
+      MessageEvent(
+        agentId: agentId,
+        agentType: 'user',
+        eventId: const Uuid().v4(),
+        role: 'user',
+        content: content,
+        isPartial: false,
+      ),
+    );
   }
 
   /// Respond to a permission request.
@@ -327,17 +347,6 @@ class VideSession {
 
     final client = _container.read(claudeProvider(targetId));
     await client?.clearConversation();
-  }
-
-  /// Get an MCP server instance for an agent.
-  ///
-  /// Returns null if the server is not found or agent doesn't exist.
-  /// This is useful for accessing MCP servers directly, such as
-  /// the flutter runtime MCP for UI rendering.
-  T? getMcpServer<T extends McpServerBase>(String agentId, String serverName) {
-    _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    return client?.getMcpServer<T>(serverName);
   }
 
   /// Set the working directory (worktree path) for this session.
@@ -456,7 +465,7 @@ class VideSession {
   ///
   /// A queued message is a message that will be sent when the agent
   /// completes its current turn.
-  String? getQueuedMessage(String agentId) {
+  Future<String?> getQueuedMessage(String agentId) async {
     final client = _container.read(claudeProvider(agentId));
     return client?.currentQueuedMessage;
   }
@@ -470,7 +479,7 @@ class VideSession {
   }
 
   /// Clear the queued message for an agent.
-  void clearQueuedMessage(String agentId) {
+  Future<void> clearQueuedMessage(String agentId) async {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     client?.clearQueuedMessage();
@@ -479,7 +488,7 @@ class VideSession {
   /// Get the model name for an agent (e.g., "claude-sonnet-4-5-20250929").
   ///
   /// Returns null if the agent doesn't exist or hasn't initialized yet.
-  String? getModel(String agentId) {
+  Future<String?> getModel(String agentId) async {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     return client?.initData?.model;
@@ -550,15 +559,9 @@ class VideSession {
     // Clear agent states
     _agentStates.clear();
 
-    // Dispose permission checker and conversation state manager
+    // Dispose permission checker and event hub
     _permissionChecker.dispose();
-    _conversationStateManager.dispose();
-
-    // Dispose buffered event stream
-    _bufferedEvents.dispose();
-
-    // Close the event stream
-    await _eventController.close();
+    _hub.dispose();
   }
 
   void _checkNotDisposed() {
@@ -588,7 +591,7 @@ class VideSession {
             ? next.currentNetwork!.agents.first
             : null;
 
-        _eventController.add(
+        _hub.emit(
           TaskNameChangedEvent(
             agentId: mainAgent?.id ?? 'unknown',
             agentType: mainAgent?.type ?? 'main',
@@ -607,7 +610,7 @@ class VideSession {
         );
 
         // Emit spawn event
-        _eventController.add(
+        _hub.emit(
           AgentSpawnedEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -628,7 +631,7 @@ class VideSession {
         );
 
         // Emit terminate event
-        _eventController.add(
+        _hub.emit(
           AgentTerminatedEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -660,7 +663,7 @@ class VideSession {
     // Emit initial status event so UI shows agent state immediately.
     // Default status is 'working' since agents start processing right away.
     final initialStatus = _container.read(agentStatusProvider(agent.id));
-    _eventController.add(
+    _hub.emit(
       StatusEvent(
         agentId: agent.id,
         agentType: agent.type,
@@ -681,7 +684,7 @@ class VideSession {
     final conversationSub = client.conversation.listen(
       (conversation) => _handleConversation(agent, conversation),
       onError: (error) {
-        _eventController.add(
+        _hub.emit(
           ErrorEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -698,7 +701,7 @@ class VideSession {
       // Finalize any in-progress message
       final state = _agentStates[agent.id];
       if (state != null && state.currentMessageEventId != null) {
-        _eventController.add(
+        _hub.emit(
           MessageEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -715,7 +718,7 @@ class VideSession {
 
       // Get token/cost data from current conversation
       final conversation = client.currentConversation;
-      _eventController.add(
+      _hub.emit(
         TurnCompleteEvent(
           agentId: agent.id,
           agentType: agent.type,
@@ -755,7 +758,7 @@ class VideSession {
             state.taskName = agentMeta.taskName;
           }
 
-          _eventController.add(
+          _hub.emit(
             StatusEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -814,7 +817,7 @@ class VideSession {
         }
 
         if (message.content.isNotEmpty) {
-          _eventController.add(
+          _hub.emit(
             MessageEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -845,7 +848,7 @@ class VideSession {
         final delta = latestMessage.content.substring(state.lastContentLength);
         if (delta.isNotEmpty) {
           final eventId = state.currentMessageEventId ?? const Uuid().v4();
-          _eventController.add(
+          _hub.emit(
             MessageEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -869,7 +872,7 @@ class VideSession {
 
     // Check for errors
     if (conversation.currentError != null) {
-      _eventController.add(
+      _hub.emit(
         ErrorEvent(
           agentId: agent.id,
           agentType: agent.type,
@@ -895,7 +898,7 @@ class VideSession {
         final toolUseId = response.toolUseId ?? const Uuid().v4();
         state.toolNamesByUseId[toolUseId] = response.toolName;
 
-        _eventController.add(
+        _hub.emit(
           ToolUseEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -909,7 +912,7 @@ class VideSession {
       } else if (response is ToolResultResponse) {
         final toolName =
             state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        _eventController.add(
+        _hub.emit(
           ToolResultEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -1007,7 +1010,7 @@ class VideSession {
           _pendingPermissions[requestId] = completer;
 
           // Emit permission request event
-          _eventController.add(
+          _hub.emit(
             PermissionRequestEvent(
               agentId: agentId,
               agentType: agentType ?? 'unknown',
@@ -1070,7 +1073,7 @@ class VideSession {
       final completer = Completer<Map<String, String>>();
       _pendingAskUserQuestions[requestId] = completer;
 
-      _eventController.add(
+      _hub.emit(
         AskUserQuestionEvent(
           agentId: agentId,
           agentType: agentType ?? 'unknown',
@@ -1111,20 +1114,23 @@ class VideSession {
   /// Add a pattern to the session permission cache.
   ///
   /// Used when user selects "remember" for write operations.
-  void addSessionPermissionPattern(String pattern) {
+  Future<void> addSessionPermissionPattern(String pattern) async {
     _permissionChecker.addSessionPattern(pattern);
   }
 
   /// Check if a tool is allowed by the session cache.
   ///
   /// Used by UI to check if permission dialog should be shown.
-  bool isAllowedBySessionCache(String toolName, Map<String, dynamic> input) {
+  Future<bool> isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> input,
+  ) async {
     final typedInput = ToolInput.fromJson(toolName, input);
     return _permissionChecker.isAllowedBySessionCache(toolName, typedInput);
   }
 
   /// Clear the session permission cache.
-  void clearSessionPermissionCache() {
+  Future<void> clearSessionPermissionCache() async {
     _permissionChecker.clearSessionCache();
   }
 
@@ -1175,63 +1181,4 @@ class _AgentStreamState {
     required this.agentType,
     this.agentName,
   });
-}
-
-/// A stream wrapper that buffers events until the first listener subscribes.
-///
-/// This solves the race condition where events may be emitted before UI
-/// components have a chance to subscribe. All events are buffered, and when
-/// the first listener subscribes, buffered events are replayed before
-/// switching to live streaming.
-///
-/// After the first listener subscribes, behaves like a normal broadcast stream.
-class _BufferedEventStream<T> {
-  final Stream<T> _source;
-  final List<T> _buffer = [];
-  StreamSubscription<T>? _sourceSubscription;
-  StreamController<T>? _outputController;
-  bool _hasHadListener = false;
-
-  _BufferedEventStream(this._source) {
-    // Start buffering immediately
-    _sourceSubscription = _source.listen(_buffer.add);
-  }
-
-  /// The stream that replays buffered events to the first subscriber,
-  /// then emits live events.
-  Stream<T> get stream {
-    // Create output controller lazily on first access
-    _outputController ??= StreamController<T>.broadcast(
-      onListen: _onFirstListen,
-    );
-    return _outputController!.stream;
-  }
-
-  void _onFirstListen() {
-    if (_hasHadListener) return;
-    _hasHadListener = true;
-
-    // Cancel buffering subscription
-    _sourceSubscription?.cancel();
-    _sourceSubscription = null;
-
-    // Replay buffered events
-    for (final event in _buffer) {
-      _outputController?.add(event);
-    }
-    _buffer.clear();
-
-    // Switch to live mode
-    _sourceSubscription = _source.listen(
-      _outputController?.add,
-      onError: _outputController?.addError,
-      onDone: _outputController?.close,
-    );
-  }
-
-  /// Dispose of resources.
-  void dispose() {
-    _sourceSubscription?.cancel();
-    _outputController?.close();
-  }
 }

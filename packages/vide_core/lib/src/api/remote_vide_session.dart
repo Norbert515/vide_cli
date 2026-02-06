@@ -7,9 +7,72 @@ import 'package:uuid/uuid.dart';
 import 'package:vide_client/vide_client.dart' as vc;
 
 import 'conversation_state.dart';
+import 'remote_conversation_builder.dart';
+import 'session_event_hub.dart';
 import 'vide_agent.dart';
 import 'vide_event.dart';
 import 'vide_session.dart';
+
+/// Handle for an optimistic remote session that is still connecting.
+///
+/// This keeps pending-session lifecycle operations in vide_core so UI/service
+/// layers do not need to depend on [RemoteVideSession] internals.
+class PendingRemoteVideSession {
+  final RemoteVideSession _session;
+
+  PendingRemoteVideSession._(this._session);
+
+  /// The session to use immediately (for optimistic navigation/rendering).
+  VideSession get session => _session;
+
+  /// Session identifier (stable across pending/connected transitions).
+  String get id => _session.id;
+
+  /// Whether the session is still pending.
+  bool get isPending => _session.isPending;
+
+  /// Creation error if the pending session failed.
+  String? get creationError => _session.creationError;
+
+  /// Callback invoked when pending session completes (success or failure).
+  set onReady(void Function()? callback) {
+    _session.onPendingComplete = callback;
+  }
+
+  /// Resolve the pending session with a connected transport session.
+  void completeWithClientSession(vc.Session clientSession) {
+    _session.completePending(clientSession);
+  }
+
+  /// Mark the pending session as failed.
+  void fail(String error) {
+    _session.failPending(error);
+  }
+}
+
+/// Create a pending remote session handle for optimistic UI flows.
+PendingRemoteVideSession createPendingRemoteVideSession({
+  String? initialMessage,
+  void Function()? onReady,
+}) {
+  final session = RemoteVideSession.pending();
+  if (initialMessage != null && initialMessage.isNotEmpty) {
+    session.addPendingUserMessage(initialMessage);
+  }
+  session.onPendingComplete = onReady;
+  return PendingRemoteVideSession._(session);
+}
+
+/// Adapt a transport-level [vc.Session] into the unified [VideSession] API.
+VideSession createRemoteVideSessionFromClientSession(
+  vc.Session clientSession, {
+  String? mainAgentId,
+}) {
+  return RemoteVideSession.fromClientSession(
+    clientSession,
+    mainAgentId: mainAgentId,
+  );
+}
 
 /// A VideSession that connects to a remote vide_server via WebSocket.
 ///
@@ -48,22 +111,20 @@ import 'vide_session.dart';
 /// For UIs that want to navigate before the session is created:
 ///
 /// ```dart
-/// final session = RemoteVideSession.pending();
-/// navigateToExecutionPage(session); // Navigate immediately
+/// final pending = createPendingRemoteVideSession(initialMessage: 'Build this');
+/// navigateToExecutionPage(pending.session); // Navigate immediately
 ///
 /// // Later, when server responds:
-/// session.completePending(clientSession);
+/// pending.completeWithClientSession(clientSession);
 /// ```
 class RemoteVideSession implements VideSession {
   String _sessionId;
   vc.Session? _clientSession;
   StreamSubscription<vc.VideEvent>? _eventSubscription;
 
-  final StreamController<VideEvent> _eventController =
-      StreamController<VideEvent>.broadcast();
-
-  final ConversationStateManager _conversationStateManager =
-      ConversationStateManager();
+  final SessionEventHub _hub = SessionEventHub();
+  final RemoteConversationBuilder _conversationBuilder =
+      RemoteConversationBuilder();
 
   /// Tracks agent info from connected/spawn events.
   final Map<String, _RemoteAgentInfo> _agents = {};
@@ -84,21 +145,25 @@ class RemoteVideSession implements VideSession {
   /// Team name for this session.
   String _team = 'vide';
 
-  /// Conversation state per agent.
-  final Map<String, Conversation> _conversations = {};
-
-  /// Stream controllers for conversation updates per agent.
-  final Map<String, StreamController<Conversation>> _conversationControllers =
-      {};
-
   /// Pending permission completers.
   final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
 
-  /// Current message event IDs per agent (for streaming).
-  final Map<String, String> _currentMessageEventIds = {};
+  /// Cached queued messages by agent.
+  final Map<String, String?> _queuedMessages = {};
 
-  /// Current assistant message ID per agent (for grouping text + tool use + tool result).
-  final Map<String, String> _currentAssistantMessageId = {};
+  /// Stream controllers for queued message updates.
+  final Map<String, StreamController<String?>> _queuedMessageControllers = {};
+  final Set<String> _queuedRefreshInFlight = {};
+
+  /// Cached model names by agent.
+  final Map<String, String?> _models = {};
+
+  /// Stream controllers for model updates.
+  final Map<String, StreamController<String?>> _modelControllers = {};
+  final Set<String> _modelRefreshInFlight = {};
+
+  /// Current status per agent.
+  final Map<String, VideAgentStatus> _agentStatuses = {};
 
   /// Last seq seen, for deduplication.
   int _lastSeq = 0;
@@ -111,6 +176,7 @@ class RemoteVideSession implements VideSession {
       StreamController<bool>.broadcast();
 
   /// Stream that emits when connection state changes (true = connected).
+  @override
   Stream<bool> get connectionStateStream => _connectionStateController.stream;
 
   /// Stream controller that emits when agents list changes.
@@ -127,9 +193,9 @@ class RemoteVideSession implements VideSession {
   bool _isPending = false;
   bool get isPending => _isPending;
 
-  /// Pending conversation to migrate when connected event arrives.
+  /// Pending placeholder agent ID to migrate when connected event arrives.
   /// This is set during completePending() and consumed in _handleConnected().
-  Conversation? _pendingConversationToMigrate;
+  String? _pendingAgentIdToMigrate;
 
   /// Error that occurred during session creation (if any).
   String? _creationError;
@@ -168,26 +234,16 @@ class RemoteVideSession implements VideSession {
       type: 'main',
       name: 'Connecting...',
     );
-
-    // Subscribe to our own events to update conversation state
-    _eventController.stream.listen((event) {
-      _conversationStateManager.handleEvent(event);
-    });
   }
 
   /// Complete a pending session with an actual client session.
   void completePending(vc.Session clientSession) {
     if (!_isPending) return;
 
-    // Save placeholder agent ID and its conversation before removing
-    final oldMainId = _mainAgentId;
-    StreamController<Conversation>? pendingController;
-
-    if (oldMainId != null) {
-      // Store conversation for migration when ConnectedEvent arrives
-      _pendingConversationToMigrate = _conversations.remove(oldMainId);
-      pendingController = _conversationControllers.remove(oldMainId);
-      _agents.remove(oldMainId);
+    // Save placeholder agent ID for conversation migration when ConnectedEvent arrives
+    if (_mainAgentId != null) {
+      _pendingAgentIdToMigrate = _mainAgentId;
+      _agents.remove(_mainAgentId);
     }
 
     // Update with real details
@@ -197,9 +253,6 @@ class RemoteVideSession implements VideSession {
 
     // Set up event listening (ConnectedEvent will set _mainAgentId and migrate conversation)
     _setupEventListening();
-
-    // Clean up old controller
-    pendingController?.close();
 
     // Notify listeners
     onPendingComplete?.call();
@@ -237,33 +290,10 @@ class RemoteVideSession implements VideSession {
 
     final agentInfo = _agents[agentId];
 
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
-
-    messages.add(
-      ConversationMessage(
-        id: const Uuid().v4(),
-        role: MessageRole.user,
-        content: content,
-        timestamp: DateTime.now(),
-        responses: [],
-        isStreaming: false,
-        isComplete: true,
-        messageType: MessageType.userMessage,
-      ),
-    );
-
-    conversation = conversation.copyWith(
-      messages: messages,
-      state: ConversationState.sendingMessage,
-    );
-    _conversations[agentId] = conversation;
-
-    // Notify listeners
-    _getOrCreateConversationController(agentId).add(conversation);
+    _conversationBuilder.addUserMessage(agentId, content);
 
     // Emit optimistic status event so UI shows the agent as working
-    _eventController.add(
+    _hub.emit(
       StatusEvent(
         agentId: agentId,
         agentType: agentInfo?.type ?? 'main',
@@ -284,11 +314,6 @@ class RemoteVideSession implements VideSession {
         name: 'Main',
       );
     }
-
-    // Subscribe to our own events to update conversation state
-    _eventController.stream.listen((event) {
-      _conversationStateManager.handleEvent(event);
-    });
   }
 
   /// Set up listening to the client session's event stream.
@@ -299,7 +324,7 @@ class RemoteVideSession implements VideSession {
     _eventSubscription = session.events.listen(
       _handleClientEvent,
       onError: (error) {
-        _eventController.addError(error);
+        _hub.emitError(error);
         if (!_connectCompleter.isCompleted) {
           _connectCompleter.completeError(error);
         }
@@ -353,10 +378,17 @@ class RemoteVideSession implements VideSession {
         _handleAgentTerminated(event);
       case vc.PermissionRequestEvent():
         _handlePermissionRequest(event);
+      case vc.AskUserQuestionEvent():
+        _handleAskUserQuestion(event);
+      case vc.TaskNameChangedEvent():
+        _handleTaskNameChanged(event);
       case vc.PermissionTimeoutEvent():
         _handlePermissionTimeout(event);
       case vc.AbortedEvent():
         _handleAborted(event);
+      case vc.CommandResultEvent():
+        // Command results are handled inside vide_client.Session.
+        break;
       case vc.UnknownEvent():
         // Ignore unknown events
         break;
@@ -376,9 +408,20 @@ class RemoteVideSession implements VideSession {
     _handleClientEvent(event);
   }
 
+  /// Resolve agent type from local cache, falling back to the wire event.
+  String _resolveAgentType(String agentId, vc.VideEvent event) {
+    return _agents[agentId]?.type ?? event.agent?.type ?? 'unknown';
+  }
+
+  /// Resolve agent name from local cache, falling back to the wire event.
+  String? _resolveAgentName(String agentId, vc.VideEvent event) {
+    return _agents[agentId]?.name ?? event.agent?.name;
+  }
+
   void _handleConnected(vc.ConnectedEvent event) {
     _mainAgentId = event.mainAgentId;
     _lastSeq = event.lastSeq;
+    _applyConnectedMetadata(event.metadata);
 
     // Parse agents list from connected event
     for (final agent in event.agents) {
@@ -387,14 +430,18 @@ class RemoteVideSession implements VideSession {
         type: agent.type,
         name: agent.name,
       );
+      _agentStatuses[agent.id] = VideAgentStatus.idle;
+      _refreshModel(agent.id);
+      _refreshQueuedMessage(agent.id);
     }
 
     // Migrate pending conversation from placeholder to real main agent
-    if (_pendingConversationToMigrate != null && _mainAgentId != null) {
-      _conversations[_mainAgentId!] = _pendingConversationToMigrate!;
-      final controller = _getOrCreateConversationController(_mainAgentId!);
-      controller.add(_pendingConversationToMigrate!);
-      _pendingConversationToMigrate = null;
+    if (_pendingAgentIdToMigrate != null && _mainAgentId != null) {
+      _conversationBuilder.migrateConversation(
+        fromAgentId: _pendingAgentIdToMigrate!,
+        toAgentId: _mainAgentId!,
+      );
+      _pendingAgentIdToMigrate = null;
     }
 
     // Notify listeners that agents list changed (important for reconnection)
@@ -424,117 +471,58 @@ class RemoteVideSession implements VideSession {
 
   /// Consolidate streaming message events in history by eventId.
   ///
-  /// When a message is streamed, the server stores each partial chunk as a separate
-  /// event. For history replay, we need to consolidate these into single messages
-  /// to avoid re-accumulating content that causes duplication.
-  ///
-  /// For messages with the same eventId:
-  /// - If there's a non-partial (final) event, use that
-  /// - Otherwise, accumulate content from all partials
+  /// The server stores every streaming partial as a separate event. For history
+  /// replay we merge chunks sharing an eventId into a single message, then sort
+  /// everything by seq.
   List<vc.VideEvent> _consolidateHistoryMessages(List<dynamic> rawEvents) {
     final result = <vc.VideEvent>[];
-    // Track message events by eventId for consolidation
     final messagesByEventId = <String, List<vc.MessageEvent>>{};
-    // Track positions for message events to maintain order
-    final eventIdPositions = <String, int>{};
 
-    // First pass: parse all events and group messages by eventId
-    for (int i = 0; i < rawEvents.length; i++) {
-      final rawEvent = rawEvents[i];
+    for (final rawEvent in rawEvents) {
       if (rawEvent is! Map<String, dynamic>) continue;
-
       final parsed = vc.VideEvent.fromJson(rawEvent);
 
       if (parsed is vc.MessageEvent && parsed.eventId != null) {
-        final eventId = parsed.eventId!;
-        messagesByEventId.putIfAbsent(eventId, () => []).add(parsed);
-        eventIdPositions.putIfAbsent(eventId, () => i);
+        messagesByEventId.putIfAbsent(parsed.eventId!, () => []).add(parsed);
       } else {
-        // Non-message events go directly to result
         result.add(parsed);
       }
     }
 
-    // Second pass: consolidate message events
-    final consolidatedMessages = <int, vc.VideEvent>{};
-    for (final entry in messagesByEventId.entries) {
-      final eventId = entry.key;
-      final messages = entry.value;
-      final position = eventIdPositions[eventId]!;
+    for (final messages in messagesByEventId.values) {
+      final partials = messages.where((m) => m.isPartial).toList();
+      final hasFinal = messages.any((m) => !m.isPartial);
+      final representative = messages.last;
 
-      if (messages.length == 1) {
-        // Only one event for this eventId, use as-is
-        consolidatedMessages[position] = messages.first;
-      } else {
-        // Multiple events - find the final one or accumulate content
-        final finalMessage = messages.where((m) => !m.isPartial).firstOrNull;
-        if (finalMessage != null) {
-          // Use the final non-partial message (it should have full content)
-          // But server sends empty content for final, so accumulate from partials
-          final accumulatedContent = messages
-              .where((m) => m.isPartial)
-              .map((m) => m.content)
-              .join();
-          consolidatedMessages[position] = vc.MessageEvent(
-            seq: finalMessage.seq,
-            eventId: finalMessage.eventId,
-            timestamp: finalMessage.timestamp,
-            agent: finalMessage.agent,
-            role: finalMessage.role,
-            content: accumulatedContent,
-            isPartial: false,
-          );
-        } else {
-          // All partials - accumulate content
-          final last = messages.last;
-          final accumulatedContent = messages.map((m) => m.content).join();
-          consolidatedMessages[position] = vc.MessageEvent(
-            seq: last.seq,
-            eventId: last.eventId,
-            timestamp: last.timestamp,
-            agent: last.agent,
-            role: last.role,
-            content: accumulatedContent,
-            isPartial: true,
-          );
-        }
-      }
-    }
+      // Partial chunks carry streaming content; the final marker is empty.
+      // For non-streamed messages (single non-partial) use the content directly.
+      final content = partials.isNotEmpty
+          ? partials.map((m) => m.content).join()
+          : representative.content;
 
-    // Insert consolidated messages at their original positions
-    final sortedPositions = consolidatedMessages.keys.toList()..sort();
-    for (final position in sortedPositions) {
-      result.insert(
-        result.length.clamp(0, position),
-        consolidatedMessages[position]!,
+      result.add(
+        vc.MessageEvent(
+          seq: representative.seq,
+          eventId: representative.eventId,
+          timestamp: representative.timestamp,
+          agent: representative.agent,
+          role: representative.role,
+          content: content,
+          isPartial: !hasFinal,
+        ),
       );
     }
 
-    // Sort by seq to maintain proper order
     result.sort((a, b) => (a.seq ?? 0).compareTo(b.seq ?? 0));
-
     return result;
   }
 
   void _handleMessage(vc.MessageEvent event, {bool isHistoryReplay = false}) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
     final eventId = event.eventId ?? const Uuid().v4();
-
-    // Track streaming state (skip for history replay - messages are already complete)
-    if (!isHistoryReplay) {
-      if (event.isPartial) {
-        _currentMessageEventIds[agentId] = eventId;
-      } else {
-        _currentMessageEventIds.remove(agentId);
-      }
-    }
-
     final role = event.role == vc.MessageRole.user ? 'user' : 'assistant';
 
-    // Update conversation state
-    // For history replay, messages should not be accumulated
-    _updateConversation(
+    _conversationBuilder.handleMessage(
       agentId: agentId,
       eventId: eventId,
       role: role,
@@ -543,11 +531,11 @@ class RemoteVideSession implements VideSession {
       isHistoryReplay: isHistoryReplay,
     );
 
-    _eventController.add(
+    _hub.emit(
       MessageEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         eventId: eventId,
         role: role,
@@ -559,21 +547,19 @@ class RemoteVideSession implements VideSession {
 
   void _handleToolUse(vc.ToolUseEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
 
-    // Update conversation state with tool use
-    _updateConversationWithToolUse(
+    _conversationBuilder.handleToolUse(
       agentId: agentId,
       toolUseId: event.toolUseId,
       toolName: event.toolName,
       toolInput: event.toolInput,
     );
 
-    _eventController.add(
+    _hub.emit(
       ToolUseEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         toolUseId: event.toolUseId,
         toolName: event.toolName,
@@ -584,23 +570,21 @@ class RemoteVideSession implements VideSession {
 
   void _handleToolResult(vc.ToolResultEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
     final result = event.result;
     final resultStr = result is String ? result : (result?.toString() ?? '');
 
-    // Update conversation state with tool result
-    _updateConversationWithToolResult(
+    _conversationBuilder.handleToolResult(
       agentId: agentId,
       toolUseId: event.toolUseId,
       result: resultStr,
       isError: event.isError,
     );
 
-    _eventController.add(
+    _hub.emit(
       ToolResultEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         toolUseId: event.toolUseId,
         toolName: event.toolName,
@@ -612,7 +596,6 @@ class RemoteVideSession implements VideSession {
 
   void _handleStatus(vc.StatusEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
 
     final status = switch (event.status) {
       vc.AgentStatus.working => VideAgentStatus.working,
@@ -620,12 +603,15 @@ class RemoteVideSession implements VideSession {
       vc.AgentStatus.waitingForUser => VideAgentStatus.waitingForUser,
       vc.AgentStatus.idle => VideAgentStatus.idle,
     };
+    _agentStatuses[agentId] = status;
+    _refreshQueuedMessage(agentId);
+    _refreshModel(agentId);
 
-    _eventController.add(
+    _hub.emit(
       StatusEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         status: status,
       ),
@@ -634,16 +620,16 @@ class RemoteVideSession implements VideSession {
 
   void _handleDone(vc.DoneEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
+    _agentStatuses[agentId] = VideAgentStatus.idle;
+    _refreshQueuedMessage(agentId);
 
-    // Mark the current assistant message as complete
-    _markAssistantTurnComplete(agentId);
+    _conversationBuilder.markAssistantTurnComplete(agentId);
 
-    _eventController.add(
+    _hub.emit(
       TurnCompleteEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         reason: event.reason,
       ),
@@ -652,13 +638,12 @@ class RemoteVideSession implements VideSession {
 
   void _handleError(vc.ErrorEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
 
-    _eventController.add(
+    _hub.emit(
       ErrorEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         message: event.message,
         code: event.code,
@@ -668,23 +653,23 @@ class RemoteVideSession implements VideSession {
 
   void _handleAgentSpawned(vc.AgentSpawnedEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentType = event.agent?.type ?? 'unknown';
-    final agentName = event.agent?.name;
 
     _agents[agentId] = _RemoteAgentInfo(
       id: agentId,
-      type: agentType,
-      name: agentName,
+      type: event.agent?.type ?? 'unknown',
+      name: event.agent?.name,
     );
+    _agentStatuses[agentId] = VideAgentStatus.idle;
+    _refreshModel(agentId);
+    _refreshQueuedMessage(agentId);
 
-    // Notify listeners that agents list changed
     _agentsController.add(agents);
 
-    _eventController.add(
+    _hub.emit(
       AgentSpawnedEvent(
         agentId: agentId,
-        agentType: agentType,
-        agentName: agentName,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         spawnedBy: event.spawnedBy,
       ),
@@ -693,16 +678,27 @@ class RemoteVideSession implements VideSession {
 
   void _handleAgentTerminated(vc.AgentTerminatedEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents.remove(agentId);
+    // Resolve before removing from cache.
+    final agentType = _resolveAgentType(agentId, event);
+    final agentName = _resolveAgentName(agentId, event);
 
-    // Notify listeners that agents list changed
+    _agents.remove(agentId);
+    _agentStatuses.remove(agentId);
+    _models.remove(agentId);
+    _queuedMessages.remove(agentId);
+    _modelRefreshInFlight.remove(agentId);
+    _queuedRefreshInFlight.remove(agentId);
+    unawaited(_modelControllers.remove(agentId)?.close());
+    unawaited(_queuedMessageControllers.remove(agentId)?.close());
+    _conversationBuilder.removeAgent(agentId);
+
     _agentsController.add(agents);
 
-    _eventController.add(
+    _hub.emit(
       AgentTerminatedEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: agentType,
+        agentName: agentName,
         taskName: event.agent?.taskName,
         reason: event.reason,
         terminatedBy: event.terminatedBy,
@@ -712,17 +708,66 @@ class RemoteVideSession implements VideSession {
 
   void _handlePermissionRequest(vc.PermissionRequestEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
 
-    _eventController.add(
+    _hub.emit(
       PermissionRequestEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         requestId: event.requestId,
         toolName: event.toolName,
         toolInput: event.tool['input'] as Map<String, dynamic>? ?? {},
+      ),
+    );
+  }
+
+  void _handleAskUserQuestion(vc.AskUserQuestionEvent event) {
+    final agentId = event.agent?.id ?? '';
+
+    final questions = event.questions.map((q) {
+      final options = (q['options'] as List<dynamic>? ?? const []).map((o) {
+        final option = Map<String, dynamic>.from(o as Map);
+        return AskUserQuestionOptionData(
+          label: option['label']?.toString() ?? '',
+          description: option['description']?.toString() ?? '',
+        );
+      }).toList();
+
+      return AskUserQuestionData(
+        question: q['question']?.toString() ?? '',
+        header: q['header']?.toString(),
+        multiSelect: q['multi-select'] as bool? ?? false,
+        options: options,
+      );
+    }).toList();
+
+    _hub.emit(
+      AskUserQuestionEvent(
+        agentId: agentId,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
+        taskName: event.agent?.taskName,
+        requestId: event.requestId,
+        questions: questions,
+      ),
+    );
+  }
+
+  void _handleTaskNameChanged(vc.TaskNameChangedEvent event) {
+    final agentId = event.agent?.id ?? _mainAgentId ?? '';
+    final previousGoal = _goal;
+    _goal = event.newGoal;
+    _goalController.add(_goal);
+
+    _hub.emit(
+      TaskNameChangedEvent(
+        agentId: agentId,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
+        taskName: event.agent?.taskName,
+        newGoal: event.newGoal,
+        previousGoal: event.previousGoal ?? previousGoal,
       ),
     );
   }
@@ -736,357 +781,95 @@ class RemoteVideSession implements VideSession {
 
   void _handleAborted(vc.AbortedEvent event) {
     final agentId = event.agent?.id ?? '';
-    final agentInfo = _agents[agentId];
+    _agentStatuses[agentId] = VideAgentStatus.idle;
+    _refreshQueuedMessage(agentId);
 
-    _eventController.add(
+    _hub.emit(
       TurnCompleteEvent(
         agentId: agentId,
-        agentType: agentInfo?.type ?? event.agent?.type ?? 'unknown',
-        agentName: agentInfo?.name ?? event.agent?.name,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
         taskName: event.agent?.taskName,
         reason: 'aborted',
       ),
     );
   }
 
-  // ============================================================
-  // Conversation state management
-  // ============================================================
-
-  void _updateConversation({
-    required String agentId,
-    required String eventId,
-    required String role,
-    required String content,
-    required bool isPartial,
-    bool isHistoryReplay = false,
-  }) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
-
-    if (role == 'user') {
-      // Check if this user message already exists (from optimistic add)
-      // We compare by content since IDs may differ between optimistic and server events
-      // Check ALL recent user messages, not just the last one, because an assistant
-      // message might have started before the server echoes back the user message
-      final isDuplicate = messages.any(
-        (m) => m.role == MessageRole.user && m.content == content,
-      );
-
-      if (!isDuplicate) {
-        messages.add(
-          ConversationMessage(
-            id: eventId,
-            role: MessageRole.user,
-            content: content,
-            timestamp: DateTime.now(),
-            responses: [],
-            isStreaming: false,
-            isComplete: true,
-            messageType: MessageType.userMessage,
-          ),
-        );
-      }
-      // Clear any current assistant message tracking since user started new turn
-      _currentAssistantMessageId.remove(agentId);
-    } else {
-      // Assistant message handling
-      //
-      // For history replay: messages are already consolidated, so just add them
-      // without accumulating. This prevents duplication from replaying streaming chunks.
-      //
-      // For live streaming: accumulate chunks into current message by ID.
-      if (isHistoryReplay) {
-        // History replay - add message directly without accumulation
-        // Check for duplicate by eventId first
-        final existingIndex = messages.indexWhere((m) => m.id == eventId);
-        if (existingIndex >= 0) {
-          // Update existing message (shouldn't happen with proper consolidation)
-          final existing = messages[existingIndex];
-          messages[existingIndex] = ConversationMessage(
-            id: existing.id,
-            role: MessageRole.assistant,
-            content: content,
-            timestamp: existing.timestamp,
-            responses: [
-              if (content.isNotEmpty)
-                TextResponse(
-                  id: const Uuid().v4(),
-                  timestamp: DateTime.now(),
-                  content: content,
-                  isPartial: false,
-                ),
-            ],
-            isStreaming: false,
-            isComplete: true,
-            messageType: MessageType.assistantText,
-          );
-        } else {
-          // Add new message
-          messages.add(
-            ConversationMessage(
-              id: eventId,
-              role: MessageRole.assistant,
-              content: content,
-              timestamp: DateTime.now(),
-              responses: [
-                if (content.isNotEmpty)
-                  TextResponse(
-                    id: const Uuid().v4(),
-                    timestamp: DateTime.now(),
-                    content: content,
-                    isPartial: false,
-                  ),
-              ],
-              isStreaming: false,
-              isComplete: true,
-              messageType: MessageType.assistantText,
-            ),
-          );
-        }
-      } else {
-        // Live streaming - accumulate chunks into current message
-        final currentMsgId = _currentAssistantMessageId[agentId];
-        final existingIndex = currentMsgId != null
-            ? messages.indexWhere((m) => m.id == currentMsgId)
-            : -1;
-
-        if (existingIndex >= 0) {
-          // Add text to existing assistant message
-          final existing = messages[existingIndex];
-          final newContent = existing.content + content;
-          final responses = List<ClaudeResponse>.from(existing.responses);
-
-          if (content.isNotEmpty) {
-            responses.add(
-              TextResponse(
-                id: const Uuid().v4(),
-                timestamp: DateTime.now(),
-                content: content,
-                isPartial: true,
-              ),
-            );
-          }
-
-          messages[existingIndex] = ConversationMessage(
-            id: existing.id,
-            role: MessageRole.assistant,
-            content: newContent,
-            timestamp: existing.timestamp,
-            responses: responses,
-            isStreaming: isPartial,
-            isComplete: !isPartial,
-            messageType: MessageType.assistantText,
-          );
-        } else {
-          // Create new assistant message
-          final newMsgId = eventId;
-          _currentAssistantMessageId[agentId] = newMsgId;
-
-          final responses = <ClaudeResponse>[];
-          if (content.isNotEmpty) {
-            responses.add(
-              TextResponse(
-                id: const Uuid().v4(),
-                timestamp: DateTime.now(),
-                content: content,
-                isPartial: true,
-              ),
-            );
-          }
-
-          messages.add(
-            ConversationMessage(
-              id: newMsgId,
-              role: MessageRole.assistant,
-              content: content,
-              timestamp: DateTime.now(),
-              responses: responses,
-              isStreaming: isPartial,
-              isComplete: !isPartial,
-              messageType: MessageType.assistantText,
-            ),
-          );
-        }
-
-        // Clear tracking when turn completes
-        if (!isPartial) {
-          _currentAssistantMessageId.remove(agentId);
-        }
-      }
-    }
-
-    final state = isPartial
-        ? ConversationState.receivingResponse
-        : ConversationState.idle;
-
-    conversation = conversation.copyWith(messages: messages, state: state);
-    _conversations[agentId] = conversation;
-
-    // Notify listeners
-    _getOrCreateConversationController(agentId).add(conversation);
-  }
-
-  void _updateConversationWithToolUse({
-    required String agentId,
-    required String toolUseId,
-    required String toolName,
-    required Map<String, dynamic> toolInput,
-  }) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
-
-    // Find or create the current assistant message
-    var currentMsgId = _currentAssistantMessageId[agentId];
-    var existingIndex = currentMsgId != null
-        ? messages.indexWhere((m) => m.id == currentMsgId)
-        : -1;
-
-    if (existingIndex < 0) {
-      // No current assistant message - create one
-      currentMsgId = const Uuid().v4();
-      _currentAssistantMessageId[agentId] = currentMsgId;
-      messages.add(
-        ConversationMessage(
-          id: currentMsgId,
-          role: MessageRole.assistant,
-          content: '',
-          timestamp: DateTime.now(),
-          responses: [],
-          isStreaming: true,
-          isComplete: false,
-          messageType: MessageType.assistantText,
-        ),
-      );
-      existingIndex = messages.length - 1;
-    }
-
-    // Add ToolUseResponse to the current assistant message
-    final existing = messages[existingIndex];
-    final responses = List<ClaudeResponse>.from(existing.responses);
-    responses.add(
-      ToolUseResponse(
-        id: toolUseId,
-        timestamp: DateTime.now(),
-        toolName: toolName,
-        parameters: toolInput,
-        toolUseId: toolUseId,
-      ),
-    );
-
-    messages[existingIndex] = ConversationMessage(
-      id: existing.id,
-      role: MessageRole.assistant,
-      content: existing.content,
-      timestamp: existing.timestamp,
-      responses: responses,
-      isStreaming: true,
-      isComplete: false,
-      messageType: MessageType.assistantText,
-    );
-
-    conversation = conversation.copyWith(
-      messages: messages,
-      state: ConversationState.processing,
-    );
-    _conversations[agentId] = conversation;
-
-    // Notify listeners
-    _getOrCreateConversationController(agentId).add(conversation);
-  }
-
-  void _updateConversationWithToolResult({
-    required String agentId,
-    required String toolUseId,
-    required String result,
-    required bool isError,
-  }) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
-
-    // Find the current assistant message
-    final currentMsgId = _currentAssistantMessageId[agentId];
-    final existingIndex = currentMsgId != null
-        ? messages.indexWhere((m) => m.id == currentMsgId)
-        : -1;
-
-    if (existingIndex >= 0) {
-      // Add ToolResultResponse to the current assistant message
-      final existing = messages[existingIndex];
-      final responses = List<ClaudeResponse>.from(existing.responses);
-      responses.add(
-        ToolResultResponse(
-          id: '${toolUseId}_result',
-          timestamp: DateTime.now(),
-          toolUseId: toolUseId,
-          content: result,
-          isError: isError,
-        ),
-      );
-
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: MessageRole.assistant,
-        content: existing.content,
-        timestamp: existing.timestamp,
-        responses: responses,
-        isStreaming: true,
-        isComplete: false,
-        messageType: MessageType.assistantText,
-      );
-    }
-
-    conversation = conversation.copyWith(
-      messages: messages,
-      state: ConversationState.processing,
-    );
-    _conversations[agentId] = conversation;
-
-    // Notify listeners
-    _getOrCreateConversationController(agentId).add(conversation);
-  }
-
-  void _markAssistantTurnComplete(String agentId) {
-    final currentMsgId = _currentAssistantMessageId.remove(agentId);
-    if (currentMsgId == null) return;
-
-    var conversation = _conversations[agentId];
-    if (conversation == null) return;
-
-    final messages = List<ConversationMessage>.from(conversation.messages);
-    final existingIndex = messages.indexWhere((m) => m.id == currentMsgId);
-
-    if (existingIndex >= 0) {
-      final existing = messages[existingIndex];
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: existing.role,
-        content: existing.content,
-        timestamp: existing.timestamp,
-        responses: existing.responses,
-        isStreaming: false,
-        isComplete: true,
-        messageType: existing.messageType,
-      );
-
-      conversation = conversation.copyWith(
-        messages: messages,
-        state: ConversationState.idle,
-      );
-      _conversations[agentId] = conversation;
-
-      // Notify listeners
-      _getOrCreateConversationController(agentId).add(conversation);
-    }
-  }
-
-  StreamController<Conversation> _getOrCreateConversationController(
+  StreamController<String?> _getOrCreateQueuedMessageController(
     String agentId,
   ) {
-    return _conversationControllers.putIfAbsent(
+    return _queuedMessageControllers.putIfAbsent(
       agentId,
-      () => StreamController<Conversation>.broadcast(),
+      () => StreamController<String?>.broadcast(),
     );
+  }
+
+  StreamController<String?> _getOrCreateModelController(String agentId) {
+    return _modelControllers.putIfAbsent(
+      agentId,
+      () => StreamController<String?>.broadcast(),
+    );
+  }
+
+  /// Best-effort refresh of a cached per-agent value.
+  void _refreshCached<T>({
+    required String agentId,
+    required Map<String, T?> cache,
+    required Set<String> inFlight,
+    required StreamController<T?> Function(String) getController,
+    required Future<T?> Function(vc.Session, String) fetch,
+  }) {
+    final session = _clientSession;
+    if (session == null) return;
+    if (!inFlight.add(agentId)) return;
+    unawaited(() async {
+      try {
+        final value = await fetch(session, agentId);
+        if (_disposed) return;
+        if (cache[agentId] != value) {
+          cache[agentId] = value;
+          getController(agentId).add(value);
+        }
+      } catch (_) {
+        // Best-effort cache refresh.
+      } finally {
+        inFlight.remove(agentId);
+      }
+    }());
+  }
+
+  void _refreshQueuedMessage(String agentId) => _refreshCached(
+    agentId: agentId,
+    cache: _queuedMessages,
+    inFlight: _queuedRefreshInFlight,
+    getController: _getOrCreateQueuedMessageController,
+    fetch: (s, id) => s.getQueuedMessage(id),
+  );
+
+  void _refreshModel(String agentId) => _refreshCached(
+    agentId: agentId,
+    cache: _models,
+    inFlight: _modelRefreshInFlight,
+    getController: _getOrCreateModelController,
+    fetch: (s, id) => s.getModel(id),
+  );
+
+  void _applyConnectedMetadata(Map<String, dynamic> metadata) {
+    final workingDirectory = metadata['working-directory'] as String?;
+    if (workingDirectory != null && workingDirectory.isNotEmpty) {
+      _workingDirectory = workingDirectory;
+    }
+
+    final team = metadata['team'] as String?;
+    if (team != null && team.isNotEmpty) {
+      _team = team;
+    }
+
+    final goal = metadata['goal'] as String?;
+    if (goal != null && goal.isNotEmpty && goal != _goal) {
+      _goal = goal;
+      _goalController.add(goal);
+    }
   }
 
   // ============================================================
@@ -1097,10 +880,11 @@ class RemoteVideSession implements VideSession {
   String get id => _sessionId;
 
   @override
-  ConversationStateManager get conversationState => _conversationStateManager;
+  ConversationStateManager get conversationState =>
+      _hub.conversationStateManager;
 
   @override
-  Stream<VideEvent> get events => _eventController.stream;
+  Stream<VideEvent> get events => _hub.events;
 
   @override
   List<VideAgent> get agents {
@@ -1110,7 +894,7 @@ class RemoteVideSession implements VideSession {
             id: a.id,
             name: a.name ?? a.type,
             type: a.type,
-            status: VideAgentStatus.idle,
+            status: _agentStatuses[a.id] ?? VideAgentStatus.idle,
             createdAt: DateTime.now(),
           ),
         )
@@ -1126,7 +910,7 @@ class RemoteVideSession implements VideSession {
       id: info.id,
       name: info.name ?? info.type,
       type: info.type,
-      status: VideAgentStatus.idle,
+      status: _agentStatuses[info.id] ?? VideAgentStatus.idle,
       createdAt: DateTime.now(),
     );
   }
@@ -1135,7 +919,8 @@ class RemoteVideSession implements VideSession {
   List<String> get agentIds => _agents.keys.toList();
 
   @override
-  bool get isProcessing => false;
+  bool get isProcessing =>
+      _agentStatuses.values.any((status) => status != VideAgentStatus.idle);
 
   @override
   String get workingDirectory => _workingDirectory;
@@ -1152,7 +937,24 @@ class RemoteVideSession implements VideSession {
   @override
   void sendMessage(Message message, {String? agentId}) {
     _checkNotDisposed();
-    _clientSession?.sendMessage(message.text);
+    final targetAgentId = agentId ?? _mainAgentId;
+    _clientSession?.sendMessage(message.text, agentId: targetAgentId);
+
+    // Optimistically add the user message for immediate display.
+    // The server will echo it back as a MessageEvent; the conversation
+    // builder deduplicates by content so it won't appear twice.
+    if (targetAgentId != null) {
+      _conversationBuilder.addUserMessage(targetAgentId, message.text);
+    }
+
+    // Optimistically reflect queued message when agent is already busy.
+    if (targetAgentId != null &&
+        (_agentStatuses[targetAgentId] == VideAgentStatus.working ||
+            _agentStatuses[targetAgentId] == VideAgentStatus.waitingForAgent ||
+            _agentStatuses[targetAgentId] == VideAgentStatus.waitingForUser)) {
+      _queuedMessages[targetAgentId] = message.text;
+      _getOrCreateQueuedMessageController(targetAgentId).add(message.text);
+    }
   }
 
   @override
@@ -1177,8 +979,10 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> abortAgent(String agentId) async {
-    // Remote protocol doesn't support per-agent abort yet
-    await abort();
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.abortAgent(agentId);
   }
 
   @override
@@ -1200,18 +1004,28 @@ class RemoteVideSession implements VideSession {
     }
     _pendingPermissions.clear();
 
-    _conversationStateManager.dispose();
+    _hub.dispose();
+    _conversationBuilder.dispose();
 
-    // Close conversation stream controllers
-    for (final controller in _conversationControllers.values) {
+    for (final controller in _queuedMessageControllers.values) {
       await controller.close();
     }
-    _conversationControllers.clear();
+    _queuedMessageControllers.clear();
+
+    for (final controller in _modelControllers.values) {
+      await controller.close();
+    }
+    _modelControllers.clear();
 
     await _connectionStateController.close();
     await _agentsController.close();
     await _goalController.close();
-    await _eventController.close();
+
+    _models.clear();
+    _queuedMessages.clear();
+    _agentStatuses.clear();
+    _modelRefreshInFlight.clear();
+    _queuedRefreshInFlight.clear();
   }
 
   void _checkNotDisposed() {
@@ -1221,32 +1035,41 @@ class RemoteVideSession implements VideSession {
   }
 
   // ============================================================
-  // Methods not supported in remote mode
+  // Methods with remote transport-specific behavior
   // ============================================================
 
   @override
   Future<void> clearConversation({String? agentId}) async {
-    // Not supported in remote mode
-  }
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
 
-  @override
-  T? getMcpServer<T extends McpServerBase>(String agentId, String serverName) {
-    return null;
+    final targetAgentId = agentId ?? _mainAgentId;
+    await session.clearConversation(agentId: targetAgentId);
+
+    if (targetAgentId != null) {
+      _conversationBuilder.clearConversation(targetAgentId);
+    }
   }
 
   @override
   Future<void> setWorktreePath(String? path) async {
-    // Not supported in remote mode
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    final result = await session.setWorktreePath(path);
+    _workingDirectory =
+        result?['working-directory'] as String? ?? _workingDirectory;
   }
 
   @override
   Conversation? getConversation(String agentId) {
-    return _conversations[agentId];
+    return _conversationBuilder.getConversation(agentId);
   }
 
   @override
   Stream<Conversation> conversationStream(String agentId) {
-    return _getOrCreateConversationController(agentId).stream;
+    return _conversationBuilder.conversationStream(agentId);
   }
 
   @override
@@ -1267,12 +1090,24 @@ class RemoteVideSession implements VideSession {
     required String terminatedBy,
     String? reason,
   }) async {
-    // Not supported in remote mode yet
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.terminateAgent(
+      agentId: agentId,
+      terminatedBy: terminatedBy,
+      reason: reason,
+    );
   }
 
   @override
   Future<String> forkAgent(String agentId, {String? name}) async {
-    throw UnimplementedError('Fork not supported in remote mode');
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) {
+      throw StateError('Remote session is not connected');
+    }
+    return await session.forkAgent(agentId, name: name);
   }
 
   @override
@@ -1282,23 +1117,68 @@ class RemoteVideSession implements VideSession {
     required String initialPrompt,
     required String spawnedBy,
   }) async {
-    throw UnimplementedError('Spawn not supported in remote mode');
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) {
+      throw StateError('Remote session is not connected');
+    }
+    return await session.spawnAgent(
+      agentType: agentType,
+      name: name,
+      initialPrompt: initialPrompt,
+      spawnedBy: spawnedBy,
+    );
   }
 
   @override
-  String? getQueuedMessage(String agentId) => null;
+  Future<String?> getQueuedMessage(String agentId) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return _queuedMessages[agentId];
+
+    final queuedMessage = await session.getQueuedMessage(agentId);
+    if (_queuedMessages[agentId] != queuedMessage) {
+      _queuedMessages[agentId] = queuedMessage;
+      _getOrCreateQueuedMessageController(agentId).add(queuedMessage);
+    }
+    return queuedMessage;
+  }
 
   @override
-  Stream<String?> queuedMessageStream(String agentId) => const Stream.empty();
+  Stream<String?> queuedMessageStream(String agentId) {
+    _refreshQueuedMessage(agentId);
+    return _getOrCreateQueuedMessageController(agentId).stream;
+  }
 
   @override
-  void clearQueuedMessage(String agentId) {}
+  Future<void> clearQueuedMessage(String agentId) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.clearQueuedMessage(agentId);
+    _queuedMessages[agentId] = null;
+    _getOrCreateQueuedMessageController(agentId).add(null);
+  }
 
   @override
-  String? getModel(String agentId) => null;
+  Future<String?> getModel(String agentId) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return _models[agentId];
+
+    final model = await session.getModel(agentId);
+    if (_models[agentId] != model) {
+      _models[agentId] = model;
+      _getOrCreateModelController(agentId).add(model);
+    }
+    return model;
+  }
 
   @override
-  Stream<String?> modelStream(String agentId) => const Stream.empty();
+  Stream<String?> modelStream(String agentId) {
+    _refreshModel(agentId);
+    return _getOrCreateModelController(agentId).stream;
+  }
 
   @override
   CanUseToolCallback createPermissionCallback({
@@ -1308,9 +1188,18 @@ class RemoteVideSession implements VideSession {
     required String cwd,
     String? permissionMode,
   }) {
-    throw UnimplementedError(
-      'createPermissionCallback not used in remote mode',
-    );
+    // Remote sessions execute permission checks server-side.
+    // If this callback is invoked unexpectedly, fail closed instead of throwing.
+    return (
+      String toolName,
+      Map<String, dynamic> input,
+      ToolPermissionContext context,
+    ) async {
+      return const PermissionResultDeny(
+        message:
+            'Local permission callback is unavailable for transport-backed sessions',
+      );
+    };
   }
 
   @override
@@ -1318,22 +1207,38 @@ class RemoteVideSession implements VideSession {
     String requestId, {
     required Map<String, String> answers,
   }) {
-    // Would need protocol extension
+    _checkNotDisposed();
+    _clientSession?.respondToAskUserQuestion(
+      requestId: requestId,
+      answers: answers,
+    );
   }
 
   @override
-  void addSessionPermissionPattern(String pattern) {
-    // Session patterns are managed server-side
+  Future<void> addSessionPermissionPattern(String pattern) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.addSessionPermissionPattern(pattern);
   }
 
   @override
-  bool isAllowedBySessionCache(String toolName, Map<String, dynamic> input) {
-    return false;
+  Future<bool> isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> input,
+  ) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return false;
+    return await session.isAllowedBySessionCache(toolName, input);
   }
 
   @override
-  void clearSessionPermissionCache() {
-    // Session cache is managed server-side
+  Future<void> clearSessionPermissionCache() async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.clearSessionPermissionCache();
   }
 }
 

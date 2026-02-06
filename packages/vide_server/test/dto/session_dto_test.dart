@@ -60,7 +60,23 @@ void main() {
       expect(message, isA<UserMessage>());
       final userMsg = message as UserMessage;
       expect(userMsg.content, 'Hello there');
+      expect(userMsg.agentId, isNull);
       expect(userMsg.model, 'haiku');
+    });
+
+    test('fromJson parses user-message with target agent', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Hi sub-agent',
+        'agent-id': 'agent-2',
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<UserMessage>());
+      final userMsg = message as UserMessage;
+      expect(userMsg.content, 'Hi sub-agent');
+      expect(userMsg.agentId, 'agent-2');
     });
 
     test('fromJson parses permission-response', () {
@@ -101,6 +117,38 @@ void main() {
       final message = ClientMessage.fromJson(json);
 
       expect(message, isA<AbortMessage>());
+    });
+
+    test('fromJson parses ask-user-question-response', () {
+      final json = {
+        'type': 'ask-user-question-response',
+        'request-id': 'ask-1',
+        'answers': {'Pick one': 'A'},
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<AskUserQuestionResponseMessage>());
+      final ask = message as AskUserQuestionResponseMessage;
+      expect(ask.requestId, 'ask-1');
+      expect(ask.answers, {'Pick one': 'A'});
+    });
+
+    test('fromJson parses session-command', () {
+      final json = {
+        'type': 'session-command',
+        'request-id': 'cmd-1',
+        'command': 'fork-agent',
+        'data': {'agent-id': 'main'},
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<SessionCommandMessage>());
+      final command = message as SessionCommandMessage;
+      expect(command.requestId, 'cmd-1');
+      expect(command.command, 'fork-agent');
+      expect(command.data, {'agent-id': 'main'});
     });
 
     test('fromJson throws on unknown type', () {

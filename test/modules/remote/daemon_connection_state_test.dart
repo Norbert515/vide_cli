@@ -88,18 +88,6 @@ void main() {
         expect(copied.error, equals('new error'));
       });
 
-      test('clears error when clearError is true', () {
-        const original = DaemonConnectionState(error: 'some error');
-        final copied = original.copyWith(clearError: true);
-        expect(copied.error, isNull);
-      });
-
-      test('clearError takes precedence over error parameter', () {
-        const original = DaemonConnectionState(error: 'old error');
-        final copied = original.copyWith(error: 'new error', clearError: true);
-        expect(copied.error, isNull);
-      });
-
       test('overrides host and port', () {
         const original = DaemonConnectionState(host: 'localhost', port: 8080);
         final copied = original.copyWith(host: '192.168.1.1', port: 9090);
@@ -107,11 +95,10 @@ void main() {
         expect(copied.port, equals(9090));
       });
 
-      test('clears client when clearClient is true', () {
-        // Note: We can't set a real client, but we can test the clear behavior
-        const original = DaemonConnectionState();
-        final copied = original.copyWith(clearClient: true);
-        expect(copied.client, isNull);
+      test('overrides authToken', () {
+        const original = DaemonConnectionState(authToken: 'old-token');
+        final copied = original.copyWith(authToken: 'new-token');
+        expect(copied.authToken, equals('new-token'));
       });
     });
 
@@ -124,6 +111,7 @@ void main() {
         expect(state.error, isNull);
         expect(state.host, isNull);
         expect(state.port, isNull);
+        expect(state.authToken, isNull);
       });
     });
   });

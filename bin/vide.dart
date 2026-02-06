@@ -152,9 +152,23 @@ void main(List<String> args) async {
   final forceLocal = argResults['local'] as bool;
   final forceDaemon = argResults['daemon'] as bool;
 
+  if (forceLocal && forceDaemon) {
+    print('Error: --local and --daemon cannot be used together');
+    exit(1);
+  }
+
+  if (sessionId != null && connectArg == null) {
+    print('Error: --session requires --connect');
+    exit(1);
+  }
+
   // Build remote config if --connect is specified
   app.RemoteConfig? remoteConfig;
   if (connectArg != null) {
+    if (forceLocal) {
+      print('Error: --connect cannot be used with --local');
+      exit(1);
+    }
     remoteConfig = _parseConnectArg(connectArg, sessionId, authToken);
   }
 

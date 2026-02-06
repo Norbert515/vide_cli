@@ -32,6 +32,7 @@ class _HomePageState extends State<HomePage> {
   ProjectType? projectType;
   String? _commandResult;
   bool _commandResultIsError = false;
+  bool _startupSessionConnectAttempted = false;
 
   // Focus state: 'textField', 'teamSelector', 'daemonIndicator', or 'networksList'
   String _focusState = 'textField';
@@ -90,6 +91,35 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _tryAutoConnectConfiguredSession() {
+    if (_startupSessionConnectAttempted) return;
+
+    final remoteConfig = context.read(remoteConfigProvider);
+    final sessionId = remoteConfig?.sessionId;
+    if (sessionId == null || sessionId.isEmpty) return;
+
+    final daemonState = context.read(daemonConnectionProvider);
+    if (!daemonState.isConnected) return;
+
+    _startupSessionConnectAttempted = true;
+
+    Future.microtask(() async {
+      try {
+        final session = await context
+            .read(daemonConnectionProvider.notifier)
+            .connectToSession(sessionId);
+        if (!mounted) return;
+        await NetworkExecutionPage.push(context, sessionId, session: session);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _commandResult = 'Failed to connect to session $sessionId: $e';
+          _commandResultIsError = true;
+        });
+      }
+    });
+  }
+
   /// Abbreviates the path by replacing home directory with ~
   String _abbreviatePath(String fullPath) {
     final home =
@@ -105,35 +135,21 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final String sessionId;
+      VideSession? sessionForNavigation;
 
       if (daemonState.isConnected) {
         // Daemon mode: create session on daemon server
         // Use optimistic approach - navigate immediately, HTTP call in background
-        final remoteSession = context
+        final optimisticSession = context
             .read(daemonConnectionProvider.notifier)
             .createSessionOptimistic(
               initialMessage: message.text,
               workingDirectory: Directory.current.path,
-              onReady: () {
-                // Trigger rebuild when session is ready by re-setting the provider
-                // This is called after HTTP completes and WebSocket starts connecting
-                if (mounted) {
-                  final current = context.read(remoteVideSessionProvider);
-                  if (current != null) {
-                    // Re-set to trigger dependents to rebuild
-                    context.read(remoteVideSessionProvider.notifier).state =
-                        current;
-                  }
-                }
-              },
             );
 
-        // Store in provider IMMEDIATELY (before HTTP completes)
-        context.read(remoteVideSessionProvider.notifier).state = remoteSession;
-        sessionId = remoteSession.id;
-
-        // Pre-populate the conversation with the user's message for instant feedback
-        remoteSession.addPendingUserMessage(message.text);
+        // Use the pending session immediately for optimistic navigation.
+        sessionForNavigation = optimisticSession;
+        sessionId = optimisticSession.id;
       } else {
         // Local mode: create session via VideCore
         // Returns immediately - client initialization happens in background
@@ -146,9 +162,10 @@ class _HomePageState extends State<HomePage> {
           workingDirectory: worktreePath ?? Directory.current.path,
           team: currentTeam,
         );
+        sessionForNavigation = session;
 
         // Update the networks list for home page display
-        // The session is now active and will be found via currentSessionIdProvider
+        // The session is now active and will be found via sessionSelectionProvider
         await context
             .read(agentNetworksStateNotifierProvider.notifier)
             .reload();
@@ -157,7 +174,11 @@ class _HomePageState extends State<HomePage> {
       }
 
       // Navigate to the execution page IMMEDIATELY (optimistic for daemon mode)
-      await NetworkExecutionPage.push(context, sessionId);
+      await NetworkExecutionPage.push(
+        context,
+        sessionId,
+        session: sessionForNavigation,
+      );
     } catch (e) {
       setState(() {
         _commandResult = 'Failed to create session: $e';
@@ -375,8 +396,8 @@ class _HomePageState extends State<HomePage> {
       context.read(currentTeamProvider.notifier).state = network.team;
       // Resume via VideCore
       final videCore = context.read(videoCoreProvider);
-      videCore.resumeSession(network.id).then((_) {
-        NetworkExecutionPage.push(context, network.id);
+      videCore.resumeSession(network.id).then((session) {
+        NetworkExecutionPage.push(context, network.id, session: session);
       });
       return true;
     }
@@ -389,6 +410,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Component build(BuildContext context) {
+    _tryAutoConnectConfiguredSession();
+
     final theme = VideTheme.of(context);
 
     // Get current directory path (abbreviated) - use currentRepoPathProvider to

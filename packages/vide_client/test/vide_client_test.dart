@@ -76,6 +76,30 @@ void main() {
   });
 
   group('VideEvent', () {
+    test('parses connected event metadata', () {
+      final event = VideEvent.fromJson({
+        'type': 'connected',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'session-id': 'session-1',
+        'main-agent-id': 'agent-1',
+        'last-seq': 0,
+        'agents': [
+          {'id': 'agent-1', 'type': 'main', 'name': 'Main Agent'},
+        ],
+        'metadata': {
+          'working-directory': '/tmp/workspace',
+          'goal': 'Fix build',
+          'team': 'vide',
+        },
+      });
+
+      expect(event, isA<ConnectedEvent>());
+      final connected = event as ConnectedEvent;
+      expect(connected.metadata['working-directory'], '/tmp/workspace');
+      expect(connected.metadata['goal'], 'Fix build');
+      expect(connected.metadata['team'], 'vide');
+    });
+
     test('parses message event', () {
       final event = VideEvent.fromJson({
         'type': 'message',
@@ -104,6 +128,62 @@ void main() {
 
       expect(event, isA<DoneEvent>());
       expect((event as DoneEvent).reason, equals('complete'));
+    });
+
+    test('parses ask-user-question event', () {
+      final event = VideEvent.fromJson({
+        'type': 'ask-user-question',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'data': {
+          'request-id': 'ask-1',
+          'questions': [
+            {
+              'question': 'Pick one',
+              'options': [
+                {'label': 'A', 'description': 'Option A'},
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(event, isA<AskUserQuestionEvent>());
+      final ask = event as AskUserQuestionEvent;
+      expect(ask.requestId, equals('ask-1'));
+      expect(ask.questions, hasLength(1));
+    });
+
+    test('parses task-name-changed event', () {
+      final event = VideEvent.fromJson({
+        'type': 'task-name-changed',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'data': {'new-goal': 'Ship v1', 'previous-goal': 'Initial'},
+      });
+
+      expect(event, isA<TaskNameChangedEvent>());
+      final changed = event as TaskNameChangedEvent;
+      expect(changed.newGoal, equals('Ship v1'));
+      expect(changed.previousGoal, equals('Initial'));
+    });
+
+    test('parses command-result event', () {
+      final event = VideEvent.fromJson({
+        'type': 'command-result',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'data': {
+          'request-id': 'cmd-1',
+          'command': 'fork-agent',
+          'success': true,
+          'result': {'agent-id': 'agent-2'},
+        },
+      });
+
+      expect(event, isA<CommandResultEvent>());
+      final result = event as CommandResultEvent;
+      expect(result.requestId, equals('cmd-1'));
+      expect(result.command, equals('fork-agent'));
+      expect(result.success, isTrue);
+      expect(result.result, equals({'agent-id': 'agent-2'}));
     });
 
     test('parses unknown event type gracefully', () {

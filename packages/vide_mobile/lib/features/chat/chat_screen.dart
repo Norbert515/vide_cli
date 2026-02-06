@@ -235,6 +235,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         notifier.setError(message);
         notifier.setIsAgentWorking(false);
 
+      case vc.TaskNameChangedEvent():
+        break;
+
+      case vc.CommandResultEvent():
+        break;
+
+      case vc.AskUserQuestionEvent():
+        break;
+
       case vc.UnknownEvent():
         break;
     }

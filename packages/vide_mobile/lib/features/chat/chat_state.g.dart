@@ -6,7 +6,7 @@ part of 'chat_state.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$chatNotifierHash() => r'ba735ba32d4d9cd4db78d709c2409b00fe93c25a';
+String _$chatNotifierHash() => r'9f6ec38fd2dfd85b88b93019a3241e690708d3d6';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -29,7 +29,7 @@ class _SystemHash {
   }
 }
 
-abstract class _$ChatNotifier extends BuildlessAutoDisposeNotifier<ChatState> {
+abstract class _$ChatNotifier extends BuildlessNotifier<ChatState> {
   late final String sessionId;
 
   ChatState build(
@@ -39,20 +39,40 @@ abstract class _$ChatNotifier extends BuildlessAutoDisposeNotifier<ChatState> {
 
 /// Provider for chat state management.
 ///
+/// Kept alive so that optimistic user messages added before navigating
+/// to the chat screen survive the route transition (auto-dispose would
+/// reset the state between the creation screen disposing and the chat
+/// screen subscribing).
+///
 /// Copied from [ChatNotifier].
 @ProviderFor(ChatNotifier)
 const chatNotifierProvider = ChatNotifierFamily();
 
 /// Provider for chat state management.
 ///
+/// Kept alive so that optimistic user messages added before navigating
+/// to the chat screen survive the route transition (auto-dispose would
+/// reset the state between the creation screen disposing and the chat
+/// screen subscribing).
+///
 /// Copied from [ChatNotifier].
 class ChatNotifierFamily extends Family<ChatState> {
   /// Provider for chat state management.
+  ///
+  /// Kept alive so that optimistic user messages added before navigating
+  /// to the chat screen survive the route transition (auto-dispose would
+  /// reset the state between the creation screen disposing and the chat
+  /// screen subscribing).
   ///
   /// Copied from [ChatNotifier].
   const ChatNotifierFamily();
 
   /// Provider for chat state management.
+  ///
+  /// Kept alive so that optimistic user messages added before navigating
+  /// to the chat screen survive the route transition (auto-dispose would
+  /// reset the state between the creation screen disposing and the chat
+  /// screen subscribing).
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider call(
@@ -89,10 +109,20 @@ class ChatNotifierFamily extends Family<ChatState> {
 
 /// Provider for chat state management.
 ///
+/// Kept alive so that optimistic user messages added before navigating
+/// to the chat screen survive the route transition (auto-dispose would
+/// reset the state between the creation screen disposing and the chat
+/// screen subscribing).
+///
 /// Copied from [ChatNotifier].
 class ChatNotifierProvider
-    extends AutoDisposeNotifierProviderImpl<ChatNotifier, ChatState> {
+    extends NotifierProviderImpl<ChatNotifier, ChatState> {
   /// Provider for chat state management.
+  ///
+  /// Kept alive so that optimistic user messages added before navigating
+  /// to the chat screen survive the route transition (auto-dispose would
+  /// reset the state between the creation screen disposing and the chat
+  /// screen subscribing).
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider(
@@ -149,7 +179,7 @@ class ChatNotifierProvider
   }
 
   @override
-  AutoDisposeNotifierProviderElement<ChatNotifier, ChatState> createElement() {
+  NotifierProviderElement<ChatNotifier, ChatState> createElement() {
     return _ChatNotifierProviderElement(this);
   }
 
@@ -169,13 +199,13 @@ class ChatNotifierProvider
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-mixin ChatNotifierRef on AutoDisposeNotifierProviderRef<ChatState> {
+mixin ChatNotifierRef on NotifierProviderRef<ChatState> {
   /// The parameter `sessionId` of this provider.
   String get sessionId;
 }
 
 class _ChatNotifierProviderElement
-    extends AutoDisposeNotifierProviderElement<ChatNotifier, ChatState>
+    extends NotifierProviderElement<ChatNotifier, ChatState>
     with ChatNotifierRef {
   _ChatNotifierProviderElement(super.provider);
 

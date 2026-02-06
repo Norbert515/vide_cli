@@ -3,7 +3,8 @@ import 'dart:convert';
 
 import 'package:test/test.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/vide_core.dart' show RemoteVideSession, VideAgent;
+import 'package:vide_core/vide_core.dart'
+    show MessageEvent, RemoteVideSession, VideAgent;
 
 void main() {
   group('RemoteVideSession conversation handling', () {
@@ -489,6 +490,47 @@ void main() {
       });
     });
 
+    group('event stream behavior', () {
+      test('replays early events to late first subscriber', () async {
+        _simulateMessage(
+          session,
+          agentId,
+          'assistant',
+          'buffered-first-event',
+          seq: ++seq,
+        );
+
+        await Future<void>.delayed(Duration.zero);
+        final replayedMessage = await session.events
+            .where((event) => event is MessageEvent)
+            .cast<MessageEvent>()
+            .firstWhere((event) => event.content == 'buffered-first-event')
+            .timeout(const Duration(seconds: 1));
+        expect(replayedMessage.content, equals('buffered-first-event'));
+      });
+    });
+
+    group('permission callback contract', () {
+      test(
+        'createPermissionCallback fails closed instead of throwing',
+        () async {
+          final callback = session.createPermissionCallback(
+            agentId: agentId,
+            agentName: session.mainAgent?.name,
+            agentType: session.mainAgent?.type,
+            cwd: '/tmp',
+          );
+
+          final result = await callback(
+            'Bash',
+            const {},
+            const ToolPermissionContext(),
+          );
+          expect(result, isA<PermissionResultDeny>());
+        },
+      );
+    });
+
     group('agent spawning', () {
       test('agentsStream emits when agent is spawned', () async {
         final updates = <List<dynamic>>[];
@@ -608,6 +650,61 @@ void main() {
     });
 
     group('history replay', () {
+      test('connected metadata updates working directory, goal, and team', () {
+        final mainAgentIdFromServer = 'main-agent-meta';
+        final ts = DateTime.now().toIso8601String();
+        final connectedJson = jsonEncode({
+          'type': 'connected',
+          'seq': 0,
+          'session-id': 'test-session-meta',
+          'main-agent-id': mainAgentIdFromServer,
+          'last-seq': 0,
+          'timestamp': ts,
+          'agents': [
+            {'id': mainAgentIdFromServer, 'type': 'main', 'name': 'Main Agent'},
+          ],
+          'metadata': {
+            'working-directory': '/tmp/test-project',
+            'goal': 'Fix flaky tests',
+            'team': 'enterprise',
+          },
+        });
+
+        session.handleWebSocketMessage(connectedJson);
+
+        expect(session.workingDirectory, equals('/tmp/test-project'));
+        expect(session.goal, equals('Fix flaky tests'));
+        expect(session.team, equals('enterprise'));
+      });
+
+      test(
+        'task-name-changed updates goal and emits goal stream event',
+        () async {
+          final emittedGoals = <String>[];
+          final goalSub = session.goalStream.listen(emittedGoals.add);
+
+          final ts = DateTime.now().toIso8601String();
+          session.handleWebSocketMessage(
+            jsonEncode({
+              'type': 'task-name-changed',
+              'seq': 1,
+              'timestamp': ts,
+              'data': {
+                'new-goal': 'Ship API cleanup',
+                'previous-goal': 'Session',
+              },
+            }),
+          );
+
+          await Future.delayed(Duration(milliseconds: 10));
+
+          expect(session.goal, equals('Ship API cleanup'));
+          expect(emittedGoals, contains('Ship API cleanup'));
+
+          await goalSub.cancel();
+        },
+      );
+
       test('agents from history events are populated', () {
         // First simulate connected event which sets up main agent
         final mainAgentIdFromServer = 'main-agent-123';

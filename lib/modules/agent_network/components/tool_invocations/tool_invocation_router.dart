@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
-import 'flutter_output_renderer.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
 import 'default_renderer.dart';
@@ -12,7 +11,6 @@ import 'default_renderer.dart';
 ///
 /// Routes tool invocations to appropriate renderers based on tool type:
 /// - SubAgent tools (containing 'spawnAgent') → SubagentRenderer
-/// - Flutter runtime start → FlutterOutputRenderer
 /// - Bash commands → TerminalOutputRenderer
 /// - Write/Edit/MultiEdit (successful) → DiffRenderer
 /// - All other tools → DefaultRenderer
@@ -43,17 +41,7 @@ class ToolInvocationRouter extends StatelessComponent {
       return _buildAskUserQuestionResult(context);
     }
 
-    // Route 2: Flutter runtime start
-    if (invocation.toolName == 'mcp__flutter-runtime__flutterStart') {
-      return FlutterOutputRenderer(
-        invocation: invocation,
-        agentId: agentId,
-        workingDirectory: workingDirectory,
-        executionId: executionId,
-      );
-    }
-
-    // Route 3: Terminal/Bash output
+    // Route 2: Terminal/Bash output
     if (invocation.toolName == 'Bash') {
       return TerminalOutputRenderer(
         invocation: invocation,
@@ -63,7 +51,7 @@ class ToolInvocationRouter extends StatelessComponent {
       );
     }
 
-    // Route 4: Write/Edit/MultiEdit with successful result (show diff)
+    // Route 3: Write/Edit/MultiEdit with successful result (show diff)
     if (_shouldShowDiff()) {
       return DiffRenderer(
         invocation: invocation,
@@ -73,12 +61,12 @@ class ToolInvocationRouter extends StatelessComponent {
       );
     }
 
-    // Route 5: TodoWrite tool
+    // Route 4: TodoWrite tool
     if (invocation.toolName == 'TodoWrite') {
       return SizedBox();
     }
 
-    // Route 6: Default renderer for all other tools
+    // Route 5: Default renderer for all other tools
     return DefaultRenderer(
       invocation: invocation,
       workingDirectory: workingDirectory,

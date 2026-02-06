@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 
+import '../api/vide_event.dart';
 import '../api/vide_session.dart';
 import '../models/agent_id.dart';
 
@@ -8,30 +11,89 @@ import '../models/agent_id.dart';
 ///
 /// This solves the chicken-egg problem where permission callbacks are needed
 /// before the session exists. The handler is created first, then the session
-/// is set after creation via [setSession].
+/// is registered after creation via [setSession].
 ///
 /// Example:
 /// ```dart
 /// final handler = PermissionHandler();
 /// // ... create network with ClaudeClient using handler.createCallback()
 /// final session = VideSession.create(...);
-/// handler.setSession(session);  // Now permission callbacks will work
+/// handler.setSession(session);  // Register this session's agents
 /// ```
 class PermissionHandler {
-  VideSession? _session;
+  /// Active sessions by session ID.
+  final Map<String, VideSession> _sessionsById = {};
 
-  /// Set the session for permission handling.
+  /// Session owner by agent ID.
+  final Map<String, String> _sessionIdByAgentId = {};
+
+  /// Tracked agents for each session.
+  final Map<String, Set<String>> _agentIdsBySessionId = {};
+
+  /// Event subscriptions per session for spawn/terminate tracking.
+  final Map<String, StreamSubscription<VideEvent>> _sessionSubscriptions = {};
+
+  /// Register a session for permission handling.
   ///
-  /// Must be called after the session is created but before any
-  /// permission callbacks are invoked.
+  /// Must be called after the session is created, before permission
+  /// callbacks for that session are invoked.
   void setSession(VideSession session) {
-    _session = session;
+    final sessionId = session.id;
+    final existingSession = _sessionsById[sessionId];
+    if (existingSession != null && !identical(existingSession, session)) {
+      _unregisterSession(sessionId);
+    }
+    _sessionsById[sessionId] = session;
+
+    final trackedAgentIds = _agentIdsBySessionId.putIfAbsent(
+      sessionId,
+      () => <String>{},
+    );
+    for (final agentId in session.agentIds) {
+      _sessionIdByAgentId[agentId] = sessionId;
+      trackedAgentIds.add(agentId);
+    }
+
+    _sessionSubscriptions.putIfAbsent(
+      sessionId,
+      () => session.events.listen(
+        (event) {
+          if (event is AgentSpawnedEvent) {
+            _sessionIdByAgentId[event.agentId] = sessionId;
+            trackedAgentIds.add(event.agentId);
+          } else if (event is AgentTerminatedEvent) {
+            if (_sessionIdByAgentId[event.agentId] == sessionId) {
+              _sessionIdByAgentId.remove(event.agentId);
+            }
+            trackedAgentIds.remove(event.agentId);
+          }
+        },
+        onDone: () {
+          _unregisterSession(sessionId);
+        },
+      ),
+    );
+  }
+
+  void _unregisterSession(String sessionId) {
+    final subscription = _sessionSubscriptions.remove(sessionId);
+    subscription?.cancel();
+
+    _sessionsById.remove(sessionId);
+    final trackedAgentIds =
+        _agentIdsBySessionId.remove(sessionId) ?? <String>{};
+    for (final agentId in trackedAgentIds) {
+      if (_sessionIdByAgentId[agentId] == sessionId) {
+        _sessionIdByAgentId.remove(agentId);
+      }
+    }
   }
 
   /// Create a permission callback that delegates to the session.
   ///
-  /// The callback uses late binding - when invoked, it looks up the session
-  /// that was set via [setSession]. If no session is set, auto-allows.
+  /// The callback uses late binding - when invoked, it resolves the session by
+  /// [agentId] from sessions previously registered via [setSession].
+  /// If no matching session is found, auto-allows.
   CanUseToolCallback createCallback({
     required String cwd,
     required AgentId agentId,
@@ -39,14 +101,17 @@ class PermissionHandler {
     required String? agentType,
     String? permissionMode,
   }) {
+    final agentIdValue = agentId.toString();
     return (toolName, input, context) async {
-      final session = _session;
+      final sessionId = _sessionIdByAgentId[agentIdValue];
+      final session = sessionId == null ? null : _sessionsById[sessionId];
       if (session == null) {
-        // This shouldn't happen - session should be set before any permission
-        // callbacks are invoked. Assert in debug builds to catch initialization bugs.
+        // This should only happen if permission callback fires before the
+        // session is registered with setSession().
         assert(
           false,
-          'Permission requested before session was set via setSession()',
+          'Permission requested before session was registered via setSession() '
+          '(agentId: $agentIdValue)',
         );
         // Auto-allow as fallback (production safety)
         return const PermissionResultAllow();
@@ -54,7 +119,7 @@ class PermissionHandler {
 
       // Delegate to session's permission callback
       final callback = session.createPermissionCallback(
-        agentId: agentId.toString(),
+        agentId: agentIdValue,
         agentName: agentName,
         agentType: agentType,
         cwd: cwd,
@@ -91,9 +156,9 @@ class PermissionCallbackContext {
 
 /// Provider for the permission handler.
 ///
-/// This MUST be overridden per-session with a PermissionHandler instance.
-/// After the session is created, call handler.setSession(session) to enable
-/// permission checking.
+/// This MUST be overridden with a PermissionHandler instance.
+/// After each session is created, call handler.setSession(session) to register
+/// the session's agents for permission routing.
 ///
 /// Throws [StateError] if accessed without being overridden - this is a
 /// security requirement to ensure permissions are always checked.

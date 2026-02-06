@@ -9,6 +9,8 @@ import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../data/repositories/connection_repository.dart';
 import '../../data/repositories/session_repository.dart';
+import '../../domain/models/models.dart';
+import '../chat/chat_state.dart';
 import 'session_creation_state.dart';
 
 final _fallbackTeams = [
@@ -122,6 +124,19 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
       await settingsStorage.saveLastTeam(state.team);
 
       if (mounted) {
+        // Pre-populate chat state with the initial user message so it's
+        // visible immediately when navigating to the chat screen.
+        ref.read(chatNotifierProvider(session.sessionId).notifier)
+          ..addMessage(ChatMessage(
+            eventId: 'initial-${DateTime.now().millisecondsSinceEpoch}',
+            role: MessageRole.user,
+            content: state.initialMessage,
+            agentId: 'user',
+            agentType: 'user',
+            timestamp: DateTime.now(),
+          ))
+          ..setIsAgentWorking(true);
+
         notifier.setIsCreating(false);
         context.go(AppRoutes.sessionPath(session.sessionId));
       }

@@ -22,7 +22,12 @@ class ChatState with _$ChatState {
 }
 
 /// Provider for chat state management.
-@riverpod
+///
+/// Kept alive so that optimistic user messages added before navigating
+/// to the chat screen survive the route transition (auto-dispose would
+/// reset the state between the creation screen disposing and the chat
+/// screen subscribing).
+@Riverpod(keepAlive: true)
 class ChatNotifier extends _$ChatNotifier {
   @override
   ChatState build(String sessionId) {

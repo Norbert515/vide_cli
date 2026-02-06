@@ -45,6 +45,30 @@ sealed class VideEvent {
     this.taskName,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
+
+  /// Wire-format event type string (e.g., 'message', 'tool-use', 'done').
+  String get _wireType;
+
+  /// Event-specific data fields for the JSON 'data' key.
+  Map<String, dynamic> _dataFields();
+
+  /// Extra top-level fields merged into the JSON (e.g., 'event-id', 'is-partial').
+  Map<String, dynamic> _topLevelFields() => const {};
+
+  /// Serialize this event to the wire-format JSON used by the server API.
+  ///
+  /// Transport layers should add 'seq' and 'event-id' (if not already present)
+  /// before sending.
+  Map<String, dynamic> toJson() => {
+    'type': _wireType,
+    'agent-id': agentId,
+    'agent-type': agentType,
+    'agent-name': agentName,
+    'task-name': taskName,
+    'timestamp': timestamp.toIso8601String(),
+    'data': _dataFields(),
+    ..._topLevelFields(),
+  };
 }
 
 /// Assistant or user message content.
@@ -77,6 +101,18 @@ final class MessageEvent extends VideEvent {
   });
 
   @override
+  String get _wireType => 'message';
+
+  @override
+  Map<String, dynamic> _dataFields() => {'role': role, 'content': content};
+
+  @override
+  Map<String, dynamic> _topLevelFields() => {
+    'event-id': eventId,
+    'is-partial': isPartial,
+  };
+
+  @override
   String toString() =>
       'MessageEvent($role, ${content.length} chars, partial=$isPartial)';
 }
@@ -102,6 +138,16 @@ final class ToolUseEvent extends VideEvent {
     required this.toolName,
     required this.toolInput,
   });
+
+  @override
+  String get _wireType => 'tool-use';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'tool-use-id': toolUseId,
+    'tool-name': toolName,
+    'tool-input': toolInput,
+  };
 
   @override
   String toString() => 'ToolUseEvent($toolName)';
@@ -134,6 +180,17 @@ final class ToolResultEvent extends VideEvent {
   });
 
   @override
+  String get _wireType => 'tool-result';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'tool-use-id': toolUseId,
+    'tool-name': toolName,
+    'result': result,
+    'is-error': isError,
+  };
+
+  @override
   String toString() => 'ToolResultEvent($toolName, error=$isError)';
 }
 
@@ -150,6 +207,19 @@ final class StatusEvent extends VideEvent {
     super.timestamp,
     required this.status,
   });
+
+  @override
+  String get _wireType => 'status';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'status': switch (status) {
+      VideAgentStatus.working => 'working',
+      VideAgentStatus.waitingForAgent => 'waiting-for-agent',
+      VideAgentStatus.waitingForUser => 'waiting-for-user',
+      VideAgentStatus.idle => 'idle',
+    },
+  };
 
   @override
   String toString() => 'StatusEvent($status)';
@@ -216,6 +286,22 @@ final class TurnCompleteEvent extends VideEvent {
       currentContextCacheCreationTokens;
 
   @override
+  String get _wireType => 'done';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'reason': reason,
+    'total-input-tokens': totalInputTokens,
+    'total-output-tokens': totalOutputTokens,
+    'total-cache-read-input-tokens': totalCacheReadInputTokens,
+    'total-cache-creation-input-tokens': totalCacheCreationInputTokens,
+    'total-cost-usd': totalCostUsd,
+    'current-context-input-tokens': currentContextInputTokens,
+    'current-context-cache-read-tokens': currentContextCacheReadTokens,
+    'current-context-cache-creation-tokens': currentContextCacheCreationTokens,
+  };
+
+  @override
   String toString() => 'TurnCompleteEvent($reason)';
 }
 
@@ -232,6 +318,12 @@ final class AgentSpawnedEvent extends VideEvent {
     super.timestamp,
     required this.spawnedBy,
   });
+
+  @override
+  String get _wireType => 'agent-spawned';
+
+  @override
+  Map<String, dynamic> _dataFields() => {'spawned-by': spawnedBy};
 
   @override
   String toString() => 'AgentSpawnedEvent($agentName, by $spawnedBy)';
@@ -254,6 +346,15 @@ final class AgentTerminatedEvent extends VideEvent {
     this.reason,
     this.terminatedBy,
   });
+
+  @override
+  String get _wireType => 'agent-terminated';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'reason': reason,
+    'terminated-by': terminatedBy,
+  };
 
   @override
   String toString() => 'AgentTerminatedEvent($agentId, reason=$reason)';
@@ -288,6 +389,19 @@ final class PermissionRequestEvent extends VideEvent {
   });
 
   @override
+  String get _wireType => 'permission-request';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'request-id': requestId,
+    'tool': {
+      'name': toolName,
+      'input': toolInput,
+      if (inferredPattern != null) 'permission-suggestions': [inferredPattern],
+    },
+  };
+
+  @override
   String toString() => 'PermissionRequestEvent($toolName, $requestId)';
 }
 
@@ -308,6 +422,15 @@ final class ErrorEvent extends VideEvent {
     required this.message,
     this.code,
   });
+
+  @override
+  String get _wireType => 'error';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'message': message,
+    'code': code ?? 'ERROR',
+  };
 
   @override
   String toString() => 'ErrorEvent($message, code=$code)';
@@ -332,6 +455,26 @@ final class AskUserQuestionEvent extends VideEvent {
     required this.requestId,
     required this.questions,
   });
+
+  @override
+  String get _wireType => 'ask-user-question';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'request-id': requestId,
+    'questions': questions
+        .map(
+          (q) => {
+            'question': q.question,
+            'header': q.header,
+            'multi-select': q.multiSelect,
+            'options': q.options
+                .map((o) => {'label': o.label, 'description': o.description})
+                .toList(),
+          },
+        )
+        .toList(),
+  };
 
   @override
   String toString() =>
@@ -383,6 +526,15 @@ final class TaskNameChangedEvent extends VideEvent {
     required this.newGoal,
     this.previousGoal,
   });
+
+  @override
+  String get _wireType => 'task-name-changed';
+
+  @override
+  Map<String, dynamic> _dataFields() => {
+    'new-goal': newGoal,
+    if (previousGoal != null) 'previous-goal': previousGoal,
+  };
 
   @override
   String toString() => 'TaskNameChangedEvent($previousGoal -> $newGoal)';
