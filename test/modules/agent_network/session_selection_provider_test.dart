@@ -1,7 +1,7 @@
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_client/vide_client.dart';
 
 void main() {
   group('SessionSelectionNotifier', () {

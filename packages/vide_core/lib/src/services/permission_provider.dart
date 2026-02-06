@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
+import 'package:vide_interface/vide_interface.dart';
 
-import '../api/vide_event.dart';
 import '../api/vide_session.dart';
 import '../models/agent_id.dart';
 
@@ -117,7 +117,20 @@ class PermissionHandler {
         return const PermissionResultAllow();
       }
 
-      // Delegate to session's permission callback
+      // For LocalVideSession, use the internal claude_sdk permission callback
+      // directly to avoid unnecessary conversions.
+      if (session is LocalVideSession) {
+        final callback = session.createClaudePermissionCallback(
+          agentId: agentIdValue,
+          agentName: agentName,
+          agentType: agentType,
+          cwd: cwd,
+          permissionMode: permissionMode,
+        );
+        return callback(toolName, input, context);
+      }
+
+      // For other session types, use the interface method and convert result
       final callback = session.createPermissionCallback(
         agentId: agentIdValue,
         agentName: agentName,
@@ -125,7 +138,17 @@ class PermissionHandler {
         cwd: cwd,
         permissionMode: permissionMode,
       );
-      return callback(toolName, input, context);
+      final videResult = await callback(
+        toolName,
+        input,
+        VidePermissionContext(),
+      );
+      return switch (videResult) {
+        VidePermissionAllow(:final updatedInput) =>
+          PermissionResultAllow(updatedInput: updatedInput),
+        VidePermissionDeny(:final message) =>
+          PermissionResultDeny(message: message),
+      };
     };
   }
 }

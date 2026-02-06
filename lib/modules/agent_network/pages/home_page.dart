@@ -130,7 +130,7 @@ class _HomePageState extends State<HomePage> {
     return fullPath;
   }
 
-  Future<void> _handleSubmit(Message message) async {
+  Future<void> _handleSubmit(VideMessage message) async {
     final daemonState = context.read(daemonConnectionProvider);
 
     try {

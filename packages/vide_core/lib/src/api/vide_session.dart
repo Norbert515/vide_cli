@@ -1,14 +1,15 @@
-/// VideSession - Active session wrapper for the VideCore API.
+/// LocalVideSession - In-process session implementation for the VideCore API.
 ///
-/// This provides a clean interface to an agent network session,
-/// hiding the internal Riverpod providers and claude_sdk types.
+/// This provides the concrete local implementation of [VideSession],
+/// wrapping Riverpod providers and claude_sdk types.
 library;
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vide_interface/vide_interface.dart';
 
 import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
@@ -19,43 +20,16 @@ import '../services/permissions/tool_input.dart';
 import '../services/vide_config_manager.dart';
 import '../state/agent_status_manager.dart';
 import '../utils/dangerously_skip_permissions_provider.dart';
-import 'conversation_state.dart';
-import 'session_event_hub.dart';
-import 'vide_agent.dart';
-import 'vide_event.dart';
 
-/// An active session with a network of agents.
+/// An active local (in-process) session with a network of agents.
 ///
-/// Use [VideCore.startSession] or [VideCore.resumeSession] to create a session.
+/// This is the concrete implementation of [VideSession] that runs agents
+/// locally using the claude_sdk. Created by [VideCore.startSession] or
+/// [VideCore.resumeSession].
 ///
-/// The session provides:
-/// - A single [events] stream with all events from all agents
-/// - Access to the current list of [agents]
-/// - Methods to [sendMessage], [respondToPermission], and [abort]
-///
-/// Example:
-/// ```dart
-/// final session = await core.startSession(config);
-///
-/// session.events.listen((event) {
-///   switch (event) {
-///     case MessageEvent e:
-///       stdout.write(e.content);
-///     case ToolUseEvent e:
-///       print('Tool: ${e.toolName}');
-///     case PermissionRequestEvent e:
-///       session.respondToPermission(e.requestId, allow: true);
-///     // ... handle other events
-///   }
-/// });
-///
-/// // Send follow-up message
-/// session.sendMessage('What else can you help with?');
-///
-/// // Clean up when done
-/// await session.dispose();
-/// ```
-class VideSession {
+/// For a remote (WebSocket-based) implementation, see `RemoteVideSession`
+/// in the vide_client package.
+class LocalVideSession implements VideSession {
   final String _networkId;
   final ProviderContainer _container;
   final SessionEventHub _hub;
@@ -68,7 +42,8 @@ class VideSession {
   final Map<String, _AgentStreamState> _agentStates = {};
 
   /// Pending permission completers by request ID.
-  final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
+  final Map<String, Completer<claude.PermissionResult>> _pendingPermissions =
+      {};
 
   /// Pending AskUserQuestion completers by request ID.
   final Map<String, Completer<Map<String, String>>> _pendingAskUserQuestions =
@@ -80,7 +55,7 @@ class VideSession {
   /// Whether the session has been disposed.
   bool _disposed = false;
 
-  VideSession._({
+  LocalVideSession._({
     required String networkId,
     required ProviderContainer container,
     PermissionCheckerConfig? permissionConfig,
@@ -93,17 +68,17 @@ class VideSession {
     );
   }
 
-  /// Creates a new VideSession for an existing network.
+  /// Creates a new LocalVideSession for an existing network.
   ///
   /// This is called internally by [VideCore.startSession] and [VideCore.resumeSession].
   /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
-  static VideSession create({
+  static LocalVideSession create({
     required String networkId,
     required ProviderContainer container,
     PermissionCheckerConfig? permissionConfig,
     String? initialMessage,
   }) {
-    final session = VideSession._(
+    final session = LocalVideSession._(
       networkId: networkId,
       container: container,
       permissionConfig: permissionConfig,
@@ -134,76 +109,41 @@ class VideSession {
     }
   }
 
-  /// Unique identifier for this session.
+  @override
   String get id => _networkId;
 
-  /// Get the conversation state manager for this session.
-  ///
-  /// This accumulates all events into a renderable conversation structure.
-  /// The manager is created when the session is created, so all events are captured.
+  @override
   ConversationStateManager get conversationState =>
       _hub.conversationStateManager;
 
-  /// Stream of all events from all agents in the session.
-  ///
-  /// Events are emitted in real-time as agents work. The stream includes:
-  /// - [MessageEvent] - Text content from agents
-  /// - [ToolUseEvent] - Tool invocations
-  /// - [ToolResultEvent] - Tool execution results
-  /// - [StatusEvent] - Agent status changes
-  /// - [TurnCompleteEvent] - When an agent completes its turn
-  /// - [AgentSpawnedEvent] - When a new agent is spawned
-  /// - [AgentTerminatedEvent] - When an agent is terminated
-  /// - [PermissionRequestEvent] - When permission is needed
-  /// - [ErrorEvent] - When an error occurs
-  ///
-  /// **Note:** This stream buffers events until the first listener subscribes,
-  /// then replays all buffered events. This ensures late subscribers (like UI
-  /// components that subscribe during build) don't miss early events like
-  /// permission requests.
+  @override
   Stream<VideEvent> get events => _hub.events;
 
-  /// Current agents in the session.
-  ///
-  /// This returns an immutable snapshot of the current agents.
-  /// Subscribe to [agentsStream] for real-time updates when agents
-  /// are spawned or terminated.
+  @override
   List<VideAgent> get agents {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agents.map(_mapAgent).toList();
   }
 
-  /// Stream that emits the current agents list whenever it changes.
-  ///
-  /// Emits when agents are spawned or terminated. Use this to rebuild
-  /// UI components that display the agent list.
-  ///
-  /// The stream emits the full list of agents (not just the changed agent)
-  /// for convenience in UI rebuilding.
+  @override
   Stream<List<VideAgent>> get agentsStream {
     return _hub.events
         .where((e) => e is AgentSpawnedEvent || e is AgentTerminatedEvent)
         .map((_) => agents);
   }
 
-  /// The main agent (first agent in the network).
+  @override
   VideAgent? get mainAgent => agents.isNotEmpty ? agents.first : null;
 
-  /// List of agent IDs in the session.
-  ///
-  /// This is useful when you need quick access to IDs without
-  /// mapping the full [VideAgent] objects.
+  @override
   List<String> get agentIds {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agentIds;
   }
 
-  /// Whether any agent in the session is currently processing.
-  ///
-  /// This checks all agents in the network and returns true if any
-  /// of them have an active conversation that is processing.
+  @override
   bool get isProcessing {
     for (final agentId in _agentStates.keys) {
       final client = _container.read(claudeProvider(agentId));
@@ -214,51 +154,34 @@ class VideSession {
     return false;
   }
 
-  /// The effective working directory for this session.
-  ///
-  /// This may be different from the configured working directory if a
-  /// worktree has been set.
+  @override
   String get workingDirectory {
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return manager.effectiveWorkingDirectory;
   }
 
-  /// The goal/task name for this session.
-  ///
-  /// This is the high-level description of what this session is trying to accomplish.
-  /// It can be updated via setTaskName MCP tool.
+  @override
   String get goal {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     return network?.goal ?? 'Session';
   }
 
-  /// Stream that emits the current goal whenever it changes.
-  ///
-  /// This is derived from network changes where the goal field is updated.
+  @override
   Stream<String> get goalStream {
     return _hub.events.where((e) => e is TaskNameChangedEvent).map((_) => goal);
   }
 
-  /// Stream that emits when session transport connectivity changes.
-  ///
-  /// Local in-process sessions do not have transport connectivity changes, so
-  /// the default implementation is an empty stream.
+  @override
   Stream<bool> get connectionStateStream => const Stream<bool>.empty();
 
-  /// The team name for this session (e.g., 'vide', 'enterprise').
+  @override
   String get team {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     return network?.team ?? 'vide';
   }
 
-  /// Send a message to an agent.
-  ///
-  /// If [agentId] is not specified, the message is sent to the main agent.
-  /// The [message] can include attachments (e.g., images).
-  ///
-  /// Emits a [MessageEvent] with `role: 'user'` so the message appears
-  /// in the event stream and server history.
-  void sendMessage(Message message, {String? agentId}) {
+  @override
+  void sendMessage(VideMessage message, {String? agentId}) {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     final targetAgent = agentId ?? mainAgent?.id;
@@ -266,13 +189,22 @@ class VideSession {
       throw StateError('No agents in session');
     }
     _emitUserMessage(message.text, agentId: targetAgent);
-    manager.sendMessage(targetAgent, message);
+    // Convert VideMessage to claude_sdk.Message
+    final claudeAttachments = message.attachments?.map((a) {
+      return claude.Attachment(
+        type: a.type,
+        path: a.filePath,
+        content: a.content,
+        mimeType: a.mimeType,
+      );
+    }).toList();
+    final claudeMessage = claude.Message(
+      text: message.text,
+      attachments: claudeAttachments,
+    );
+    manager.sendMessage(targetAgent, claudeMessage);
   }
 
-  /// Emit a user [MessageEvent] into the event stream.
-  ///
-  /// This makes user messages part of the session history so they survive
-  /// reconnections and are visible to all subscribers.
   void _emitUserMessage(String content, {required String agentId}) {
     _hub.emit(
       MessageEvent(
@@ -286,10 +218,7 @@ class VideSession {
     );
   }
 
-  /// Respond to a permission request.
-  ///
-  /// Call this when you receive a [PermissionRequestEvent] to allow or deny
-  /// the tool invocation.
+  @override
   void respondToPermission(
     String requestId, {
     required bool allow,
@@ -299,18 +228,18 @@ class VideSession {
     final completer = _pendingPermissions.remove(requestId);
     if (completer != null) {
       if (allow) {
-        completer.complete(const PermissionResultAllow());
+        completer.complete(const claude.PermissionResultAllow());
       } else {
         completer.complete(
-          PermissionResultDeny(message: message ?? 'Permission denied'),
+          claude.PermissionResultDeny(
+            message: message ?? 'Permission denied',
+          ),
         );
       }
     }
   }
 
-  /// Abort all agents in the session.
-  ///
-  /// This cancels any in-progress work across all agents.
+  @override
   Future<void> abort() async {
     _checkNotDisposed();
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
@@ -325,9 +254,7 @@ class VideSession {
     }
   }
 
-  /// Abort a specific agent.
-  ///
-  /// This cancels any in-progress work for the specified agent.
+  @override
   Future<void> abortAgent(String agentId) async {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
@@ -336,10 +263,7 @@ class VideSession {
     }
   }
 
-  /// Clear the conversation for an agent (resets context).
-  ///
-  /// If [agentId] is not specified, clears the main agent's conversation.
-  /// This is useful for implementing a `/clear` command or resetting context.
+  @override
   Future<void> clearConversation({String? agentId}) async {
     _checkNotDisposed();
     final targetId = agentId ?? mainAgent?.id;
@@ -349,43 +273,31 @@ class VideSession {
     await client?.clearConversation();
   }
 
-  /// Set the working directory (worktree path) for this session.
-  ///
-  /// This affects all new operations in the session. Pass null or
-  /// an empty string to clear the worktree and return to the original directory.
-  ///
-  /// Note: Agent conversation history may be cleared since Claude CLI
-  /// cannot change its working directory mid-session.
+  @override
   Future<void> setWorktreePath(String? path) async {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     await manager.setWorktreePath(path);
   }
 
-  /// Get the current conversation for an agent.
-  ///
-  /// Returns null if the agent doesn't exist. This provides direct
-  /// access to the conversation for rendering messages and token counts.
-  Conversation? getConversation(String agentId) {
+  @override
+  VideConversation? getConversation(String agentId) {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
-    return client?.currentConversation;
+    final conversation = client?.currentConversation;
+    if (conversation == null) return null;
+    return _convertConversation(conversation);
   }
 
-  /// Stream of conversation updates for an agent.
-  ///
-  /// Returns an empty stream if the agent doesn't exist.
-  /// This allows subscribing to conversation changes for real-time updates.
-  Stream<Conversation> conversationStream(String agentId) {
+  @override
+  Stream<VideConversation> conversationStream(String agentId) {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
-    return client?.conversation ?? const Stream.empty();
+    if (client == null) return const Stream.empty();
+    return client.conversation.map(_convertConversation);
   }
 
-  /// Update token/cost statistics for an agent.
-  ///
-  /// This is called by UI when conversation updates to persist stats.
-  /// Token stats will be persisted on the next network save.
+  @override
   void updateAgentTokenStats(
     String agentId, {
     required int totalInputTokens,
@@ -406,13 +318,7 @@ class VideSession {
     );
   }
 
-  /// Terminate an agent and remove it from the network.
-  ///
-  /// [agentId] is the agent to terminate.
-  /// [terminatedBy] is the ID of the agent requesting termination (typically main agent).
-  ///
-  /// Once terminated, the agent cannot be resumed. Use [abort] to pause
-  /// an agent temporarily.
+  @override
   Future<void> terminateAgent(
     String agentId, {
     required String terminatedBy,
@@ -427,24 +333,14 @@ class VideSession {
     );
   }
 
-  /// Fork an agent to create a new conversation branch.
-  ///
-  /// Returns the ID of the newly created agent.
+  @override
   Future<String> forkAgent(String agentId, {String? name}) async {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
 
-  /// Spawn a new agent by agent type.
-  ///
-  /// [agentType] is the agent personality name from the team's agents list
-  /// (e.g., 'solid-implementer', 'deep-researcher', 'creative-explorer').
-  /// [name] is the display name for the agent.
-  /// [initialPrompt] is the initial message to send to the agent.
-  /// [spawnedBy] is the ID of the agent requesting the spawn (typically main agent).
-  ///
-  /// Returns the ID of the newly created agent.
+  @override
   Future<String> spawnAgent({
     required String agentType,
     required String name,
@@ -461,42 +357,33 @@ class VideSession {
     );
   }
 
-  /// Get the queued message for an agent, if any.
-  ///
-  /// A queued message is a message that will be sent when the agent
-  /// completes its current turn.
+  @override
   Future<String?> getQueuedMessage(String agentId) async {
     final client = _container.read(claudeProvider(agentId));
     return client?.currentQueuedMessage;
   }
 
-  /// Stream of queued message changes for an agent.
-  ///
-  /// Emits whenever the queued message changes (set or cleared).
+  @override
   Stream<String?> queuedMessageStream(String agentId) {
     final client = _container.read(claudeProvider(agentId));
     return client?.queuedMessage ?? const Stream.empty();
   }
 
-  /// Clear the queued message for an agent.
+  @override
   Future<void> clearQueuedMessage(String agentId) async {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     client?.clearQueuedMessage();
   }
 
-  /// Get the model name for an agent (e.g., "claude-sonnet-4-5-20250929").
-  ///
-  /// Returns null if the agent doesn't exist or hasn't initialized yet.
+  @override
   Future<String?> getModel(String agentId) async {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     return client?.initData?.model;
   }
 
-  /// Stream of model changes for an agent.
-  ///
-  /// Emits when the agent's init data is received (which contains the model).
+  @override
   Stream<String?> modelStream(String agentId) {
     _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
@@ -504,14 +391,70 @@ class VideSession {
     return client.initDataStream.map((meta) => meta.model);
   }
 
-  /// Dispose the session and release resources.
-  ///
-  /// After calling dispose, the session can no longer be used.
-  /// The underlying agent network is NOT deleted - it can be resumed
-  /// with [VideCore.resumeSession].
-  ///
-  /// If [fireEndTrigger] is true (default), fires the onSessionEnd trigger
-  /// which may spawn agents like session-synthesizer for knowledge capture.
+  @override
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    _checkNotDisposed();
+    final completer = _pendingAskUserQuestions.remove(requestId);
+    completer?.complete(answers);
+  }
+
+  @override
+  Future<void> addSessionPermissionPattern(String pattern) async {
+    _permissionChecker.addSessionPattern(pattern);
+  }
+
+  @override
+  Future<bool> isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> input,
+  ) async {
+    final typedInput = ToolInput.fromJson(toolName, input);
+    return _permissionChecker.isAllowedBySessionCache(toolName, typedInput);
+  }
+
+  @override
+  Future<void> clearSessionPermissionCache() async {
+    _permissionChecker.clearSessionCache();
+  }
+
+  @override
+  VideCanUseToolCallback createPermissionCallback({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String cwd,
+    String? permissionMode,
+  }) {
+    // Return a VideCanUseToolCallback that wraps the internal claude_sdk permission logic
+    return (
+      String toolName,
+      Map<String, dynamic> input,
+      VidePermissionContext context,
+    ) async {
+      // Delegate to the internal implementation which uses claude_sdk types
+      final claudeResult = await _createPermissionCallbackInternal(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        cwd: cwd,
+        permissionMode: permissionMode,
+        toolName: toolName,
+        input: input,
+      );
+      // Convert claude_sdk PermissionResult to VidePermissionResult
+      return switch (claudeResult) {
+        claude.PermissionResultAllow(:final updatedInput) =>
+          VidePermissionAllow(updatedInput: updatedInput),
+        claude.PermissionResultDeny(:final message) =>
+          VidePermissionDeny(message: message),
+      };
+    };
+  }
+
+  @override
   Future<void> dispose({bool fireEndTrigger = true}) async {
     if (_disposed) return;
     _disposed = true;
@@ -523,7 +466,7 @@ class VideSession {
         await manager.fireSessionEndTrigger();
       } catch (e) {
         // Don't fail dispose if trigger fails
-        print('[VideSession] Error firing onSessionEnd trigger: $e');
+        print('[LocalVideSession] Error firing onSessionEnd trigger: $e');
       }
     }
 
@@ -542,7 +485,7 @@ class VideSession {
     for (final completer in _pendingPermissions.values) {
       if (!completer.isCompleted) {
         completer.complete(
-          const PermissionResultDeny(message: 'Session disposed'),
+          const claude.PermissionResultDeny(message: 'Session disposed'),
         );
       }
     }
@@ -564,377 +507,17 @@ class VideSession {
     _hub.dispose();
   }
 
+  // ===========================================================================
+  // Internal methods
+  // ===========================================================================
+
   void _checkNotDisposed() {
     if (_disposed) {
       throw StateError('Session has been disposed');
     }
   }
 
-  void _subscribeToNetworkChanges() {
-    final subscription = _container.listen(agentNetworkManagerProvider, (
-      previous,
-      next,
-    ) {
-      if (next.currentNetwork?.id != _networkId) return;
-
-      final prevAgentIds =
-          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-      final nextAgentIds =
-          next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-
-      // Check for goal changes
-      final prevGoal = previous?.currentNetwork?.goal;
-      final nextGoal = next.currentNetwork?.goal;
-      if (prevGoal != nextGoal && nextGoal != null) {
-        // Find the main agent to attribute the event to
-        final mainAgent = next.currentNetwork!.agents.isNotEmpty
-            ? next.currentNetwork!.agents.first
-            : null;
-
-        _hub.emit(
-          TaskNameChangedEvent(
-            agentId: mainAgent?.id ?? 'unknown',
-            agentType: mainAgent?.type ?? 'main',
-            agentName: mainAgent?.name,
-            taskName: mainAgent?.taskName,
-            newGoal: nextGoal,
-            previousGoal: prevGoal,
-          ),
-        );
-      }
-
-      // Check for new agents (spawned)
-      for (final agentId in nextAgentIds.difference(prevAgentIds)) {
-        final agent = next.currentNetwork!.agents.firstWhere(
-          (a) => a.id == agentId,
-        );
-
-        // Emit spawn event
-        _hub.emit(
-          AgentSpawnedEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: agent.taskName,
-            spawnedBy: agent.spawnedBy ?? 'unknown',
-          ),
-        );
-
-        // Subscribe to the new agent
-        _subscribeToAgent(agent);
-      }
-
-      // Check for removed agents (terminated)
-      for (final agentId in prevAgentIds.difference(nextAgentIds)) {
-        final agent = previous!.currentNetwork!.agents.firstWhere(
-          (a) => a.id == agentId,
-        );
-
-        // Emit terminate event
-        _hub.emit(
-          AgentTerminatedEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: agent.taskName,
-          ),
-        );
-
-        // Unsubscribe from the terminated agent
-        _unsubscribeFromAgent(agentId);
-      }
-    }, fireImmediately: false);
-    _providerSubscriptions.add(subscription);
-  }
-
-  void _subscribeToAgent(AgentMetadata agent) {
-    if (_agentStates.containsKey(agent.id)) return;
-
-    final client = _container.read(claudeProvider(agent.id));
-    if (client == null) return;
-
-    // Initialize state for this agent
-    _agentStates[agent.id] = _AgentStreamState(
-      agentId: agent.id,
-      agentType: agent.type,
-      agentName: agent.name,
-    );
-
-    // Emit initial status event so UI shows agent state immediately.
-    // Default status is 'working' since agents start processing right away.
-    final initialStatus = _container.read(agentStatusProvider(agent.id));
-    _hub.emit(
-      StatusEvent(
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: agent.taskName,
-        status: _mapStatus(initialStatus),
-      ),
-    );
-
-    // IMPORTANT: First replay the current conversation state
-    // This catches up on any messages that were sent before we subscribed
-    final currentConversation = client.currentConversation;
-    if (currentConversation.messages.isNotEmpty) {
-      _handleConversation(agent, currentConversation);
-    }
-
-    // Subscribe to conversation updates
-    final conversationSub = client.conversation.listen(
-      (conversation) => _handleConversation(agent, conversation),
-      onError: (error) {
-        _hub.emit(
-          ErrorEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            message: error.toString(),
-          ),
-        );
-      },
-    );
-    _subscriptions.add(conversationSub);
-
-    // Subscribe to turn complete
-    final turnCompleteSub = client.onTurnComplete.listen((_) {
-      // Finalize any in-progress message
-      final state = _agentStates[agent.id];
-      if (state != null && state.currentMessageEventId != null) {
-        _hub.emit(
-          MessageEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state.taskName,
-            eventId: state.currentMessageEventId!,
-            role: 'assistant',
-            content: '',
-            isPartial: false,
-          ),
-        );
-        state.currentMessageEventId = null;
-      }
-
-      // Get token/cost data from current conversation
-      final conversation = client.currentConversation;
-      _hub.emit(
-        TurnCompleteEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state?.taskName,
-          reason: 'end_turn',
-          totalInputTokens: conversation.totalInputTokens,
-          totalOutputTokens: conversation.totalOutputTokens,
-          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-          totalCacheCreationInputTokens:
-              conversation.totalCacheCreationInputTokens,
-          totalCostUsd: conversation.totalCostUsd,
-          currentContextInputTokens: conversation.currentContextInputTokens,
-          currentContextCacheReadTokens:
-              conversation.currentContextCacheReadTokens,
-          currentContextCacheCreationTokens:
-              conversation.currentContextCacheCreationTokens,
-        ),
-      );
-    });
-    _subscriptions.add(turnCompleteSub);
-
-    // Subscribe to status changes
-    final statusSub = _container.listen<internal.AgentStatus>(
-      agentStatusProvider(agent.id),
-      (previous, next) {
-        if (previous != null && previous != next) {
-          // Update task name from network state
-          final network = _container
-              .read(agentNetworkManagerProvider)
-              .currentNetwork;
-          final agentMeta = network?.agents
-              .where((a) => a.id == agent.id)
-              .firstOrNull;
-          final state = _agentStates[agent.id];
-          if (state != null && agentMeta != null) {
-            state.taskName = agentMeta.taskName;
-          }
-
-          _hub.emit(
-            StatusEvent(
-              agentId: agent.id,
-              agentType: agent.type,
-              agentName: agent.name,
-              taskName: state?.taskName,
-              status: _mapStatus(next),
-            ),
-          );
-        }
-      },
-      fireImmediately: false,
-    );
-    _providerSubscriptions.add(statusSub);
-  }
-
-  void _unsubscribeFromAgent(String agentId) {
-    _agentStates.remove(agentId);
-    // Note: We don't remove subscriptions here because they're all in lists
-    // and will be cleaned up on dispose. The agent's ClaudeClient will be
-    // removed by AgentNetworkManager, so the streams will close naturally.
-  }
-
-  void _handleConversation(AgentMetadata agent, Conversation conversation) {
-    if (conversation.messages.isEmpty) return;
-
-    final state = _agentStates[agent.id];
-    if (state == null) return;
-
-    // Update task name from network state
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    final agentMeta = network?.agents
-        .where((a) => a.id == agent.id)
-        .firstOrNull;
-    if (agentMeta != null) {
-      state.taskName = agentMeta.taskName;
-    }
-
-    final currentMessageCount = conversation.messages.length;
-
-    // Process ALL new messages since we last checked (not just the latest one).
-    // This is important for catching up on missed messages, e.g. when the session
-    // subscribes late and there are already multiple messages in the conversation.
-    if (currentMessageCount > state.lastMessageCount) {
-      // Emit events for all messages we haven't seen yet
-      for (int i = state.lastMessageCount; i < currentMessageCount; i++) {
-        final message = conversation.messages[i];
-
-        // Generate new event ID for this message
-        final eventId = const Uuid().v4();
-
-        // If this is the last message, track it for streaming updates
-        if (i == currentMessageCount - 1) {
-          state.currentMessageEventId = eventId;
-          state.lastContentLength = message.content.length;
-          state.lastResponseCount = 0;
-        }
-
-        if (message.content.isNotEmpty) {
-          _hub.emit(
-            MessageEvent(
-              agentId: agent.id,
-              agentType: agent.type,
-              agentName: agent.name,
-              taskName: state.taskName,
-              eventId: eventId,
-              role: message.role == MessageRole.user ? 'user' : 'assistant',
-              content: message.content,
-              isPartial: i == currentMessageCount - 1, // Only latest is partial
-            ),
-          );
-        }
-
-        // Emit tool events for this message
-        if (i == currentMessageCount - 1) {
-          _emitToolEvents(agent, message, state);
-        }
-      }
-
-      state.lastMessageCount = currentMessageCount;
-    }
-    // Same message count, but latest message content grew (streaming delta)
-    else {
-      final latestMessage = conversation.messages.last;
-      final currentContentLength = latestMessage.content.length;
-
-      if (currentContentLength > state.lastContentLength) {
-        final delta = latestMessage.content.substring(state.lastContentLength);
-        if (delta.isNotEmpty) {
-          final eventId = state.currentMessageEventId ?? const Uuid().v4();
-          _hub.emit(
-            MessageEvent(
-              agentId: agent.id,
-              agentType: agent.type,
-              agentName: agent.name,
-              taskName: state.taskName,
-              eventId: eventId,
-              role: latestMessage.role == MessageRole.user
-                  ? 'user'
-                  : 'assistant',
-              content: delta,
-              isPartial: true,
-            ),
-          );
-        }
-        state.lastContentLength = currentContentLength;
-      }
-
-      // Always check for new tool events on the latest message
-      _emitToolEvents(agent, latestMessage, state);
-    }
-
-    // Check for errors
-    if (conversation.currentError != null) {
-      _hub.emit(
-        ErrorEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          message: conversation.currentError!,
-        ),
-      );
-    }
-  }
-
-  void _emitToolEvents(
-    AgentMetadata agent,
-    ConversationMessage message,
-    _AgentStreamState state,
-  ) {
-    final responses = message.responses;
-    final startIndex = state.lastResponseCount;
-
-    for (int i = startIndex; i < responses.length; i++) {
-      final response = responses[i];
-      if (response is ToolUseResponse) {
-        final toolUseId = response.toolUseId ?? const Uuid().v4();
-        state.toolNamesByUseId[toolUseId] = response.toolName;
-
-        _hub.emit(
-          ToolUseEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state.taskName,
-            toolUseId: toolUseId,
-            toolName: response.toolName,
-            toolInput: response.parameters,
-          ),
-        );
-      } else if (response is ToolResultResponse) {
-        final toolName =
-            state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        _hub.emit(
-          ToolResultEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state.taskName,
-            toolUseId: response.toolUseId,
-            toolName: toolName,
-            result: response.content,
-            isError: response.isError,
-          ),
-        );
-      }
-    }
-
-    state.lastResponseCount = responses.length;
-  }
-
   /// Whether to skip all permission checks (auto-approve everything).
-  ///
-  /// Returns true if EITHER:
-  /// - The session-scoped provider is true (set via CLI flag, session-only)
-  /// - The global setting is true (set via settings UI, persistent)
   bool get _dangerouslySkipPermissions {
     final sessionOverride = _container.read(dangerouslySkipPermissionsProvider);
     if (sessionOverride) return true;
@@ -942,18 +525,89 @@ class VideSession {
     return configManager.readGlobalSettings().dangerouslySkipPermissions;
   }
 
-  /// Creates a permission callback that integrates with [PermissionChecker]
-  /// and emits [PermissionRequestEvent] when user approval is needed.
+  /// Internal permission callback implementation using claude_sdk types.
+  Future<claude.PermissionResult> _createPermissionCallbackInternal({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String cwd,
+    String? permissionMode,
+    required String toolName,
+    required Map<String, dynamic> input,
+  }) async {
+    // Skip all permission checks when dangerously-skip-permissions is enabled
+    if (_dangerouslySkipPermissions) {
+      return const claude.PermissionResultAllow();
+    }
+
+    // Get current task name
+    final state = _agentStates[agentId];
+
+    // Special handling for AskUserQuestion tool
+    if (toolName == 'AskUserQuestion') {
+      return _handleAskUserQuestion(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        taskName: state?.taskName,
+        toolInput: input,
+      );
+    }
+
+    // Convert raw map to type-safe ToolInput for PermissionChecker
+    final typedInput = ToolInput.fromJson(toolName, input);
+
+    // Check with PermissionChecker first (allow lists, deny lists, etc.)
+    final checkResult = await _permissionChecker.checkPermission(
+      toolName: toolName,
+      input: typedInput,
+      cwd: cwd,
+      permissionMode: permissionMode,
+    );
+
+    // Handle the result from PermissionChecker
+    switch (checkResult) {
+      case PermissionAllow():
+        return const claude.PermissionResultAllow();
+
+      case PermissionDeny(reason: final reason):
+        return claude.PermissionResultDeny(message: reason);
+
+      case PermissionAskUser(inferredPattern: final inferredPattern):
+        // Need to ask the user - emit event and wait
+        final requestId = const Uuid().v4();
+        final completer = Completer<claude.PermissionResult>();
+        _pendingPermissions[requestId] = completer;
+
+        // Emit permission request event
+        _hub.emit(
+          PermissionRequestEvent(
+            agentId: agentId,
+            agentType: agentType ?? 'unknown',
+            agentName: agentName,
+            taskName: state?.taskName,
+            requestId: requestId,
+            toolName: toolName,
+            toolInput: input,
+            inferredPattern: inferredPattern,
+          ),
+        );
+
+        // Wait for response indefinitely - user can take as long as needed
+        try {
+          return await completer.future;
+        } catch (e) {
+          _pendingPermissions.remove(requestId);
+          return claude.PermissionResultDeny(message: 'Error: $e');
+        }
+    }
+  }
+
+  /// Also expose a claude_sdk-native permission callback for internal use.
   ///
-  /// The callback:
-  /// 1. If dangerouslySkipPermissions is set, auto-approves everything
-  /// 2. Checks if the tool is auto-allowed/denied by PermissionChecker
-  /// 3. If user approval is needed, emits PermissionRequestEvent
-  /// 4. Waits for [respondToPermission] to be called
-  ///
-  /// Special handling for AskUserQuestion tool: emits [AskUserQuestionEvent]
-  /// and waits for [respondToAskUserQuestion] instead.
-  CanUseToolCallback createPermissionCallback({
+  /// This is used by the agent network manager which still operates with
+  /// claude_sdk types internally.
+  claude.CanUseToolCallback createClaudePermissionCallback({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -963,79 +617,21 @@ class VideSession {
     return (
       String toolName,
       Map<String, dynamic> input,
-      ToolPermissionContext context,
+      claude.ToolPermissionContext context,
     ) async {
-      // Skip all permission checks when dangerously-skip-permissions is enabled
-      if (_dangerouslySkipPermissions) {
-        return const PermissionResultAllow();
-      }
-
-      // Get current task name
-      final state = _agentStates[agentId];
-
-      // Special handling for AskUserQuestion tool
-      if (toolName == 'AskUserQuestion') {
-        return _handleAskUserQuestion(
-          agentId: agentId,
-          agentName: agentName,
-          agentType: agentType,
-          taskName: state?.taskName,
-          toolInput: input,
-        );
-      }
-
-      // Convert raw map to type-safe ToolInput for PermissionChecker
-      final typedInput = ToolInput.fromJson(toolName, input);
-
-      // Check with PermissionChecker first (allow lists, deny lists, etc.)
-      final checkResult = await _permissionChecker.checkPermission(
-        toolName: toolName,
-        input: typedInput,
+      return _createPermissionCallbackInternal(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
         cwd: cwd,
         permissionMode: permissionMode,
+        toolName: toolName,
+        input: input,
       );
-
-      // Handle the result from PermissionChecker
-      switch (checkResult) {
-        case PermissionAllow():
-          return const PermissionResultAllow();
-
-        case PermissionDeny(reason: final reason):
-          return PermissionResultDeny(message: reason);
-
-        case PermissionAskUser(inferredPattern: final inferredPattern):
-          // Need to ask the user - emit event and wait
-          final requestId = const Uuid().v4();
-          final completer = Completer<PermissionResult>();
-          _pendingPermissions[requestId] = completer;
-
-          // Emit permission request event
-          _hub.emit(
-            PermissionRequestEvent(
-              agentId: agentId,
-              agentType: agentType ?? 'unknown',
-              agentName: agentName,
-              taskName: state?.taskName,
-              requestId: requestId,
-              toolName: toolName,
-              toolInput: input,
-              inferredPattern: inferredPattern,
-            ),
-          );
-
-          // Wait for response indefinitely - user can take as long as needed
-          try {
-            return await completer.future;
-          } catch (e) {
-            _pendingPermissions.remove(requestId);
-            return PermissionResultDeny(message: 'Error: $e');
-          }
-      }
     };
   }
 
-  /// Handles AskUserQuestion tool by emitting event and waiting for response.
-  Future<PermissionResult> _handleAskUserQuestion({
+  Future<claude.PermissionResult> _handleAskUserQuestion({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -1046,8 +642,7 @@ class VideSession {
       // Parse questions from tool input
       final questionsJson = toolInput['questions'] as List<dynamic>?;
       if (questionsJson == null || questionsJson.isEmpty) {
-        // No questions, just allow
-        return const PermissionResultAllow();
+        return const claude.PermissionResultAllow();
       }
 
       // Convert to event data format
@@ -1084,54 +679,438 @@ class VideSession {
         ),
       );
 
-      // Wait for response indefinitely - user can take as long as needed
       final answers = await completer.future;
 
-      // Return allow with the answers included in updatedInput
-      return PermissionResultAllow(
+      return claude.PermissionResultAllow(
         updatedInput: {...toolInput, 'answers': answers},
       );
     } catch (e) {
-      return PermissionResultDeny(
+      return claude.PermissionResultDeny(
         message: 'Failed to process AskUserQuestion: $e',
       );
     }
   }
 
-  /// Respond to an AskUserQuestion request.
-  ///
-  /// [requestId] is the ID from the [AskUserQuestionEvent].
-  /// [answers] is a map of question text -> selected answer(s).
-  void respondToAskUserQuestion(
-    String requestId, {
-    required Map<String, String> answers,
-  }) {
-    _checkNotDisposed();
-    final completer = _pendingAskUserQuestions.remove(requestId);
-    completer?.complete(answers);
+  void _subscribeToNetworkChanges() {
+    final subscription = _container.listen(agentNetworkManagerProvider, (
+      previous,
+      next,
+    ) {
+      if (next.currentNetwork?.id != _networkId) return;
+
+      final prevAgentIds =
+          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+      final nextAgentIds =
+          next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+
+      // Check for goal changes
+      final prevGoal = previous?.currentNetwork?.goal;
+      final nextGoal = next.currentNetwork?.goal;
+      if (prevGoal != nextGoal && nextGoal != null) {
+        final mainAgent = next.currentNetwork!.agents.isNotEmpty
+            ? next.currentNetwork!.agents.first
+            : null;
+
+        _hub.emit(
+          TaskNameChangedEvent(
+            agentId: mainAgent?.id ?? 'unknown',
+            agentType: mainAgent?.type ?? 'main',
+            agentName: mainAgent?.name,
+            taskName: mainAgent?.taskName,
+            newGoal: nextGoal,
+            previousGoal: prevGoal,
+          ),
+        );
+      }
+
+      // Check for new agents (spawned)
+      for (final agentId in nextAgentIds.difference(prevAgentIds)) {
+        final agent = next.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
+
+        _hub.emit(
+          AgentSpawnedEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: agent.taskName,
+            spawnedBy: agent.spawnedBy ?? 'unknown',
+          ),
+        );
+
+        _subscribeToAgent(agent);
+      }
+
+      // Check for removed agents (terminated)
+      for (final agentId in prevAgentIds.difference(nextAgentIds)) {
+        final agent = previous!.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
+
+        _hub.emit(
+          AgentTerminatedEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: agent.taskName,
+          ),
+        );
+
+        _unsubscribeFromAgent(agentId);
+      }
+    }, fireImmediately: false);
+    _providerSubscriptions.add(subscription);
   }
 
-  /// Add a pattern to the session permission cache.
-  ///
-  /// Used when user selects "remember" for write operations.
-  Future<void> addSessionPermissionPattern(String pattern) async {
-    _permissionChecker.addSessionPattern(pattern);
+  void _subscribeToAgent(AgentMetadata agent) {
+    if (_agentStates.containsKey(agent.id)) return;
+
+    final client = _container.read(claudeProvider(agent.id));
+    if (client == null) return;
+
+    _agentStates[agent.id] = _AgentStreamState(
+      agentId: agent.id,
+      agentType: agent.type,
+      agentName: agent.name,
+    );
+
+    final initialStatus = _container.read(agentStatusProvider(agent.id));
+    _hub.emit(
+      StatusEvent(
+        agentId: agent.id,
+        agentType: agent.type,
+        agentName: agent.name,
+        taskName: agent.taskName,
+        status: _mapStatus(initialStatus),
+      ),
+    );
+
+    final currentConversation = client.currentConversation;
+    if (currentConversation.messages.isNotEmpty) {
+      _handleConversation(agent, currentConversation);
+    }
+
+    final conversationSub = client.conversation.listen(
+      (conversation) => _handleConversation(agent, conversation),
+      onError: (error) {
+        _hub.emit(
+          ErrorEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            message: error.toString(),
+          ),
+        );
+      },
+    );
+    _subscriptions.add(conversationSub);
+
+    final turnCompleteSub = client.onTurnComplete.listen((_) {
+      final state = _agentStates[agent.id];
+      if (state != null && state.currentMessageEventId != null) {
+        _hub.emit(
+          MessageEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            eventId: state.currentMessageEventId!,
+            role: 'assistant',
+            content: '',
+            isPartial: false,
+          ),
+        );
+        state.currentMessageEventId = null;
+      }
+
+      final conversation = client.currentConversation;
+      _hub.emit(
+        TurnCompleteEvent(
+          agentId: agent.id,
+          agentType: agent.type,
+          agentName: agent.name,
+          taskName: state?.taskName,
+          reason: 'end_turn',
+          totalInputTokens: conversation.totalInputTokens,
+          totalOutputTokens: conversation.totalOutputTokens,
+          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+          totalCacheCreationInputTokens:
+              conversation.totalCacheCreationInputTokens,
+          totalCostUsd: conversation.totalCostUsd,
+          currentContextInputTokens: conversation.currentContextInputTokens,
+          currentContextCacheReadTokens:
+              conversation.currentContextCacheReadTokens,
+          currentContextCacheCreationTokens:
+              conversation.currentContextCacheCreationTokens,
+        ),
+      );
+    });
+    _subscriptions.add(turnCompleteSub);
+
+    final statusSub = _container.listen<internal.AgentStatus>(
+      agentStatusProvider(agent.id),
+      (previous, next) {
+        if (previous != null && previous != next) {
+          final network = _container
+              .read(agentNetworkManagerProvider)
+              .currentNetwork;
+          final agentMeta = network?.agents
+              .where((a) => a.id == agent.id)
+              .firstOrNull;
+          final state = _agentStates[agent.id];
+          if (state != null && agentMeta != null) {
+            state.taskName = agentMeta.taskName;
+          }
+
+          _hub.emit(
+            StatusEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state?.taskName,
+              status: _mapStatus(next),
+            ),
+          );
+        }
+      },
+      fireImmediately: false,
+    );
+    _providerSubscriptions.add(statusSub);
   }
 
-  /// Check if a tool is allowed by the session cache.
-  ///
-  /// Used by UI to check if permission dialog should be shown.
-  Future<bool> isAllowedBySessionCache(
-    String toolName,
-    Map<String, dynamic> input,
-  ) async {
-    final typedInput = ToolInput.fromJson(toolName, input);
-    return _permissionChecker.isAllowedBySessionCache(toolName, typedInput);
+  void _unsubscribeFromAgent(String agentId) {
+    _agentStates.remove(agentId);
   }
 
-  /// Clear the session permission cache.
-  Future<void> clearSessionPermissionCache() async {
-    _permissionChecker.clearSessionCache();
+  void _handleConversation(
+    AgentMetadata agent,
+    claude.Conversation conversation,
+  ) {
+    if (conversation.messages.isEmpty) return;
+
+    final state = _agentStates[agent.id];
+    if (state == null) return;
+
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final agentMeta = network?.agents
+        .where((a) => a.id == agent.id)
+        .firstOrNull;
+    if (agentMeta != null) {
+      state.taskName = agentMeta.taskName;
+    }
+
+    final currentMessageCount = conversation.messages.length;
+
+    if (currentMessageCount > state.lastMessageCount) {
+      for (int i = state.lastMessageCount; i < currentMessageCount; i++) {
+        final message = conversation.messages[i];
+        final eventId = const Uuid().v4();
+
+        if (i == currentMessageCount - 1) {
+          state.currentMessageEventId = eventId;
+          state.lastContentLength = message.content.length;
+          state.lastResponseCount = 0;
+        }
+
+        if (message.content.isNotEmpty) {
+          _hub.emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state.taskName,
+              eventId: eventId,
+              role: message.role == claude.MessageRole.user
+                  ? 'user'
+                  : 'assistant',
+              content: message.content,
+              isPartial: i == currentMessageCount - 1,
+            ),
+          );
+        }
+
+        if (i == currentMessageCount - 1) {
+          _emitToolEvents(agent, message, state);
+        }
+      }
+
+      state.lastMessageCount = currentMessageCount;
+    } else {
+      final latestMessage = conversation.messages.last;
+      final currentContentLength = latestMessage.content.length;
+
+      if (currentContentLength > state.lastContentLength) {
+        final delta = latestMessage.content.substring(state.lastContentLength);
+        if (delta.isNotEmpty) {
+          final eventId = state.currentMessageEventId ?? const Uuid().v4();
+          _hub.emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state.taskName,
+              eventId: eventId,
+              role: latestMessage.role == claude.MessageRole.user
+                  ? 'user'
+                  : 'assistant',
+              content: delta,
+              isPartial: true,
+            ),
+          );
+        }
+        state.lastContentLength = currentContentLength;
+      }
+
+      _emitToolEvents(agent, latestMessage, state);
+    }
+
+    if (conversation.currentError != null) {
+      _hub.emit(
+        ErrorEvent(
+          agentId: agent.id,
+          agentType: agent.type,
+          agentName: agent.name,
+          taskName: state.taskName,
+          message: conversation.currentError!,
+        ),
+      );
+    }
+  }
+
+  void _emitToolEvents(
+    AgentMetadata agent,
+    claude.ConversationMessage message,
+    _AgentStreamState state,
+  ) {
+    final responses = message.responses;
+    final startIndex = state.lastResponseCount;
+
+    for (int i = startIndex; i < responses.length; i++) {
+      final response = responses[i];
+      if (response is claude.ToolUseResponse) {
+        final toolUseId = response.toolUseId ?? const Uuid().v4();
+        state.toolNamesByUseId[toolUseId] = response.toolName;
+
+        _hub.emit(
+          ToolUseEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            toolUseId: toolUseId,
+            toolName: response.toolName,
+            toolInput: response.parameters,
+          ),
+        );
+      } else if (response is claude.ToolResultResponse) {
+        final toolName =
+            state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
+        _hub.emit(
+          ToolResultEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: state.taskName,
+            toolUseId: response.toolUseId,
+            toolName: toolName,
+            result: response.content,
+            isError: response.isError,
+          ),
+        );
+      }
+    }
+
+    state.lastResponseCount = responses.length;
+  }
+
+  // ===========================================================================
+  // Adapter methods
+  // ===========================================================================
+
+  /// Convert a claude_sdk Conversation to a VideConversation.
+  VideConversation _convertConversation(claude.Conversation conversation) {
+    return VideConversation(
+      messages: conversation.messages.map(_convertMessage).toList(),
+      state: conversation.isProcessing
+          ? VideConversationState.processing
+          : VideConversationState.idle,
+      totalInputTokens: conversation.totalInputTokens,
+      totalOutputTokens: conversation.totalOutputTokens,
+      totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+      totalCacheCreationInputTokens:
+          conversation.totalCacheCreationInputTokens,
+      totalCostUsd: conversation.totalCostUsd,
+      currentContextInputTokens: conversation.currentContextInputTokens,
+      currentContextCacheReadTokens:
+          conversation.currentContextCacheReadTokens,
+      currentContextCacheCreationTokens:
+          conversation.currentContextCacheCreationTokens,
+      currentError: conversation.currentError,
+    );
+  }
+
+  /// Convert a claude_sdk ConversationMessage to VideConversationMessage.
+  VideConversationMessage _convertMessage(
+    claude.ConversationMessage message,
+  ) {
+    return VideConversationMessage(
+      id: message.id,
+      role: message.role == claude.MessageRole.user
+          ? MessageRole.user
+          : MessageRole.assistant,
+      content: message.content,
+      timestamp: message.timestamp,
+      responses: message.responses
+          .map(_convertResponse)
+          .whereType<VideResponse>()
+          .toList(),
+      isStreaming: message.isStreaming,
+      isComplete: message.isComplete,
+      messageType: message.role == claude.MessageRole.user
+          ? VideMessageType.userMessage
+          : VideMessageType.assistantText,
+    );
+  }
+
+  /// Convert a claude_sdk response to VideResponse, or null if the response
+  /// should be filtered out (metadata-only types like CompletionResponse).
+  VideResponse? _convertResponse(claude.ClaudeResponse response) {
+    return switch (response) {
+      claude.TextResponse r => VideTextResponse(
+        id: r.id,
+        timestamp: r.timestamp,
+        content: r.content,
+        isPartial: r.isPartial,
+        isCumulative: r.isCumulative,
+      ),
+      claude.ToolUseResponse r => VideToolUseResponse(
+        id: r.id,
+        timestamp: r.timestamp,
+        toolName: r.toolName,
+        parameters: r.parameters,
+        toolUseId: r.toolUseId,
+      ),
+      claude.ToolResultResponse r => VideToolResultResponse(
+        id: r.id,
+        timestamp: r.timestamp,
+        toolUseId: r.toolUseId,
+        content: r.content,
+        isError: r.isError,
+      ),
+      // Metadata-only responses — no renderable content
+      claude.CompletionResponse() => null,
+      claude.ErrorResponse() => null,
+      claude.ApiErrorResponse() => null,
+      claude.StatusResponse() => null,
+      claude.MetaResponse() => null,
+      claude.TurnDurationResponse() => null,
+      claude.LocalCommandResponse() => null,
+      claude.CompactBoundaryResponse() => null,
+      claude.CompactSummaryResponse() => null,
+      claude.UserMessageResponse() => null,
+      claude.UnknownResponse() => null,
+    };
   }
 
   VideAgent _mapAgent(AgentMetadata agent) {

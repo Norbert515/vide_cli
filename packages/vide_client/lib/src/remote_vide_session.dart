@@ -1,21 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
-import 'package:vide_client/vide_client.dart' as vc;
+import 'package:vide_interface/vide_interface.dart';
 
-import 'conversation_state.dart';
 import 'remote_conversation_builder.dart';
-import 'session_event_hub.dart';
-import 'vide_agent.dart';
-import 'vide_event.dart';
-import 'vide_session.dart';
+import 'session.dart';
 
 /// Handle for an optimistic remote session that is still connecting.
 ///
-/// This keeps pending-session lifecycle operations in vide_core so UI/service
+/// This keeps pending-session lifecycle operations so UI/service
 /// layers do not need to depend on [RemoteVideSession] internals.
 class PendingRemoteVideSession {
   final RemoteVideSession _session;
@@ -40,7 +35,7 @@ class PendingRemoteVideSession {
   }
 
   /// Resolve the pending session with a connected transport session.
-  void completeWithClientSession(vc.Session clientSession) {
+  void completeWithClientSession(Session clientSession) {
     _session.completePending(clientSession);
   }
 
@@ -63,9 +58,9 @@ PendingRemoteVideSession createPendingRemoteVideSession({
   return PendingRemoteVideSession._(session);
 }
 
-/// Adapt a transport-level [vc.Session] into the unified [VideSession] API.
+/// Adapt a transport-level [Session] into the unified [VideSession] API.
 VideSession createRemoteVideSessionFromClientSession(
-  vc.Session clientSession, {
+  Session clientSession, {
   String? mainAgentId,
 }) {
   return RemoteVideSession.fromClientSession(
@@ -76,7 +71,7 @@ VideSession createRemoteVideSessionFromClientSession(
 
 /// A VideSession that connects to a remote vide_server via WebSocket.
 ///
-/// This implementation composes with [vc.Session] from vide_client,
+/// This implementation composes with [Session] from vide_client,
 /// which handles the wire protocol. RemoteVideSession adds:
 /// - Conversation state management
 /// - Agent tracking
@@ -86,7 +81,7 @@ VideSession createRemoteVideSessionFromClientSession(
 ///
 /// The architecture provides two levels of access:
 ///
-/// 1. **vide_client.Session** - Thin wire protocol wrapper
+/// 1. **Session** - Thin wire protocol wrapper
 /// 2. **RemoteVideSession** - Full [VideSession] interface with state management
 ///
 /// ## Usage
@@ -119,8 +114,8 @@ VideSession createRemoteVideSessionFromClientSession(
 /// ```
 class RemoteVideSession implements VideSession {
   String _sessionId;
-  vc.Session? _clientSession;
-  StreamSubscription<vc.VideEvent>? _eventSubscription;
+  Session? _clientSession;
+  StreamSubscription<VideEvent>? _eventSubscription;
 
   final SessionEventHub _hub = SessionEventHub();
   final RemoteConversationBuilder _conversationBuilder =
@@ -146,7 +141,7 @@ class RemoteVideSession implements VideSession {
   String _team = 'vide';
 
   /// Pending permission completers.
-  final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
+  final Map<String, Completer<VidePermissionResult>> _pendingPermissions = {};
 
   /// Cached queued messages by agent.
   final Map<String, String?> _queuedMessages = {};
@@ -207,11 +202,11 @@ class RemoteVideSession implements VideSession {
   /// Completer for initial connection.
   final Completer<void> _connectCompleter = Completer<void>();
 
-  /// Create a RemoteVideSession from an existing vide_client.Session.
+  /// Create a RemoteVideSession from an existing Session.
   ///
   /// This is the preferred constructor when you already have a client session.
   RemoteVideSession.fromClientSession(
-    vc.Session clientSession, {
+    Session clientSession, {
     String? mainAgentId,
   }) : _sessionId = clientSession.id,
        _clientSession = clientSession {
@@ -237,7 +232,7 @@ class RemoteVideSession implements VideSession {
   }
 
   /// Complete a pending session with an actual client session.
-  void completePending(vc.Session clientSession) {
+  void completePending(Session clientSession) {
     if (!_isPending) return;
 
     // Save placeholder agent ID for conversation migration when ConnectedEvent arrives
@@ -338,13 +333,12 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  /// Handle an event from the vide_client session.
+  /// Handle an event from the client session.
   ///
-  /// This adapts wire-format events to business events.
   /// If [skipSeqCheck] is true, deduplication is skipped (for history replay).
   /// If [isHistoryReplay] is true, messages are treated as complete (not accumulated).
   void _handleClientEvent(
-    vc.VideEvent event, {
+    VideEvent event, {
     bool skipSeqCheck = false,
     bool isHistoryReplay = false,
   }) {
@@ -356,40 +350,40 @@ class RemoteVideSession implements VideSession {
     }
 
     switch (event) {
-      case vc.ConnectedEvent():
+      case ConnectedEvent():
         _handleConnected(event);
-      case vc.HistoryEvent():
+      case HistoryEvent():
         _handleHistory(event);
-      case vc.MessageEvent():
+      case MessageEvent():
         _handleMessage(event, isHistoryReplay: isHistoryReplay);
-      case vc.ToolUseEvent():
+      case ToolUseEvent():
         _handleToolUse(event);
-      case vc.ToolResultEvent():
+      case ToolResultEvent():
         _handleToolResult(event);
-      case vc.StatusEvent():
+      case StatusEvent():
         _handleStatus(event);
-      case vc.DoneEvent():
+      case TurnCompleteEvent():
         _handleDone(event);
-      case vc.ErrorEvent():
+      case ErrorEvent():
         _handleError(event);
-      case vc.AgentSpawnedEvent():
+      case AgentSpawnedEvent():
         _handleAgentSpawned(event);
-      case vc.AgentTerminatedEvent():
+      case AgentTerminatedEvent():
         _handleAgentTerminated(event);
-      case vc.PermissionRequestEvent():
+      case PermissionRequestEvent():
         _handlePermissionRequest(event);
-      case vc.AskUserQuestionEvent():
+      case AskUserQuestionEvent():
         _handleAskUserQuestion(event);
-      case vc.TaskNameChangedEvent():
+      case TaskNameChangedEvent():
         _handleTaskNameChanged(event);
-      case vc.PermissionTimeoutEvent():
+      case PermissionTimeoutEvent():
         _handlePermissionTimeout(event);
-      case vc.AbortedEvent():
+      case AbortedEvent():
         _handleAborted(event);
-      case vc.CommandResultEvent():
-        // Command results are handled inside vide_client.Session.
+      case CommandResultEvent():
+        // Command results are handled inside Session.
         break;
-      case vc.UnknownEvent():
+      case UnknownEvent():
         // Ignore unknown events
         break;
     }
@@ -398,27 +392,27 @@ class RemoteVideSession implements VideSession {
   /// Handles a raw WebSocket message (for testing).
   ///
   /// This parses the JSON and routes to the appropriate handler,
-  /// simulating what vide_client.Session would do.
+  /// simulating what Session would do.
   @visibleForTesting
   void handleWebSocketMessage(dynamic message) {
     if (message is! String) return;
 
     final json = jsonDecode(message) as Map<String, dynamic>;
-    final event = vc.VideEvent.fromJson(json);
+    final event = VideEvent.fromJson(json);
     _handleClientEvent(event);
   }
 
   /// Resolve agent type from local cache, falling back to the wire event.
-  String _resolveAgentType(String agentId, vc.VideEvent event) {
-    return _agents[agentId]?.type ?? event.agent?.type ?? 'unknown';
+  String _resolveAgentType(String agentId, VideEvent event) {
+    return _agents[agentId]?.type ?? event.agentType;
   }
 
   /// Resolve agent name from local cache, falling back to the wire event.
-  String? _resolveAgentName(String agentId, vc.VideEvent event) {
-    return _agents[agentId]?.name ?? event.agent?.name;
+  String? _resolveAgentName(String agentId, VideEvent event) {
+    return _agents[agentId]?.name ?? event.agentName;
   }
 
-  void _handleConnected(vc.ConnectedEvent event) {
+  void _handleConnected(ConnectedEvent event) {
     _mainAgentId = event.mainAgentId;
     _lastSeq = event.lastSeq;
     _applyConnectedMetadata(event.metadata);
@@ -454,15 +448,11 @@ class RemoteVideSession implements VideSession {
     }
   }
 
-  void _handleHistory(vc.HistoryEvent event) {
+  void _handleHistory(HistoryEvent event) {
     // Consolidate message events by eventId to avoid duplication from streaming chunks.
-    // The server stores every streaming partial, so we need to take only the final
-    // version of each message (either the non-partial one, or the last partial with
-    // accumulated content).
     final consolidatedEvents = _consolidateHistoryMessages(event.events);
 
     // Process consolidated history events without seq filtering
-    // Mark as history replay so messages don't get accumulated
     for (final parsed in consolidatedEvents) {
       _handleClientEvent(parsed, skipSeqCheck: true, isHistoryReplay: true);
     }
@@ -470,20 +460,16 @@ class RemoteVideSession implements VideSession {
   }
 
   /// Consolidate streaming message events in history by eventId.
-  ///
-  /// The server stores every streaming partial as a separate event. For history
-  /// replay we merge chunks sharing an eventId into a single message, then sort
-  /// everything by seq.
-  List<vc.VideEvent> _consolidateHistoryMessages(List<dynamic> rawEvents) {
-    final result = <vc.VideEvent>[];
-    final messagesByEventId = <String, List<vc.MessageEvent>>{};
+  List<VideEvent> _consolidateHistoryMessages(List<dynamic> rawEvents) {
+    final result = <VideEvent>[];
+    final messagesByEventId = <String, List<MessageEvent>>{};
 
     for (final rawEvent in rawEvents) {
       if (rawEvent is! Map<String, dynamic>) continue;
-      final parsed = vc.VideEvent.fromJson(rawEvent);
+      final parsed = VideEvent.fromJson(rawEvent);
 
-      if (parsed is vc.MessageEvent && parsed.eventId != null) {
-        messagesByEventId.putIfAbsent(parsed.eventId!, () => []).add(parsed);
+      if (parsed is MessageEvent) {
+        messagesByEventId.putIfAbsent(parsed.eventId, () => []).add(parsed);
       } else {
         result.add(parsed);
       }
@@ -494,18 +480,19 @@ class RemoteVideSession implements VideSession {
       final hasFinal = messages.any((m) => !m.isPartial);
       final representative = messages.last;
 
-      // Partial chunks carry streaming content; the final marker is empty.
-      // For non-streamed messages (single non-partial) use the content directly.
       final content = partials.isNotEmpty
           ? partials.map((m) => m.content).join()
           : representative.content;
 
       result.add(
-        vc.MessageEvent(
+        MessageEvent(
           seq: representative.seq,
+          agentId: representative.agentId,
+          agentType: representative.agentType,
+          agentName: representative.agentName,
+          taskName: representative.taskName,
           eventId: representative.eventId,
           timestamp: representative.timestamp,
-          agent: representative.agent,
           role: representative.role,
           content: content,
           isPartial: !hasFinal,
@@ -517,10 +504,10 @@ class RemoteVideSession implements VideSession {
     return result;
   }
 
-  void _handleMessage(vc.MessageEvent event, {bool isHistoryReplay = false}) {
-    final agentId = event.agent?.id ?? '';
-    final eventId = event.eventId ?? const Uuid().v4();
-    final role = event.role == vc.MessageRole.user ? 'user' : 'assistant';
+  void _handleMessage(MessageEvent event, {bool isHistoryReplay = false}) {
+    final agentId = event.agentId;
+    final eventId = event.eventId;
+    final role = event.role == 'user' ? 'user' : 'assistant';
 
     _conversationBuilder.handleMessage(
       agentId: agentId,
@@ -536,7 +523,7 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         eventId: eventId,
         role: role,
         content: event.content,
@@ -545,8 +532,8 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleToolUse(vc.ToolUseEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleToolUse(ToolUseEvent event) {
+    final agentId = event.agentId;
 
     _conversationBuilder.handleToolUse(
       agentId: agentId,
@@ -560,7 +547,7 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         toolUseId: event.toolUseId,
         toolName: event.toolName,
         toolInput: event.toolInput,
@@ -568,10 +555,9 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleToolResult(vc.ToolResultEvent event) {
-    final agentId = event.agent?.id ?? '';
-    final result = event.result;
-    final resultStr = result is String ? result : (result?.toString() ?? '');
+  void _handleToolResult(ToolResultEvent event) {
+    final agentId = event.agentId;
+    final resultStr = event.result;
 
     _conversationBuilder.handleToolResult(
       agentId: agentId,
@@ -585,7 +571,7 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         toolUseId: event.toolUseId,
         toolName: event.toolName,
         result: resultStr,
@@ -594,16 +580,10 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handleStatus(vc.StatusEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleStatus(StatusEvent event) {
+    final agentId = event.agentId;
 
-    final status = switch (event.status) {
-      vc.AgentStatus.working => VideAgentStatus.working,
-      vc.AgentStatus.waitingForAgent => VideAgentStatus.waitingForAgent,
-      vc.AgentStatus.waitingForUser => VideAgentStatus.waitingForUser,
-      vc.AgentStatus.idle => VideAgentStatus.idle,
-    };
-    _agentStatuses[agentId] = status;
+    _agentStatuses[agentId] = event.status;
     _refreshQueuedMessage(agentId);
     _refreshModel(agentId);
 
@@ -612,14 +592,14 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
-        status: status,
+        taskName: event.taskName,
+        status: event.status,
       ),
     );
   }
 
-  void _handleDone(vc.DoneEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleDone(TurnCompleteEvent event) {
+    final agentId = event.agentId;
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
@@ -630,34 +610,34 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         reason: event.reason,
       ),
     );
   }
 
-  void _handleError(vc.ErrorEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleError(ErrorEvent event) {
+    final agentId = event.agentId;
 
     _hub.emit(
       ErrorEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         message: event.message,
         code: event.code,
       ),
     );
   }
 
-  void _handleAgentSpawned(vc.AgentSpawnedEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleAgentSpawned(AgentSpawnedEvent event) {
+    final agentId = event.agentId;
 
     _agents[agentId] = _RemoteAgentInfo(
       id: agentId,
-      type: event.agent?.type ?? 'unknown',
-      name: event.agent?.name,
+      type: event.agentType,
+      name: event.agentName,
     );
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshModel(agentId);
@@ -670,14 +650,14 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         spawnedBy: event.spawnedBy,
       ),
     );
   }
 
-  void _handleAgentTerminated(vc.AgentTerminatedEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleAgentTerminated(AgentTerminatedEvent event) {
+    final agentId = event.agentId;
     // Resolve before removing from cache.
     final agentType = _resolveAgentType(agentId, event);
     final agentName = _resolveAgentName(agentId, event);
@@ -699,63 +679,48 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: agentType,
         agentName: agentName,
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         reason: event.reason,
         terminatedBy: event.terminatedBy,
       ),
     );
   }
 
-  void _handlePermissionRequest(vc.PermissionRequestEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handlePermissionRequest(PermissionRequestEvent event) {
+    final agentId = event.agentId;
 
     _hub.emit(
       PermissionRequestEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         requestId: event.requestId,
         toolName: event.toolName,
-        toolInput: event.tool['input'] as Map<String, dynamic>? ?? {},
+        toolInput: event.toolInput,
       ),
     );
   }
 
-  void _handleAskUserQuestion(vc.AskUserQuestionEvent event) {
-    final agentId = event.agent?.id ?? '';
-
-    final questions = event.questions.map((q) {
-      final options = (q['options'] as List<dynamic>? ?? const []).map((o) {
-        final option = Map<String, dynamic>.from(o as Map);
-        return AskUserQuestionOptionData(
-          label: option['label']?.toString() ?? '',
-          description: option['description']?.toString() ?? '',
-        );
-      }).toList();
-
-      return AskUserQuestionData(
-        question: q['question']?.toString() ?? '',
-        header: q['header']?.toString(),
-        multiSelect: q['multi-select'] as bool? ?? false,
-        options: options,
-      );
-    }).toList();
+  void _handleAskUserQuestion(AskUserQuestionEvent event) {
+    final agentId = event.agentId;
 
     _hub.emit(
       AskUserQuestionEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         requestId: event.requestId,
-        questions: questions,
+        questions: event.questions,
       ),
     );
   }
 
-  void _handleTaskNameChanged(vc.TaskNameChangedEvent event) {
-    final agentId = event.agent?.id ?? _mainAgentId ?? '';
+  void _handleTaskNameChanged(TaskNameChangedEvent event) {
+    final agentId = event.agentId.isNotEmpty
+        ? event.agentId
+        : (_mainAgentId ?? '');
     final previousGoal = _goal;
     _goal = event.newGoal;
     _goalController.add(_goal);
@@ -765,22 +730,24 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         newGoal: event.newGoal,
         previousGoal: event.previousGoal ?? previousGoal,
       ),
     );
   }
 
-  void _handlePermissionTimeout(vc.PermissionTimeoutEvent event) {
+  void _handlePermissionTimeout(PermissionTimeoutEvent event) {
     final completer = _pendingPermissions.remove(event.requestId);
     completer?.complete(
-      const PermissionResultDeny(message: 'Permission request timed out'),
+      const VidePermissionDeny(
+        message: 'Permission request timed out',
+      ),
     );
   }
 
-  void _handleAborted(vc.AbortedEvent event) {
-    final agentId = event.agent?.id ?? '';
+  void _handleAborted(AbortedEvent event) {
+    final agentId = event.agentId;
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
@@ -789,7 +756,7 @@ class RemoteVideSession implements VideSession {
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
         agentName: _resolveAgentName(agentId, event),
-        taskName: event.agent?.taskName,
+        taskName: event.taskName,
         reason: 'aborted',
       ),
     );
@@ -817,7 +784,7 @@ class RemoteVideSession implements VideSession {
     required Map<String, T?> cache,
     required Set<String> inFlight,
     required StreamController<T?> Function(String) getController,
-    required Future<T?> Function(vc.Session, String) fetch,
+    required Future<T?> Function(Session, String) fetch,
   }) {
     final session = _clientSession;
     if (session == null) return;
@@ -935,14 +902,12 @@ class RemoteVideSession implements VideSession {
   String get team => _team;
 
   @override
-  void sendMessage(Message message, {String? agentId}) {
+  void sendMessage(VideMessage message, {String? agentId}) {
     _checkNotDisposed();
     final targetAgentId = agentId ?? _mainAgentId;
     _clientSession?.sendMessage(message.text, agentId: targetAgentId);
 
     // Optimistically add the user message for immediate display.
-    // The server will echo it back as a MessageEvent; the conversation
-    // builder deduplicates by content so it won't appear twice.
     if (targetAgentId != null) {
       _conversationBuilder.addUserMessage(targetAgentId, message.text);
     }
@@ -998,7 +963,7 @@ class RemoteVideSession implements VideSession {
     for (final completer in _pendingPermissions.values) {
       if (!completer.isCompleted) {
         completer.complete(
-          const PermissionResultDeny(message: 'Session disposed'),
+          const VidePermissionDeny(message: 'Session disposed'),
         );
       }
     }
@@ -1063,12 +1028,12 @@ class RemoteVideSession implements VideSession {
   }
 
   @override
-  Conversation? getConversation(String agentId) {
+  VideConversation? getConversation(String agentId) {
     return _conversationBuilder.getConversation(agentId);
   }
 
   @override
-  Stream<Conversation> conversationStream(String agentId) {
+  Stream<VideConversation> conversationStream(String agentId) {
     return _conversationBuilder.conversationStream(agentId);
   }
 
@@ -1181,7 +1146,7 @@ class RemoteVideSession implements VideSession {
   }
 
   @override
-  CanUseToolCallback createPermissionCallback({
+  VideCanUseToolCallback createPermissionCallback({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -1189,13 +1154,12 @@ class RemoteVideSession implements VideSession {
     String? permissionMode,
   }) {
     // Remote sessions execute permission checks server-side.
-    // If this callback is invoked unexpectedly, fail closed instead of throwing.
     return (
       String toolName,
       Map<String, dynamic> input,
-      ToolPermissionContext context,
+      VidePermissionContext context,
     ) async {
-      return const PermissionResultDeny(
+      return const VidePermissionDeny(
         message:
             'Local permission callback is unavailable for transport-backed sessions',
       );

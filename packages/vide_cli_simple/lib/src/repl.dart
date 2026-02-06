@@ -162,7 +162,7 @@ Future<void> runRepl({
       );
       subscribeToSession(session);
     } else {
-      session.sendMessage(Message.text(input));
+      session.sendMessage(VideMessage(text: input));
     }
 
     // Wait for turn to complete

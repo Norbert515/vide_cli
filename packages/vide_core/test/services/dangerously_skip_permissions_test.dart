@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
@@ -38,7 +37,7 @@ void main() {
       () async {
         final container = createContainer(skipPermissions: true);
 
-        final session = VideSession.create(
+        final session = LocalVideSession.create(
           networkId: 'test-network',
           container: container,
         );
@@ -54,9 +53,9 @@ void main() {
         // permissions enabled, it should be auto-approved immediately.
         final result = await callback('Bash', {
           'command': 'rm -rf /',
-        }, const ToolPermissionContext());
+        }, VidePermissionContext());
 
-        expect(result, isA<PermissionResultAllow>());
+        expect(result, isA<VidePermissionAllow>());
 
         await session.dispose(fireEndTrigger: false);
         container.dispose();
@@ -75,7 +74,7 @@ void main() {
           ),
         );
 
-        final session = VideSession.create(
+        final session = LocalVideSession.create(
           networkId: 'test-network',
           container: container,
         );
@@ -89,9 +88,9 @@ void main() {
 
         final result = await callback('Bash', {
           'command': 'rm -rf /',
-        }, const ToolPermissionContext());
+        }, VidePermissionContext());
 
-        expect(result, isA<PermissionResultAllow>());
+        expect(result, isA<VidePermissionAllow>());
 
         await session.dispose(fireEndTrigger: false);
         container.dispose();
@@ -101,7 +100,7 @@ void main() {
     test('auto-approves write operations when flag is set', () async {
       final container = createContainer(skipPermissions: true);
 
-      final session = VideSession.create(
+      final session = LocalVideSession.create(
         networkId: 'test-network',
         container: container,
       );
@@ -117,9 +116,9 @@ void main() {
       final result = await callback('Write', {
         'file_path': '/etc/passwd',
         'content': 'hacked',
-      }, const ToolPermissionContext());
+      }, VidePermissionContext());
 
-      expect(result, isA<PermissionResultAllow>());
+      expect(result, isA<VidePermissionAllow>());
 
       await session.dispose(fireEndTrigger: false);
       container.dispose();
@@ -128,7 +127,7 @@ void main() {
     test('auto-approves edit operations when flag is set', () async {
       final container = createContainer(skipPermissions: true);
 
-      final session = VideSession.create(
+      final session = LocalVideSession.create(
         networkId: 'test-network',
         container: container,
       );
@@ -144,9 +143,9 @@ void main() {
         'file_path': '/some/file.dart',
         'old_string': 'foo',
         'new_string': 'bar',
-      }, const ToolPermissionContext());
+      }, VidePermissionContext());
 
-      expect(result, isA<PermissionResultAllow>());
+      expect(result, isA<VidePermissionAllow>());
 
       await session.dispose(fireEndTrigger: false);
       container.dispose();
@@ -156,7 +155,7 @@ void main() {
       // Use deny behavior so the callback doesn't hang waiting for user input
       final container = createContainer(skipPermissions: false);
 
-      final session = VideSession.create(
+      final session = LocalVideSession.create(
         networkId: 'test-network',
         container: container,
         permissionConfig: const PermissionCheckerConfig(
@@ -177,9 +176,9 @@ void main() {
       // (using deny behavior instead of ask to avoid hanging)
       final result = await callback('Bash', {
         'command': 'rm -rf /',
-      }, const ToolPermissionContext());
+      }, VidePermissionContext());
 
-      expect(result, isA<PermissionResultDeny>());
+      expect(result, isA<VidePermissionDeny>());
 
       await session.dispose(fireEndTrigger: false);
       container.dispose();

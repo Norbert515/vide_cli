@@ -1,4 +1,7 @@
 /// Agent metadata attached to events.
+library;
+
+/// Metadata about the agent that produced an event.
 class AgentInfo {
   final String id;
   final String type;
@@ -18,4 +21,11 @@ class AgentInfo {
     name: json['agent-name'] as String? ?? json['name'] as String? ?? 'Agent',
     taskName: json['task-name'] as String?,
   );
+
+  Map<String, dynamic> toJson() => {
+    'agent-id': id,
+    'agent-type': type,
+    'agent-name': name,
+    if (taskName != null) 'task-name': taskName,
+  };
 }

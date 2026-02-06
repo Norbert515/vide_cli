@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_client/vide_client.dart' as vc;
-import 'package:vide_core/vide_core.dart'
+import 'package:vide_client/vide_client.dart'
     show
         createPendingRemoteVideSession,
-        createRemoteVideSessionFromClientSession,
-        videConfigManagerProvider,
-        VideSession;
+        createRemoteVideSessionFromClientSession;
+import 'package:vide_core/vide_core.dart'
+    show videConfigManagerProvider, VideSession;
 import 'package:vide_daemon/vide_daemon.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 

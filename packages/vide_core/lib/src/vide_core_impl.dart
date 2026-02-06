@@ -17,7 +17,8 @@ import 'services/permission_provider.dart'
 import 'services/vide_config_manager.dart';
 import 'utils/dangerously_skip_permissions_provider.dart';
 import 'utils/working_dir_provider.dart';
-import 'api/vide_agent.dart';
+import 'package:vide_interface/vide_interface.dart';
+
 import 'api/vide_config.dart';
 import 'api/vide_session.dart';
 
@@ -181,7 +182,7 @@ class VideCore {
     );
 
     // Create the session
-    final session = VideSession.create(
+    final session = LocalVideSession.create(
       networkId: network.id,
       container: finalContainer,
       initialMessage: config.initialMessage,
@@ -196,19 +197,19 @@ class VideCore {
 
   /// Start a new session with a Message object.
   ///
-  /// This is similar to [startSession] but accepts a [Message] object
+  /// This is similar to [startSession] but accepts a [VideMessage] object
   /// instead of a plain string. This allows TUI to include attachments
   /// with the initial message.
   ///
   /// Example:
   /// ```dart
   /// final session = await core.startSessionWithMessage(
-  ///   Message(text: 'Fix the bug', attachments: [Attachment.file('error.log')]),
+  ///   VideMessage(text: 'Fix the bug', attachments: [VideAttachment.file('error.log')]),
   ///   workingDirectory: '/path/to/project',
   /// );
   /// ```
   Future<VideSession> startSessionWithMessage(
-    Message message, {
+    VideMessage message, {
     required String workingDirectory,
     String? model,
     String? permissionMode,
@@ -256,8 +257,21 @@ class VideCore {
     // The initialClaudeClientProvider will be lazily evaluated when first accessed,
     // which will load the main agent configuration from the team framework
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
+    // Convert VideMessage to claude_sdk Message for internal use
+    final claudeAttachments = message.attachments?.map((a) {
+      return Attachment(
+        type: a.type,
+        path: a.filePath,
+        content: a.content,
+        mimeType: a.mimeType,
+      );
+    }).toList();
+    final claudeMessage = Message(
+      text: message.text,
+      attachments: claudeAttachments,
+    );
     final network = await manager.startNew(
-      message,
+      claudeMessage,
       workingDirectory: workingDirectory,
       model: model,
       permissionMode: permissionMode,
@@ -265,7 +279,7 @@ class VideCore {
     );
 
     // Create the session
-    final session = VideSession.create(
+    final session = LocalVideSession.create(
       networkId: network.id,
       container: sessionContainer,
       initialMessage: message.text,
@@ -341,7 +355,7 @@ class VideCore {
     await manager.resume(network);
 
     // Create the session
-    final session = VideSession.create(
+    final session = LocalVideSession.create(
       networkId: network.id,
       container: sessionContainer,
     );
@@ -426,7 +440,7 @@ class VideCore {
     }
 
     // Create a session wrapper for this network
-    final session = VideSession.create(
+    final session = LocalVideSession.create(
       networkId: networkId,
       container: _container,
     );

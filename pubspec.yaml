@@ -13,6 +13,7 @@ workspace:
   - packages/claude_sdk
   - packages/flutter_runtime_mcp
   - packages/moondream_api
+  - packages/vide_interface
   - packages/vide_client
   - packages/vide_core
   - packages/vide_server
@@ -32,6 +33,7 @@ dependencies:
   args: ^2.4.0
   claude_sdk: any
   flutter_runtime_mcp: any
+  vide_client: any
   vide_core: any
   vide_daemon: any
   riverpod: ^2.5.1

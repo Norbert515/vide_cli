@@ -1,3 +1,4 @@
+import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:test/test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
@@ -123,8 +124,8 @@ void main() {
       test('sending messages adds to sent list', () {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(Message.text('Hello'));
-        client.sendMessage(Message.text('World'));
+        client.sendMessage(claude.Message.text('Hello'));
+        client.sendMessage(claude.Message.text('World'));
 
         expect(client.sentMessages.length, 2);
         expect(client.sentMessages[0].text, 'Hello');
@@ -135,10 +136,10 @@ void main() {
         final client = clientFactory.getClient('test-agent');
 
         // Listen to conversation stream
-        final conversations = <Conversation>[];
+        final conversations = <claude.Conversation>[];
         final subscription = client.conversation.listen(conversations.add);
 
-        client.sendMessage(Message.text('Question?'));
+        client.sendMessage(claude.Message.text('Question?'));
         client.simulateTextResponse('Answer!');
 
         // Allow stream to propagate
@@ -147,8 +148,8 @@ void main() {
 
         expect(conversations.length, 2);
         expect(conversations.last.messages.length, 2);
-        expect(conversations.last.messages.first.role, MessageRole.user);
-        expect(conversations.last.messages.last.role, MessageRole.assistant);
+        expect(conversations.last.messages.first.role, claude.MessageRole.user);
+        expect(conversations.last.messages.last.role, claude.MessageRole.assistant);
       });
 
       test('abort can be called without error', () async {
@@ -169,7 +170,7 @@ void main() {
       test('reset clears state for reuse', () async {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(Message.text('Test'));
+        client.sendMessage(claude.Message.text('Test'));
         await client.abort();
 
         expect(client.sentMessages.isNotEmpty, isTrue);
@@ -255,7 +256,7 @@ void main() {
             .setStatus(AgentStatus.working);
 
         // Send user message
-        client.sendMessage(Message.text('Implement feature X'));
+        client.sendMessage(claude.Message.text('Implement feature X'));
 
         // Simulate Claude thinking and responding
         client.simulateTextResponse('I will implement feature X by...');

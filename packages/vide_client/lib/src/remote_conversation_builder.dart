@@ -1,20 +1,19 @@
 /// Conversation state builder for remote sessions.
 ///
-/// Extracts the conversation building logic from [RemoteVideSession] into a
-/// composable component. This manages per-agent [Conversation] objects,
-/// handling message streaming, tool use/result grouping, and history replay.
+/// Manages per-agent [VideConversation] objects, handling message streaming,
+/// tool use/result grouping, and history replay.
 library;
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vide_interface/vide_interface.dart';
 
-/// Builds and maintains [Conversation] state from remote session events.
+/// Builds and maintains [VideConversation] state from remote session events.
 ///
 /// Remote sessions receive streaming message chunks, tool use events, and tool
 /// result events over the wire. This class accumulates those into coherent
-/// [Conversation] objects per agent, handling:
+/// [VideConversation] objects per agent, handling:
 ///
 /// - Streaming message chunk accumulation
 /// - History replay (non-accumulating)
@@ -23,10 +22,10 @@ import 'package:uuid/uuid.dart';
 /// - Per-agent conversation stream notifications
 class RemoteConversationBuilder {
   /// Conversation state per agent.
-  final Map<String, Conversation> _conversations = {};
+  final Map<String, VideConversation> _conversations = {};
 
   /// Stream controllers for conversation updates per agent.
-  final Map<String, StreamController<Conversation>> _controllers = {};
+  final Map<String, StreamController<VideConversation>> _controllers = {};
 
   /// Current message event IDs per agent (for streaming).
   final Map<String, String> _currentMessageEventIds = {};
@@ -35,10 +34,10 @@ class RemoteConversationBuilder {
   final Map<String, String> _currentAssistantMessageId = {};
 
   /// Get the current conversation for an agent.
-  Conversation? getConversation(String agentId) => _conversations[agentId];
+  VideConversation? getConversation(String agentId) => _conversations[agentId];
 
   /// Stream of conversation updates for an agent.
-  Stream<Conversation> conversationStream(String agentId) {
+  Stream<VideConversation> conversationStream(String agentId) {
     return _getOrCreateController(agentId).stream;
   }
 
@@ -64,8 +63,10 @@ class RemoteConversationBuilder {
       }
     }
 
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
+    var conversation =
+        _conversations[agentId] ?? const VideConversation();
+    final messages =
+        List<VideConversationMessage>.from(conversation.messages);
 
     if (role == 'user') {
       _handleUserMessage(messages, agentId, eventId, content);
@@ -82,8 +83,8 @@ class RemoteConversationBuilder {
     }
 
     final state = isPartial
-        ? ConversationState.receivingResponse
-        : ConversationState.idle;
+        ? VideConversationState.receivingResponse
+        : VideConversationState.idle;
 
     conversation = conversation.copyWith(messages: messages, state: state);
     _conversations[agentId] = conversation;
@@ -97,8 +98,10 @@ class RemoteConversationBuilder {
     required String toolName,
     required Map<String, dynamic> toolInput,
   }) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
+    var conversation =
+        _conversations[agentId] ?? const VideConversation();
+    final messages =
+        List<VideConversationMessage>.from(conversation.messages);
 
     // Find or create the current assistant message
     var currentMsgId = _currentAssistantMessageId[agentId];
@@ -111,15 +114,15 @@ class RemoteConversationBuilder {
       currentMsgId = const Uuid().v4();
       _currentAssistantMessageId[agentId] = currentMsgId;
       messages.add(
-        ConversationMessage(
+        VideConversationMessage(
           id: currentMsgId,
           role: MessageRole.assistant,
           content: '',
           timestamp: DateTime.now(),
-          responses: [],
+          responses: const [],
           isStreaming: true,
           isComplete: false,
-          messageType: MessageType.assistantText,
+          messageType: VideMessageType.assistantText,
         ),
       );
       existingIndex = messages.length - 1;
@@ -127,9 +130,9 @@ class RemoteConversationBuilder {
 
     // Add ToolUseResponse to the current assistant message
     final existing = messages[existingIndex];
-    final responses = List<ClaudeResponse>.from(existing.responses);
+    final responses = List<VideResponse>.from(existing.responses);
     responses.add(
-      ToolUseResponse(
+      VideToolUseResponse(
         id: toolUseId,
         timestamp: DateTime.now(),
         toolName: toolName,
@@ -138,20 +141,15 @@ class RemoteConversationBuilder {
       ),
     );
 
-    messages[existingIndex] = ConversationMessage(
-      id: existing.id,
-      role: MessageRole.assistant,
-      content: existing.content,
-      timestamp: existing.timestamp,
+    messages[existingIndex] = existing.copyWith(
       responses: responses,
       isStreaming: true,
       isComplete: false,
-      messageType: MessageType.assistantText,
     );
 
     conversation = conversation.copyWith(
       messages: messages,
-      state: ConversationState.processing,
+      state: VideConversationState.processing,
     );
     _conversations[agentId] = conversation;
     _getOrCreateController(agentId).add(conversation);
@@ -164,8 +162,10 @@ class RemoteConversationBuilder {
     required String result,
     required bool isError,
   }) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
+    var conversation =
+        _conversations[agentId] ?? const VideConversation();
+    final messages =
+        List<VideConversationMessage>.from(conversation.messages);
 
     // Find the current assistant message
     final currentMsgId = _currentAssistantMessageId[agentId];
@@ -176,9 +176,9 @@ class RemoteConversationBuilder {
     if (existingIndex >= 0) {
       // Add ToolResultResponse to the current assistant message
       final existing = messages[existingIndex];
-      final responses = List<ClaudeResponse>.from(existing.responses);
+      final responses = List<VideResponse>.from(existing.responses);
       responses.add(
-        ToolResultResponse(
+        VideToolResultResponse(
           id: '${toolUseId}_result',
           timestamp: DateTime.now(),
           toolUseId: toolUseId,
@@ -187,21 +187,16 @@ class RemoteConversationBuilder {
         ),
       );
 
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: MessageRole.assistant,
-        content: existing.content,
-        timestamp: existing.timestamp,
+      messages[existingIndex] = existing.copyWith(
         responses: responses,
         isStreaming: true,
         isComplete: false,
-        messageType: MessageType.assistantText,
       );
     }
 
     conversation = conversation.copyWith(
       messages: messages,
-      state: ConversationState.processing,
+      state: VideConversationState.processing,
     );
     _conversations[agentId] = conversation;
     _getOrCreateController(agentId).add(conversation);
@@ -215,25 +210,19 @@ class RemoteConversationBuilder {
     var conversation = _conversations[agentId];
     if (conversation == null) return;
 
-    final messages = List<ConversationMessage>.from(conversation.messages);
+    final messages =
+        List<VideConversationMessage>.from(conversation.messages);
     final existingIndex = messages.indexWhere((m) => m.id == currentMsgId);
 
     if (existingIndex >= 0) {
-      final existing = messages[existingIndex];
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: existing.role,
-        content: existing.content,
-        timestamp: existing.timestamp,
-        responses: existing.responses,
+      messages[existingIndex] = messages[existingIndex].copyWith(
         isStreaming: false,
         isComplete: true,
-        messageType: existing.messageType,
       );
 
       conversation = conversation.copyWith(
         messages: messages,
-        state: ConversationState.idle,
+        state: VideConversationState.idle,
       );
       _conversations[agentId] = conversation;
       _getOrCreateController(agentId).add(conversation);
@@ -243,26 +232,28 @@ class RemoteConversationBuilder {
   /// Add a user message directly (for optimistic display).
   ///
   /// Returns the updated conversation.
-  Conversation addUserMessage(String agentId, String content) {
-    var conversation = _conversations[agentId] ?? Conversation.empty();
-    final messages = List<ConversationMessage>.from(conversation.messages);
+  VideConversation addUserMessage(String agentId, String content) {
+    var conversation =
+        _conversations[agentId] ?? const VideConversation();
+    final messages =
+        List<VideConversationMessage>.from(conversation.messages);
 
     messages.add(
-      ConversationMessage(
+      VideConversationMessage(
         id: const Uuid().v4(),
         role: MessageRole.user,
         content: content,
         timestamp: DateTime.now(),
-        responses: [],
+        responses: const [],
         isStreaming: false,
         isComplete: true,
-        messageType: MessageType.userMessage,
+        messageType: VideMessageType.userMessage,
       ),
     );
 
     conversation = conversation.copyWith(
       messages: messages,
-      state: ConversationState.sendingMessage,
+      state: VideConversationState.sendingMessage,
     );
     _conversations[agentId] = conversation;
     _getOrCreateController(agentId).add(conversation);
@@ -271,8 +262,8 @@ class RemoteConversationBuilder {
 
   /// Clear conversation state for an agent.
   void clearConversation(String agentId) {
-    _conversations[agentId] = Conversation.empty();
-    _getOrCreateController(agentId).add(Conversation.empty());
+    _conversations[agentId] = const VideConversation();
+    _getOrCreateController(agentId).add(const VideConversation());
   }
 
   /// Migrate a conversation from one agent ID to another.
@@ -318,7 +309,7 @@ class RemoteConversationBuilder {
   // ============================================================
 
   void _handleUserMessage(
-    List<ConversationMessage> messages,
+    List<VideConversationMessage> messages,
     String agentId,
     String eventId,
     String content,
@@ -333,15 +324,15 @@ class RemoteConversationBuilder {
 
     if (!isDuplicate) {
       messages.add(
-        ConversationMessage(
+        VideConversationMessage(
           id: eventId,
           role: MessageRole.user,
           content: content,
           timestamp: DateTime.now(),
-          responses: [],
+          responses: const [],
           isStreaming: false,
           isComplete: true,
-          messageType: MessageType.userMessage,
+          messageType: VideMessageType.userMessage,
         ),
       );
     }
@@ -350,7 +341,7 @@ class RemoteConversationBuilder {
   }
 
   void _handleHistoryAssistantMessage(
-    List<ConversationMessage> messages,
+    List<VideConversationMessage> messages,
     String eventId,
     String content,
   ) {
@@ -359,52 +350,45 @@ class RemoteConversationBuilder {
     final existingIndex = messages.indexWhere((m) => m.id == eventId);
     if (existingIndex >= 0) {
       // Update existing message (shouldn't happen with proper consolidation)
-      final existing = messages[existingIndex];
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: MessageRole.assistant,
+      messages[existingIndex] = messages[existingIndex].copyWith(
         content: content,
-        timestamp: existing.timestamp,
         responses: [
           if (content.isNotEmpty)
-            TextResponse(
+            VideTextResponse(
               id: const Uuid().v4(),
               timestamp: DateTime.now(),
               content: content,
-              isPartial: false,
             ),
         ],
         isStreaming: false,
         isComplete: true,
-        messageType: MessageType.assistantText,
       );
     } else {
       // Add new message
       messages.add(
-        ConversationMessage(
+        VideConversationMessage(
           id: eventId,
           role: MessageRole.assistant,
           content: content,
           timestamp: DateTime.now(),
           responses: [
             if (content.isNotEmpty)
-              TextResponse(
+              VideTextResponse(
                 id: const Uuid().v4(),
                 timestamp: DateTime.now(),
                 content: content,
-                isPartial: false,
               ),
           ],
           isStreaming: false,
           isComplete: true,
-          messageType: MessageType.assistantText,
+          messageType: VideMessageType.assistantText,
         ),
       );
     }
   }
 
   void _handleStreamingAssistantMessage(
-    List<ConversationMessage> messages,
+    List<VideConversationMessage> messages,
     String agentId,
     String eventId,
     String content,
@@ -420,11 +404,11 @@ class RemoteConversationBuilder {
       // Add text to existing assistant message
       final existing = messages[existingIndex];
       final newContent = existing.content + content;
-      final responses = List<ClaudeResponse>.from(existing.responses);
+      final responses = List<VideResponse>.from(existing.responses);
 
       if (content.isNotEmpty) {
         responses.add(
-          TextResponse(
+          VideTextResponse(
             id: const Uuid().v4(),
             timestamp: DateTime.now(),
             content: content,
@@ -433,25 +417,21 @@ class RemoteConversationBuilder {
         );
       }
 
-      messages[existingIndex] = ConversationMessage(
-        id: existing.id,
-        role: MessageRole.assistant,
+      messages[existingIndex] = existing.copyWith(
         content: newContent,
-        timestamp: existing.timestamp,
         responses: responses,
         isStreaming: isPartial,
         isComplete: !isPartial,
-        messageType: MessageType.assistantText,
       );
     } else {
       // Create new assistant message
       final newMsgId = eventId;
       _currentAssistantMessageId[agentId] = newMsgId;
 
-      final responses = <ClaudeResponse>[];
+      final responses = <VideResponse>[];
       if (content.isNotEmpty) {
         responses.add(
-          TextResponse(
+          VideTextResponse(
             id: const Uuid().v4(),
             timestamp: DateTime.now(),
             content: content,
@@ -461,7 +441,7 @@ class RemoteConversationBuilder {
       }
 
       messages.add(
-        ConversationMessage(
+        VideConversationMessage(
           id: newMsgId,
           role: MessageRole.assistant,
           content: content,
@@ -469,7 +449,7 @@ class RemoteConversationBuilder {
           responses: responses,
           isStreaming: isPartial,
           isComplete: !isPartial,
-          messageType: MessageType.assistantText,
+          messageType: VideMessageType.assistantText,
         ),
       );
     }
@@ -480,10 +460,10 @@ class RemoteConversationBuilder {
     }
   }
 
-  StreamController<Conversation> _getOrCreateController(String agentId) {
+  StreamController<VideConversation> _getOrCreateController(String agentId) {
     return _controllers.putIfAbsent(
       agentId,
-      () => StreamController<Conversation>.broadcast(),
+      () => StreamController<VideConversation>.broadcast(),
     );
   }
 }

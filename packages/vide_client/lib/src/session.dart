@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:vide_interface/vide_interface.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-
-import 'events/events.dart';
 
 /// Session lifecycle status.
 enum SessionStatus {

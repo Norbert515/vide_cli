@@ -15,15 +15,16 @@
 ///   switch (event) {
 ///     case MessageEvent(:final content, :final isPartial):
 ///       if (!isPartial) print(content);
-///     case DoneEvent():
+///     case TurnCompleteEvent():
 ///       break;
 ///   }
 /// }
 /// ```
 library;
 
+export 'package:vide_interface/vide_interface.dart';
+
 export 'src/client.dart';
-export 'src/enums.dart';
-export 'src/events/agent_info.dart';
-export 'src/events/events.dart';
+export 'src/remote_conversation_builder.dart';
+export 'src/remote_vide_session.dart';
 export 'src/session.dart';

@@ -1,0 +1,15 @@
+name: vide_interface
+description: Shared interface, models, and events for the Vide ecosystem
+version: 1.0.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  uuid: ^4.0.0
+  meta: ^1.9.0
+
+dev_dependencies:
+  test: ^1.24.9

@@ -250,7 +250,7 @@ class _VideScaffoldState extends State<VideScaffold> {
               final selectedAgentId = context.read(selectedAgentIdProvider);
               if (selectedAgentId != null) {
                 session?.sendMessage(
-                  Message.text(message),
+                  VideMessage(text: message),
                   agentId: selectedAgentId,
                 );
               }

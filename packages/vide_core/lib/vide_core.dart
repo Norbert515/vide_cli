@@ -17,14 +17,15 @@ export 'version.dart';
 export 'src/vide_core_impl.dart' show VideCore;
 
 // =============================================================================
+// Shared Interface Types (from vide_interface)
+// =============================================================================
+export 'package:vide_interface/vide_interface.dart';
+
+// =============================================================================
 // API Classes
 // =============================================================================
-export 'src/api/vide_session.dart';
-export 'src/api/vide_event.dart';
-export 'src/api/vide_agent.dart';
-export 'src/api/vide_config.dart';
-export 'src/api/conversation_state.dart';
-export 'src/api/remote_vide_session.dart';
+export 'src/api/vide_session.dart' show LocalVideSession;
+export 'src/api/vide_config.dart' show VideCoreConfig;
 
 // =============================================================================
 // Models
@@ -75,21 +76,14 @@ export 'src/utils/working_dir_provider.dart';
 export 'src/utils/dangerously_skip_permissions_provider.dart';
 
 // =============================================================================
-// Claude SDK Re-exports
+// Claude SDK Re-exports (types needed by TUI for rendering/settings)
 // =============================================================================
 export 'package:claude_sdk/claude_sdk.dart'
     show
-        Conversation,
-        ConversationMessage,
-        MessageRole,
         McpServerBase,
+        McpServerStatus,
         McpStatusResponse,
         McpServerStatusInfo,
-        Message,
-        Attachment,
         ClaudeStatus,
-        ToolPermissionContext,
-        PermissionResult,
-        PermissionResultAllow,
-        PermissionResultDeny,
-        ClaudeSettingsManager;
+        ClaudeSettingsManager,
+        ProcessManager;

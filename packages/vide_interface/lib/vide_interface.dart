@@ -1,0 +1,44 @@
+/// vide_interface - Shared interface, models, and events for the Vide ecosystem.
+///
+/// This package defines the canonical types used across all Vide packages:
+/// - [VideSession] - Abstract session interface
+/// - [VideEvent] hierarchy - Unified event types with serialization
+/// - [VideAgent], [VideMessage], [VideConversation] - Core models
+/// - [ConversationStateManager] - UI state accumulator
+///
+/// ```dart
+/// import 'package:vide_interface/vide_interface.dart';
+/// ```
+library vide_interface;
+
+// =============================================================================
+// Session Interface
+// =============================================================================
+export 'src/session.dart';
+
+// =============================================================================
+// Events
+// =============================================================================
+export 'src/events/vide_event.dart';
+export 'src/events/agent_info.dart';
+
+// =============================================================================
+// Models
+// =============================================================================
+export 'src/models/vide_agent.dart';
+export 'src/models/vide_config.dart';
+export 'src/models/vide_message.dart';
+export 'src/models/vide_conversation.dart';
+export 'src/models/vide_permission.dart';
+export 'src/models/enums.dart';
+
+// =============================================================================
+// State Management
+// =============================================================================
+export 'src/state/conversation_state.dart';
+export 'src/state/session_event_hub.dart';
+
+// =============================================================================
+// Utilities
+// =============================================================================
+export 'src/utils/buffered_event_stream.dart';

@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:path/path.dart' as path;
+import 'package:vide_core/vide_core.dart' show VideMessage, VideAttachment;
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
@@ -21,8 +21,8 @@ class AttachmentTextField extends StatefulComponent {
   final bool enabled;
   final bool focused;
   final String? placeholder;
-  final void Function(Message message)? onSubmit;
-  final void Function(List<Attachment> attachments)? onAttachmentsChanged;
+  final void Function(VideMessage message)? onSubmit;
+  final void Function(List<VideAttachment> attachments)? onAttachmentsChanged;
   final Component? agentTag;
 
   /// Called when Escape is pressed and the text field is empty.
@@ -282,7 +282,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
     // Replace placeholders with actual content
     var finalText = text;
-    final imageAttachments = <Attachment>[];
+    final imageAttachments = <VideAttachment>[];
 
     // Process attachments in reverse order to maintain correct indices
     for (var i = _controller.attachments.length - 1; i >= 0; i--) {
@@ -305,7 +305,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         ? 'Attached image(s)'
         : finalText;
 
-    final message = Message(
+    final message = VideMessage(
       text: messageText,
       attachments: imageAttachments.isEmpty ? null : imageAttachments,
     );
@@ -395,7 +395,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                   for (var i = 0; i < _controller.attachments.length; i++) ...[
                     Text(
                       _controller.attachments[i].type == 'image'
-                          ? '📎 ${path.basename(_controller.attachments[i].path ?? "image")}'
+                          ? '📎 ${path.basename(_controller.attachments[i].filePath ?? "image")}'
                           : '📎 Pasted content (${_controller.attachments[i].content?.length ?? 0} chars)',
                       style: TextStyle(
                         color: theme.base.onSurface.withOpacity(
@@ -535,13 +535,13 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
 /// Custom TextEditingController that manages attachments and text updates natively
 class _AttachmentTextEditingController extends TextEditingController {
-  final List<Attachment> attachments = [];
+  final List<VideAttachment> attachments = [];
   final Map<int, String> _placeholderToPath = {};
   final Map<int, String> _placeholderToContent = {}; // Store full text content
   bool _isInternalUpdate = false; // Flag to prevent recursive updates
   static const _longTextThreshold = 500; // Characters
 
-  void Function(List<Attachment>)? onAttachmentsChanged;
+  void Function(List<VideAttachment>)? onAttachmentsChanged;
 
   @override
   void dispose() {
@@ -658,7 +658,7 @@ class _AttachmentTextEditingController extends TextEditingController {
 
     // Check for duplicates
     final isDuplicate = attachments.any(
-      (attachment) => attachment.path == unescapedPath,
+      (attachment) => attachment.filePath == unescapedPath,
     );
     if (isDuplicate) {
       return; // Don't add duplicate, don't modify text
@@ -667,7 +667,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     final index = attachments.length;
     final placeholder = '[Image #${index + 1}]';
 
-    attachments.add(Attachment.image(unescapedPath));
+    attachments.add(VideAttachment.image(unescapedPath));
     _placeholderToPath[index] = imagePath;
 
     // Insert placeholder at cursor position
@@ -691,7 +691,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     final index = attachments.length;
     final placeholder = '[Pasted Content #${index + 1}]';
 
-    attachments.add(Attachment.documentText(text: content));
+    attachments.add(VideAttachment.documentText(text: content));
     _placeholderToContent[index] = content;
 
     // Insert placeholder at cursor position
@@ -724,7 +724,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     }
 
     if (existingPlaceholders.length != attachments.length) {
-      final newAttachments = <Attachment>[];
+      final newAttachments = <VideAttachment>[];
       final newPlaceholderToPath = <int, String>{};
       final newPlaceholderToContent = <int, String>{};
 

@@ -10,7 +10,8 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:logging/logging.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/vide_core.dart'
+    hide ConnectedEvent, AgentInfo, HistoryEvent, CommandResultEvent;
 import '../dto/session_dto.dart';
 import '../services/session_broadcaster.dart';
 import '../services/server_config.dart';
@@ -304,7 +305,7 @@ class _SimplifiedStreamHandler {
     _log.info(
       '[Session $sessionId] User message: ${msg.content} (agent=${msg.agentId ?? "main"})',
     );
-    session.sendMessage(Message.text(msg.content), agentId: msg.agentId);
+    session.sendMessage(VideMessage(text: msg.content), agentId: msg.agentId);
   }
 
   void _handlePermissionResponse(PermissionResponse msg) {

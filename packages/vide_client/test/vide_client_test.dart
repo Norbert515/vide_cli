@@ -33,18 +33,27 @@ void main() {
       expect(MessageRole.fromString('unknown'), equals(MessageRole.assistant));
     });
 
-    test('AgentStatus.fromString parses correctly', () {
-      expect(AgentStatus.fromString('working'), equals(AgentStatus.working));
+    test('VideAgentStatus.fromWireString parses correctly', () {
       expect(
-        AgentStatus.fromString('waiting-for-agent'),
-        equals(AgentStatus.waitingForAgent),
+        VideAgentStatus.fromWireString('working'),
+        equals(VideAgentStatus.working),
       );
       expect(
-        AgentStatus.fromString('waiting-for-user'),
-        equals(AgentStatus.waitingForUser),
+        VideAgentStatus.fromWireString('waiting-for-agent'),
+        equals(VideAgentStatus.waitingForAgent),
       );
-      expect(AgentStatus.fromString('idle'), equals(AgentStatus.idle));
-      expect(AgentStatus.fromString(null), equals(AgentStatus.idle));
+      expect(
+        VideAgentStatus.fromWireString('waiting-for-user'),
+        equals(VideAgentStatus.waitingForUser),
+      );
+      expect(
+        VideAgentStatus.fromWireString('idle'),
+        equals(VideAgentStatus.idle),
+      );
+      expect(
+        VideAgentStatus.fromWireString(null),
+        equals(VideAgentStatus.idle),
+      );
     });
   });
 
@@ -114,20 +123,20 @@ void main() {
       final msg = event as MessageEvent;
       expect(msg.seq, equals(1));
       expect(msg.eventId, equals('evt-123'));
-      expect(msg.role, equals(MessageRole.assistant));
+      expect(msg.role, equals('assistant'));
       expect(msg.content, equals('Hello!'));
       expect(msg.isPartial, isFalse);
     });
 
-    test('parses done event', () {
+    test('parses done event as TurnCompleteEvent', () {
       final event = VideEvent.fromJson({
         'type': 'done',
         'timestamp': '2024-01-01T00:00:00Z',
         'data': {'reason': 'complete'},
       });
 
-      expect(event, isA<DoneEvent>());
-      expect((event as DoneEvent).reason, equals('complete'));
+      expect(event, isA<TurnCompleteEvent>());
+      expect((event as TurnCompleteEvent).reason, equals('complete'));
     });
 
     test('parses ask-user-question event', () {

@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:test/test.dart';
-import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/vide_core.dart'
-    show MessageEvent, RemoteVideSession, VideAgent;
+import 'package:vide_client/vide_client.dart';
 
 void main() {
   group('RemoteVideSession conversation handling', () {
@@ -91,7 +89,7 @@ void main() {
         // Each text chunk creates a TextResponse
         expect(conversation.messages[0].responses.length, equals(3));
         expect(
-          conversation.messages[0].responses.every((r) => r is TextResponse),
+          conversation.messages[0].responses.every((r) => r is VideTextResponse),
           isTrue,
         );
       });
@@ -132,11 +130,11 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].responses.length, equals(2));
-        expect(conversation.messages[0].responses[0], isA<TextResponse>());
-        expect(conversation.messages[0].responses[1], isA<ToolUseResponse>());
+        expect(conversation.messages[0].responses[0], isA<VideTextResponse>());
+        expect(conversation.messages[0].responses[1], isA<VideToolUseResponse>());
 
         final toolUse =
-            conversation.messages[0].responses[1] as ToolUseResponse;
+            conversation.messages[0].responses[1] as VideToolUseResponse;
         expect(toolUse.toolName, equals('Bash'));
         expect(toolUse.parameters['command'], equals('ls'));
       });
@@ -157,14 +155,14 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].responses.length, equals(2));
-        expect(conversation.messages[0].responses[0], isA<ToolUseResponse>());
+        expect(conversation.messages[0].responses[0], isA<VideToolUseResponse>());
         expect(
           conversation.messages[0].responses[1],
-          isA<ToolResultResponse>(),
+          isA<VideToolResultResponse>(),
         );
 
         final toolResult =
-            conversation.messages[0].responses[1] as ToolResultResponse;
+            conversation.messages[0].responses[1] as VideToolResultResponse;
         expect(toolResult.content, equals('file1.txt\nfile2.txt'));
         expect(toolResult.isError, isFalse);
       });
@@ -184,7 +182,7 @@ void main() {
 
         final conversation = session.getConversation(agentId);
         final toolResult =
-            conversation!.messages[0].responses[1] as ToolResultResponse;
+            conversation!.messages[0].responses[1] as VideToolResultResponse;
         expect(toolResult.isError, isTrue);
       });
 
@@ -229,13 +227,13 @@ void main() {
 
         final responses = conversation.messages[0].responses;
         expect(responses.length, equals(7));
-        expect(responses[0], isA<TextResponse>()); // Checking...
-        expect(responses[1], isA<ToolUseResponse>()); // Bash
-        expect(responses[2], isA<ToolResultResponse>()); // file.txt
-        expect(responses[3], isA<TextResponse>()); // Found file.txt
-        expect(responses[4], isA<ToolUseResponse>()); // Read
-        expect(responses[5], isA<ToolResultResponse>()); // contents
-        expect(responses[6], isA<TextResponse>()); // Done!
+        expect(responses[0], isA<VideTextResponse>()); // Checking...
+        expect(responses[1], isA<VideToolUseResponse>()); // Bash
+        expect(responses[2], isA<VideToolResultResponse>()); // file.txt
+        expect(responses[3], isA<VideTextResponse>()); // Found file.txt
+        expect(responses[4], isA<VideToolUseResponse>()); // Read
+        expect(responses[5], isA<VideToolResultResponse>()); // contents
+        expect(responses[6], isA<VideTextResponse>()); // Done!
 
         // Verify the message is complete
         expect(conversation.messages[0].isComplete, isTrue);
@@ -251,7 +249,7 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].role, equals(MessageRole.assistant));
-        expect(conversation.messages[0].responses[0], isA<ToolUseResponse>());
+        expect(conversation.messages[0].responses[0], isA<VideToolUseResponse>());
       });
 
       test('tool result without matching tool use is handled gracefully', () {
@@ -273,7 +271,7 @@ void main() {
 
     group('conversation stream', () {
       test('emits updates when messages change', () async {
-        final updates = <Conversation>[];
+        final updates = <VideConversation>[];
         final subscription = session
             .conversationStream(agentId)
             .listen(updates.add);
@@ -524,9 +522,9 @@ void main() {
           final result = await callback(
             'Bash',
             const {},
-            const ToolPermissionContext(),
+            const VidePermissionContext(),
           );
-          expect(result, isA<PermissionResultDeny>());
+          expect(result, isA<VidePermissionDeny>());
         },
       );
     });

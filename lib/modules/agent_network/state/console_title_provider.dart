@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 import '../../permissions/permission_scope.dart';
-// Use public API types where possible
 import 'package:vide_core/vide_core.dart' as api;
 import 'vide_session_providers.dart';
 
@@ -82,7 +80,7 @@ enum _AggregatedStatus {
 /// This provides safeguards against agents forgetting to call setAgentStatus.
 api.VideAgentStatus _inferActualStatus(
   api.VideAgentStatus explicitStatus,
-  Conversation? conversation,
+  api.VideConversation? conversation,
 ) {
   if (conversation == null) {
     return explicitStatus;
@@ -95,7 +93,7 @@ api.VideAgentStatus _inferActualStatus(
 
   // If conversation is idle but agent claims to be working, override to idle
   // This handles cases where agent forgot to call setAgentStatus("idle")
-  if (conversation.state == ConversationState.idle &&
+  if (conversation.state == api.VideConversationState.idle &&
       explicitStatus == api.VideAgentStatus.working) {
     return api.VideAgentStatus.idle;
   }

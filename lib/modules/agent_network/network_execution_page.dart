@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:claude_sdk/claude_sdk.dart' hide MessageRole;
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/typing_text.dart';
@@ -237,10 +237,10 @@ class _AgentChat extends StatefulComponent {
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  StreamSubscription<Conversation>? _conversationSubscription;
+  StreamSubscription<VideConversation>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
   StreamSubscription<String?>? _modelSubscription;
-  Conversation _conversation = Conversation.empty();
+  VideConversation _conversation = const VideConversation();
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
@@ -276,7 +276,7 @@ class _AgentChatState extends State<_AgentChat> {
           _syncTokenStats(conversation, session);
         });
     _conversation =
-        session.getConversation(component.agentId) ?? Conversation.empty();
+        session.getConversation(component.agentId) ?? const VideConversation();
 
     // Listen to queued message updates
     _queueSubscription = session.queuedMessageStream(component.agentId).listen((
@@ -293,7 +293,7 @@ class _AgentChatState extends State<_AgentChat> {
     unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
-  void _syncTokenStats(Conversation conversation, VideSession session) {
+  void _syncTokenStats(VideConversation conversation, VideSession session) {
     session.updateAgentTokenStats(
       component.agentId,
       totalInputTokens: conversation.totalInputTokens,
@@ -312,7 +312,7 @@ class _AgentChatState extends State<_AgentChat> {
     super.dispose();
   }
 
-  void _sendMessage(Message message) {
+  void _sendMessage(VideMessage message) {
     final session = context.read(currentVideSessionProvider);
     session?.sendMessage(message, agentId: component.agentId);
   }
@@ -332,12 +332,12 @@ class _AgentChatState extends State<_AgentChat> {
       workingDirectory: session?.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(Message.text(message), agentId: component.agentId);
+        session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
       },
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
         setState(() {
-          _conversation = Conversation.empty();
+          _conversation = const VideConversation();
         });
       },
       exitApp: shutdownApp,
@@ -375,7 +375,7 @@ class _AgentChatState extends State<_AgentChat> {
           repoPath: repoPath,
           onSendMessage: (message) {
             session?.sendMessage(
-              Message.text(message),
+              VideMessage(text: message),
               agentId: component.agentId,
             );
           },
@@ -427,7 +427,7 @@ class _AgentChatState extends State<_AgentChat> {
   List<Map<String, dynamic>>? _getLatestTodos() {
     for (final message in _conversation.messages.reversed) {
       for (final response in message.responses.reversed) {
-        if (response is ToolUseResponse && response.toolName == 'TodoWrite') {
+        if (response is VideToolUseResponse && response.toolName == 'TodoWrite') {
           final todos = response.parameters['todos'];
           if (todos is List) {
             return todos.cast<Map<String, dynamic>>();
@@ -555,7 +555,9 @@ class _AgentChatState extends State<_AgentChat> {
     // This is the CURRENT context size (from latest turn), which includes:
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens = _conversation.currentContextWindowTokens;
+    final usedTokens = _conversation.currentContextInputTokens +
+        _conversation.currentContextCacheReadTokens +
+        _conversation.currentContextCacheCreationTokens;
     final percentage = kClaudeContextWindowSize > 0
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;
@@ -613,7 +615,7 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   /// Builds the filtered list of messages (excluding slash commands)
-  List<ConversationMessage> _getFilteredMessages() {
+  List<VideConversationMessage> _getFilteredMessages() {
     return _conversation.messages.reversed
         .where(
           (message) =>
@@ -911,7 +913,7 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
-  Component _buildMessage(BuildContext context, ConversationMessage message) {
+  Component _buildMessage(BuildContext context, VideConversationMessage message) {
     final theme = VideTheme.of(context);
 
     // Check for compact boundary message using messageType
@@ -992,24 +994,15 @@ class _AgentChatState extends State<_AgentChat> {
               '> ${message.content}',
               style: TextStyle(color: theme.base.onSurface),
             ),
-            if (message.attachments != null && message.attachments!.isNotEmpty)
-              for (var attachment in message.attachments!)
-                Text(
-                  '  📎 ${attachment.path ?? "image"}',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
+            // Attachments rendering removed - VideConversationMessage doesn't carry attachments
           ],
         ),
       );
     } else {
       // Build tool results lookup for pairing with tool calls
-      final toolResultsById = <String, ToolResultResponse>{};
+      final toolResultsById = <String, VideToolResultResponse>{};
       for (final response in message.responses) {
-        if (response is ToolResultResponse) {
+        if (response is VideToolResultResponse) {
           toolResultsById[response.toolUseId] = response;
         }
       }
@@ -1021,7 +1014,6 @@ class _AgentChatState extends State<_AgentChat> {
 
       // Track text accumulation for the current segment
       final textBuffer = StringBuffer();
-      bool hasPartialInSegment = false;
 
       // Helper to flush accumulated text as a widget
       void flushTextSegment() {
@@ -1048,11 +1040,12 @@ class _AgentChatState extends State<_AgentChat> {
           }
         }
         textBuffer.clear();
-        hasPartialInSegment = false;
       }
 
+      bool hasPartialInSegment = false;
+
       for (final response in message.responses) {
-        if (response is TextResponse) {
+        if (response is VideTextResponse) {
           // Accumulate text for the current segment, handling streaming deduplication.
           // When we have partial (delta) responses, only use those.
           // When we have cumulative responses, use only the last one (clear before writing).
@@ -1070,7 +1063,7 @@ class _AgentChatState extends State<_AgentChat> {
             // Sequential non-partial, non-cumulative - concatenate
             textBuffer.write(response.content);
           }
-        } else if (response is ToolUseResponse) {
+        } else if (response is VideToolUseResponse) {
           // Flush any accumulated text before this tool call
           flushTextSegment();
 
@@ -1079,10 +1072,28 @@ class _AgentChatState extends State<_AgentChat> {
               ? toolResultsById[response.toolUseId]
               : null;
 
+          // Bridge to claude_sdk ToolInvocation for rendering
+          final toolCall = ToolUseResponse(
+            id: response.id,
+            timestamp: response.timestamp,
+            toolName: response.toolName,
+            parameters: response.parameters,
+            toolUseId: response.toolUseId,
+          );
+          final toolResult = result != null
+              ? ToolResultResponse(
+                  id: result.id,
+                  timestamp: result.timestamp,
+                  toolUseId: result.toolUseId,
+                  content: result.content,
+                  isError: result.isError,
+                )
+              : null;
+
           // Use factory method to create typed invocation
           final invocation = ConversationMessage.createTypedInvocation(
-            response,
-            result,
+            toolCall,
+            toolResult,
           );
 
           final session = context.read(currentVideSessionProvider);
@@ -1098,7 +1109,7 @@ class _AgentChatState extends State<_AgentChat> {
           if (result != null && response.toolUseId != null) {
             renderedToolResults.add(response.toolUseId!);
           }
-        } else if (response is ToolResultResponse) {
+        } else if (response is VideToolResultResponse) {
           // Tool results are paired with their calls above, so we skip them here
           // unless they're orphaned (which shouldn't normally happen)
           if (!renderedToolResults.contains(response.toolUseId)) {
@@ -1133,19 +1144,6 @@ class _AgentChatState extends State<_AgentChat> {
             // If no responses yet but streaming, show loading
             if (message.responses.isEmpty && message.isStreaming)
               EnhancedLoadingIndicator(agentId: component.agentId),
-
-            if (message.error != null)
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[error: ${message.error}]',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       );

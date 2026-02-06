@@ -87,7 +87,13 @@ class EventRenderer {
       case ErrorEvent e:
         _renderError(e);
       case TaskNameChangedEvent _:
-        // Internal event, no rendering needed
+      case ConnectedEvent _:
+      case HistoryEvent _:
+      case AbortedEvent _:
+      case CommandResultEvent _:
+      case PermissionTimeoutEvent _:
+      case UnknownEvent _:
+        // Internal/transport events, no rendering needed
         break;
     }
   }
