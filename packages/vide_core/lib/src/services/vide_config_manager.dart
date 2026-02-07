@@ -5,28 +5,38 @@ import 'package:riverpod/riverpod.dart';
 
 import '../models/vide_global_settings.dart';
 
-/// Manages global configuration directory for Vide CLI
+/// Manages global configuration directory for Vide CLI.
 ///
-/// Following Claude Code's approach, this stores project-specific data
-/// in a global directory to avoid conflicts with version control.
+/// Stores project-specific data in a global directory (`~/.vide` by default)
+/// to avoid conflicts with version control.
 ///
-/// Directory structure:
-/// - Linux: ~/.config/vide/projects/[encoded-path]/
-/// - macOS: ~/Library/Application Support/vide/projects/[encoded-path]/
-/// - Windows: %LOCALAPPDATA%\vide\projects\[encoded-path]\
+/// All entry points (TUI, REST server, daemon) share the same config root
+/// so that sessions are discoverable across modes.
 ///
 /// Path encoding: Replaces forward slashes (/) with hyphens (-)
 /// Example: /Users/bob/project -> -Users-bob-project
 class VideConfigManager {
   final String _configRoot;
 
-  /// Create a new VideConfigManager with the specified config root directory
+  /// Create a new VideConfigManager.
   ///
-  /// The configRoot parameter specifies the base directory for all config storage.
-  /// This allows different UIs (TUI vs REST) to use different config directories.
-  VideConfigManager({required String configRoot}) : _configRoot = configRoot {
+  /// If [configRoot] is not specified, defaults to `~/.vide`.
+  /// Only override this for testing or custom deployments.
+  VideConfigManager({String? configRoot})
+      : _configRoot = configRoot ?? _defaultConfigRoot() {
     // Migrate from legacy parott config if needed
     _migrateFromLegacyConfig();
+  }
+
+  static String _defaultConfigRoot() {
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    if (home == null) {
+      throw StateError(
+        'Could not determine home directory: HOME and USERPROFILE environment variables are not set',
+      );
+    }
+    return '$home/.vide';
   }
 
   /// Migrate configuration from legacy ~/.config/parott directory
@@ -162,13 +172,13 @@ class VideConfigManager {
     final settings = readGlobalSettings();
     writeGlobalSettings(settings.copyWith(telemetryEnabled: enabled));
   }
+
 }
 
-/// Riverpod provider for VideConfigManager
+/// Riverpod provider for VideConfigManager.
 ///
-/// This provider MUST be overridden by the UI with the appropriate config root:
-/// - TUI: ~/.vide
-/// - REST: ~/.vide/api
+/// Must be overridden by the UI layer. Use `VideConfigManager()` for the
+/// standard `~/.vide` default, or pass a custom [configRoot] for testing.
 final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
   throw UnimplementedError('VideConfigManager must be overridden by UI');
 });

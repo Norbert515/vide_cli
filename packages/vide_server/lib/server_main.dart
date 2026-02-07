@@ -10,7 +10,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
-import 'package:path/path.dart' as path;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -65,19 +64,10 @@ Future<HttpServer> startServer(VideServerConfig config) async {
     );
   }
 
-  // Get home directory
-  final homeDir =
-      Platform.environment['HOME'] ??
-      Platform.environment['USERPROFILE'] ??
-      Directory.current.path;
-
-  // Use ~/.vide/api for REST API config (isolated from TUI)
-  final configRoot = path.join(homeDir, '.vide', 'api');
-
   // Create VideCore instance with permission handler - the single interface for session management
   final permissionHandler = PermissionHandler();
   final videCore = VideCore(
-    VideCoreConfig(configDir: configRoot, permissionHandler: permissionHandler),
+    VideCoreConfig(permissionHandler: permissionHandler),
   );
 
   // Simple session cache for WebSocket access
@@ -100,7 +90,7 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   print(
     '║  URL: http://${server.address.host}:${server.port.toString().padRight(54)}║',
   );
-  print('║  Config: ${configRoot.padRight(52)}║');
+  print('║  Config: ${VideConfigManager().configRoot.padRight(52)}║');
   print('╠════════════════════════════════════════════════════════════════╣');
   print('║  ⚠️  WARNING: No authentication - localhost only!              ║');
   print('║  ⚠️  Do NOT expose this server to the internet!               ║');

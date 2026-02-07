@@ -5,7 +5,6 @@ import 'package:vide_cli/main.dart' as app;
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_daemon/vide_daemon.dart';
 import 'package:vide_server/vide_server.dart' as server;
-import 'package:path/path.dart' as path;
 
 void main(List<String> args) async {
   final parser = ArgParser()
@@ -123,15 +122,7 @@ void main(List<String> args) async {
     return; // Never returns, but for clarity
   }
 
-  // Determine config root for TUI: ~/.vide
-  final homeDir =
-      Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-  if (homeDir == null) {
-    print('Error: Could not determine home directory');
-    exit(1);
-  }
-  final configRoot = path.join(homeDir, '.vide');
-  final configManager = VideConfigManager(configRoot: configRoot);
+  final configManager = VideConfigManager();
 
   // Parse --dangerously-skip-permissions flag (session-only, not persisted)
   final dangerouslySkipPermissions =
@@ -139,7 +130,6 @@ void main(List<String> args) async {
 
   // Create provider overrides for TUI
   final overrides = [
-    // Override VideConfigManager with TUI-specific config root
     videConfigManagerProvider.overrideWithValue(configManager),
     // Override working directory provider with current directory
     workingDirProvider.overrideWithValue(Directory.current.path),

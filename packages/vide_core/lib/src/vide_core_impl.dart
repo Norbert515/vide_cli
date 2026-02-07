@@ -12,8 +12,7 @@ import 'package:riverpod/riverpod.dart';
 import 'services/agent_network_manager.dart';
 import 'services/agent_network_persistence_manager.dart';
 import 'services/initial_claude_client.dart';
-import 'services/permission_provider.dart'
-    show PermissionHandler, permissionHandlerProvider;
+import 'services/permission_provider.dart' show PermissionHandler, permissionHandlerProvider;
 import 'services/vide_config_manager.dart';
 import 'utils/dangerously_skip_permissions_provider.dart';
 import 'utils/working_dir_provider.dart';
@@ -63,12 +62,9 @@ class VideCore {
   /// Active sessions by ID.
   final Map<String, VideSession> _activeSessions = {};
 
-  VideCore._(
-    this._container, {
-    bool ownsContainer = true,
-    required PermissionHandler permissionHandler,
-  }) : _ownsContainer = ownsContainer,
-       _permissionHandler = permissionHandler;
+  VideCore._(this._container, {bool ownsContainer = true, required PermissionHandler permissionHandler})
+    : _ownsContainer = ownsContainer,
+      _permissionHandler = permissionHandler;
 
   /// Create a new VideCore instance.
   ///
@@ -82,19 +78,13 @@ class VideCore {
     final container = ProviderContainer(
       overrides: [
         // Override config manager
-        videConfigManagerProvider.overrideWithValue(
-          VideConfigManager(configRoot: configDir),
-        ),
+        videConfigManagerProvider.overrideWithValue(VideConfigManager(configRoot: configDir)),
         // Working directory will be set per-session
         workingDirProvider.overrideWithValue(Directory.current.path),
       ],
     );
 
-    return VideCore._(
-      container,
-      ownsContainer: true,
-      permissionHandler: config.permissionHandler,
-    );
+    return VideCore._(container, ownsContainer: true, permissionHandler: config.permissionHandler);
   }
 
   /// Create a VideCore instance from an existing ProviderContainer.
@@ -116,15 +106,8 @@ class VideCore {
   /// core.dispose(); // Does NOT dispose container
   /// container.dispose(); // Caller disposes container
   /// ```
-  factory VideCore.fromContainer(
-    ProviderContainer container, {
-    required PermissionHandler permissionHandler,
-  }) {
-    return VideCore._(
-      container,
-      ownsContainer: false,
-      permissionHandler: permissionHandler,
-    );
+  factory VideCore.fromContainer(ProviderContainer container, {required PermissionHandler permissionHandler}) {
+    return VideCore._(container, ownsContainer: false, permissionHandler: permissionHandler);
   }
 
   /// Start a new session with the given configuration.
@@ -164,8 +147,7 @@ class VideCore {
         // Provide permission handler for late session binding
         permissionHandlerProvider.overrideWithValue(permissionHandler),
         // Copy skip permissions flag from parent
-        if (skipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+        if (skipPermissions) dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       ],
     );
 
@@ -231,9 +213,7 @@ class VideCore {
       // requires all providers in the dependency chain to be overridden when
       // any dependency is overridden, which becomes unwieldy.
       final videConfigManager = _container.read(videConfigManagerProvider);
-      final skipPermissions = _container.read(
-        dangerouslySkipPermissionsProvider,
-      );
+      final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
       sessionContainer = ProviderContainer(
         overrides: [
           // Copy config from parent
@@ -243,8 +223,7 @@ class VideCore {
           // Provide permission handler for late session binding
           permissionHandlerProvider.overrideWithValue(permissionHandler),
           // Copy skip permissions flag from parent
-          if (skipPermissions)
-            dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+          if (skipPermissions) dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
         ],
       );
     } else {
@@ -259,17 +238,9 @@ class VideCore {
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
     // Convert VideMessage to claude_sdk Message for internal use
     final claudeAttachments = message.attachments?.map((a) {
-      return Attachment(
-        type: a.type,
-        path: a.filePath,
-        content: a.content,
-        mimeType: a.mimeType,
-      );
+      return Attachment(type: a.type, path: a.filePath, content: a.content, mimeType: a.mimeType);
     }).toList();
-    final claudeMessage = Message(
-      text: message.text,
-      attachments: claudeAttachments,
-    );
+    final claudeMessage = Message(text: message.text, attachments: claudeAttachments);
     final network = await manager.startNew(
       claudeMessage,
       workingDirectory: workingDirectory,
@@ -312,9 +283,7 @@ class VideCore {
     }
 
     // Load network from persistence
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
-    );
+    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
     final networks = await persistenceManager.loadNetworks();
     final network = networks.where((n) => n.id == sessionId).firstOrNull;
 
@@ -345,8 +314,7 @@ class VideCore {
         // Provide permission handler for late session binding
         permissionHandlerProvider.overrideWithValue(permissionHandler),
         // Copy skip permissions flag from parent
-        if (skipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+        if (skipPermissions) dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       ],
     );
 
@@ -355,10 +323,7 @@ class VideCore {
     await manager.resume(network);
 
     // Create the session
-    final session = LocalVideSession.create(
-      networkId: network.id,
-      container: sessionContainer,
-    );
+    final session = LocalVideSession.create(networkId: network.id, container: sessionContainer);
 
     // Bind session to permission handler (enables late binding)
     permissionHandler.setSession(session);
@@ -374,9 +339,7 @@ class VideCore {
   Future<List<VideSessionInfo>> listSessions() async {
     _checkNotDisposed();
 
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
-    );
+    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
     final networks = await persistenceManager.loadNetworks();
 
     return networks.map((network) {
@@ -391,8 +354,7 @@ class VideCore {
             id: agent.id,
             name: agent.name,
             type: agent.type,
-            status: VideAgentStatus
-                .idle, // We don't have live status for inactive sessions
+            status: VideAgentStatus.idle, // We don't have live status for inactive sessions
             spawnedBy: agent.spawnedBy,
             taskName: agent.taskName,
             createdAt: agent.createdAt,
@@ -440,10 +402,7 @@ class VideCore {
     }
 
     // Create a session wrapper for this network
-    final session = LocalVideSession.create(
-      networkId: networkId,
-      container: _container,
-    );
+    final session = LocalVideSession.create(networkId: networkId, container: _container);
 
     // Bind session to permission handler (enables late binding)
     _permissionHandler.setSession(session);
@@ -466,9 +425,7 @@ class VideCore {
     }
 
     // Delete from persistence
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
-    );
+    final persistenceManager = _container.read(agentNetworkPersistenceManagerProvider);
     await persistenceManager.deleteNetwork(sessionId);
   }
 
@@ -500,11 +457,7 @@ class VideCore {
   }
 
   static String _defaultConfigDir() {
-    final home =
-        Platform.environment['HOME'] ??
-        Platform.environment['USERPROFILE'] ??
-        '.';
-    return '$home/.vide';
+    return VideConfigManager().configRoot;
   }
 
   /// The initial Claude client for pre-warming and MCP status.
@@ -527,6 +480,5 @@ class VideCore {
   /// Stream of MCP status updates.
   ///
   /// This is a convenience getter that returns [initialClient.mcpStatusStream].
-  Stream<McpStatusResponse> get mcpStatusStream =>
-      initialClient.mcpStatusStream;
+  Stream<McpStatusResponse> get mcpStatusStream => initialClient.mcpStatusStream;
 }
