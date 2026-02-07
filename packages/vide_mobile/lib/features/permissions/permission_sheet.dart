@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -13,14 +12,12 @@ class PermissionSheet extends StatefulWidget {
   final PermissionRequest request;
   final void Function({required bool remember}) onAllow;
   final VoidCallback onDeny;
-  final Duration timeout;
 
   const PermissionSheet({
     super.key,
     required this.request,
     required this.onAllow,
     required this.onDeny,
-    this.timeout = const Duration(seconds: 60),
   });
 
   @override
@@ -28,38 +25,14 @@ class PermissionSheet extends StatefulWidget {
 }
 
 class _PermissionSheetState extends State<PermissionSheet> {
-  late Timer _timer;
-  late int _remainingSeconds;
   bool _alwaysAllow = false;
   bool _inputExpanded = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _remainingSeconds = widget.timeout.inSeconds;
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (_remainingSeconds > 0) {
-        setState(() => _remainingSeconds--);
-      } else {
-        _timer.cancel();
-        widget.onDeny();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer.cancel();
-    super.dispose();
-  }
-
   void _handleAllow() {
-    _timer.cancel();
     widget.onAllow(remember: _alwaysAllow);
   }
 
   void _handleDeny() {
-    _timer.cancel();
     widget.onDeny();
   }
 
@@ -67,7 +40,6 @@ class _PermissionSheetState extends State<PermissionSheet> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final progress = _remainingSeconds / widget.timeout.inSeconds;
 
     return GlassSurface.heavy(
       borderRadius:
@@ -80,14 +52,6 @@ class _PermissionSheetState extends State<PermissionSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Timeout indicator
-            LinearProgressIndicator(
-              value: progress,
-              backgroundColor: colorScheme.surfaceContainerHighest,
-              valueColor: AlwaysStoppedAnimation(
-                progress < 0.3 ? videColors.error : videColors.accent,
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -110,30 +74,14 @@ class _PermissionSheetState extends State<PermissionSheet> {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Permission Request',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                            ),
-                            Text(
-                              'Auto-deny in ${_remainingSeconds}s',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(
-                                    color: _remainingSeconds < 15
-                                        ? videColors.error
-                                        : videColors.textSecondary,
-                                  ),
-                            ),
-                          ],
+                        child: Text(
+                          'Permission Request',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                         ),
                       ),
                     ],
