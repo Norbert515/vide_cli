@@ -53,6 +53,7 @@ class SessionState {
 class SessionRepository extends _$SessionRepository {
   final _reconnectionService = ReconnectionService();
   StreamSubscription<VideEvent>? _eventSubscription;
+  StreamSubscription<bool>? _connectionStateSubscription;
   NetworkStatus? _lastNetworkStatus;
 
   void _log(String message) {
@@ -63,6 +64,7 @@ class SessionRepository extends _$SessionRepository {
   SessionState build() {
     ref.onDispose(() {
       _eventSubscription?.cancel();
+      _connectionStateSubscription?.cancel();
       _reconnectionService.dispose();
       state.session?.dispose();
     });
@@ -189,6 +191,22 @@ class SessionRepository extends _$SessionRepository {
 
   void _setupEventListening(RemoteVideSession remoteSession) {
     _eventSubscription?.cancel();
+    _connectionStateSubscription?.cancel();
+
+    // Listen to connection state changes from RemoteVideSession.
+    // ConnectedEvent is consumed internally by RemoteVideSession and not
+    // forwarded to the public events stream, so we use connectionStateStream.
+    _connectionStateSubscription = remoteSession.connectionStateStream.listen(
+      (connected) {
+        if (connected) {
+          _reconnectionService.reset();
+          ref.read(webSocketConnectionProvider.notifier).setConnected();
+        } else {
+          _handleDisconnect('Connection lost');
+        }
+      },
+    );
+
     _eventSubscription = remoteSession.events.listen(
       (event) {
         // Update lastSeq for deduplication
@@ -196,14 +214,6 @@ class SessionRepository extends _$SessionRepository {
         if (seq > state.lastSeq) {
           state = state.copyWith(lastSeq: seq);
           ref.read(webSocketConnectionProvider.notifier).updateLastSeq(seq);
-        }
-
-        // Handle connected event
-        if (event is ConnectedEvent) {
-          _reconnectionService.reset();
-          ref
-              .read(webSocketConnectionProvider.notifier)
-              .setConnected(lastSeq: event.lastSeq);
         }
       },
       onError: (e) {
@@ -361,6 +371,8 @@ class SessionRepository extends _$SessionRepository {
     _log('Closing session');
     _eventSubscription?.cancel();
     _eventSubscription = null;
+    _connectionStateSubscription?.cancel();
+    _connectionStateSubscription = null;
     _reconnectionService.cancel();
     state.session?.dispose();
     ref.read(webSocketConnectionProvider.notifier).reset();
