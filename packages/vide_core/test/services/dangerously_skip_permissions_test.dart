@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 
@@ -20,26 +19,23 @@ void main() {
       await configManager.dispose();
     });
 
-    ProviderContainer createContainer({required bool skipPermissions}) {
-      return ProviderContainer(
-        overrides: [
-          videConfigManagerProvider.overrideWithValue(configManager),
-          workingDirProvider.overrideWithValue(tempDir.path),
-          permissionHandlerProvider.overrideWithValue(PermissionHandler()),
-          if (skipPermissions)
-            dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
-        ],
+    SessionServices createServices({required bool skipPermissions}) {
+      return SessionServices(
+        configManager: configManager,
+        workingDirectory: tempDir.path,
+        permissionHandler: PermissionHandler(),
+        dangerouslySkipPermissions: skipPermissions,
       );
     }
 
     test(
-      'auto-approves dangerous commands when session provider is true',
+      'auto-approves dangerous commands when session skipPermissions is true',
       () async {
-        final container = createContainer(skipPermissions: true);
+        final services = createServices(skipPermissions: true);
 
         final session = LocalVideSession.create(
           networkId: 'test-network',
-          container: container,
+          services: services,
         );
 
         final callback = session.createPermissionCallback(
@@ -58,16 +54,16 @@ void main() {
         expect(result, isA<VidePermissionAllow>());
 
         await session.dispose(fireEndTrigger: false);
-        container.dispose();
+        services.dispose();
       },
     );
 
     test(
       'auto-approves dangerous commands when global setting is true',
       () async {
-        final container = createContainer(skipPermissions: false);
+        final services = createServices(skipPermissions: false);
 
-        // Enable via global settings instead of session provider
+        // Enable via global settings instead of session flag
         configManager.writeGlobalSettings(
           configManager.readGlobalSettings().copyWith(
             dangerouslySkipPermissions: true,
@@ -76,7 +72,7 @@ void main() {
 
         final session = LocalVideSession.create(
           networkId: 'test-network',
-          container: container,
+          services: services,
         );
 
         final callback = session.createPermissionCallback(
@@ -93,16 +89,16 @@ void main() {
         expect(result, isA<VidePermissionAllow>());
 
         await session.dispose(fireEndTrigger: false);
-        container.dispose();
+        services.dispose();
       },
     );
 
     test('auto-approves write operations when flag is set', () async {
-      final container = createContainer(skipPermissions: true);
+      final services = createServices(skipPermissions: true);
 
       final session = LocalVideSession.create(
         networkId: 'test-network',
-        container: container,
+        services: services,
       );
 
       final callback = session.createPermissionCallback(
@@ -121,15 +117,15 @@ void main() {
       expect(result, isA<VidePermissionAllow>());
 
       await session.dispose(fireEndTrigger: false);
-      container.dispose();
+      services.dispose();
     });
 
     test('auto-approves edit operations when flag is set', () async {
-      final container = createContainer(skipPermissions: true);
+      final services = createServices(skipPermissions: true);
 
       final session = LocalVideSession.create(
         networkId: 'test-network',
-        container: container,
+        services: services,
       );
 
       final callback = session.createPermissionCallback(
@@ -148,16 +144,15 @@ void main() {
       expect(result, isA<VidePermissionAllow>());
 
       await session.dispose(fireEndTrigger: false);
-      container.dispose();
+      services.dispose();
     });
 
     test('does not auto-approve when flag is disabled', () async {
-      // Use deny behavior so the callback doesn't hang waiting for user input
-      final container = createContainer(skipPermissions: false);
+      final services = createServices(skipPermissions: false);
 
       final session = LocalVideSession.create(
         networkId: 'test-network',
-        container: container,
+        services: services,
         permissionConfig: const PermissionCheckerConfig(
           askUserBehavior: AskUserBehavior.deny,
           loadSettings: false,
@@ -181,7 +176,7 @@ void main() {
       expect(result, isA<VidePermissionDeny>());
 
       await session.dispose(fireEndTrigger: false);
-      container.dispose();
+      services.dispose();
     });
   });
 }

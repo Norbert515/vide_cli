@@ -1,36 +1,8 @@
 import 'dart:convert';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 import '../../models/agent_id.dart';
 import 'knowledge_service.dart';
-
-/// Parameters for creating a knowledge server instance.
-class KnowledgeServerParams {
-  final AgentId agentId;
-  final String projectPath;
-
-  KnowledgeServerParams({required this.agentId, required this.projectPath});
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is KnowledgeServerParams &&
-          runtimeType == other.runtimeType &&
-          agentId == agentId &&
-          projectPath == projectPath;
-
-  @override
-  int get hashCode => agentId.hashCode ^ projectPath.hashCode;
-}
-
-final knowledgeServerProvider =
-    Provider.family<KnowledgeMcpServer, KnowledgeServerParams>((ref, params) {
-      return KnowledgeMcpServer(
-        callerAgentId: params.agentId,
-        projectPath: params.projectPath,
-      );
-    });
 
 /// MCP server for knowledge base operations.
 ///

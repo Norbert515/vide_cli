@@ -1,4 +1,3 @@
-import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
 import '../models/team_framework/team_definition.dart';
@@ -79,20 +78,20 @@ class TriggerContext {
   }
 }
 
-/// Provider for TriggerService.
-final triggerServiceProvider = Provider<TriggerService>((ref) {
-  return TriggerService(ref: ref);
-});
-
 /// Service for firing lifecycle triggers that spawn agents.
 ///
 /// Triggers are configured in team markdown files. When a trigger fires,
 /// this service checks if the current team has that trigger enabled,
 /// and if so, spawns the configured agent.
 class TriggerService {
-  TriggerService({required Ref ref}) : _ref = ref;
+  TriggerService({
+    required AgentNetworkManager Function() networkManagerGetter,
+    required TeamFrameworkLoader Function() teamFrameworkLoaderGetter,
+  }) : _networkManagerGetter = networkManagerGetter,
+       _teamFrameworkLoaderGetter = teamFrameworkLoaderGetter;
 
-  final Ref _ref;
+  final AgentNetworkManager Function() _networkManagerGetter;
+  final TeamFrameworkLoader Function() _teamFrameworkLoaderGetter;
 
   /// Track when each trigger point was last fired to prevent duplicate firing.
   /// Key is "${networkId}:${triggerPoint.name}", value is when it was fired.
@@ -130,7 +129,7 @@ class TriggerService {
       }
     }
 
-    final loader = _ref.read(teamFrameworkLoaderProvider);
+    final loader = _teamFrameworkLoaderGetter();
     final team = await loader.getTeam(context.teamName);
 
     if (team == null) {
@@ -159,7 +158,7 @@ class TriggerService {
     final prompt = _buildTriggerPrompt(context, team);
 
     // Spawn the agent
-    final networkManager = _ref.read(agentNetworkManagerProvider.notifier);
+    final networkManager = _networkManagerGetter();
 
     try {
       // Mark as fired BEFORE spawning to prevent race conditions

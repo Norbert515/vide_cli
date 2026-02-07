@@ -1,30 +1,31 @@
 import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:test/test.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
 import '../helpers/mock_claude_client.dart';
 
 /// Integration tests for Agent lifecycle components working together.
 ///
 /// Tests the interaction between:
-/// - AgentStatusManager (status tracking)
-/// - ClaudeManager (client management)
+/// - AgentStatusRegistry (status tracking)
+/// - ClaudeClientRegistry (client management)
 /// - AgentNetwork (network model)
 /// - MockClaudeClient (simulated Claude interaction)
 void main() {
   group('Agent Lifecycle Integration', () {
-    late ProviderContainer container;
+    late AgentStatusRegistry statusRegistry;
+    late ClaudeClientRegistry clientRegistry;
     late MockClaudeClientFactory clientFactory;
 
     setUp(() {
-      container = ProviderContainer();
+      statusRegistry = AgentStatusRegistry();
+      clientRegistry = ClaudeClientRegistry();
       clientFactory = MockClaudeClientFactory();
     });
 
     tearDown(() {
       clientFactory.clear();
-      container.dispose();
+      statusRegistry.dispose();
+      clientRegistry.dispose();
     });
 
     group('Agent status tracking', () {
@@ -33,89 +34,59 @@ void main() {
         const agent2Id = 'agent-2';
 
         // Set different statuses for different agents
-        container
-            .read(agentStatusProvider(agent1Id).notifier)
-            .setStatus(AgentStatus.working);
-        container
-            .read(agentStatusProvider(agent2Id).notifier)
-            .setStatus(AgentStatus.waitingForAgent);
+        statusRegistry.setStatus(agent1Id, AgentStatus.working);
+        statusRegistry.setStatus(agent2Id, AgentStatus.waitingForAgent);
 
-        expect(
-          container.read(agentStatusProvider(agent1Id)),
-          AgentStatus.working,
-        );
-        expect(
-          container.read(agentStatusProvider(agent2Id)),
-          AgentStatus.waitingForAgent,
-        );
+        expect(statusRegistry.getStatus(agent1Id), AgentStatus.working);
+        expect(statusRegistry.getStatus(agent2Id), AgentStatus.waitingForAgent);
 
         // Updating one doesn't affect the other
-        container
-            .read(agentStatusProvider(agent1Id).notifier)
-            .setStatus(AgentStatus.idle);
+        statusRegistry.setStatus(agent1Id, AgentStatus.idle);
 
-        expect(container.read(agentStatusProvider(agent1Id)), AgentStatus.idle);
-        expect(
-          container.read(agentStatusProvider(agent2Id)),
-          AgentStatus.waitingForAgent,
-        );
+        expect(statusRegistry.getStatus(agent1Id), AgentStatus.idle);
+        expect(statusRegistry.getStatus(agent2Id), AgentStatus.waitingForAgent);
       });
 
-      test('status changes trigger provider rebuilds', () {
+      test('status changes trigger stream events', () {
         const agentId = 'test-agent';
-        var rebuildCount = 0;
+        var changeCount = 0;
 
-        container.listen(
-          agentStatusProvider(agentId),
-          (previous, next) => rebuildCount++,
-          fireImmediately: false,
-        );
+        statusRegistry.changes.listen((_) => changeCount++);
 
-        // Initial status is 'working', so setting to 'working' is a no-op (no rebuild)
-        container
-            .read(agentStatusProvider(agentId).notifier)
-            .setStatus(AgentStatus.working);
+        // Initial status is 'working', so setting to 'working' is a no-op (no event)
+        statusRegistry.setStatus(agentId, AgentStatus.working);
         // These two actually change the value
-        container
-            .read(agentStatusProvider(agentId).notifier)
-            .setStatus(AgentStatus.waitingForAgent);
-        container
-            .read(agentStatusProvider(agentId).notifier)
-            .setStatus(AgentStatus.idle);
+        statusRegistry.setStatus(agentId, AgentStatus.waitingForAgent);
+        statusRegistry.setStatus(agentId, AgentStatus.idle);
 
-        expect(rebuildCount, 2);
+        expect(changeCount, 2);
       });
     });
 
-    group('ClaudeManager with mock clients', () {
+    group('ClaudeClientRegistry with mock clients', () {
       test('adding and removing clients works correctly', () {
-        final manager = container.read(claudeManagerProvider.notifier);
         final client1 = clientFactory.getClient('agent-1');
         final client2 = clientFactory.getClient('agent-2');
 
-        manager.addAgent('agent-1', client1);
-        manager.addAgent('agent-2', client2);
+        clientRegistry.addAgent('agent-1', client1);
+        clientRegistry.addAgent('agent-2', client2);
 
-        final state = container.read(claudeManagerProvider);
-        expect(state.containsKey('agent-1'), isTrue);
-        expect(state.containsKey('agent-2'), isTrue);
-        expect(state['agent-1'], same(client1));
-        expect(state['agent-2'], same(client2));
+        expect(clientRegistry['agent-1'], same(client1));
+        expect(clientRegistry['agent-2'], same(client2));
+        expect(clientRegistry.all.length, 2);
 
-        manager.removeAgent('agent-1');
+        clientRegistry.removeAgent('agent-1');
 
-        final updatedState = container.read(claudeManagerProvider);
-        expect(updatedState.containsKey('agent-1'), isFalse);
-        expect(updatedState.containsKey('agent-2'), isTrue);
+        expect(clientRegistry['agent-1'], isNull);
+        expect(clientRegistry['agent-2'], same(client2));
       });
 
-      test('family provider returns correct client for agent', () {
-        final manager = container.read(claudeManagerProvider.notifier);
+      test('registry returns correct client for agent', () {
         final client = clientFactory.getClient('my-agent');
 
-        manager.addAgent('my-agent', client);
+        clientRegistry.addAgent('my-agent', client);
 
-        final retrieved = container.read(claudeProvider('my-agent'));
+        final retrieved = clientRegistry['my-agent'];
         expect(retrieved, same(client));
       });
     });
@@ -149,7 +120,10 @@ void main() {
         expect(conversations.length, 2);
         expect(conversations.last.messages.length, 2);
         expect(conversations.last.messages.first.role, claude.MessageRole.user);
-        expect(conversations.last.messages.last.role, claude.MessageRole.assistant);
+        expect(
+          conversations.last.messages.last.role,
+          claude.MessageRole.assistant,
+        );
       });
 
       test('abort can be called without error', () async {
@@ -247,13 +221,10 @@ void main() {
     group('Full agent conversation simulation', () {
       test('simulates complete agent interaction', () async {
         final client = clientFactory.getClient('main-agent');
-        final manager = container.read(claudeManagerProvider.notifier);
-        manager.addAgent('main-agent', client);
+        clientRegistry.addAgent('main-agent', client);
 
         // Set agent as working
-        container
-            .read(agentStatusProvider('main-agent').notifier)
-            .setStatus(AgentStatus.working);
+        statusRegistry.setStatus('main-agent', AgentStatus.working);
 
         // Send user message
         client.sendMessage(claude.Message.text('Implement feature X'));
@@ -265,15 +236,10 @@ void main() {
         client.simulateTurnComplete();
 
         // Agent status should be updated to idle after completion
-        container
-            .read(agentStatusProvider('main-agent').notifier)
-            .setStatus(AgentStatus.idle);
+        statusRegistry.setStatus('main-agent', AgentStatus.idle);
 
         // Verify final state
-        expect(
-          container.read(agentStatusProvider('main-agent')),
-          AgentStatus.idle,
-        );
+        expect(statusRegistry.getStatus('main-agent'), AgentStatus.idle);
         expect(client.sentMessages.length, 1);
         expect(client.currentConversation.messages.length, 2);
       });

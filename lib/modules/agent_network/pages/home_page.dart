@@ -5,6 +5,7 @@ import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/network_execution_page.dart';
 import 'package:vide_cli/modules/agent_network/components/network_summary_component.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/services/core_providers.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
@@ -76,8 +77,8 @@ class _HomePageState extends State<HomePage> {
 
   /// Initialize Claude client at startup so it's ready when user submits.
   void _initializeClaude() {
-    // Pre-warm by accessing initial client via VideCore
-    final _ = context.read(videoCoreProvider).initialClient;
+    // No-op: Claude client is now initialized lazily when session starts.
+    // Kept as a placeholder in case pre-warming is needed in the future.
   }
 
   Future<void> _loadProjectInfo() async {

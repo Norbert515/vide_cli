@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as path;
-import 'package:riverpod/riverpod.dart';
 
 import '../models/vide_global_settings.dart';
 
@@ -163,12 +162,3 @@ class VideConfigManager {
     writeGlobalSettings(settings.copyWith(telemetryEnabled: enabled));
   }
 }
-
-/// Riverpod provider for VideConfigManager
-///
-/// This provider MUST be overridden by the UI with the appropriate config root:
-/// - TUI: ~/.vide
-/// - REST: ~/.vide/api
-final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
-  throw UnimplementedError('VideConfigManager must be overridden by UI');
-});

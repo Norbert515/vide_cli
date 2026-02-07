@@ -4,13 +4,8 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:vide_core/vide_core.dart'
-    show
-        GitClient,
-        GitStatus,
-        GitBranch,
-        GitWorktree,
-        GitRepository,
-        gitStatusStreamProvider;
+    show GitClient, GitStatus, GitBranch, GitWorktree, GitRepository;
+import 'package:vide_cli/modules/git/git_providers.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/modules/git/models/git_sidebar_models.dart';

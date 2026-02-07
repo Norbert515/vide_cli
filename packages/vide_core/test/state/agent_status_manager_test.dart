@@ -1,60 +1,47 @@
-import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 
 void main() {
-  group('AgentStatusManager', () {
-    late ProviderContainer container;
+  group('AgentStatusRegistry', () {
+    late AgentStatusRegistry registry;
 
     setUp(() {
-      container = ProviderContainer();
+      registry = AgentStatusRegistry();
     });
 
     tearDown(() {
-      container.dispose();
+      registry.dispose();
     });
 
     test('initial status is working', () {
-      final status = container.read(agentStatusProvider('agent-1'));
+      final status = registry.getStatus('agent-1');
 
       expect(status, AgentStatus.working);
     });
 
     test('setStatus updates status', () {
-      final notifier = container.read(agentStatusProvider('agent-1').notifier);
+      registry.setStatus('agent-1', AgentStatus.waitingForAgent);
 
-      notifier.setStatus(AgentStatus.waitingForAgent);
-
-      expect(
-        container.read(agentStatusProvider('agent-1')),
-        AgentStatus.waitingForAgent,
-      );
+      expect(registry.getStatus('agent-1'), AgentStatus.waitingForAgent);
     });
 
-    test('family provider creates separate instances per agent', () {
-      final notifier1 = container.read(agentStatusProvider('agent-1').notifier);
-      final notifier2 = container.read(agentStatusProvider('agent-2').notifier);
+    test('registry creates separate statuses per agent', () {
+      registry.setStatus('agent-1', AgentStatus.idle);
+      registry.setStatus('agent-2', AgentStatus.waitingForUser);
 
-      notifier1.setStatus(AgentStatus.idle);
-      notifier2.setStatus(AgentStatus.waitingForUser);
-
-      expect(container.read(agentStatusProvider('agent-1')), AgentStatus.idle);
-      expect(
-        container.read(agentStatusProvider('agent-2')),
-        AgentStatus.waitingForUser,
-      );
+      expect(registry.getStatus('agent-1'), AgentStatus.idle);
+      expect(registry.getStatus('agent-2'), AgentStatus.waitingForUser);
     });
 
     test('notifies listeners on status change', () {
       var notificationCount = 0;
 
-      container.listen(agentStatusProvider('agent-1'), (previous, next) {
+      registry.changes.listen((_) {
         notificationCount++;
       });
 
-      final notifier = container.read(agentStatusProvider('agent-1').notifier);
-      notifier.setStatus(AgentStatus.waitingForAgent);
-      notifier.setStatus(AgentStatus.idle);
+      registry.setStatus('agent-1', AgentStatus.waitingForAgent);
+      registry.setStatus('agent-1', AgentStatus.idle);
 
       expect(notificationCount, 2);
     });
@@ -62,17 +49,25 @@ void main() {
     test('setting same status does not notify listeners', () {
       var notificationCount = 0;
 
-      container.listen(agentStatusProvider('agent-1'), (previous, next) {
+      // Set initial status to working explicitly
+      registry.setStatus('agent-1', AgentStatus.working);
+
+      registry.changes.listen((_) {
         notificationCount++;
       });
 
-      final notifier = container.read(agentStatusProvider('agent-1').notifier);
-      // Initial status is 'working', setting to 'working' again is a no-op
-      notifier.setStatus(AgentStatus.working);
-      notifier.setStatus(AgentStatus.working);
+      // Setting to 'working' again should be a no-op since it's already working
+      registry.setStatus('agent-1', AgentStatus.working);
 
-      // StateNotifier does NOT notify when value is unchanged (standard behavior)
       expect(notificationCount, 0);
+    });
+
+    test('remove cleans up agent status', () {
+      registry.setStatus('agent-1', AgentStatus.idle);
+      registry.remove('agent-1');
+
+      // After removal, should get default status again
+      expect(registry.getStatus('agent-1'), AgentStatus.working);
     });
   });
 }

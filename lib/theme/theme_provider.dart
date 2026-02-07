@@ -1,7 +1,7 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/modules/setup/theme_selector.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/services/core_providers.dart';
 
 /// Provider for the current theme setting from config.
 /// Returns null for auto-detect, or a theme ID string.

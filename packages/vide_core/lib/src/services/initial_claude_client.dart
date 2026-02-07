@@ -1,20 +1,14 @@
 import 'dart:async';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
-import 'package:uuid/uuid.dart';
 
 import '../agents/agent_configuration.dart';
-import '../models/agent_id.dart';
 import '../mcp/mcp_server_type.dart';
-import '../utils/working_dir_provider.dart';
-import 'claude_client_factory.dart';
-import 'permission_provider.dart';
 import 'team_framework_loader.dart';
 
 /// Holds the initial Claude client created at app startup.
 class InitialClaudeClient {
   final ClaudeClient client;
-  final AgentId agentId;
+  final String agentId;
   final String workingDirectory;
 
   /// Stream of MCP status updates.
@@ -59,62 +53,9 @@ class InitialClaudeClient {
   }
 }
 
-/// Provider for the initial Claude client.
-///
-/// This client is created when the app starts (before user submits their first message)
-/// so that Claude CLI is already initialized and ready when the user types.
-///
-/// The client is created lazily on first access. Call `ref.read(initialClaudeClientProvider)`
-/// early (e.g., in initState) to trigger initialization.
-///
-/// Loads the main agent configuration from the team framework. Uses 'vide' team
-/// as the default team for the main (lead) agent.
-final initialClaudeClientProvider = Provider<InitialClaudeClient>((ref) {
-  final workingDirectory = ref.watch(workingDirProvider);
-  final agentId = const Uuid().v4();
-
-  final factory = ClaudeClientFactoryImpl(
-    getWorkingDirectory: () => workingDirectory,
-    ref: ref,
-    permissionHandler: ref.read(permissionHandlerProvider),
-  );
-
-  // NOTE: We create a temporary fallback config synchronously to avoid blocking.
-  // The real config is loaded asynchronously once the client is initialized.
-  // This ensures the UI doesn't block while loading team framework definitions.
-  final tempConfig = _createTemporaryMainAgentConfig();
-
-  final client = factory.createSync(
-    agentId: agentId,
-    config: tempConfig,
-    networkId: null, // No network yet
-    agentType: 'main',
-  );
-
-  // Load and apply the real config asynchronously
-  _loadAndApplyRealConfig(
-    teamFrameworkLoader: TeamFrameworkLoader(
-      workingDirectory: workingDirectory,
-    ),
-    client: client,
-    factory: factory,
-    agentId: agentId,
-  );
-
-  final initialClient = InitialClaudeClient(
-    client: client,
-    agentId: agentId,
-    workingDirectory: workingDirectory,
-  );
-
-  ref.onDispose(() => initialClient.dispose());
-
-  return initialClient;
-});
-
 /// Create a minimal temporary config for the main agent.
 /// This is used while the real config is being loaded from the team framework.
-AgentConfiguration _createTemporaryMainAgentConfig() {
+AgentConfiguration createTemporaryMainAgentConfig() {
   return AgentConfiguration(
     name: 'Main Triage & Operations Agent',
     description: 'Loading from team framework...',
@@ -133,11 +74,10 @@ AgentConfiguration _createTemporaryMainAgentConfig() {
 ///
 /// NOTE: System prompts can't be updated at runtime, but the model CAN be changed.
 /// The real config will also be used for any spawned agents.
-Future<void> _loadAndApplyRealConfig({
+Future<void> loadAndApplyRealConfig({
   required TeamFrameworkLoader teamFrameworkLoader,
   required ClaudeClient client,
-  required ClaudeClientFactory factory,
-  required AgentId agentId,
+  required String agentId,
 }) async {
   try {
     // Get main agent from default team (vide)

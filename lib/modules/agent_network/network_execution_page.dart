@@ -8,6 +8,7 @@ import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/typing_text.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
+import 'package:vide_cli/services/core_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
@@ -332,7 +333,10 @@ class _AgentChatState extends State<_AgentChat> {
       workingDirectory: session?.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
+        session?.sendMessage(
+          VideMessage(text: message),
+          agentId: component.agentId,
+        );
       },
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
@@ -427,7 +431,8 @@ class _AgentChatState extends State<_AgentChat> {
   List<Map<String, dynamic>>? _getLatestTodos() {
     for (final message in _conversation.messages.reversed) {
       for (final response in message.responses.reversed) {
-        if (response is VideToolUseResponse && response.toolName == 'TodoWrite') {
+        if (response is VideToolUseResponse &&
+            response.toolName == 'TodoWrite') {
           final todos = response.parameters['todos'];
           if (todos is List) {
             return todos.cast<Map<String, dynamic>>();
@@ -555,7 +560,8 @@ class _AgentChatState extends State<_AgentChat> {
     // This is the CURRENT context size (from latest turn), which includes:
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens = _conversation.currentContextInputTokens +
+    final usedTokens =
+        _conversation.currentContextInputTokens +
         _conversation.currentContextCacheReadTokens +
         _conversation.currentContextCacheCreationTokens;
     final percentage = kClaudeContextWindowSize > 0
@@ -913,7 +919,10 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
-  Component _buildMessage(BuildContext context, VideConversationMessage message) {
+  Component _buildMessage(
+    BuildContext context,
+    VideConversationMessage message,
+  ) {
     final theme = VideTheme.of(context);
 
     // Check for compact boundary message using messageType

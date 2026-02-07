@@ -1,6 +1,5 @@
-import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 
 /// A minimal mock ClaudeClient for testing
@@ -14,161 +13,143 @@ class MockClaudeClient implements ClaudeClient {
 }
 
 void main() {
-  group('ClaudeManagerStateNotifier', () {
-    late ProviderContainer container;
+  group('ClaudeClientRegistry', () {
+    late ClaudeClientRegistry registry;
 
     setUp(() {
-      container = ProviderContainer();
+      registry = ClaudeClientRegistry();
     });
 
     tearDown(() {
-      container.dispose();
+      registry.dispose();
     });
 
-    test('initial state is empty map', () {
-      final clients = container.read(claudeManagerProvider);
-
-      expect(clients, isEmpty);
+    test('initial state is empty', () {
+      expect(registry.all, isEmpty);
     });
 
-    test('addAgent adds client to map', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
+    test('addAgent adds client', () {
       final client = MockClaudeClient('test-1');
 
-      notifier.addAgent('agent-1', client);
+      registry.addAgent('agent-1', client);
 
-      final clients = container.read(claudeManagerProvider);
-      expect(clients['agent-1'], client);
+      expect(registry['agent-1'], client);
     });
 
     test('addAgent can add multiple clients', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
       final client1 = MockClaudeClient('test-1');
       final client2 = MockClaudeClient('test-2');
 
-      notifier.addAgent('agent-1', client1);
-      notifier.addAgent('agent-2', client2);
+      registry.addAgent('agent-1', client1);
+      registry.addAgent('agent-2', client2);
 
-      final clients = container.read(claudeManagerProvider);
-      expect(clients.length, 2);
-      expect(clients['agent-1'], client1);
-      expect(clients['agent-2'], client2);
+      expect(registry.all.length, 2);
+      expect(registry['agent-1'], client1);
+      expect(registry['agent-2'], client2);
     });
 
     test('addAgent replaces existing client for same agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
       final client1 = MockClaudeClient('original');
       final client2 = MockClaudeClient('replacement');
 
-      notifier.addAgent('agent-1', client1);
-      notifier.addAgent('agent-1', client2);
+      registry.addAgent('agent-1', client1);
+      registry.addAgent('agent-1', client2);
 
-      final clients = container.read(claudeManagerProvider);
-      expect(clients['agent-1'], client2);
-      expect(clients.length, 1);
+      expect(registry['agent-1'], client2);
+      expect(registry.all.length, 1);
     });
 
-    test('removeAgent removes client from map', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
+    test('removeAgent removes client', () {
       final client = MockClaudeClient('test-1');
 
-      notifier.addAgent('agent-1', client);
-      notifier.removeAgent('agent-1');
+      registry.addAgent('agent-1', client);
+      registry.removeAgent('agent-1');
 
-      final clients = container.read(claudeManagerProvider);
-      expect(clients['agent-1'], isNull);
-      expect(clients, isEmpty);
+      expect(registry['agent-1'], isNull);
+      expect(registry.all, isEmpty);
     });
 
     test('removeAgent is safe for non-existent agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-
       // Should not throw
-      notifier.removeAgent('non-existent');
+      registry.removeAgent('non-existent');
 
-      final clients = container.read(claudeManagerProvider);
-      expect(clients, isEmpty);
+      expect(registry.all, isEmpty);
     });
 
     test('notifies listeners on add', () {
       var notificationCount = 0;
 
-      container.listen(claudeManagerProvider, (previous, next) {
+      registry.changes.listen((_) {
         notificationCount++;
       });
 
-      final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      registry.addAgent('agent-1', MockClaudeClient('test'));
 
       expect(notificationCount, 1);
     });
 
     test('notifies listeners on remove', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      registry.addAgent('agent-1', MockClaudeClient('test'));
 
       var notificationCount = 0;
-      container.listen(claudeManagerProvider, (previous, next) {
+      registry.changes.listen((_) {
         notificationCount++;
       });
 
-      notifier.removeAgent('agent-1');
+      registry.removeAgent('agent-1');
 
       expect(notificationCount, 1);
     });
   });
 
-  group('claudeProvider', () {
-    late ProviderContainer container;
+  group('ClaudeClientRegistry operator[]', () {
+    late ClaudeClientRegistry registry;
 
     setUp(() {
-      container = ProviderContainer();
+      registry = ClaudeClientRegistry();
     });
 
     tearDown(() {
-      container.dispose();
+      registry.dispose();
     });
 
     test('returns client for agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
       final client = MockClaudeClient('test');
-      notifier.addAgent('agent-1', client);
+      registry.addAgent('agent-1', client);
 
-      final retrieved = container.read(claudeProvider('agent-1'));
+      final retrieved = registry['agent-1'];
 
       expect(retrieved, client);
     });
 
     test('returns null for non-existent agent', () {
-      final retrieved = container.read(claudeProvider('non-existent'));
+      final retrieved = registry['non-existent'];
 
       expect(retrieved, isNull);
     });
 
     test('reflects client when added', () {
       // Initially null
-      expect(container.read(claudeProvider('agent-1')), isNull);
+      expect(registry['agent-1'], isNull);
 
-      final notifier = container.read(claudeManagerProvider.notifier);
       final client = MockClaudeClient('test');
-      notifier.addAgent('agent-1', client);
+      registry.addAgent('agent-1', client);
 
       // Now should return the client
-      expect(container.read(claudeProvider('agent-1')), same(client));
+      expect(registry['agent-1'], same(client));
     });
 
     test('reflects removal when client is removed', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
       final client = MockClaudeClient('test');
-      notifier.addAgent('agent-1', client);
+      registry.addAgent('agent-1', client);
 
       // Verify client is present
-      expect(container.read(claudeProvider('agent-1')), same(client));
+      expect(registry['agent-1'], same(client));
 
-      notifier.removeAgent('agent-1');
+      registry.removeAgent('agent-1');
 
       // Now should be null
-      expect(container.read(claudeProvider('agent-1')), isNull);
+      expect(registry['agent-1'], isNull);
     });
   });
 }

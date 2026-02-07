@@ -7,16 +7,11 @@ library;
 import 'dart:io';
 
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 
-import 'services/agent_network_manager.dart';
 import 'services/agent_network_persistence_manager.dart';
-import 'services/initial_claude_client.dart';
-import 'services/permission_provider.dart'
-    show PermissionHandler, permissionHandlerProvider;
+import 'services/permission_provider.dart' show PermissionHandler;
+import 'services/session_services.dart';
 import 'services/vide_config_manager.dart';
-import 'utils/dangerously_skip_permissions_provider.dart';
-import 'utils/working_dir_provider.dart';
 import 'package:vide_interface/vide_interface.dart';
 
 import 'api/vide_config.dart';
@@ -25,8 +20,7 @@ import 'api/vide_session.dart';
 /// The main entry point for the vide_core API.
 ///
 /// [VideCore] provides a simple interface to create and manage multi-agent
-/// sessions. It handles all the internal wiring (Riverpod providers, Claude SDK
-/// integration, etc.) and exposes a clean API.
+/// sessions. It handles all the internal wiring and exposes a clean API.
 ///
 /// Example:
 /// ```dart
@@ -55,20 +49,29 @@ import 'api/vide_session.dart';
 /// core.dispose();
 /// ```
 class VideCore {
-  final ProviderContainer _container;
-  final bool _ownsContainer;
+  final VideConfigManager _configManager;
   final PermissionHandler _permissionHandler;
+  final bool _dangerouslySkipPermissions;
   bool _disposed = false;
 
   /// Active sessions by ID.
   final Map<String, VideSession> _activeSessions = {};
 
-  VideCore._(
-    this._container, {
-    bool ownsContainer = true,
+  /// Session services by session ID, for sessions we own.
+  final Map<String, SessionServices> _ownedServices = {};
+
+  /// Externally-provided SessionServices (for fromSessionServices factory).
+  SessionServices? _externalServices;
+
+  VideCore._({
+    required VideConfigManager configManager,
     required PermissionHandler permissionHandler,
-  }) : _ownsContainer = ownsContainer,
-       _permissionHandler = permissionHandler;
+    bool dangerouslySkipPermissions = false,
+    SessionServices? externalServices,
+  }) : _configManager = configManager,
+       _permissionHandler = permissionHandler,
+       _dangerouslySkipPermissions = dangerouslySkipPermissions,
+       _externalServices = externalServices;
 
   /// Create a new VideCore instance.
   ///
@@ -78,101 +81,39 @@ class VideCore {
     // Determine config directory
     final configDir = config.configDir ?? _defaultConfigDir();
 
-    // Create ProviderContainer with proper overrides
-    final container = ProviderContainer(
-      overrides: [
-        // Override config manager
-        videConfigManagerProvider.overrideWithValue(
-          VideConfigManager(configRoot: configDir),
-        ),
-        // Working directory will be set per-session
-        workingDirProvider.overrideWithValue(Directory.current.path),
-      ],
-    );
-
     return VideCore._(
-      container,
-      ownsContainer: true,
+      configManager: VideConfigManager(configRoot: configDir),
       permissionHandler: config.permissionHandler,
     );
   }
 
-  /// Create a VideCore instance from an existing ProviderContainer.
+  /// Create a VideCore instance from externally-provided SessionServices.
   ///
-  /// This is useful for integrating with existing applications that already
-  /// have a ProviderContainer with their own overrides.
-  ///
-  /// The container will NOT be disposed when VideCore is disposed. The caller
-  /// is responsible for managing the container lifecycle.
+  /// This is useful for integrating with existing applications (like the TUI)
+  /// that manage their own service wiring. The SessionServices will NOT be
+  /// disposed when VideCore is disposed.
   ///
   /// [permissionHandler] is required and handles tool permission requests.
-  ///
-  /// Example:
-  /// ```dart
-  /// final container = ProviderContainer(overrides: [...]);
-  /// final handler = PermissionHandler();
-  /// final core = VideCore.fromContainer(container, permissionHandler: handler);
-  /// // ... use core
-  /// core.dispose(); // Does NOT dispose container
-  /// container.dispose(); // Caller disposes container
-  /// ```
-  factory VideCore.fromContainer(
-    ProviderContainer container, {
+  factory VideCore.fromSessionServices(
+    SessionServices services, {
     required PermissionHandler permissionHandler,
   }) {
     return VideCore._(
-      container,
-      ownsContainer: false,
+      configManager: services.configManager,
       permissionHandler: permissionHandler,
+      dangerouslySkipPermissions: services.dangerouslySkipPermissions,
+      externalServices: services,
     );
   }
 
   /// Start a new session with the given configuration.
-  ///
-  /// This creates a new agent network with a main agent and sends
-  /// the initial message. Returns a [VideSession] that can be used
-  /// to interact with the agents and receive events.
-  ///
-  /// Example:
-  /// ```dart
-  /// final session = await core.startSession(VideSessionConfig(
-  ///   workingDirectory: '/path/to/project',
-  ///   initialMessage: 'What files are in this project?',
-  ///   model: 'sonnet',
-  /// ));
-  /// ```
   Future<VideSession> startSession(VideSessionConfig config) async {
     _checkNotDisposed();
 
-    // Get config from parent container
-    final videConfigManager = _container.read(videConfigManagerProvider);
-    final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
-
-    // Use the permission handler passed to VideCore (shared across sessions)
-    final permissionHandler = _permissionHandler;
-
-    // Create a completely isolated container for this session.
-    // We don't use parent containers because Riverpod's dependency tracking
-    // requires all providers in the dependency chain to be overridden when
-    // any dependency is overridden, which becomes unwieldy.
-    final finalContainer = ProviderContainer(
-      overrides: [
-        // Copy config from parent
-        videConfigManagerProvider.overrideWithValue(videConfigManager),
-        // Set the working directory for this session
-        workingDirProvider.overrideWithValue(config.workingDirectory),
-        // Provide permission handler for late session binding
-        permissionHandlerProvider.overrideWithValue(permissionHandler),
-        // Copy skip permissions flag from parent
-        if (skipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
-      ],
-    );
+    final services = _createSessionServices(config.workingDirectory);
 
     // Create network via AgentNetworkManager
-    // The initialClaudeClientProvider will be lazily evaluated when first accessed,
-    // which will load the main agent configuration from the team framework
-    final manager = finalContainer.read(agentNetworkManagerProvider.notifier);
+    final manager = services.networkManager;
     final network = await manager.startNew(
       Message.text(config.initialMessage),
       workingDirectory: config.workingDirectory,
@@ -181,15 +122,20 @@ class VideCore {
       team: config.team,
     );
 
+    // Track owned services
+    if (_externalServices == null) {
+      _ownedServices[network.id] = services;
+    }
+
     // Create the session
     final session = LocalVideSession.create(
       networkId: network.id,
-      container: finalContainer,
+      services: services,
       initialMessage: config.initialMessage,
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler.setSession(session);
+    _permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
@@ -200,14 +146,6 @@ class VideCore {
   /// This is similar to [startSession] but accepts a [VideMessage] object
   /// instead of a plain string. This allows TUI to include attachments
   /// with the initial message.
-  ///
-  /// Example:
-  /// ```dart
-  /// final session = await core.startSessionWithMessage(
-  ///   VideMessage(text: 'Fix the bug', attachments: [VideAttachment.file('error.log')]),
-  ///   workingDirectory: '/path/to/project',
-  /// );
-  /// ```
   Future<VideSession> startSessionWithMessage(
     VideMessage message, {
     required String workingDirectory,
@@ -217,46 +155,10 @@ class VideCore {
   }) async {
     _checkNotDisposed();
 
-    // Use the permission handler passed to VideCore (shared across sessions)
-    final permissionHandler = _permissionHandler;
-
-    // Determine which container to use:
-    // - If we own the container (standalone VideCore), create an isolated container
-    // - If we don't own it (fromContainer), use the shared container so providers
-    //   like agentNetworkManagerProvider stay in sync with the caller's container
-    final ProviderContainer sessionContainer;
-    if (_ownsContainer) {
-      // Create a completely isolated container for this session.
-      // We don't use parent containers because Riverpod's dependency tracking
-      // requires all providers in the dependency chain to be overridden when
-      // any dependency is overridden, which becomes unwieldy.
-      final videConfigManager = _container.read(videConfigManagerProvider);
-      final skipPermissions = _container.read(
-        dangerouslySkipPermissionsProvider,
-      );
-      sessionContainer = ProviderContainer(
-        overrides: [
-          // Copy config from parent
-          videConfigManagerProvider.overrideWithValue(videConfigManager),
-          // Set the working directory for this session
-          workingDirProvider.overrideWithValue(workingDirectory),
-          // Provide permission handler for late session binding
-          permissionHandlerProvider.overrideWithValue(permissionHandler),
-          // Copy skip permissions flag from parent
-          if (skipPermissions)
-            dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
-        ],
-      );
-    } else {
-      // Use shared container - this keeps agentNetworkManagerProvider in sync
-      // with the caller's container (important for TUI provider watching)
-      sessionContainer = _container;
-    }
+    final services = _createSessionServices(workingDirectory);
 
     // Create network via AgentNetworkManager
-    // The initialClaudeClientProvider will be lazily evaluated when first accessed,
-    // which will load the main agent configuration from the team framework
-    final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
+    final manager = services.networkManager;
     // Convert VideMessage to claude_sdk Message for internal use
     final claudeAttachments = message.attachments?.map((a) {
       return Attachment(
@@ -278,31 +180,26 @@ class VideCore {
       team: team ?? 'vide',
     );
 
+    // Track owned services
+    if (_externalServices == null) {
+      _ownedServices[network.id] = services;
+    }
+
     // Create the session
     final session = LocalVideSession.create(
       networkId: network.id,
-      container: sessionContainer,
+      services: services,
       initialMessage: message.text,
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler.setSession(session);
+    _permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
   }
 
   /// Resume an existing session by its ID.
-  ///
-  /// This loads the session from persistent storage and recreates
-  /// the agent network. Returns a [VideSession] for interaction.
-  ///
-  /// Throws [ArgumentError] if the session is not found.
-  ///
-  /// Example:
-  /// ```dart
-  /// final session = await core.resumeSession('session-uuid');
-  /// ```
   Future<VideSession> resumeSession(String sessionId) async {
     _checkNotDisposed();
 
@@ -312,8 +209,8 @@ class VideCore {
     }
 
     // Load network from persistence
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
+    final persistenceManager = AgentNetworkPersistenceManager(
+      configManager: _configManager,
     );
     final networks = await persistenceManager.loadNetworks();
     final network = networks.where((n) => n.id == sessionId).firstOrNull;
@@ -325,57 +222,36 @@ class VideCore {
     // Determine working directory from network
     final workingDir = network.worktreePath ?? Directory.current.path;
 
-    // Get config from parent container
-    final videConfigManager = _container.read(videConfigManagerProvider);
-    final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
+    final services = _createSessionServices(workingDir);
 
-    // Use the permission handler passed to VideCore (shared across sessions)
-    final permissionHandler = _permissionHandler;
-
-    // Create a completely isolated container for this session.
-    // We don't use parent containers because Riverpod's dependency tracking
-    // requires all providers in the dependency chain to be overridden when
-    // any dependency is overridden, which becomes unwieldy.
-    final sessionContainer = ProviderContainer(
-      overrides: [
-        // Copy config from parent
-        videConfigManagerProvider.overrideWithValue(videConfigManager),
-        // Set the working directory for this session
-        workingDirProvider.overrideWithValue(workingDir),
-        // Provide permission handler for late session binding
-        permissionHandlerProvider.overrideWithValue(permissionHandler),
-        // Copy skip permissions flag from parent
-        if (skipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
-      ],
-    );
+    // Track owned services
+    if (_externalServices == null) {
+      _ownedServices[network.id] = services;
+    }
 
     // Resume the network
-    final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
+    final manager = services.networkManager;
     await manager.resume(network);
 
     // Create the session
     final session = LocalVideSession.create(
       networkId: network.id,
-      container: sessionContainer,
+      services: services,
     );
 
     // Bind session to permission handler (enables late binding)
-    permissionHandler.setSession(session);
+    _permissionHandler.setSession(session);
 
     _activeSessions[session.id] = session;
     return session;
   }
 
   /// List all available sessions.
-  ///
-  /// Returns session info for all persisted sessions, including
-  /// agent counts and timestamps.
   Future<List<VideSessionInfo>> listSessions() async {
     _checkNotDisposed();
 
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
+    final persistenceManager = AgentNetworkPersistenceManager(
+      configManager: _configManager,
     );
     final networks = await persistenceManager.loadNetworks();
 
@@ -409,22 +285,8 @@ class VideCore {
 
   /// Get or create a VideSession for an existing network.
   ///
-  /// This is useful when using [fromContainer] with an existing application
-  /// that manages networks via the internal [AgentNetworkManager]. It wraps
-  /// the current network as a [VideSession] for use with the public API.
-  ///
-  /// Returns null if no network with [networkId] is currently active.
-  ///
-  /// Example:
-  /// ```dart
-  /// // In an app using fromContainer()
-  /// final networkState = container.read(agentNetworkManagerProvider);
-  /// final currentNetwork = networkState.currentNetwork;
-  /// if (currentNetwork != null) {
-  ///   final session = core.getSessionForNetwork(currentNetwork.id);
-  ///   // Use session.events, session.sendMessage(), etc.
-  /// }
-  /// ```
+  /// This is useful when using [fromSessionServices] with an existing
+  /// application that manages networks via the internal [AgentNetworkManager].
   VideSession? getSessionForNetwork(String networkId) {
     _checkNotDisposed();
 
@@ -433,8 +295,12 @@ class VideCore {
       return _activeSessions[networkId];
     }
 
+    // Must have external services for this path
+    final services = _externalServices;
+    if (services == null) return null;
+
     // Check if network exists in the manager
-    final networkState = _container.read(agentNetworkManagerProvider);
+    final networkState = services.networkManager.state;
     if (networkState.currentNetwork?.id != networkId) {
       return null;
     }
@@ -442,7 +308,7 @@ class VideCore {
     // Create a session wrapper for this network
     final session = LocalVideSession.create(
       networkId: networkId,
-      container: _container,
+      services: services,
     );
 
     // Bind session to permission handler (enables late binding)
@@ -453,9 +319,6 @@ class VideCore {
   }
 
   /// Delete a session by its ID.
-  ///
-  /// This removes the session from persistent storage. If the session
-  /// is currently active, it is disposed first.
   Future<void> deleteSession(String sessionId) async {
     _checkNotDisposed();
 
@@ -465,18 +328,18 @@ class VideCore {
       await activeSession.dispose();
     }
 
+    // Dispose owned services
+    final services = _ownedServices.remove(sessionId);
+    services?.dispose();
+
     // Delete from persistence
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
+    final persistenceManager = AgentNetworkPersistenceManager(
+      configManager: _configManager,
     );
     await persistenceManager.deleteNetwork(sessionId);
   }
 
   /// Dispose the VideCore instance and all active sessions.
-  ///
-  /// After calling dispose, the instance can no longer be used.
-  /// If the VideCore was created with [fromContainer], the container
-  /// is NOT disposed (caller is responsible for container lifecycle).
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -487,16 +350,32 @@ class VideCore {
     }
     _activeSessions.clear();
 
-    // Only dispose the container if we own it
-    if (_ownsContainer) {
-      _container.dispose();
+    // Dispose all owned services
+    for (final services in _ownedServices.values) {
+      services.dispose();
     }
+    _ownedServices.clear();
   }
 
   void _checkNotDisposed() {
     if (_disposed) {
       throw StateError('VideCore has been disposed');
     }
+  }
+
+  SessionServices _createSessionServices(String workingDirectory) {
+    // If we have external services (fromSessionServices), use those
+    if (_externalServices != null) {
+      return _externalServices!;
+    }
+
+    // Create a new SessionServices for this session
+    return SessionServices(
+      workingDirectory: workingDirectory,
+      configManager: _configManager,
+      permissionHandler: _permissionHandler,
+      dangerouslySkipPermissions: _dangerouslySkipPermissions,
+    );
   }
 
   static String _defaultConfigDir() {
@@ -506,27 +385,4 @@ class VideCore {
         '.';
     return '$home/.vide';
   }
-
-  /// The initial Claude client for pre-warming and MCP status.
-  ///
-  /// This is created lazily on first access. Useful for:
-  /// - Pre-warming Claude CLI before user submits first message
-  /// - Displaying MCP server status in UI
-  ///
-  /// Note: The client is reused across sessions when using [fromContainer].
-  InitialClaudeClient get initialClient {
-    _checkNotDisposed();
-    return _container.read(initialClaudeClientProvider);
-  }
-
-  /// Current MCP server status, or null if not yet fetched.
-  ///
-  /// This is a convenience getter that returns [initialClient.mcpStatus].
-  McpStatusResponse? get mcpStatus => initialClient.mcpStatus;
-
-  /// Stream of MCP status updates.
-  ///
-  /// This is a convenience getter that returns [initialClient.mcpStatusStream].
-  Stream<McpStatusResponse> get mcpStatusStream =>
-      initialClient.mcpStatusStream;
 }

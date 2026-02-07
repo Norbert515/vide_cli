@@ -6,8 +6,8 @@ import 'package:vide_client/vide_client.dart'
     show
         createPendingRemoteVideSession,
         createRemoteVideSessionFromClientSession;
-import 'package:vide_core/vide_core.dart'
-    show videConfigManagerProvider, VideSession;
+import 'package:vide_core/vide_core.dart' show VideSession;
+import 'package:vide_cli/services/core_providers.dart';
 import 'package:vide_daemon/vide_daemon.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 

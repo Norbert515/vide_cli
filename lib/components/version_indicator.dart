@@ -2,6 +2,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/services/core_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Displays the current version and auto-update status in the top right corner.
@@ -53,7 +54,7 @@ class _VersionIndicatorState extends State<VersionIndicator>
     // Trigger initial update check after a short delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        context.read(autoUpdateServiceProvider.notifier).checkForUpdates();
+        context.read(autoUpdateServiceProvider).checkForUpdates();
       }
     });
   }
@@ -93,7 +94,9 @@ class _VersionIndicatorState extends State<VersionIndicator>
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final updateState = context.watch(autoUpdateServiceProvider);
+    final updateState =
+        context.watch(autoUpdateStateProvider).valueOrNull ??
+        context.read(autoUpdateServiceProvider).state;
 
     // Start/stop spinner based on status changes (only runs when downloading)
     _updateSpinnerForStatus(updateState.status);
@@ -168,7 +171,7 @@ class _VersionIndicatorCompactState extends State<VersionIndicatorCompact> {
     // Trigger initial update check after a short delay
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        context.read(autoUpdateServiceProvider.notifier).checkForUpdates();
+        context.read(autoUpdateServiceProvider).checkForUpdates();
       }
     });
   }
@@ -176,7 +179,9 @@ class _VersionIndicatorCompactState extends State<VersionIndicatorCompact> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final updateState = context.watch(autoUpdateServiceProvider);
+    final updateState =
+        context.watch(autoUpdateStateProvider).valueOrNull ??
+        context.read(autoUpdateServiceProvider).state;
 
     final text = _getText(updateState);
     final color = _getColor(updateState, theme);

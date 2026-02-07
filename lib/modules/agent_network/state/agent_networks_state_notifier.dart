@@ -1,12 +1,14 @@
+import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:riverpod/riverpod.dart';
+import 'package:vide_cli/services/core_providers.dart';
 
 final agentNetworksStateNotifierProvider =
     StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((
       ref,
     ) {
+      final configManager = ref.read(videConfigManagerProvider);
       return AgentNetworksStateNotifier(
-        ref.read(agentNetworkPersistenceManagerProvider),
+        AgentNetworkPersistenceManager(configManager: configManager),
       );
     });
 

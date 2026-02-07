@@ -1,12 +1,6 @@
 import 'dart:io';
 
-import 'package:riverpod/riverpod.dart';
-
 enum ProjectType { flutter, dart, nocterm, unknown }
-
-final projecTypeProvider = Provider<ProjectType>((ref) {
-  return ProjectDetector.detectProjectType();
-});
 
 /// Utility for detecting project types based on file markers
 class ProjectDetector {

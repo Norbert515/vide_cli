@@ -11,6 +11,7 @@ import 'package:vide_cli/modules/remote/remote_config.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
+import 'package:vide_cli/services/core_providers.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
 export 'package:vide_cli/modules/remote/remote_config.dart';
@@ -147,12 +148,8 @@ Future<void> main(
     ],
   );
 
-  // Create VideCore from the existing container with permission handler.
-  // The handler is also passed here for any future VideCore.startSession() calls.
-  videCore = VideCore.fromContainer(
-    container,
-    permissionHandler: _tuiPermissionHandler,
-  );
+  // Create VideCore with permission handler.
+  videCore = VideCore(VideCoreConfig(permissionHandler: _tuiPermissionHandler));
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
   final configManager = container.read(videConfigManagerProvider);

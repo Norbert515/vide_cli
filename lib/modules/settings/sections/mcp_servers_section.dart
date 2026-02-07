@@ -28,7 +28,6 @@ class McpServersSection extends StatefulComponent {
 class _McpServersSectionState extends State<McpServersSection> {
   int _selectedIndex = 0;
   McpStatusResponse? _mcpStatus;
-  StreamSubscription<McpStatusResponse>? _subscription;
   ClaudeSettingsManager? _settingsManager;
 
   List<McpServerStatusInfo> get _filteredServers {
@@ -45,11 +44,27 @@ class _McpServersSectionState extends State<McpServersSection> {
   }
 
   void _initMcpStatus() {
-    final videCore = context.read(videoCoreProvider);
-    _mcpStatus = videCore.mcpStatus;
-    _subscription = videCore.mcpStatusStream.listen((status) {
-      setState(() => _mcpStatus = status);
-    });
+    // MCP status is fetched from the current session's main agent client.
+    // If no session is active, MCP status won't be available until one starts.
+    final session = context.read(currentVideSessionProvider);
+    if (session is! LocalVideSession) return;
+
+    final mainAgent = session.mainAgent;
+    if (mainAgent == null) return;
+
+    // Fetch MCP status from the main agent's Claude client
+    _fetchMcpStatus(session, mainAgent.id);
+  }
+
+  Future<void> _fetchMcpStatus(LocalVideSession session, String agentId) async {
+    try {
+      final mcpStatus = await session.getMcpStatus(agentId);
+      if (mcpStatus != null && mounted) {
+        setState(() => _mcpStatus = mcpStatus);
+      }
+    } catch (_) {
+      // MCP status fetch failed - not critical
+    }
   }
 
   void _initSettingsManager() {
@@ -60,7 +75,6 @@ class _McpServersSectionState extends State<McpServersSection> {
 
   @override
   void dispose() {
-    _subscription?.cancel();
     super.dispose();
   }
 

@@ -41,12 +41,20 @@ export 'src/models/team_framework/team_framework.dart';
 // =============================================================================
 export 'src/services/vide_config_manager.dart';
 export 'src/services/bashboard_service.dart';
-export 'src/services/permission_provider.dart'
-    show PermissionHandler, permissionHandlerProvider;
+export 'src/services/permission_provider.dart' show PermissionHandler;
 export 'src/services/agent_network_persistence_manager.dart';
 export 'src/services/team_framework_loader.dart';
 export 'src/services/auto_update_service.dart';
-export 'src/services/claude_manager.dart' show claudeStatusProvider;
+export 'src/services/initial_claude_client.dart'
+    show
+        InitialClaudeClient,
+        createTemporaryMainAgentConfig,
+        loadAndApplyRealConfig;
+export 'src/services/session_services.dart';
+export 'src/services/agent_status_registry.dart';
+export 'src/services/claude_client_registry.dart';
+export 'src/services/claude_client_factory.dart'
+    show ClaudeClientFactory, ClaudeClientFactoryImpl;
 
 // Permissions (public utilities used by TUI)
 export 'src/services/permissions/permission_matcher.dart';
@@ -60,20 +68,16 @@ export 'src/services/permissions/permissions.dart';
 export 'src/services/settings/local_settings_manager.dart';
 
 // =============================================================================
-// Git (public models + client)
+// Git (public models + client + watcher)
 // =============================================================================
 export 'src/mcp/git/git_client.dart';
 export 'src/mcp/git/git_models.dart';
-export 'src/mcp/git/git_providers.dart'
-    show gitStatusStreamProvider, isGitRepoProvider;
+export 'src/mcp/git/git_status_watcher.dart';
 
 // =============================================================================
 // Utilities
 // =============================================================================
-export 'src/state/agent_status_manager.dart';
 export 'src/utils/project_detector.dart';
-export 'src/utils/working_dir_provider.dart';
-export 'src/utils/dangerously_skip_permissions_provider.dart';
 
 // =============================================================================
 // Claude SDK Re-exports (types needed by TUI for rendering/settings)

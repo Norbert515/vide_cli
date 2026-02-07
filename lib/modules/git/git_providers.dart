@@ -1,8 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
-import 'package:riverpod/riverpod.dart';
-import 'git_status_watcher.dart';
-import 'git_models.dart';
+import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_core/vide_core.dart';
 
 /// Provider for GitStatusWatcher instances, keyed by repository path.
 /// Uses autoDispose to clean up watchers when no longer needed.

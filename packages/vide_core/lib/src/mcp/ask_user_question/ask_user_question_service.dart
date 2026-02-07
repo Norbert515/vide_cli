@@ -1,14 +1,6 @@
 import 'dart:async';
-import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'ask_user_question_types.dart';
-
-/// Provider for the AskUserQuestion service (singleton)
-final askUserQuestionServiceProvider = Provider<AskUserQuestionService>((ref) {
-  final service = AskUserQuestionService();
-  ref.onDispose(() => service.dispose());
-  return service;
-});
 
 /// Service for handling AskUserQuestion requests between MCP tool and UI
 ///

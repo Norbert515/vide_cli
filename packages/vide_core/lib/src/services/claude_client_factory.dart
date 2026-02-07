@@ -1,10 +1,8 @@
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
 import '../agents/agent_configuration.dart';
-import '../mcp/mcp_provider.dart';
-import '../utils/dangerously_skip_permissions_provider.dart';
+import '../mcp/mcp_server_factory.dart';
 import 'permission_provider.dart';
 import 'vide_config_manager.dart';
 
@@ -69,39 +67,59 @@ abstract class ClaudeClientFactory {
 /// Default implementation of ClaudeClientFactory.
 class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   final String Function() _getWorkingDirectory;
-  final Ref _ref;
+  final VideConfigManager _configManager;
   final PermissionHandler? _permissionHandler;
+  final McpServerFactory _mcpServerFactory;
+  final bool Function() _getDangerouslySkipPermissions;
 
   ClaudeClientFactoryImpl({
     required String Function() getWorkingDirectory,
-    required Ref ref,
-    PermissionHandler? permissionHandler,
+    required VideConfigManager configManager,
+    required PermissionHandler permissionHandler,
+    required McpServerFactory mcpServerFactory,
+    required bool Function() getDangerouslySkipPermissions,
   }) : _getWorkingDirectory = getWorkingDirectory,
-       _ref = ref,
-       _permissionHandler = permissionHandler;
+       _configManager = configManager,
+       _permissionHandler = permissionHandler,
+       _mcpServerFactory = mcpServerFactory,
+       _getDangerouslySkipPermissions = getDangerouslySkipPermissions;
 
   /// Gets the enableStreaming setting from global settings.
   bool get _enableStreaming {
-    final configManager = _ref.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().enableStreaming;
+    return _configManager.readGlobalSettings().enableStreaming;
   }
 
   /// Gets the dangerouslySkipPermissions setting.
   ///
   /// Returns true if EITHER:
-  /// - The session-scoped provider is true (set via CLI flag, session-only)
+  /// - The session-scoped flag is true (set via CLI flag, session-only)
   /// - The global setting is true (set via settings UI, persistent)
   ///
   /// DANGEROUS: Only true in sandboxed environments (Docker).
   bool get _dangerouslySkipPermissions {
     // Check session-scoped override first (CLI flag)
-    final sessionOverride = _ref.read(dangerouslySkipPermissionsProvider);
-    if (sessionOverride) {
+    if (_getDangerouslySkipPermissions()) {
       return true;
     }
     // Fall back to global setting (settings UI)
-    final configManager = _ref.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+    return _configManager.readGlobalSettings().dangerouslySkipPermissions;
+  }
+
+  List<McpServerBase> _createMcpServers({
+    required AgentConfiguration config,
+    required AgentId agentId,
+    required String cwd,
+  }) {
+    return config.mcpServers
+            ?.map(
+              (server) => _mcpServerFactory.create(
+                type: server,
+                agentId: agentId,
+                projectPath: cwd,
+              ),
+            )
+            .toList() ??
+        [];
   }
 
   @override
@@ -120,21 +138,11 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
-    final mcpServers =
-        config.mcpServers
-            ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
-            )
-            .toList() ??
-        [];
+    final mcpServers = _createMcpServers(
+      config: config,
+      agentId: agentId,
+      cwd: cwd,
+    );
 
     final canUseTool = _createPermissionCallback(
       cwd: cwd,
@@ -169,21 +177,11 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       dangerouslySkipPermissions: _dangerouslySkipPermissions,
     );
 
-    final mcpServers =
-        config.mcpServers
-            ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
-            )
-            .toList() ??
-        [];
+    final mcpServers = _createMcpServers(
+      config: config,
+      agentId: agentId,
+      cwd: cwd,
+    );
 
     final canUseTool = _createPermissionCallback(
       cwd: cwd,
@@ -228,21 +226,11 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       forkSession: true,
     );
 
-    final mcpServers =
-        config.mcpServers
-            ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
-            )
-            .toList() ??
-        [];
+    final mcpServers = _createMcpServers(
+      config: config,
+      agentId: agentId,
+      cwd: cwd,
+    );
 
     final canUseTool = _createPermissionCallback(
       cwd: cwd,

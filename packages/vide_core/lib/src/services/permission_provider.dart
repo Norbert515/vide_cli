@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:vide_interface/vide_interface.dart';
 
 import '../api/vide_session.dart';
@@ -144,10 +143,12 @@ class PermissionHandler {
         VidePermissionContext(),
       );
       return switch (videResult) {
-        VidePermissionAllow(:final updatedInput) =>
-          PermissionResultAllow(updatedInput: updatedInput),
-        VidePermissionDeny(:final message) =>
-          PermissionResultDeny(message: message),
+        VidePermissionAllow(:final updatedInput) => PermissionResultAllow(
+          updatedInput: updatedInput,
+        ),
+        VidePermissionDeny(:final message) => PermissionResultDeny(
+          message: message,
+        ),
       };
     };
   }
@@ -176,18 +177,3 @@ class PermissionCallbackContext {
     required this.permissionHandler,
   });
 }
-
-/// Provider for the permission handler.
-///
-/// This MUST be overridden with a PermissionHandler instance.
-/// After each session is created, call handler.setSession(session) to register
-/// the session's agents for permission routing.
-///
-/// Throws [StateError] if accessed without being overridden - this is a
-/// security requirement to ensure permissions are always checked.
-final permissionHandlerProvider = Provider<PermissionHandler>((ref) {
-  throw StateError(
-    'permissionHandlerProvider must be overridden with a PermissionHandler. '
-    'This is required for security - permissions cannot be auto-allowed.',
-  );
-});

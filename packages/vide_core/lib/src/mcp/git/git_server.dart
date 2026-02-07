@@ -3,14 +3,8 @@ import 'dart:io';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:sentry/sentry.dart';
-import '../../models/agent_id.dart';
 import 'git_client.dart';
-import 'package:riverpod/riverpod.dart';
 import 'git_models.dart';
-
-final gitServerProvider = Provider.family<GitServer, AgentId>((ref, agentId) {
-  return GitServer();
-});
 
 /// MCP server for Git operations including worktrees
 class GitServer extends McpServerBase {

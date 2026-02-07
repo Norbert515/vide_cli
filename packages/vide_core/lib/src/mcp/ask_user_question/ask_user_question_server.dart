@@ -3,18 +3,9 @@ import 'dart:convert';
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:sentry/sentry.dart';
-import 'package:riverpod/riverpod.dart';
 import '../../models/agent_id.dart';
 import 'ask_user_question_service.dart';
 import 'ask_user_question_types.dart';
-
-final askUserQuestionServerProvider =
-    Provider.family<AskUserQuestionServer, AgentId>((ref, agentId) {
-      return AskUserQuestionServer(
-        callerAgentId: agentId,
-        service: ref.watch(askUserQuestionServiceProvider),
-      );
-    });
 
 /// MCP server providing AskUserQuestion tool
 ///

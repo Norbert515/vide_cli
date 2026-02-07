@@ -1,25 +1,21 @@
 /// LocalVideSession - In-process session implementation for the VideCore API.
 ///
 /// This provides the concrete local implementation of [VideSession],
-/// wrapping Riverpod providers and claude_sdk types.
+/// wrapping services and claude_sdk types.
 library;
 
 import 'dart:async';
 
 import 'package:claude_sdk/claude_sdk.dart' as claude;
-import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vide_interface/vide_interface.dart';
 
 import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
 import '../services/agent_network_manager.dart';
-import '../services/claude_manager.dart';
 import '../services/permissions/permission_checker.dart';
 import '../services/permissions/tool_input.dart';
-import '../services/vide_config_manager.dart';
-import '../state/agent_status_manager.dart';
-import '../utils/dangerously_skip_permissions_provider.dart';
+import '../services/session_services.dart';
 
 /// An active local (in-process) session with a network of agents.
 ///
@@ -31,12 +27,11 @@ import '../utils/dangerously_skip_permissions_provider.dart';
 /// in the vide_client package.
 class LocalVideSession implements VideSession {
   final String _networkId;
-  final ProviderContainer _container;
+  final SessionServices _services;
   final SessionEventHub _hub;
 
   /// Subscriptions to clean up on dispose.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
-  final List<ProviderSubscription<dynamic>> _providerSubscriptions = [];
 
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
@@ -57,10 +52,10 @@ class LocalVideSession implements VideSession {
 
   LocalVideSession._({
     required String networkId,
-    required ProviderContainer container,
+    required SessionServices services,
     PermissionCheckerConfig? permissionConfig,
   }) : _networkId = networkId,
-       _container = container,
+       _services = services,
        _hub = SessionEventHub(syncController: true) {
     // Create permission checker for this session
     _permissionChecker = PermissionChecker(
@@ -74,13 +69,13 @@ class LocalVideSession implements VideSession {
   /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
   static LocalVideSession create({
     required String networkId,
-    required ProviderContainer container,
+    required SessionServices services,
     PermissionCheckerConfig? permissionConfig,
     String? initialMessage,
   }) {
     final session = LocalVideSession._(
       networkId: networkId,
-      container: container,
+      services: services,
       permissionConfig: permissionConfig,
     );
     session._initialize();
@@ -101,7 +96,7 @@ class LocalVideSession implements VideSession {
     _subscribeToNetworkChanges();
 
     // Subscribe to all existing agents
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     if (network != null) {
       for (final agent in network.agents) {
         _subscribeToAgent(agent);
@@ -121,7 +116,7 @@ class LocalVideSession implements VideSession {
 
   @override
   List<VideAgent> get agents {
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agents.map(_mapAgent).toList();
   }
@@ -138,7 +133,7 @@ class LocalVideSession implements VideSession {
 
   @override
   List<String> get agentIds {
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agentIds;
   }
@@ -146,7 +141,7 @@ class LocalVideSession implements VideSession {
   @override
   bool get isProcessing {
     for (final agentId in _agentStates.keys) {
-      final client = _container.read(claudeProvider(agentId));
+      final client = _services.clientRegistry[agentId];
       if (client?.currentConversation.isProcessing ?? false) {
         return true;
       }
@@ -156,13 +151,13 @@ class LocalVideSession implements VideSession {
 
   @override
   String get workingDirectory {
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     return manager.effectiveWorkingDirectory;
   }
 
   @override
   String get goal {
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     return network?.goal ?? 'Session';
   }
 
@@ -176,14 +171,14 @@ class LocalVideSession implements VideSession {
 
   @override
   String get team {
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     return network?.team ?? 'vide';
   }
 
   @override
   void sendMessage(VideMessage message, {String? agentId}) {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     final targetAgent = agentId ?? mainAgent?.id;
     if (targetAgent == null) {
       throw StateError('No agents in session');
@@ -231,9 +226,7 @@ class LocalVideSession implements VideSession {
         completer.complete(const claude.PermissionResultAllow());
       } else {
         completer.complete(
-          claude.PermissionResultDeny(
-            message: message ?? 'Permission denied',
-          ),
+          claude.PermissionResultDeny(message: message ?? 'Permission denied'),
         );
       }
     }
@@ -242,10 +235,10 @@ class LocalVideSession implements VideSession {
   @override
   Future<void> abort() async {
     _checkNotDisposed();
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     if (network == null || network.id != _networkId) return;
 
-    final clients = _container.read(claudeManagerProvider);
+    final clients = _services.clientRegistry.all;
     for (final agent in network.agents) {
       final client = clients[agent.id];
       if (client != null) {
@@ -257,7 +250,7 @@ class LocalVideSession implements VideSession {
   @override
   Future<void> abortAgent(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     if (client != null) {
       await client.abort();
     }
@@ -269,21 +262,21 @@ class LocalVideSession implements VideSession {
     final targetId = agentId ?? mainAgent?.id;
     if (targetId == null) return;
 
-    final client = _container.read(claudeProvider(targetId));
+    final client = _services.clientRegistry[targetId];
     await client?.clearConversation();
   }
 
   @override
   Future<void> setWorktreePath(String? path) async {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     await manager.setWorktreePath(path);
   }
 
   @override
   VideConversation? getConversation(String agentId) {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     final conversation = client?.currentConversation;
     if (conversation == null) return null;
     return _convertConversation(conversation);
@@ -292,7 +285,7 @@ class LocalVideSession implements VideSession {
   @override
   Stream<VideConversation> conversationStream(String agentId) {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     if (client == null) return const Stream.empty();
     return client.conversation.map(_convertConversation);
   }
@@ -307,7 +300,7 @@ class LocalVideSession implements VideSession {
     required double totalCostUsd,
   }) {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     manager.updateAgentTokenStats(
       agentId,
       totalInputTokens: totalInputTokens,
@@ -325,7 +318,7 @@ class LocalVideSession implements VideSession {
     String? reason,
   }) async {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     await manager.terminateAgent(
       targetAgentId: agentId,
       terminatedBy: terminatedBy,
@@ -336,7 +329,7 @@ class LocalVideSession implements VideSession {
   @override
   Future<String> forkAgent(String agentId, {String? name}) async {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
 
@@ -348,7 +341,7 @@ class LocalVideSession implements VideSession {
     required String spawnedBy,
   }) async {
     _checkNotDisposed();
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    final manager = _services.networkManager;
     return await manager.spawnAgent(
       agentType: agentType,
       name: name,
@@ -359,34 +352,34 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<String?> getQueuedMessage(String agentId) async {
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     return client?.currentQueuedMessage;
   }
 
   @override
   Stream<String?> queuedMessageStream(String agentId) {
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     return client?.queuedMessage ?? const Stream.empty();
   }
 
   @override
   Future<void> clearQueuedMessage(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     client?.clearQueuedMessage();
   }
 
   @override
   Future<String?> getModel(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     return client?.initData?.model;
   }
 
   @override
   Stream<String?> modelStream(String agentId) {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _services.clientRegistry[agentId];
     if (client == null) return Stream.value(null);
     return client.initDataStream.map((meta) => meta.model);
   }
@@ -399,6 +392,17 @@ class LocalVideSession implements VideSession {
     _checkNotDisposed();
     final completer = _pendingAskUserQuestions.remove(requestId);
     completer?.complete(answers);
+  }
+
+  /// Get MCP status from a specific agent's Claude client.
+  ///
+  /// Returns null if the agent doesn't exist or the client isn't ready.
+  Future<claude.McpStatusResponse?> getMcpStatus(String agentId) async {
+    _checkNotDisposed();
+    final client = _services.clientRegistry[agentId];
+    if (client == null) return null;
+    await client.initialized;
+    return await client.getMcpStatus();
   }
 
   @override
@@ -448,8 +452,9 @@ class LocalVideSession implements VideSession {
       return switch (claudeResult) {
         claude.PermissionResultAllow(:final updatedInput) =>
           VidePermissionAllow(updatedInput: updatedInput),
-        claude.PermissionResultDeny(:final message) =>
-          VidePermissionDeny(message: message),
+        claude.PermissionResultDeny(:final message) => VidePermissionDeny(
+          message: message,
+        ),
       };
     };
   }
@@ -462,7 +467,7 @@ class LocalVideSession implements VideSession {
     // Fire onSessionEnd trigger before cleanup (if enabled)
     if (fireEndTrigger) {
       try {
-        final manager = _container.read(agentNetworkManagerProvider.notifier);
+        final manager = _services.networkManager;
         await manager.fireSessionEndTrigger();
       } catch (e) {
         // Don't fail dispose if trigger fails
@@ -475,11 +480,6 @@ class LocalVideSession implements VideSession {
       await sub.cancel();
     }
     _subscriptions.clear();
-
-    for (final sub in _providerSubscriptions) {
-      sub.close();
-    }
-    _providerSubscriptions.clear();
 
     // Complete any pending permissions with deny
     for (final completer in _pendingPermissions.values) {
@@ -519,10 +519,10 @@ class LocalVideSession implements VideSession {
 
   /// Whether to skip all permission checks (auto-approve everything).
   bool get _dangerouslySkipPermissions {
-    final sessionOverride = _container.read(dangerouslySkipPermissionsProvider);
-    if (sessionOverride) return true;
-    final configManager = _container.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+    if (_services.dangerouslySkipPermissions) return true;
+    return _services.configManager
+        .readGlobalSettings()
+        .dangerouslySkipPermissions;
   }
 
   /// Internal permission callback implementation using claude_sdk types.
@@ -692,19 +692,22 @@ class LocalVideSession implements VideSession {
   }
 
   void _subscribeToNetworkChanges() {
-    final subscription = _container.listen(agentNetworkManagerProvider, (
-      previous,
-      next,
-    ) {
-      if (next.currentNetwork?.id != _networkId) return;
+    // Track the previous state for diffing
+    AgentNetworkState? previousState = _services.networkManager.state;
+
+    final subscription = _services.networkManager.stateStream.listen((next) {
+      if (next.currentNetwork?.id != _networkId) {
+        previousState = next;
+        return;
+      }
 
       final prevAgentIds =
-          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+          previousState?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
       final nextAgentIds =
           next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
 
       // Check for goal changes
-      final prevGoal = previous?.currentNetwork?.goal;
+      final prevGoal = previousState?.currentNetwork?.goal;
       final nextGoal = next.currentNetwork?.goal;
       if (prevGoal != nextGoal && nextGoal != null) {
         final mainAgent = next.currentNetwork!.agents.isNotEmpty
@@ -744,7 +747,7 @@ class LocalVideSession implements VideSession {
 
       // Check for removed agents (terminated)
       for (final agentId in prevAgentIds.difference(nextAgentIds)) {
-        final agent = previous!.currentNetwork!.agents.firstWhere(
+        final agent = previousState!.currentNetwork!.agents.firstWhere(
           (a) => a.id == agentId,
         );
 
@@ -759,14 +762,16 @@ class LocalVideSession implements VideSession {
 
         _unsubscribeFromAgent(agentId);
       }
-    }, fireImmediately: false);
-    _providerSubscriptions.add(subscription);
+
+      previousState = next;
+    });
+    _subscriptions.add(subscription);
   }
 
   void _subscribeToAgent(AgentMetadata agent) {
     if (_agentStates.containsKey(agent.id)) return;
 
-    final client = _container.read(claudeProvider(agent.id));
+    final client = _services.clientRegistry[agent.id];
     if (client == null) return;
 
     _agentStates[agent.id] = _AgentStreamState(
@@ -775,7 +780,7 @@ class LocalVideSession implements VideSession {
       agentName: agent.name,
     );
 
-    final initialStatus = _container.read(agentStatusProvider(agent.id));
+    final initialStatus = _services.statusRegistry.getStatus(agent.id);
     _hub.emit(
       StatusEvent(
         agentId: agent.id,
@@ -848,13 +853,11 @@ class LocalVideSession implements VideSession {
     });
     _subscriptions.add(turnCompleteSub);
 
-    final statusSub = _container.listen<internal.AgentStatus>(
-      agentStatusProvider(agent.id),
-      (previous, next) {
-        if (previous != null && previous != next) {
-          final network = _container
-              .read(agentNetworkManagerProvider)
-              .currentNetwork;
+    // Subscribe to status changes for this agent via the registry stream
+    final statusSub = _services.statusRegistry.changes
+        .where((change) => change.agentId == agent.id)
+        .listen((change) {
+          final network = _services.networkManager.state.currentNetwork;
           final agentMeta = network?.agents
               .where((a) => a.id == agent.id)
               .firstOrNull;
@@ -869,14 +872,11 @@ class LocalVideSession implements VideSession {
               agentType: agent.type,
               agentName: agent.name,
               taskName: state?.taskName,
-              status: _mapStatus(next),
+              status: _mapStatus(change.newStatus),
             ),
           );
-        }
-      },
-      fireImmediately: false,
-    );
-    _providerSubscriptions.add(statusSub);
+        });
+    _subscriptions.add(statusSub);
   }
 
   void _unsubscribeFromAgent(String agentId) {
@@ -892,7 +892,7 @@ class LocalVideSession implements VideSession {
     final state = _agentStates[agent.id];
     if (state == null) return;
 
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _services.networkManager.state.currentNetwork;
     final agentMeta = network?.agents
         .where((a) => a.id == agent.id)
         .firstOrNull;
@@ -1038,12 +1038,10 @@ class LocalVideSession implements VideSession {
       totalInputTokens: conversation.totalInputTokens,
       totalOutputTokens: conversation.totalOutputTokens,
       totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens:
-          conversation.totalCacheCreationInputTokens,
+      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
       totalCostUsd: conversation.totalCostUsd,
       currentContextInputTokens: conversation.currentContextInputTokens,
-      currentContextCacheReadTokens:
-          conversation.currentContextCacheReadTokens,
+      currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
       currentContextCacheCreationTokens:
           conversation.currentContextCacheCreationTokens,
       currentError: conversation.currentError,
@@ -1051,9 +1049,7 @@ class LocalVideSession implements VideSession {
   }
 
   /// Convert a claude_sdk ConversationMessage to VideConversationMessage.
-  VideConversationMessage _convertMessage(
-    claude.ConversationMessage message,
-  ) {
+  VideConversationMessage _convertMessage(claude.ConversationMessage message) {
     return VideConversationMessage(
       id: message.id,
       role: message.role == claude.MessageRole.user
@@ -1114,7 +1110,7 @@ class LocalVideSession implements VideSession {
   }
 
   VideAgent _mapAgent(AgentMetadata agent) {
-    final status = _container.read(agentStatusProvider(agent.id));
+    final status = _services.statusRegistry.getStatus(agent.id);
     return VideAgent(
       id: agent.id,
       name: agent.name,
