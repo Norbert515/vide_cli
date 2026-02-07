@@ -63,6 +63,9 @@ abstract interface class VideSession {
   /// The effective working directory for this session.
   String get workingDirectory;
 
+  /// Stream that emits the current working directory whenever it changes.
+  Stream<String> get workingDirectoryStream;
+
   /// The goal/task name for this session.
   String get goal;
 

@@ -14,6 +14,6 @@ void main() {
 
     // Verify that the app launches with the connection screen.
     expect(find.text('Vide'), findsOneWidget);
-    expect(find.text('Connect to Vide Server'), findsOneWidget);
+    expect(find.text('Connect to Server'), findsOneWidget);
   });
 }

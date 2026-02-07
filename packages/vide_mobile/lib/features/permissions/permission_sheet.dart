@@ -1,15 +1,15 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:vide_client/vide_client.dart';
 
 import '../../core/theme/glass_surface.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/theme/vide_colors.dart';
-import '../../domain/models/models.dart';
 
 /// Bottom sheet for permission requests.
 class PermissionSheet extends StatefulWidget {
-  final PermissionRequest request;
+  final PermissionRequestEvent request;
   final void Function({required bool remember}) onAllow;
   final VoidCallback onDeny;
 

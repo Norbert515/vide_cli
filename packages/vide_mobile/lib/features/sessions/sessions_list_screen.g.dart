@@ -6,14 +6,14 @@ part of 'sessions_list_screen.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sessionsListHash() => r'5692fae20a15964ecbecad235442d80fb3233055';
+String _$sessionsListHash() => r'ef7c56a751976f1c6045af3dbe82c540e3a4ec5e';
 
 /// Provider to fetch sessions list.
 ///
 /// Copied from [sessionsList].
 @ProviderFor(sessionsList)
 final sessionsListProvider =
-    AutoDisposeFutureProvider<List<vc.SessionSummary>>.internal(
+    AutoDisposeFutureProvider<List<SessionSummary>>.internal(
   sessionsList,
   name: r'sessionsListProvider',
   debugGetCreateSourceHash:
@@ -24,6 +24,6 @@ final sessionsListProvider =
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef SessionsListRef = AutoDisposeFutureProviderRef<List<vc.SessionSummary>>;
+typedef SessionsListRef = AutoDisposeFutureProviderRef<List<SessionSummary>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

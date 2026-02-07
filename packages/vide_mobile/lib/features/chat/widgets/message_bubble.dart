@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
-import '../../../domain/models/models.dart';
 
 /// A minimal message block.
 ///
 /// User messages get a subtle accent left border.
 /// Agent messages have no border — just content.
 class MessageBubble extends StatelessWidget {
-  final ChatMessage message;
+  final ConversationEntry entry;
 
   const MessageBubble({
     super.key,
-    required this.message,
+    required this.entry,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isUser = message.role == MessageRole.user;
+    final isUser = entry.role == 'user';
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
@@ -37,11 +37,11 @@ class MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: isUser
             ? Text(
-                message.content,
+                entry.text,
                 style: TextStyle(color: colorScheme.onSurface),
               )
             : MarkdownBody(
-                data: message.content,
+                data: entry.text,
                 styleSheet: MarkdownStyleSheet(
                   p: TextStyle(
                     color: colorScheme.onSurface,

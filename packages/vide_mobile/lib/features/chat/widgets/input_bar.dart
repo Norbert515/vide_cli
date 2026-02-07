@@ -58,7 +58,6 @@ class _InputBarState extends State<InputBar> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Padding(

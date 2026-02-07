@@ -3,13 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:vide_client/vide_client.dart';
+
 import '../../features/chat/chat_screen.dart';
 import '../../features/chat/widgets/tool_card.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
 import '../../features/sessions/sessions_list_screen.dart';
 import '../../features/settings/settings_screen.dart';
-import '../../domain/models/models.dart';
 
 part 'app_router.g.dart';
 
@@ -59,11 +60,8 @@ GoRouter appRouter(Ref ref) {
         path: AppRoutes.toolDetail,
         name: 'toolDetail',
         builder: (context, state) {
-          final extra = state.extra! as Map<String, dynamic>;
-          return ToolDetailScreen(
-            toolUse: extra['toolUse'] as ToolUse,
-            result: extra['result'] as ToolResult?,
-          );
+          final tool = state.extra! as ToolContent;
+          return ToolDetailScreen(tool: tool);
         },
       ),
       GoRoute(

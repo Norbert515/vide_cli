@@ -117,6 +117,18 @@ final sessionGoalStreamProvider = StreamProvider<String>((ref) {
   return session.goalStream;
 });
 
+/// Stream provider that emits when the session's working directory changes.
+///
+/// In daemon mode, the working directory arrives asynchronously via the
+/// WebSocket `connected` event. This stream enables providers like
+/// [currentRepoPathProvider] to reactively update when it arrives.
+final sessionWorkingDirectoryStreamProvider = StreamProvider<String>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  if (session == null) return const Stream.empty();
+
+  return session.workingDirectoryStream;
+});
+
 /// Provider that emits the current agents list whenever it changes.
 ///
 /// This is a unified provider that works for both local and remote sessions.

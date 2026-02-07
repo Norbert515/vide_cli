@@ -1,7 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:vide_client/vide_client.dart' as vc;
+import 'package:vide_client/vide_client.dart';
 
 import '../../domain/models/server_connection.dart';
 import '../local/settings_storage.dart';
@@ -11,7 +11,7 @@ part 'connection_repository.g.dart';
 /// State for the connection repository.
 class ConnectionState {
   final ServerConnection? connection;
-  final vc.VideClient? client;
+  final VideClient? client;
   final bool isConnected;
 
   const ConnectionState({
@@ -22,7 +22,7 @@ class ConnectionState {
 
   ConnectionState copyWith({
     ServerConnection? connection,
-    vc.VideClient? client,
+    VideClient? client,
     bool? isConnected,
   }) {
     return ConnectionState(
@@ -49,7 +49,7 @@ class ConnectionRepository extends _$ConnectionRepository {
   Future<bool> testConnection(ServerConnection connection) async {
     _log('Testing connection to ${connection.host}:${connection.port}');
 
-    final client = vc.VideClient(
+    final client = VideClient(
       host: connection.host,
       port: connection.port,
     );
@@ -63,7 +63,7 @@ class ConnectionRepository extends _$ConnectionRepository {
   Future<void> connect(ServerConnection connection) async {
     _log('Connecting to ${connection.host}:${connection.port}');
 
-    final client = vc.VideClient(
+    final client = VideClient(
       host: connection.host,
       port: connection.port,
     );
@@ -71,7 +71,7 @@ class ConnectionRepository extends _$ConnectionRepository {
     // Test the connection
     final isHealthy = await client.checkHealth();
     if (!isHealthy) {
-      throw vc.VideClientException('Server health check failed');
+      throw VideClientException('Server health check failed');
     }
 
     // Save the connection
@@ -94,7 +94,7 @@ class ConnectionRepository extends _$ConnectionRepository {
   }
 
   /// Gets the current API client.
-  vc.VideClient? get client => state.client;
+  VideClient? get client => state.client;
 
   /// Gets the current connection.
   ServerConnection? get connection => state.connection;

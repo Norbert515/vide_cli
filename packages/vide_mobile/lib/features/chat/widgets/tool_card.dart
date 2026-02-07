@@ -1,22 +1,20 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
-import '../../../domain/models/models.dart';
 
 /// A compact, dense card displaying a tool invocation.
 /// Shows tool name + contextual subtitle. Tap opens full detail page.
 class ToolCard extends StatelessWidget {
-  final ToolUse toolUse;
-  final ToolResult? result;
+  final ToolContent tool;
   final VoidCallback? onTap;
 
   const ToolCard({
     super.key,
-    required this.toolUse,
-    this.result,
+    required this.tool,
     this.onTap,
   });
 
@@ -24,8 +22,8 @@ class ToolCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final hasResult = result != null;
-    final isError = result?.isError ?? false;
+    final hasResult = tool.result != null;
+    final isError = tool.isError;
 
     final statusColor = isError
         ? videColors.error
@@ -33,8 +31,8 @@ class ToolCard extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = _toolDisplayName(toolUse.toolName);
-    final subtitle = _toolSubtitle(toolUse);
+    final displayName = _toolDisplayName(tool.toolName);
+    final subtitle = _toolSubtitle(tool);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -124,9 +122,9 @@ String _toolDisplayName(String toolName) {
 }
 
 /// Extracts a contextual subtitle from the tool input.
-String? _toolSubtitle(ToolUse toolUse) {
-  final input = toolUse.input;
-  final toolName = _toolDisplayName(toolUse.toolName);
+String? _toolSubtitle(ToolContent tool) {
+  final input = tool.toolInput;
+  final toolName = _toolDisplayName(tool.toolName);
 
   switch (toolName) {
     case 'Read':
@@ -167,21 +165,19 @@ String? _toolSubtitle(ToolUse toolUse) {
 
 /// Full-screen detail view for a tool invocation.
 class ToolDetailScreen extends StatelessWidget {
-  final ToolUse toolUse;
-  final ToolResult? result;
+  final ToolContent tool;
 
   const ToolDetailScreen({
     super.key,
-    required this.toolUse,
-    this.result,
+    required this.tool,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final hasResult = result != null;
-    final isError = result?.isError ?? false;
+    final hasResult = tool.result != null;
+    final isError = tool.isError;
 
     final statusColor = isError
         ? videColors.error
@@ -189,7 +185,7 @@ class ToolDetailScreen extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = _toolDisplayName(toolUse.toolName);
+    final displayName = _toolDisplayName(tool.toolName);
 
     return Scaffold(
       appBar: AppBar(
@@ -212,28 +208,13 @@ class ToolDetailScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(VideSpacing.md),
         children: [
-          if (toolUse.agentName != null) ...[
-            _SectionLabel(
-              label: 'Agent',
-              color: videColors.textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              toolUse.agentName!,
-              style: TextStyle(
-                fontSize: 13,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: VideSpacing.md),
-          ],
           _SectionLabel(
             label: 'Input',
             color: videColors.accent,
           ),
           const SizedBox(height: 4),
           _CodeBlock(
-            text: const JsonEncoder.withIndent('  ').convert(toolUse.input),
+            text: const JsonEncoder.withIndent('  ').convert(tool.toolInput),
             backgroundColor: colorScheme.surfaceContainerHighest,
             borderColor: colorScheme.outlineVariant,
             textColor: colorScheme.onSurface,
@@ -246,7 +227,7 @@ class ToolDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             _CodeBlock(
-              text: _formatResult(result!.result),
+              text: _formatResult(tool.result),
               backgroundColor: isError
                   ? videColors.errorContainer
                   : colorScheme.surfaceContainerHighest,

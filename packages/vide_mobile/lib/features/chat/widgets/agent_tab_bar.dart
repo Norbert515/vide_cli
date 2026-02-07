@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
-import '../../../domain/models/agent.dart';
 
 /// Tab bar showing one tab per agent with TUI-style status indicators.
 class AgentTabBar extends StatelessWidget {
-  final List<Agent> agents;
+  final List<VideAgent> agents;
   final int selectedIndex;
   final ValueChanged<int> onTabSelected;
 
@@ -115,7 +115,7 @@ class _TabChip extends StatelessWidget {
 /// TUI-style status indicator using braille spinner for working,
 /// and static characters for other states.
 class _AgentStatusIndicator extends StatefulWidget {
-  final AgentStatus status;
+  final VideAgentStatus status;
 
   const _AgentStatusIndicator({required this.status});
 
@@ -159,7 +159,7 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
   }
 
   void _updateAnimation() {
-    if (widget.status == AgentStatus.working) {
+    if (widget.status == VideAgentStatus.working) {
       _controller.repeat();
     } else {
       _controller.stop();
@@ -176,7 +176,7 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
   Widget build(BuildContext context) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
-    if (widget.status == AgentStatus.working) {
+    if (widget.status == VideAgentStatus.working) {
       return AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
@@ -195,10 +195,10 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
     }
 
     final (char, color) = switch (widget.status) {
-      AgentStatus.working => ('', videColors.accent),
-      AgentStatus.waitingForAgent => ('\u2026', videColors.textSecondary),
-      AgentStatus.waitingForUser => ('?', videColors.warning),
-      AgentStatus.idle => ('\u2713', videColors.success),
+      VideAgentStatus.working => ('', videColors.accent),
+      VideAgentStatus.waitingForAgent => ('\u2026', videColors.textSecondary),
+      VideAgentStatus.waitingForUser => ('?', videColors.warning),
+      VideAgentStatus.idle => ('\u2713', videColors.success),
     };
 
     return Text(

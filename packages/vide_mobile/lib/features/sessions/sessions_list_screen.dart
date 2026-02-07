@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'package:vide_client/vide_client.dart' as vc;
+import 'package:vide_client/vide_client.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
@@ -13,7 +13,7 @@ part 'sessions_list_screen.g.dart';
 
 /// Provider to fetch sessions list.
 @riverpod
-Future<List<vc.SessionSummary>> sessionsList(Ref ref) async {
+Future<List<SessionSummary>> sessionsList(Ref ref) async {
   final connectionState = ref.watch(connectionRepositoryProvider);
   if (!connectionState.isConnected || connectionState.client == null) {
     return [];
@@ -29,7 +29,7 @@ class SessionsListScreen extends ConsumerWidget {
   Future<void> _stopSession(
     BuildContext context,
     WidgetRef ref,
-    vc.SessionSummary session,
+    SessionSummary session,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -181,7 +181,7 @@ class SessionsListScreen extends ConsumerWidget {
 }
 
 class _SessionCard extends StatelessWidget {
-  final vc.SessionSummary session;
+  final SessionSummary session;
   final VoidCallback? onStop;
 
   const _SessionCard({required this.session, this.onStop});

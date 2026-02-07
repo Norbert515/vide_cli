@@ -5,39 +5,37 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
-import 'package:vide_client/vide_client.dart' as vc;
+import 'package:vide_client/vide_client.dart';
 
 import '../../data/repositories/connection_repository.dart';
 import '../../data/repositories/session_repository.dart';
-import '../../domain/models/models.dart';
-import '../chat/chat_state.dart';
 import 'session_creation_state.dart';
 
 final _fallbackTeams = [
-  vc.TeamInfo(
+  TeamInfo(
       name: 'vide',
       description: 'Full-featured multi-agent team',
       mainAgent: '',
       agents: []),
-  vc.TeamInfo(
+  TeamInfo(
       name: 'startup',
       description: 'Fast and lean, minimal agents',
       mainAgent: '',
       agents: []),
-  vc.TeamInfo(
+  TeamInfo(
     name: 'enterprise',
     description: 'Comprehensive with QA and review',
     mainAgent: '',
     agents: [],
   ),
-  vc.TeamInfo(
+  TeamInfo(
       name: 'research',
       description: 'Deep exploration and analysis',
       mainAgent: '',
       agents: []),
 ];
 
-final availableTeamsProvider = FutureProvider<List<vc.TeamInfo>>((ref) async {
+final availableTeamsProvider = FutureProvider<List<TeamInfo>>((ref) async {
   final connectionState = ref.watch(connectionRepositoryProvider);
   final client = connectionState.client;
   if (client == null) {
@@ -124,21 +122,11 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
       await settingsStorage.saveLastTeam(state.team);
 
       if (mounted) {
-        // Pre-populate chat state with the initial user message so it's
-        // visible immediately when navigating to the chat screen.
-        ref.read(chatNotifierProvider(session.sessionId).notifier)
-          ..addMessage(ChatMessage(
-            eventId: 'initial-${DateTime.now().millisecondsSinceEpoch}',
-            role: MessageRole.user,
-            content: state.initialMessage,
-            agentId: 'user',
-            agentType: 'user',
-            timestamp: DateTime.now(),
-          ))
-          ..setIsAgentWorking(true);
-
+        // The initial message is already sent to the server via createSession.
+        // RemoteVideSession tracks processing state internally — the chat
+        // screen reads session.isProcessing directly.
         notifier.setIsCreating(false);
-        context.go(AppRoutes.sessionPath(session.sessionId));
+        context.go(AppRoutes.sessionPath(session.id));
       }
     } catch (e) {
       if (mounted) {
@@ -307,7 +295,7 @@ class _TeamSelector extends ConsumerWidget {
   }
 
   Widget _buildTeamList(
-    List<vc.TeamInfo> teams,
+    List<TeamInfo> teams,
     ColorScheme colorScheme,
     VideThemeColors videColors,
   ) {

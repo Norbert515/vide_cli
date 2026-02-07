@@ -6,7 +6,7 @@ part of 'chat_state.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$chatNotifierHash() => r'f98e47013655916accccc95bb860999330943d0d';
+String _$chatNotifierHash() => r'5dbfe7fe9d7344ed7a129bd43198a127db59666a';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -37,42 +37,38 @@ abstract class _$ChatNotifier extends BuildlessNotifier<ChatState> {
   );
 }
 
-/// Provider for chat state management.
+/// Thin UI notifier for chat-screen-specific state.
 ///
-/// Kept alive so that optimistic user messages added before navigating
-/// to the chat screen survive the route transition (auto-dispose would
-/// reset the state between the creation screen disposing and the chat
-/// screen subscribing).
+/// All conversation data (messages, tools, agents, processing status) is
+/// owned by [RemoteVideSession]. This notifier only tracks transient UI
+/// concerns: pending permission dialogs and error banners.
 ///
 /// Copied from [ChatNotifier].
 @ProviderFor(ChatNotifier)
 const chatNotifierProvider = ChatNotifierFamily();
 
-/// Provider for chat state management.
+/// Thin UI notifier for chat-screen-specific state.
 ///
-/// Kept alive so that optimistic user messages added before navigating
-/// to the chat screen survive the route transition (auto-dispose would
-/// reset the state between the creation screen disposing and the chat
-/// screen subscribing).
+/// All conversation data (messages, tools, agents, processing status) is
+/// owned by [RemoteVideSession]. This notifier only tracks transient UI
+/// concerns: pending permission dialogs and error banners.
 ///
 /// Copied from [ChatNotifier].
 class ChatNotifierFamily extends Family<ChatState> {
-  /// Provider for chat state management.
+  /// Thin UI notifier for chat-screen-specific state.
   ///
-  /// Kept alive so that optimistic user messages added before navigating
-  /// to the chat screen survive the route transition (auto-dispose would
-  /// reset the state between the creation screen disposing and the chat
-  /// screen subscribing).
+  /// All conversation data (messages, tools, agents, processing status) is
+  /// owned by [RemoteVideSession]. This notifier only tracks transient UI
+  /// concerns: pending permission dialogs and error banners.
   ///
   /// Copied from [ChatNotifier].
   const ChatNotifierFamily();
 
-  /// Provider for chat state management.
+  /// Thin UI notifier for chat-screen-specific state.
   ///
-  /// Kept alive so that optimistic user messages added before navigating
-  /// to the chat screen survive the route transition (auto-dispose would
-  /// reset the state between the creation screen disposing and the chat
-  /// screen subscribing).
+  /// All conversation data (messages, tools, agents, processing status) is
+  /// owned by [RemoteVideSession]. This notifier only tracks transient UI
+  /// concerns: pending permission dialogs and error banners.
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider call(
@@ -107,22 +103,20 @@ class ChatNotifierFamily extends Family<ChatState> {
   String? get name => r'chatNotifierProvider';
 }
 
-/// Provider for chat state management.
+/// Thin UI notifier for chat-screen-specific state.
 ///
-/// Kept alive so that optimistic user messages added before navigating
-/// to the chat screen survive the route transition (auto-dispose would
-/// reset the state between the creation screen disposing and the chat
-/// screen subscribing).
+/// All conversation data (messages, tools, agents, processing status) is
+/// owned by [RemoteVideSession]. This notifier only tracks transient UI
+/// concerns: pending permission dialogs and error banners.
 ///
 /// Copied from [ChatNotifier].
 class ChatNotifierProvider
     extends NotifierProviderImpl<ChatNotifier, ChatState> {
-  /// Provider for chat state management.
+  /// Thin UI notifier for chat-screen-specific state.
   ///
-  /// Kept alive so that optimistic user messages added before navigating
-  /// to the chat screen survive the route transition (auto-dispose would
-  /// reset the state between the creation screen disposing and the chat
-  /// screen subscribing).
+  /// All conversation data (messages, tools, agents, processing status) is
+  /// owned by [RemoteVideSession]. This notifier only tracks transient UI
+  /// concerns: pending permission dialogs and error banners.
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider(
@@ -212,23 +206,5 @@ class _ChatNotifierProviderElement
   @override
   String get sessionId => (origin as ChatNotifierProvider).sessionId;
 }
-
-String _$messageInputHash() => r'baac7ef31c581fa0a71f631a8e562037ab5889ca';
-
-/// Provider for the message input text.
-///
-/// Copied from [MessageInput].
-@ProviderFor(MessageInput)
-final messageInputProvider =
-    AutoDisposeNotifierProvider<MessageInput, String>.internal(
-  MessageInput.new,
-  name: r'messageInputProvider',
-  debugGetCreateSourceHash:
-      const bool.fromEnvironment('dart.vm.product') ? null : _$messageInputHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-typedef _$MessageInput = AutoDisposeNotifier<String>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

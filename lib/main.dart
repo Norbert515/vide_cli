@@ -86,15 +86,25 @@ final repoPathOverrideProvider = StateProvider<String?>((ref) => null);
 /// Provider for current repository path. Uses manual override if set,
 /// otherwise uses effective working directory from the current session
 /// (accounts for worktrees), or falls back to Directory.current.path.
+///
+/// Watches [sessionWorkingDirectoryStreamProvider] so that in daemon mode,
+/// when the working directory arrives asynchronously via the WebSocket
+/// `connected` event, this provider re-evaluates and downstream consumers
+/// (git sidebar, git repo check) update accordingly.
 final currentRepoPathProvider = Provider<String>((ref) {
   // Manual override takes precedence
   final override = ref.watch(repoPathOverrideProvider);
   if (override != null) {
     return override;
   }
-  // Otherwise use session's working directory
+  // Watch the stream for reactive updates when working directory changes
+  final streamValue =
+      ref.watch(sessionWorkingDirectoryStreamProvider).valueOrNull;
   final session = ref.watch(currentVideSessionProvider);
-  return session?.workingDirectory ?? Directory.current.path;
+  final sessionDir = streamValue ?? session?.workingDirectory;
+  // Guard against empty string (pending daemon sessions start with '')
+  if (sessionDir != null && sessionDir.isNotEmpty) return sessionDir;
+  return Directory.current.path;
 });
 
 /// Global permission handler for late session binding.

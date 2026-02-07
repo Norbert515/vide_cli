@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vide_client/vide_client.dart';
 
 import 'package:vide_mobile/core/theme/vide_colors.dart';
-import 'package:vide_mobile/domain/models/models.dart';
 import 'package:vide_mobile/features/permissions/permission_sheet.dart';
 
 void main() {
-  final testRequest = PermissionRequest(
+  final testRequest = PermissionRequestEvent(
+    agentId: 'agent-1',
+    agentType: 'main',
+    agentName: 'Test Agent',
+    taskName: null,
     requestId: 'req-1',
     toolName: 'Bash',
     toolInput: {'command': 'rm -rf /'},
-    agentId: 'agent-1',
-    agentName: 'Test Agent',
-    timestamp: DateTime(2024, 1, 1),
   );
 
   Widget buildTestWidget({

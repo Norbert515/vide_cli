@@ -165,6 +165,9 @@ class LocalVideSession implements VideSession {
   }
 
   @override
+  Stream<String> get workingDirectoryStream => const Stream<String>.empty();
+
+  @override
   String get goal {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     return network?.goal ?? 'Session';

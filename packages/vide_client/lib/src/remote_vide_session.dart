@@ -137,6 +137,10 @@ class RemoteVideSession implements VideSession {
   final StreamController<String> _goalController =
       StreamController<String>.broadcast();
 
+  /// Controller for working directory changes.
+  final StreamController<String> _workingDirectoryController =
+      StreamController<String>.broadcast();
+
   /// Team name for this session.
   String _team = 'enterprise';
 
@@ -844,6 +848,7 @@ class RemoteVideSession implements VideSession {
     final workingDirectory = metadata['working-directory'] as String?;
     if (workingDirectory != null && workingDirectory.isNotEmpty) {
       _workingDirectory = workingDirectory;
+      _workingDirectoryController.add(workingDirectory);
     }
 
     final team = metadata['team'] as String?;
@@ -910,6 +915,10 @@ class RemoteVideSession implements VideSession {
 
   @override
   String get workingDirectory => _workingDirectory;
+
+  @override
+  Stream<String> get workingDirectoryStream =>
+      _workingDirectoryController.stream;
 
   @override
   String get goal => _goal;
@@ -1008,6 +1017,7 @@ class RemoteVideSession implements VideSession {
     await _connectionStateController.close();
     await _agentsController.close();
     await _goalController.close();
+    await _workingDirectoryController.close();
 
     _models.clear();
     _queuedMessages.clear();
@@ -1046,8 +1056,12 @@ class RemoteVideSession implements VideSession {
     final session = _clientSession;
     if (session == null) return;
     final result = await session.setWorktreePath(path);
-    _workingDirectory =
+    final newDir =
         result?['working-directory'] as String? ?? _workingDirectory;
+    if (newDir != _workingDirectory) {
+      _workingDirectory = newDir;
+      _workingDirectoryController.add(newDir);
+    }
   }
 
   @override
