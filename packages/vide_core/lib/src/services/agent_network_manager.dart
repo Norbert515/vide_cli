@@ -1,24 +1,23 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../agents/agent_configuration.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
-import '../models/agent_status.dart';
-import '../agents/agent_configuration.dart';
-import '../state/agent_status_manager.dart';
 import '../utils/working_dir_provider.dart';
+import 'agent_config_resolver.dart';
+import 'agent_lifecycle_service.dart';
 import 'agent_network_persistence_manager.dart';
+import 'agent_status_sync_service.dart';
+import 'bashboard_service.dart';
 import 'claude_client_factory.dart';
 import 'claude_manager.dart';
 import 'permission_provider.dart';
-import 'bashboard_service.dart';
 import 'team_framework_loader.dart';
 import 'trigger_service.dart';
+import 'worktree_service.dart';
 
 /// The state of the agent network manager - just tracks the current network
 class AgentNetworkState {
@@ -34,157 +33,74 @@ class AgentNetworkState {
   List<AgentId> get agentIds => currentNetwork?.agentIds ?? [];
 
   AgentNetworkState copyWith({AgentNetwork? currentNetwork}) {
-    return AgentNetworkState(currentNetwork: currentNetwork ?? this.currentNetwork);
+    return AgentNetworkState(
+      currentNetwork: currentNetwork ?? this.currentNetwork,
+    );
   }
 }
 
-final agentNetworkManagerProvider = StateNotifierProvider<AgentNetworkManager, AgentNetworkState>((ref) {
-  return AgentNetworkManager(workingDirectory: ref.watch(workingDirProvider), ref: ref);
-});
+final agentNetworkManagerProvider =
+    StateNotifierProvider<AgentNetworkManager, AgentNetworkState>((ref) {
+      return AgentNetworkManager(
+        workingDirectory: ref.watch(workingDirProvider),
+        ref: ref,
+      );
+    });
 
 class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
-  AgentNetworkManager({required this.workingDirectory, required Ref ref}) : _ref = ref, super(AgentNetworkState()) {
+  AgentNetworkManager({required this.workingDirectory, required Ref ref})
+    : _ref = ref,
+      super(AgentNetworkState()) {
     _clientFactory = ClaudeClientFactoryImpl(
       getWorkingDirectory: () => effectiveWorkingDirectory,
       ref: _ref,
       permissionHandler: _ref.read(permissionHandlerProvider),
     );
-    _teamFrameworkLoader = TeamFrameworkLoader(workingDirectory: workingDirectory);
+    _teamFrameworkLoader = TeamFrameworkLoader(
+      workingDirectory: workingDirectory,
+    );
+
+    _statusSyncService = AgentStatusSyncService(
+      _ref,
+      () => state.currentNetwork,
+    );
+    _configResolver = AgentConfigResolver(_teamFrameworkLoader);
+    _worktreeService = WorktreeService(
+      baseWorkingDirectory: workingDirectory,
+      ref: _ref,
+      getCurrentNetwork: () => state.currentNetwork,
+      updateState: (network) =>
+          state = AgentNetworkState(currentNetwork: network),
+      clientFactory: _clientFactory,
+      statusSyncService: _statusSyncService,
+      configResolver: _configResolver,
+    );
+    _lifecycleService = AgentLifecycleService(
+      ref: _ref,
+      getCurrentNetwork: () => state.currentNetwork,
+      updateState: (network) =>
+          state = AgentNetworkState(currentNetwork: network),
+      clientFactory: _clientFactory,
+      statusSyncService: _statusSyncService,
+      configResolver: _configResolver,
+      teamFrameworkLoader: _teamFrameworkLoader,
+      sendMessage: sendMessage,
+      updateAgentSessionId: updateAgentSessionId,
+    );
   }
 
   final String workingDirectory;
   final Ref _ref;
   late final ClaudeClientFactory _clientFactory;
   late final TeamFrameworkLoader _teamFrameworkLoader;
-
-  /// Active subscriptions for agent status sync.
-  /// We listen to Claude status changes and auto-set agent status.
-  final Map<AgentId, StreamSubscription<ClaudeStatus>> _statusSyncSubscriptions = {};
-
-  /// Set up status sync for an agent's Claude client.
-  ///
-  /// This listens to the Claude status stream and automatically updates
-  /// the agent status to idle when the turn completes.
-  void _setupStatusSync(AgentId agentId, ClaudeClient client) {
-    // Cancel any existing subscription
-    _statusSyncSubscriptions[agentId]?.cancel();
-
-    _statusSyncSubscriptions[agentId] = client.statusStream.listen((claudeStatus) {
-      final agentStatusNotifier = _ref.read(agentStatusProvider(agentId).notifier);
-      final currentAgentStatus = _ref.read(agentStatusProvider(agentId));
-
-      switch (claudeStatus) {
-        case ClaudeStatus.processing:
-        case ClaudeStatus.thinking:
-        case ClaudeStatus.responding:
-          // Claude is working, set agent status to working
-          if (currentAgentStatus != AgentStatus.working) {
-            agentStatusNotifier.setStatus(AgentStatus.working);
-          }
-          break;
-        case ClaudeStatus.ready:
-        case ClaudeStatus.completed:
-          // Claude is done with this turn
-          // Only auto-set to idle if agent was in working state
-          // (don't override waitingForAgent/waitingForUser that agent set explicitly)
-          if (currentAgentStatus == AgentStatus.working) {
-            agentStatusNotifier.setStatus(AgentStatus.idle);
-            // Check if all agents are now idle
-            _checkAllAgentsIdle();
-          }
-          break;
-        case ClaudeStatus.error:
-        case ClaudeStatus.unknown:
-          // On error, set to idle so triggers can fire
-          if (currentAgentStatus == AgentStatus.working) {
-            agentStatusNotifier.setStatus(AgentStatus.idle);
-            _checkAllAgentsIdle();
-          }
-          break;
-      }
-    });
-  }
-
-  /// Check if all NON-TRIGGERED agents are idle and fire the trigger if so.
-  ///
-  /// Only considers agents that were NOT spawned by a trigger.
-  /// This prevents infinite loops where triggered agents spawn more triggered agents.
-  void _checkAllAgentsIdle() {
-    final network = state.currentNetwork;
-    if (network == null) return;
-
-    // Only check non-triggered agents
-    // Triggered agents are identified by having spawnedBy starting with 'trigger:'
-    final nonTriggeredAgents = network.agents
-        .where((a) => a.spawnedBy == null || !a.spawnedBy!.startsWith('trigger:'))
-        .toList();
-
-    if (nonTriggeredAgents.isEmpty) {
-      return;
-    }
-
-    // Check if all non-triggered agents are idle
-    var allIdle = true;
-    for (final agent in nonTriggeredAgents) {
-      final status = _ref.read(agentStatusProvider(agent.id));
-      if (status != AgentStatus.idle) {
-        allIdle = false;
-        break;
-      }
-    }
-
-    if (allIdle) {
-      // Fire trigger in background
-      () async {
-        try {
-          final triggerService = _ref.read(triggerServiceProvider);
-          final context = TriggerContext(
-            triggerPoint: TriggerPoint.onAllAgentsIdle,
-            network: network,
-            teamName: network.team,
-          );
-          await triggerService.fire(context);
-        } catch (e) {
-          print('[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e');
-        }
-      }();
-    }
-  }
-
-  /// Clean up status sync subscription for an agent.
-  void _cleanupStatusSync(AgentId agentId) {
-    _statusSyncSubscriptions[agentId]?.cancel();
-    _statusSyncSubscriptions.remove(agentId);
-  }
+  late final AgentStatusSyncService _statusSyncService;
+  late final AgentConfigResolver _configResolver;
+  late final WorktreeService _worktreeService;
+  late final AgentLifecycleService _lifecycleService;
 
   /// Get the effective working directory (worktree if set and exists, else original).
-  ///
-  /// If a worktreePath is set but the directory no longer exists (e.g., worktree was deleted),
-  /// automatically clears it and falls back to the original working directory.
-  String get effectiveWorkingDirectory {
-    final worktreePath = state.currentNetwork?.worktreePath;
-    if (worktreePath != null && Directory(worktreePath).existsSync()) {
-      return worktreePath;
-    }
-
-    // Worktree path is set but no longer exists - clear it and fall back to original
-    if (worktreePath != null) {
-      // Schedule async cleanup without blocking
-      Future.microtask(() => _clearStaleWorktreePath(worktreePath));
-    }
-
-    return workingDirectory;
-  }
-
-  /// Clear a stale worktree path from the current network
-  Future<void> _clearStaleWorktreePath(String stalePath) async {
-    final network = state.currentNetwork;
-    if (network != null && network.worktreePath == stalePath) {
-      final updated = network.copyWith(worktreePath: null, clearWorktreePath: true);
-      state = AgentNetworkState(currentNetwork: updated);
-      await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updated);
-    }
-  }
+  String get effectiveWorkingDirectory =>
+      _worktreeService.effectiveWorkingDirectory;
 
   /// Counter for generating "Task X" names
   static int _taskCounter = 0;
@@ -233,9 +149,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final mainAgentName = teamDef.mainAgent;
 
     // Load the main agent personality to get display name and description
-    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(mainAgentName);
+    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(
+      mainAgentName,
+    );
 
-    var leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(mainAgentName, teamName: team);
+    var leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
+      mainAgentName,
+      teamName: team,
+    );
     if (leadConfig == null) {
       throw Exception('Agent configuration not found for: $mainAgentName');
     }
@@ -282,7 +203,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     );
 
     // Use display name from personality, fallback to 'Klaus'
-    final mainAgentDisplayName = mainAgentPersonality?.effectiveDisplayName ?? 'Klaus';
+    final mainAgentDisplayName =
+        mainAgentPersonality?.effectiveDisplayName ?? 'Klaus';
 
     final mainAgentMetadata = AgentMetadata(
       id: mainAgentId,
@@ -299,24 +221,29 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agents: [mainAgentMetadata],
       createdAt: DateTime.now(),
       lastActiveAt: DateTime.now(),
-      worktreePath: workingDirectory, // Atomically set working directory from parameter
+      worktreePath:
+          workingDirectory, // Atomically set working directory from parameter
       team: team,
     );
 
     // Set state IMMEDIATELY so UI can navigate right away
     state = AgentNetworkState(currentNetwork: network);
 
-    _ref.read(claudeManagerProvider.notifier).addAgent(mainAgentId, mainAgentClaudeClient);
+    _ref
+        .read(claudeManagerProvider.notifier)
+        .addAgent(mainAgentId, mainAgentClaudeClient);
 
     // Set up status sync to auto-update agent status when turn completes
-    _setupStatusSync(mainAgentId, mainAgentClaudeClient);
+    _statusSyncService.setupStatusSync(mainAgentId, mainAgentClaudeClient);
 
     // Track analytics
     BashboardService.conversationStarted();
 
     // Do persistence in background
     () async {
-      await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(network);
+      await _ref
+          .read(agentNetworkPersistenceManagerProvider)
+          .saveNetwork(network);
     }();
 
     // Send the initial message - it will be queued until client is ready
@@ -326,7 +253,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     () async {
       try {
         final triggerService = _ref.read(triggerServiceProvider);
-        final context = TriggerContext(triggerPoint: TriggerPoint.onSessionStart, network: network, teamName: team);
+        final context = TriggerContext(
+          triggerPoint: TriggerPoint.onSessionStart,
+          network: network,
+          teamName: team,
+        );
         await triggerService.fire(context);
       } catch (e) {
         print('[AgentNetworkManager] Error firing onSessionStart trigger: $e');
@@ -342,23 +273,33 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     var effectiveTeam = network.team;
     final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
     if (team == null) {
-      print('[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "enterprise"');
+      print(
+        '[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "enterprise"',
+      );
       effectiveTeam = 'enterprise';
     }
 
     // Update last active timestamp and potentially the team
-    final updatedNetwork = network.copyWith(lastActiveAt: DateTime.now(), team: effectiveTeam);
+    final updatedNetwork = network.copyWith(
+      lastActiveAt: DateTime.now(),
+      team: effectiveTeam,
+    );
 
     // Set state IMMEDIATELY before any async work to prevent flash of empty state
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
     // Persist in background - UI already has the data
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
 
     // Recreate ClaudeClients for each agent in the network
     for (final agentMetadata in updatedNetwork.agents) {
       try {
-        final config = await _getConfigurationForType(agentMetadata.type, teamName: updatedNetwork.team);
+        final config = await _configResolver.getConfigurationForType(
+          agentMetadata.type,
+          teamName: updatedNetwork.team,
+        );
         // Use sessionId if available (for forked agents), otherwise use agent id
         final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
         final client = _clientFactory.createSync(
@@ -368,11 +309,15 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           agentType: agentMetadata.type,
           workingDirectory: agentMetadata.workingDirectory,
         );
-        _ref.read(claudeManagerProvider.notifier).addAgent(agentMetadata.id, client);
+        _ref
+            .read(claudeManagerProvider.notifier)
+            .addAgent(agentMetadata.id, client);
         // Set up status sync to auto-update agent status when turn completes
-        _setupStatusSync(agentMetadata.id, client);
+        _statusSyncService.setupStatusSync(agentMetadata.id, client);
       } catch (e) {
-        print('[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e');
+        print(
+          '[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e',
+        );
         rethrow;
       }
     }
@@ -381,77 +326,17 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // as idle (the default) since nothing is running yet.
   }
 
-  /// Get the appropriate AgentConfiguration for a given agent type string.
-  ///
-  /// This method should not be called directly - it's for internal use during network resume.
-  /// For new agents, use spawnAgent which handles team framework loading.
-  ///
-  /// [type] - The agent type (e.g., 'main', 'fork', or an agent personality name like 'solid-implementer')
-  /// [teamName] - The team to use for looking up agent configurations.
-  Future<AgentConfiguration> _getConfigurationForType(String type, {String? teamName}) async {
-    // Use provided team name, or fall back to network's team
-    var effectiveTeamName = teamName ?? state.currentNetwork?.team;
-    if (effectiveTeamName == null) {
-      throw Exception('No team specified and no current network');
-    }
-
-    // Get team definition to find the agent name
-    var team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
-
-    // If team not found, fall back to default 'enterprise' team
-    if (team == null) {
-      print('[AgentNetworkManager] Team "$effectiveTeamName" not found, falling back to "enterprise"');
-      effectiveTeamName = 'enterprise';
-      team = await _teamFrameworkLoader.getTeam(effectiveTeamName);
-      if (team == null) {
-        throw Exception('Default team "enterprise" not found in team framework');
-      }
-    }
-
-    // Determine the agent personality name based on type
-    final agentName = switch (type) {
-      'main' => team.mainAgent,
-      'fork' => team.mainAgent,
-      _ => type, // The type IS the agent personality name
-    };
-
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentName, teamName: effectiveTeamName);
-    if (config == null) {
-      throw Exception('Agent configuration not found for: $agentName (type: $type)');
-    }
-
-    return config;
-  }
-
   /// Add a new agent to the current network
   Future<AgentId> addAgent({
     required AgentId agentId,
     required AgentConfiguration config,
     required AgentMetadata metadata,
-  }) async {
-    final network = state.currentNetwork;
-    if (network == null) {
-      throw StateError('No active network to add agent to');
-    }
-
-    final client = await _clientFactory.create(
+  }) {
+    return _lifecycleService.addAgent(
       agentId: agentId,
       config: config,
-      networkId: network.id,
-      agentType: metadata.type,
-      workingDirectory: metadata.workingDirectory,
+      metadata: metadata,
     );
-    _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
-    // Set up status sync to auto-update agent status when turn completes
-    _setupStatusSync(agentId, client);
-
-    // Update network with new agent metadata
-    final updatedNetwork = network.copyWith(agents: [...network.agents, metadata], lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
-
-    state = AgentNetworkState(currentNetwork: updatedNetwork);
-
-    return agentId;
   }
 
   /// Update the goal of the current network
@@ -461,8 +346,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw StateError('No active network to update goal for');
     }
 
-    final updatedNetwork = network.copyWith(goal: newGoal, lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    final updatedNetwork = network.copyWith(
+      goal: newGoal,
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -481,8 +371,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       return agent;
     }).toList();
 
-    final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    final updatedNetwork = network.copyWith(
+      agents: updatedAgents,
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -501,8 +396,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       return agent;
     }).toList();
 
-    final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    final updatedNetwork = network.copyWith(
+      agents: updatedAgents,
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -523,8 +423,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       return agent;
     }).toList();
 
-    final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
+    final updatedNetwork = network.copyWith(
+      agents: updatedAgents,
+      lastActiveAt: DateTime.now(),
+    );
+    await _ref
+        .read(agentNetworkPersistenceManagerProvider)
+        .saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -567,60 +472,16 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// This will restart all agents so they use the new working directory.
   /// Agent conversation history is cleared since Claude CLI cannot change
   /// its working directory mid-session.
-  Future<void> setWorktreePath(String? worktreePath) async {
-    final network = state.currentNetwork;
-    if (network == null) return;
-
-    // 1. Abort and remove all existing Claude clients
-    final claudeManagerNotifier = _ref.read(claudeManagerProvider.notifier);
-    final claudeClients = _ref.read(claudeManagerProvider);
-    for (final agentId in network.agentIds) {
-      final client = claudeClients[agentId];
-      if (client != null) {
-        await client.abort();
-      }
-      // Clean up status sync subscription
-      _cleanupStatusSync(agentId);
-      claudeManagerNotifier.removeAgent(agentId);
-    }
-
-    // 2. Update network with new worktree path
-    final updated = worktreePath == null
-        ? network.copyWith(clearWorktreePath: true, lastActiveAt: DateTime.now())
-        : network.copyWith(worktreePath: worktreePath, lastActiveAt: DateTime.now());
-
-    // 3. Update state first so effectiveWorkingDirectory returns new path
-    state = state.copyWith(currentNetwork: updated);
-
-    // 4. Recreate Claude clients for all agents with new working directory
-    // Per-agent workingDirectory overrides take precedence over session worktree
-    for (final agentMetadata in updated.agents) {
-      try {
-        final config = await _getConfigurationForType(agentMetadata.type, teamName: updated.team);
-        final client = _clientFactory.createSync(
-          agentId: agentMetadata.id,
-          config: config,
-          networkId: updated.id,
-          agentType: agentMetadata.type,
-          workingDirectory: agentMetadata.workingDirectory,
-        );
-        claudeManagerNotifier.addAgent(agentMetadata.id, client);
-        // Set up status sync for the recreated client
-        _setupStatusSync(agentMetadata.id, client);
-      } catch (e) {
-        print('[AgentNetworkManager] Error recreating client for ${agentMetadata.type}: $e');
-        rethrow;
-      }
-    }
-
-    // 5. Persist the updated network
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updated);
+  Future<void> setWorktreePath(String? worktreePath) {
+    return _worktreeService.setWorktreePath(worktreePath);
   }
 
   void sendMessage(AgentId agentId, Message message) {
     final claudeManager = _ref.read(claudeProvider(agentId));
     if (claudeManager == null) {
-      print('[AgentNetworkManager] WARNING: No ClaudeClient found for agent: $agentId');
+      print(
+        '[AgentNetworkManager] WARNING: No ClaudeClient found for agent: $agentId',
+      );
       return;
     }
     claudeManager.sendMessage(message);
@@ -644,94 +505,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required String initialPrompt,
     required AgentId spawnedBy,
     String? workingDirectory,
-  }) async {
-    final network = state.currentNetwork;
-    if (network == null) {
-      throw StateError('No active network to spawn agent into');
-    }
-
-    // Load configuration from team framework using the network's team
-    final teamName = network.team;
-    final team = await _teamFrameworkLoader.getTeam(teamName);
-    if (team == null) {
-      throw Exception('Team "$teamName" not found in team framework');
-    }
-
-    // Prevent spawning the main agent type
-    if (agentType == team.mainAgent) {
-      throw Exception('Cannot spawn the main agent type "$agentType" - use the main agent instead');
-    }
-
-    // Validate that the agent type is in the team's agents list
-    if (!team.agents.contains(agentType)) {
-      throw Exception(
-        'Team "$teamName" does not have agent type "$agentType". '
-        'Available agent types: ${team.agents.join(", ")}',
-      );
-    }
-
-    // Load the agent personality to get display name and short description
-    final personality = await _teamFrameworkLoader.getAgent(agentType);
-
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(agentType, teamName: teamName);
-    if (config == null) {
-      throw Exception('Agent configuration not found for: $agentType');
-    }
-
-    // Generate new agent ID
-    final newAgentId = const Uuid().v4();
-
-    // Use display name from personality, fallback to provided name
-    final baseName = personality?.effectiveDisplayName ?? name;
-    final uniqueName = _generateUniqueName(baseName, network.agents);
-
-    // Create metadata for the new agent
-    final metadata = AgentMetadata(
-      id: newAgentId,
-      name: uniqueName,
-      type: agentType, // Store the agent type
+  }) {
+    return _lifecycleService.spawnAgent(
+      agentType: agentType,
+      name: name,
+      initialPrompt: initialPrompt,
       spawnedBy: spawnedBy,
-      createdAt: DateTime.now(),
-      shortDescription: personality?.shortDescription,
-      teamTag: personality?.team,
       workingDirectory: workingDirectory,
     );
-
-    // Add agent to network with metadata
-    await addAgent(agentId: newAgentId, config: config, metadata: metadata);
-
-    // Track analytics
-    BashboardService.agentSpawned(agentType);
-
-    // Prepend context about who spawned this agent
-    final contextualPrompt = '''[SPAWNED BY AGENT: $spawnedBy]
-
-$initialPrompt''';
-
-    // Send initial message to the new agent
-    sendMessage(newAgentId, Message.text(contextualPrompt));
-
-    print('[AgentNetworkManager] Agent $spawnedBy spawned new "$agentType" agent "$uniqueName": $newAgentId');
-
-    return newAgentId;
-  }
-
-  /// Generate a unique display name for an agent.
-  ///
-  /// Uses the base name from the personality, appending a number if duplicate.
-  /// Example: "Bert", "Bert 2", "Bert 3"
-  String _generateUniqueName(String baseName, List<AgentMetadata> existingAgents) {
-    final existingNames = existingAgents.map((a) => a.name).toSet();
-
-    if (!existingNames.contains(baseName)) {
-      return baseName;
-    }
-
-    var counter = 2;
-    while (existingNames.contains('$baseName $counter')) {
-      counter++;
-    }
-    return '$baseName $counter';
   }
 
   /// Terminate an agent and remove it from the network.
@@ -745,53 +526,16 @@ $initialPrompt''';
   /// [targetAgentId] - The ID of the agent to terminate
   /// [terminatedBy] - The ID of the agent requesting termination
   /// [reason] - Optional reason for termination (for logging)
-  Future<void> terminateAgent({required AgentId targetAgentId, required AgentId terminatedBy, String? reason}) async {
-    final network = state.currentNetwork;
-    if (network == null) {
-      throw StateError('No active network');
-    }
-
-    // Check if target agent exists in network
-    final targetAgent = network.agents.where((a) => a.id == targetAgentId).firstOrNull;
-    if (targetAgent == null) {
-      throw Exception('Agent not found in network: $targetAgentId');
-    }
-
-    // Prevent terminating if this is the last agent
-    if (network.agents.length <= 1) {
-      throw Exception('Cannot terminate the last agent');
-    }
-
-    // Get and abort the ClaudeClient
-    final claudeClients = _ref.read(claudeManagerProvider);
-    final client = claudeClients[targetAgentId];
-    if (client != null) {
-      await client.abort();
-    }
-
-    // Clean up status sync subscription
-    _cleanupStatusSync(targetAgentId);
-
-    // Remove from ClaudeManager
-    _ref.read(claudeManagerProvider.notifier).removeAgent(targetAgentId);
-
-    // Remove from network agents list
-    final updatedAgents = network.agents.where((a) => a.id != targetAgentId).toList();
-    final updatedNetwork = network.copyWith(agents: updatedAgents, lastActiveAt: DateTime.now());
-
-    // Persist
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
-
-    // Update state
-    state = AgentNetworkState(currentNetwork: updatedNetwork);
-
-    final reasonStr = reason != null ? ': $reason' : '';
-    final selfTerminated = targetAgentId == terminatedBy;
-    if (selfTerminated) {
-      print('[AgentNetworkManager] Agent $targetAgentId self-terminated$reasonStr');
-    } else {
-      print('[AgentNetworkManager] Agent $terminatedBy terminated agent $targetAgentId$reasonStr');
-    }
+  Future<void> terminateAgent({
+    required AgentId targetAgentId,
+    required AgentId terminatedBy,
+    String? reason,
+  }) {
+    return _lifecycleService.terminateAgent(
+      targetAgentId: targetAgentId,
+      terminatedBy: terminatedBy,
+      reason: reason,
+    );
   }
 
   /// Send a message to another agent asynchronously (fire-and-forget).
@@ -803,7 +547,11 @@ $initialPrompt''';
   /// [targetAgentId] - The ID of the agent to send the message to
   /// [message] - The message to send
   /// [sentBy] - The ID of the agent sending the message (for context)
-  void sendMessageToAgent({required AgentId targetAgentId, required String message, required AgentId sentBy}) {
+  void sendMessageToAgent({
+    required AgentId targetAgentId,
+    required String message,
+    required AgentId sentBy,
+  }) {
     final claudeClients = _ref.read(claudeManagerProvider);
 
     // Check if target agent exists
@@ -820,7 +568,9 @@ $message''';
     // Send the message - fire and forget
     targetClient.sendMessage(Message.text(contextualMessage));
 
-    print('[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId');
+    print(
+      '[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId',
+    );
   }
 
   /// Fork an existing agent, creating a new agent with the same conversation context.
@@ -832,70 +582,11 @@ $message''';
   /// [name] - Optional name for the forked agent (defaults to "Fork of {original}")
   ///
   /// Returns the ID of the newly forked agent.
-  Future<AgentId> forkAgent({required AgentId sourceAgentId, String? name}) async {
-    final network = state.currentNetwork;
-    if (network == null) {
-      throw StateError('No active network to fork agent in');
-    }
-
-    // Find source agent metadata
-    final sourceAgent = network.agents.where((a) => a.id == sourceAgentId).firstOrNull;
-    if (sourceAgent == null) {
-      throw Exception('Agent not found: $sourceAgentId');
-    }
-
-    // Get source agent's Claude client to get the session ID
-    final sourceClient = _ref.read(claudeManagerProvider)[sourceAgentId];
-    if (sourceClient == null) {
-      throw Exception('No Claude client found for agent: $sourceAgentId');
-    }
-
-    // Generate new agent ID (which will also be the new session ID)
-    final newAgentId = const Uuid().v4();
-    final forkName = name ?? '[Fork] ${sourceAgent.name}';
-
-    // Get the configuration for this agent type
-    final config = await _getConfigurationForType(sourceAgent.type, teamName: network.team);
-
-    // Create metadata for the forked agent
-    final metadata = AgentMetadata(
-      id: newAgentId,
-      name: forkName,
-      type: 'fork',
-      spawnedBy: sourceAgentId, // Track that this was forked from source
-      createdAt: DateTime.now(),
+  Future<AgentId> forkAgent({required AgentId sourceAgentId, String? name}) {
+    return _lifecycleService.forkAgent(
+      sourceAgentId: sourceAgentId,
+      name: name,
     );
-
-    // Create the Claude client with fork configuration
-    // Pass the source conversation so the forked agent shows the same history immediately
-    final client = await _clientFactory.createForked(
-      agentId: newAgentId,
-      config: config,
-      networkId: network.id,
-      agentType: metadata.type,
-      resumeSessionId: sourceClient.sessionId,
-      sourceConversation: sourceClient.currentConversation,
-    );
-
-    _ref.read(claudeManagerProvider.notifier).addAgent(newAgentId, client);
-    // Set up status sync for the forked agent
-    _setupStatusSync(newAgentId, client);
-
-    // Listen for MetaResponse to capture the actual session ID from Claude
-    // When forking, Claude assigns a new session ID which we need to persist
-    client.initDataStream.first.then((metaResponse) {
-      if (metaResponse.sessionId != null) {
-        updateAgentSessionId(newAgentId, metaResponse.sessionId!);
-      }
-    });
-
-    // Update network with new agent metadata
-    final updatedNetwork = network.copyWith(agents: [...network.agents, metadata], lastActiveAt: DateTime.now());
-    await _ref.read(agentNetworkPersistenceManagerProvider).saveNetwork(updatedNetwork);
-
-    state = AgentNetworkState(currentNetwork: updatedNetwork);
-
-    return newAgentId;
   }
 
   /// Fire the onSessionEnd trigger for the current network.
@@ -914,7 +605,11 @@ $message''';
 
     try {
       final triggerService = _ref.read(triggerServiceProvider);
-      final context = TriggerContext(triggerPoint: TriggerPoint.onSessionEnd, network: network, teamName: network.team);
+      final context = TriggerContext(
+        triggerPoint: TriggerPoint.onSessionEnd,
+        network: network,
+        teamName: network.team,
+      );
       return await triggerService.fire(context);
     } catch (e) {
       print('[AgentNetworkManager] Error firing onSessionEnd trigger: $e');
@@ -932,7 +627,9 @@ $message''';
   Future<AgentId?> fireAllAgentsIdleTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      print('[AgentNetworkManager] No active network for onAllAgentsIdle trigger');
+      print(
+        '[AgentNetworkManager] No active network for onAllAgentsIdle trigger',
+      );
       return null;
     }
 
