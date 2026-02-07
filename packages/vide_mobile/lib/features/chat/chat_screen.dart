@@ -7,10 +7,13 @@ import 'package:vide_client/vide_client.dart' as vc;
 
 import '../../core/providers/connection_state_provider.dart';
 import '../../core/router/app_router.dart';
+import '../../core/theme/tokens.dart';
+import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/session_repository.dart';
 import '../../domain/models/models.dart';
 import '../permissions/permission_sheet.dart';
 import 'chat_state.dart';
+import 'widgets/agent_tab_bar.dart';
 import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
@@ -39,7 +42,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
 
-  final ScrollController _scrollController = ScrollController();
+  /// Currently selected tab index (0 = main agent, 1+ = other agents).
+  int _selectedTabIndex = 0;
+
+  /// Per-tab scroll controllers keyed by agent ID.
+  final Map<String, ScrollController> _scrollControllers = {};
+
+  /// Cached list of agent IDs in tab order, to track index shifts.
+  List<String> _agentTabIds = [];
 
   /// True while processing history events — suppresses scroll animations and shows loading.
   bool _isLoadingHistory = false;
@@ -48,28 +58,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void initState() {
     super.initState();
     _subscribeToEvents();
-    // Defer connection to post-frame to avoid modifying providers during build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _connectToSessionIfNeeded();
     });
   }
 
-  /// Connects to the session if not already connected.
-  ///
-  /// This handles the case when navigating to a session from the sessions list.
   void _connectToSessionIfNeeded() {
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
     final currentState = ref.read(sessionRepositoryProvider);
 
-    // If already connected to this session, nothing to do
     if (currentState.session?.sessionId == widget.sessionId &&
         currentState.isActive) {
       return;
     }
 
-    // Connect to the session
     sessionRepo.connectToExistingSession(widget.sessionId).then((_) {
-      // Successfully connected
     }).catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +89,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _eventSubscription?.cancel();
     _inputController.dispose();
-    _scrollController.dispose();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -109,6 +114,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ))
             .toList();
         notifier.setAgents(domainAgents);
+        _syncAgentTabs(domainAgents);
 
       case vc.HistoryEvent(:final events):
         setState(() => _isLoadingHistory = true);
@@ -131,9 +137,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           agentType: event.agentType,
           agentName: event.agentName,
           content: content,
-          role: role == 'user'
-              ? MessageRole.user
-              : MessageRole.assistant,
+          role: role == 'user' ? MessageRole.user : MessageRole.assistant,
           isPartial: isPartial,
           timestamp: timestamp,
         );
@@ -171,7 +175,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ));
         _scrollToBottom();
 
-      case vc.PermissionRequestEvent(:final requestId, :final toolName, :final toolInput):
+      case vc.PermissionRequestEvent(
+          :final requestId,
+          :final toolName,
+          :final toolInput
+        ):
         notifier.setPendingPermission(PermissionRequest(
           requestId: requestId,
           toolName: toolName,
@@ -208,9 +216,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           taskName: event.taskName,
         );
         notifier.addAgent(agent);
+        _onAgentAdded(agent);
 
       case vc.AgentTerminatedEvent():
         notifier.removeAgent(event.agentId);
+        _onAgentRemoved(event.agentId);
 
       case vc.TurnCompleteEvent():
         notifier.setIsAgentWorking(false);
@@ -245,6 +255,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     };
   }
 
+  void _syncAgentTabs(List<Agent> agents) {
+    setState(() {
+      _agentTabIds = agents.map((a) => a.id).toList();
+      for (final agent in agents) {
+        _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+      }
+    });
+  }
+
+  void _onAgentAdded(Agent agent) {
+    setState(() {
+      _agentTabIds.add(agent.id);
+      _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+    });
+  }
+
+  void _onAgentRemoved(String agentId) {
+    final removedIndex = _agentTabIds.indexOf(agentId);
+    if (removedIndex < 0) return;
+
+    setState(() {
+      _agentTabIds.remove(agentId);
+      _scrollControllers[agentId]?.dispose();
+      _scrollControllers.remove(agentId);
+
+      if (_selectedTabIndex == removedIndex) {
+        _selectedTabIndex = 0;
+      } else if (_selectedTabIndex > removedIndex) {
+        _selectedTabIndex--;
+      }
+    });
+  }
+
   void _handleMessageEvent({
     required String eventId,
     required String agentId,
@@ -258,29 +301,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
     final state = ref.read(chatNotifierProvider(widget.sessionId));
 
-    // Deduplicate user messages by content
-    // We add user messages optimistically in _sendMessage(), then receive them
-    // back from the server with a different eventId. Skip if we already have it.
     if (role == MessageRole.user) {
       final isDuplicate = state.messages.any(
         (m) => m.role == MessageRole.user && m.content == content,
       );
-      if (isDuplicate) {
-        return; // Skip duplicate user message
-      }
+      if (isDuplicate) return;
     }
 
     if (isPartial) {
-      // Accumulate streaming content
       _streamingMessages[eventId] =
           (_streamingMessages[eventId] ?? '') + content;
 
-      // Check if we already have a message with this eventId
       final existingIndex =
           state.messages.indexWhere((m) => m.eventId == eventId);
 
       if (existingIndex >= 0) {
-        // Update existing message with accumulated content
         notifier.updateMessage(
           eventId,
           state.messages[existingIndex].copyWith(
@@ -289,7 +324,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         );
       } else {
-        // Create new streaming message
         notifier.addMessage(ChatMessage(
           eventId: eventId,
           role: role,
@@ -302,7 +336,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ));
       }
     } else {
-      // Final message (isPartial: false)
       final accumulatedContent = _streamingMessages[eventId] ?? '';
       final finalContent = accumulatedContent + content;
       _streamingMessages.remove(eventId);
@@ -311,7 +344,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           state.messages.indexWhere((m) => m.eventId == eventId);
 
       if (existingIndex >= 0) {
-        // Mark message as complete
         notifier.updateMessage(
           eventId,
           state.messages[existingIndex].copyWith(
@@ -320,7 +352,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         );
       } else if (finalContent.isNotEmpty) {
-        // Add complete message (this can happen if we missed partial events)
         notifier.addMessage(ChatMessage(
           eventId: eventId,
           role: role,
@@ -344,7 +375,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
 
-    // Add user message to state
     final userMessage = ChatMessage(
       eventId: DateTime.now().millisecondsSinceEpoch.toString(),
       role: MessageRole.user,
@@ -356,8 +386,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     notifier.addMessage(userMessage);
     notifier.setIsAgentWorking(true);
-
-    // Send to WebSocket via vide_client
     sessionRepo.sendMessage(message);
 
     _inputController.clear();
@@ -372,12 +400,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .setIsAgentWorking(false);
   }
 
+  ScrollController get _activeScrollController {
+    if (_selectedTabIndex < _agentTabIds.length) {
+      final agentId = _agentTabIds[_selectedTabIndex];
+      final controller = _scrollControllers[agentId];
+      if (controller != null) return controller;
+    }
+    return _scrollControllers.values.firstOrNull ?? ScrollController();
+  }
+
   void _scrollToBottom() {
     if (_isLoadingHistory) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+      final controller = _activeScrollController;
+      if (controller.hasClients) {
+        controller.animateTo(
+          controller.position.maxScrollExtent,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -385,11 +423,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  /// Instantly jumps to bottom without animation (used after history load).
   void _jumpToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+      for (final controller in _scrollControllers.values) {
+        if (controller.hasClients) {
+          controller.jumpTo(controller.position.maxScrollExtent);
+        }
       }
     });
   }
@@ -409,7 +448,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         .read(chatNotifierProvider(widget.sessionId).notifier)
         .setPendingPermission(null);
     _isPermissionSheetShowing = false;
-    Navigator.of(context).pop(); // Close the permission sheet
+    Navigator.of(context).pop();
   }
 
   void _showPermissionSheet(PermissionRequest request) {
@@ -430,13 +469,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  void _switchToAgentTab(String agentId) {
+    final index = _agentTabIds.indexOf(agentId);
+    if (index >= 0) {
+      setState(() => _selectedTabIndex = index);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(chatNotifierProvider(widget.sessionId));
     final connectionState = ref.watch(webSocketConnectionProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
-    // Show permission sheet if there's a pending permission
     if (state.pendingPermission != null && !_isPermissionSheetShowing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && state.pendingPermission != null) {
@@ -445,10 +490,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     }
 
-    // Determine if input should be disabled
     final isDisconnected =
         connectionState.status != WebSocketConnectionStatus.connected;
     final inputEnabled = !state.isAgentWorking && !isDisconnected;
+    final hasAgents = state.agents.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
@@ -457,9 +502,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           onPressed: () => context.go(AppRoutes.sessions),
         ),
         title: const Text('Session'),
-        actions: [
-          // Connection status chip
-          const Padding(
+        actions: const [
+          Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Center(child: ConnectionStatusChip()),
           ),
@@ -467,9 +511,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
-          // Connection status banner
           const ConnectionStatusBanner(),
-          // Error banner
           if (state.error != null)
             MaterialBanner(
               content: Text(state.error!),
@@ -485,45 +527,55 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ],
             ),
-          // Messages area with floating input bar overlay
-          Expanded(
-            child: Stack(
-              children: [
-                // Messages
-                _isLoadingHistory
-                    ? const Center(child: CircularProgressIndicator())
-                    : _buildMessageList(state),
-                // Floating input bar
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: InputBar(
-                    controller: _inputController,
-                    enabled: inputEnabled,
-                    isLoading: state.isAgentWorking,
-                    onSend: _sendMessage,
-                    onAbort: _abort,
-                  ),
-                ),
-              ],
+          if (hasAgents)
+            AgentTabBar(
+              agents: state.agents,
+              selectedIndex: _selectedTabIndex,
+              onTabSelected: (index) {
+                setState(() => _selectedTabIndex = index);
+              },
             ),
+          Expanded(
+            child: _isLoadingHistory
+                ? const Center(child: CircularProgressIndicator())
+                : _buildTabContent(state),
+          ),
+          InputBar(
+            controller: _inputController,
+            enabled: inputEnabled,
+            isLoading: state.isAgentWorking,
+            onSend: _sendMessage,
+            onAbort: _abort,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildMessageList(ChatState state) {
+  Widget _buildTabContent(ChatState state) {
     if (state.messages.isEmpty && state.toolUses.isEmpty) {
       return _EmptyState();
     }
 
-    return _MessageList(
-      messages: state.messages,
-      toolUses: state.toolUses,
-      toolResults: state.toolResults,
-      scrollController: _scrollController,
+    final tabViews = <Widget>[
+      for (final agentId in _agentTabIds)
+        _MessageList(
+          messages: state.messages.where((m) => m.agentId == agentId).toList(),
+          toolUses: state.toolUses.where((t) => t.agentId == agentId).toList(),
+          toolResults: state.toolResults,
+          agents: state.agents,
+          scrollController: _scrollControllers[agentId] ?? ScrollController(),
+          onAgentTap: _switchToAgentTab,
+        ),
+    ];
+
+    if (tabViews.isEmpty) {
+      return _EmptyState();
+    }
+
+    return IndexedStack(
+      index: _selectedTabIndex.clamp(0, tabViews.length - 1),
+      children: tabViews,
     );
   }
 }
@@ -566,18 +618,21 @@ class _MessageList extends StatelessWidget {
   final List<ChatMessage> messages;
   final List<ToolUse> toolUses;
   final Map<String, ToolResult> toolResults;
+  final List<Agent> agents;
   final ScrollController scrollController;
+  final ValueChanged<String>? onAgentTap;
 
   const _MessageList({
     required this.messages,
     required this.toolUses,
     required this.toolResults,
+    required this.agents,
     required this.scrollController,
+    this.onAgentTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Build interleaved list of messages and tools
     final items = <_ChatItem>[];
 
     for (final message in messages) {
@@ -588,13 +643,12 @@ class _MessageList extends StatelessWidget {
       items.add(_ChatItem.tool(toolUse, toolResults[toolUse.toolUseId]));
     }
 
-    // Sort by timestamp
     items.sort((a, b) => a.timestamp.compareTo(b.timestamp));
 
     if (items.isEmpty) {
       return const Center(
         child: Text(
-          'No messages yet',
+          'No messages from this agent yet',
           style: TextStyle(color: Colors.grey),
         ),
       );
@@ -602,23 +656,126 @@ class _MessageList extends StatelessWidget {
 
     return ListView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.only(top: 16, bottom: 80),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
         return item.when(
           message: (message) => MessageBubble(message: message),
-          tool: (toolUse, result) => ToolCard(
-            toolUse: toolUse,
-            result: result,
-          ),
+          tool: (toolUse, result) {
+            if (_isSpawnAgentTool(toolUse)) {
+              return _SpawnAgentCard(
+                toolUse: toolUse,
+                agents: agents,
+                onTap: onAgentTap,
+              );
+            }
+            return ToolCard(
+              toolUse: toolUse,
+              result: result,
+            );
+          },
         );
       },
     );
   }
+
+  bool _isSpawnAgentTool(ToolUse toolUse) {
+    return toolUse.toolName == 'mcp__vide-agent__spawnAgent';
+  }
 }
 
-/// Represents an item in the chat list.
+class _SpawnAgentCard extends StatelessWidget {
+  final ToolUse toolUse;
+  final List<Agent> agents;
+  final ValueChanged<String>? onTap;
+
+  const _SpawnAgentCard({
+    required this.toolUse,
+    required this.agents,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final agentName = toolUse.input['name'] as String? ?? 'Agent';
+    final agentType = toolUse.input['agentType'] as String? ?? '';
+
+    final matchingAgent = agents.cast<Agent?>().firstWhere(
+      (a) => a!.name == agentName,
+      orElse: () => null,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: GestureDetector(
+        onTap: matchingAgent != null
+            ? () => onTap?.call(matchingAgent.id)
+            : null,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: VideRadius.smAll,
+            border: Border.all(
+              color: videColors.glassBorder,
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.md,
+            vertical: 12,
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 18,
+                color: videColors.accent,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      agentName,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: videColors.accent,
+                      ),
+                    ),
+                    if (agentType.isNotEmpty)
+                      Text(
+                        agentType,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: videColors.textSecondary,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (matchingAgent != null)
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: videColors.textTertiary,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 sealed class _ChatItem {
   DateTime get timestamp;
 
