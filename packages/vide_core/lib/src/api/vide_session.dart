@@ -587,9 +587,7 @@ class LocalVideSession implements VideSession {
         // Guard against disposed session — if dispose() already ran, deny
         // immediately to avoid orphaned completers that never resolve.
         if (_disposed) {
-          return const claude.PermissionResultDeny(
-            message: 'Session disposed',
-          );
+          return const claude.PermissionResultDeny(message: 'Session disposed');
         }
 
         // Need to ask the user - emit event and wait
@@ -1014,6 +1012,27 @@ class LocalVideSession implements VideSession {
     for (int i = startIndex; i < responses.length; i++) {
       final response = responses[i];
       if (response is claude.ToolUseResponse) {
+        // Finalize any streaming text block before emitting tool events.
+        // Without this, the event stream has incorrect ordering where
+        // ToolUseEvent arrives before the preceding MessageEvent is
+        // finalized (isPartial: false), causing rendering bugs in clients
+        // that consume events sequentially (e.g., mobile via WebSocket).
+        if (state.currentMessageEventId != null) {
+          _hub.emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: state.taskName,
+              eventId: state.currentMessageEventId!,
+              role: 'assistant',
+              content: '',
+              isPartial: false,
+            ),
+          );
+          state.currentMessageEventId = null;
+        }
+
         final toolUseId = response.toolUseId ?? const Uuid().v4();
         state.toolNamesByUseId[toolUseId] = response.toolName;
 

@@ -136,6 +136,137 @@ Future<Response> createSession(
   );
 }
 
+/// List persisted sessions for a given project directory.
+///
+/// Query parameters:
+/// - `working-directory` (required): The client's project directory to scope
+///   the session listing to.
+Future<Response> listSessions(
+  Request request,
+  VideSessionManager sessionManager,
+) async {
+  final workingDirectory = request.url.queryParameters['working-directory'];
+  if (workingDirectory == null || workingDirectory.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final canonicalPath = p.canonicalize(workingDirectory);
+  final dir = Directory(canonicalPath);
+  if (!await dir.exists()) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory does not exist: $canonicalPath',
+        'code': 'INVALID_WORKING_DIRECTORY',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  _log.info('GET /sessions?working-directory=$canonicalPath');
+
+  final sessions = await sessionManager.listSessions(
+    workingDirectory: canonicalPath,
+  );
+
+  final json = sessions.map((s) {
+    return {
+      'session-id': s.id,
+      'goal': s.goal,
+      'created-at': s.createdAt.toIso8601String(),
+      if (s.lastActiveAt != null)
+        'last-active-at': s.lastActiveAt!.toIso8601String(),
+      if (s.workingDirectory != null) 'working-directory': s.workingDirectory,
+      if (s.team != null) 'team': s.team,
+      'agent-count': s.agents.length,
+    };
+  }).toList();
+
+  return Response.ok(
+    jsonEncode({'sessions': json}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// Resume a persisted session by ID.
+///
+/// The working directory must be provided so the server can find the correct
+/// persistence file (scoped per project).
+Future<Response> resumeSession(
+  Request request,
+  String sessionId,
+  VideSessionManager sessionManager,
+  Map<String, VideSession> sessionCache,
+) async {
+  _log.info('POST /sessions/$sessionId/resume');
+
+  final body = await request.readAsString();
+
+  Map<String, dynamic> json;
+  try {
+    json = body.isNotEmpty
+        ? jsonDecode(body) as Map<String, dynamic>
+        : <String, dynamic>{};
+  } catch (e) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'Invalid JSON in request body',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final workingDirectory = json['working-directory'] as String?;
+  if (workingDirectory == null || workingDirectory.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final canonicalPath = p.canonicalize(workingDirectory);
+
+  try {
+    final session = await sessionManager.resumeSession(
+      sessionId,
+      workingDirectory: canonicalPath,
+    );
+
+    // Register with broadcaster
+    SessionBroadcasterRegistry.instance.getOrCreate(session);
+
+    // Cache for WebSocket access
+    sessionCache[session.id] = session;
+
+    final mainAgent = session.mainAgent;
+    final response = {
+      'session-id': session.id,
+      if (mainAgent != null) 'main-agent-id': mainAgent.id,
+      'working-directory': session.workingDirectory,
+    };
+
+    _log.info('Session resumed: ${session.id}');
+    return Response.ok(
+      jsonEncode(response),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } on ArgumentError catch (e) {
+    return Response.notFound(
+      jsonEncode({'error': e.message, 'code': 'NOT_FOUND'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+}
+
 /// Simplified stream handler using VideSession as the single interface.
 ///
 /// Events are stored centrally by SessionBroadcaster. This handler only:

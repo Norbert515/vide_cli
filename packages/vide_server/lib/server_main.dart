@@ -122,6 +122,17 @@ Handler _createHandler(
     return createSession(request, sessionManager, sessionCache);
   });
 
+  router.get('/api/v1/sessions', (Request request) {
+    return listSessions(request, sessionManager);
+  });
+
+  router.post('/api/v1/sessions/<sessionId>/resume', (
+    Request request,
+    String sessionId,
+  ) {
+    return resumeSession(request, sessionId, sessionManager, sessionCache);
+  });
+
   router.get('/api/v1/sessions/<sessionId>/stream', (
     Request request,
     String sessionId,

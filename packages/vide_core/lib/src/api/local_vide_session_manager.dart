@@ -125,16 +125,37 @@ class LocalVideSessionManager implements VideSessionManager {
     return session;
   }
 
+  /// Get a persistence manager scoped to the given working directory.
+  ///
+  /// When [workingDirectory] is provided, creates a temporary container
+  /// to get a persistence manager scoped to that project. Otherwise
+  /// uses the root container (which is scoped by its own workingDirProvider).
+  AgentNetworkPersistenceManager _persistenceManagerFor(
+    String? workingDirectory,
+  ) {
+    if (workingDirectory == null || !_isolateContainers) {
+      return _container.read(agentNetworkPersistenceManagerProvider);
+    }
+
+    // In isolated mode with explicit working directory, create a scoped
+    // persistence manager directly (avoids creating a full container).
+    return AgentNetworkPersistenceManager(
+      configManager: _container.read(videConfigManagerProvider),
+      projectPath: workingDirectory,
+    );
+  }
+
   @override
-  Future<VideSession> resumeSession(String sessionId) async {
+  Future<VideSession> resumeSession(
+    String sessionId, {
+    String? workingDirectory,
+  }) async {
     // Return existing active session if available.
     if (_activeSessions.containsKey(sessionId)) {
       return _activeSessions[sessionId]!;
     }
 
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
-    );
+    final persistenceManager = _persistenceManagerFor(workingDirectory);
     final networks = await persistenceManager.loadNetworks();
     final network = networks.where((n) => n.id == sessionId).firstOrNull;
 
@@ -142,7 +163,10 @@ class LocalVideSessionManager implements VideSessionManager {
       throw ArgumentError('Session not found: $sessionId');
     }
 
-    final workingDir = network.worktreePath ?? Directory.current.path;
+    // Use the network's stored working directory, falling back to the
+    // explicitly provided one, then to the current process directory.
+    final workingDir =
+        network.worktreePath ?? workingDirectory ?? Directory.current.path;
     final sessionContainer = _containerForSession(workingDir);
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
     await manager.resume(network);
@@ -162,10 +186,10 @@ class LocalVideSessionManager implements VideSessionManager {
   }
 
   @override
-  Future<List<VideSessionInfo>> listSessions() async {
-    final persistenceManager = _container.read(
-      agentNetworkPersistenceManagerProvider,
-    );
+  Future<List<VideSessionInfo>> listSessions({
+    String? workingDirectory,
+  }) async {
+    final persistenceManager = _persistenceManagerFor(workingDirectory);
     final networks = await persistenceManager.loadNetworks();
 
     final sessions = networks.map((network) {
@@ -212,13 +236,16 @@ class LocalVideSessionManager implements VideSessionManager {
       await activeSession.dispose();
     }
 
-    // Dispose isolated container if present.
-    _sessionContainers.remove(sessionId)?.dispose();
-
-    final persistenceManager = _container.read(
+    // Use the session's container for persistence (it has the correct project
+    // path), falling back to the root container for non-isolated mode.
+    final sessionContainer = _sessionContainers.remove(sessionId);
+    final persistenceManager = (sessionContainer ?? _container).read(
       agentNetworkPersistenceManagerProvider,
     );
     await persistenceManager.deleteNetwork(sessionId);
+
+    // Dispose the isolated container after using its persistence manager.
+    sessionContainer?.dispose();
 
     _emitSessionList();
   }

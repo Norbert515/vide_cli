@@ -151,7 +151,10 @@ Future<void> main(
         final VideSessionManager manager;
         if (daemonState.isConnected) {
           final notifier = ref.read(daemonConnectionProvider.notifier);
-          manager = RemoteVideSessionManager(notifier);
+          final persistenceManager = ref.read(
+            agentNetworkPersistenceManagerProvider,
+          );
+          manager = RemoteVideSessionManager(notifier, persistenceManager);
         } else {
           manager = LocalVideSessionManager(container, _tuiPermissionHandler);
         }

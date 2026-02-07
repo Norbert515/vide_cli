@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 import '../helpers/mock_vide_config_manager.dart';
@@ -213,6 +214,148 @@ void main() {
         final loaded = await newManager.loadNetworks();
         expect(loaded.length, 1);
         expect(loaded[0].id, 'persistent');
+      });
+    });
+
+    group('project path isolation', () {
+      test('different project paths have separate storage', () async {
+        final managerA = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/alpha',
+        );
+        final managerB = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/beta',
+        );
+
+        await managerA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'alpha-session', goal: 'Alpha goal'),
+        );
+        await managerB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'beta-session', goal: 'Beta goal'),
+        );
+
+        final alphaNetworks = await managerA.loadNetworks();
+        final betaNetworks = await managerB.loadNetworks();
+
+        expect(alphaNetworks.length, 1);
+        expect(alphaNetworks[0].id, 'alpha-session');
+
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].id, 'beta-session');
+      });
+
+      test('deleting from one project does not affect another', () async {
+        final managerA = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/alpha',
+        );
+        final managerB = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/beta',
+        );
+
+        await managerA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'shared-id', goal: 'Alpha'),
+        );
+        await managerB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'shared-id', goal: 'Beta'),
+        );
+
+        await managerA.deleteNetwork('shared-id');
+
+        final alphaNetworks = await managerA.loadNetworks();
+        final betaNetworks = await managerB.loadNetworks();
+
+        expect(alphaNetworks, isEmpty);
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].goal, 'Beta');
+      });
+    });
+
+    group('Riverpod provider scoping', () {
+      test('provider uses workingDirProvider for project scoping', () async {
+        final containerA = ProviderContainer(
+          overrides: [
+            videConfigManagerProvider.overrideWithValue(configManager),
+            workingDirProvider.overrideWithValue('/project/alpha'),
+          ],
+        );
+        final containerB = ProviderContainer(
+          overrides: [
+            videConfigManagerProvider.overrideWithValue(configManager),
+            workingDirProvider.overrideWithValue('/project/beta'),
+          ],
+        );
+
+        addTearDown(() {
+          containerA.dispose();
+          containerB.dispose();
+        });
+
+        final pmA = containerA.read(agentNetworkPersistenceManagerProvider);
+        final pmB = containerB.read(agentNetworkPersistenceManagerProvider);
+
+        await pmA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'alpha-net', goal: 'Alpha work'),
+        );
+        await pmB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'beta-net', goal: 'Beta work'),
+        );
+
+        final alphaNetworks = await pmA.loadNetworks();
+        final betaNetworks = await pmB.loadNetworks();
+
+        expect(alphaNetworks.length, 1);
+        expect(alphaNetworks[0].id, 'alpha-net');
+
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].id, 'beta-net');
+      });
+
+      test('isolated containers scope persistence independently', () async {
+        // Simulates server mode: root container has daemon CWD,
+        // but isolated session containers have client CWDs.
+        final rootContainer = ProviderContainer(
+          overrides: [
+            videConfigManagerProvider.overrideWithValue(configManager),
+            workingDirProvider.overrideWithValue('/daemon/cwd'),
+          ],
+        );
+        addTearDown(rootContainer.dispose);
+
+        // Simulate creating an isolated container for a client session
+        // (mimics _containerForSession in LocalVideSessionManager)
+        final clientContainer = ProviderContainer(
+          overrides: [
+            videConfigManagerProvider.overrideWithValue(
+              rootContainer.read(videConfigManagerProvider),
+            ),
+            workingDirProvider.overrideWithValue('/client/project'),
+          ],
+        );
+        addTearDown(clientContainer.dispose);
+
+        final rootPm = rootContainer.read(
+          agentNetworkPersistenceManagerProvider,
+        );
+        final clientPm = clientContainer.read(
+          agentNetworkPersistenceManagerProvider,
+        );
+
+        // Save via client container (simulates session creation)
+        await clientPm.saveNetwork(
+          TestFixtures.agentNetwork(id: 'client-session'),
+        );
+
+        // Root container should NOT see the client's session
+        final rootNetworks = await rootPm.loadNetworks();
+        expect(rootNetworks, isEmpty);
+
+        // Client container should see its own session
+        final clientNetworks = await clientPm.loadNetworks();
+        expect(clientNetworks.length, 1);
+        expect(clientNetworks[0].id, 'client-session');
       });
     });
 

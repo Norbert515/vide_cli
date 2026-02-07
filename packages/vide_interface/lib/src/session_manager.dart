@@ -53,13 +53,24 @@ abstract interface class VideSessionManager {
 
   /// Resume an existing session by its ID.
   ///
+  /// [workingDirectory] scopes the persistence lookup to a specific project.
+  /// Required in server mode (where there's no implicit project directory).
+  /// In TUI mode, the provider's working directory is used if not specified.
+  ///
   /// Throws [ArgumentError] if the session is not found.
-  Future<VideSession> resumeSession(String sessionId);
+  Future<VideSession> resumeSession(
+    String sessionId, {
+    String? workingDirectory,
+  });
 
   /// List all available sessions.
   ///
+  /// [workingDirectory] scopes the listing to sessions from a specific project.
+  /// Required in server mode (where there's no implicit project directory).
+  /// In TUI mode, the provider's working directory is used if not specified.
+  ///
   /// Returns session info sorted by most recently active first.
-  Future<List<VideSessionInfo>> listSessions();
+  Future<List<VideSessionInfo>> listSessions({String? workingDirectory});
 
   /// Delete a session by its ID.
   ///

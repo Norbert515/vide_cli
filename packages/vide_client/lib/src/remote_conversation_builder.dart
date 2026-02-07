@@ -445,8 +445,12 @@ class RemoteConversationBuilder {
       );
     }
 
-    // Clear tracking when turn completes
-    if (!isPartial) {
+    // Only clear assistant message tracking when a non-empty final message
+    // arrives (true turn boundary). Empty finalization messages (content == '')
+    // just signal that a text block ended before a tool use, not that the
+    // entire assistant turn is complete. Turn completion is signaled by
+    // markAssistantTurnComplete (from TurnCompleteEvent).
+    if (!isPartial && content.isNotEmpty) {
       _currentAssistantMessageId.remove(agentId);
     }
   }
