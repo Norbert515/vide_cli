@@ -237,5 +237,129 @@ void main() {
         expect(agents.containsKey('main'), isTrue);
       });
     });
+
+    group('Anti-hallucination messaging', () {
+      // Every team that includes etiquette/messaging should inject
+      // anti-hallucination content into all its agents' prompts.
+
+      final antiHallucinationPhrases = [
+        'NEVER Hallucinate Sub-Agent Responses',
+        'End your turn IMMEDIATELY',
+        'Do NOT generate your own answer',
+        'Do NOT guess or hallucinate',
+        'STOP producing output',
+        '[MESSAGE FROM AGENT',
+      ];
+
+      for (final teamName in ['vide', 'enterprise', 'flutter']) {
+        group('team: $teamName', () {
+          test('team includes messaging etiquette', () async {
+            final team = await loader.getTeam(teamName);
+
+            expect(team, isNotNull);
+            expect(
+              team!.include,
+              contains('etiquette/messaging'),
+              reason:
+                  'Team $teamName must include etiquette/messaging for '
+                  'anti-hallucination rules',
+            );
+          });
+
+          test('main agent prompt contains anti-hallucination rules',
+              () async {
+            final team = await loader.getTeam(teamName);
+            final config = await loader.buildAgentConfiguration(
+              team!.mainAgent,
+              teamName: teamName,
+            );
+
+            expect(config, isNotNull);
+            for (final phrase in antiHallucinationPhrases) {
+              expect(
+                config!.systemPrompt,
+                contains(phrase),
+                reason:
+                    'Main agent "${team.mainAgent}" in team "$teamName" '
+                    'missing anti-hallucination phrase: "$phrase"',
+              );
+            }
+          });
+
+          test('all team agents receive anti-hallucination rules',
+              () async {
+            final team = await loader.getTeam(teamName);
+
+            for (final agentName in team!.agents) {
+              loader.clearCache();
+              final config = await loader.buildAgentConfiguration(
+                agentName,
+                teamName: teamName,
+              );
+
+              expect(
+                config,
+                isNotNull,
+                reason: 'Agent $agentName failed to load',
+              );
+              expect(
+                config!.systemPrompt,
+                contains('NEVER Hallucinate Sub-Agent Responses'),
+                reason:
+                    'Agent "$agentName" in team "$teamName" missing '
+                    'anti-hallucination section',
+              );
+            }
+          });
+        });
+      }
+
+      test('messaging etiquette appears before agent content', () async {
+        final config = await loader.buildAgentConfiguration(
+          'main',
+          teamName: 'vide',
+        );
+
+        expect(config, isNotNull);
+        final prompt = config!.systemPrompt;
+
+        final hallucinationIdx =
+            prompt.indexOf('NEVER Hallucinate Sub-Agent Responses');
+        final orchestratorIdx = prompt.indexOf('YOU ARE THE ORCHESTRATOR');
+
+        expect(
+          hallucinationIdx,
+          lessThan(orchestratorIdx),
+          reason:
+              'Anti-hallucination rules from messaging etiquette should '
+              'appear before the agent\'s own content',
+        );
+      });
+
+      test(
+          'messaging etiquette appears before agent content in enterprise',
+          () async {
+        final config = await loader.buildAgentConfiguration(
+          'enterprise-lead',
+          teamName: 'enterprise',
+        );
+
+        expect(config, isNotNull);
+        final prompt = config!.systemPrompt;
+
+        final hallucinationIdx =
+            prompt.indexOf('NEVER Hallucinate Sub-Agent Responses');
+        final orchestratorIdx =
+            prompt.indexOf('ENTERPRISE ORCHESTRATOR');
+
+        expect(
+          hallucinationIdx,
+          lessThan(orchestratorIdx),
+          reason:
+              'Anti-hallucination rules from messaging etiquette should '
+              'appear before the agent\'s own content',
+        );
+      });
+    });
   });
 }
