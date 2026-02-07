@@ -175,15 +175,15 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         requestId: data!['request-id'] as String,
-        toolName: (data['tool'] as Map<String, dynamic>?)?['name'] as String? ??
-            '',
+        toolName:
+            (data['tool'] as Map<String, dynamic>?)?['name'] as String? ?? '',
         toolInput:
             (data['tool'] as Map<String, dynamic>?)?['input']
                 as Map<String, dynamic>? ??
             {},
         inferredPattern: _extractInferredPattern(data['tool']),
       ),
-      'permission-timeout' => PermissionTimeoutEvent(
+      'permission-resolved' => PermissionResolvedEvent(
         seq: seq,
         agentId: agentId,
         agentType: agentType,
@@ -191,6 +191,8 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         requestId: data!['request-id'] as String,
+        allow: data['allow'] as bool? ?? false,
+        message: data['message'] as String?,
       ),
       'ask-user-question' => AskUserQuestionEvent(
         seq: seq,
@@ -245,8 +247,7 @@ sealed class VideEvent {
             data?['total-cache-read-input-tokens'] as int? ?? 0,
         totalCacheCreationInputTokens:
             data?['total-cache-creation-input-tokens'] as int? ?? 0,
-        totalCostUsd:
-            (data?['total-cost-usd'] as num?)?.toDouble() ?? 0.0,
+        totalCostUsd: (data?['total-cost-usd'] as num?)?.toDouble() ?? 0.0,
         currentContextInputTokens:
             data?['current-context-input-tokens'] as int? ?? 0,
         currentContextCacheReadTokens:
@@ -368,14 +369,10 @@ final class HistoryEvent extends VideEvent {
   String get wireType => 'history';
 
   @override
-  Map<String, dynamic> dataFields() => {
-    'events': events,
-  };
+  Map<String, dynamic> dataFields() => {'events': events};
 
   @override
-  Map<String, dynamic> topLevelFields() => {
-    'last-seq': lastSeq,
-  };
+  Map<String, dynamic> topLevelFields() => {'last-seq': lastSeq};
 }
 
 /// Assistant or user message content.
@@ -523,9 +520,7 @@ final class StatusEvent extends VideEvent {
   String get wireType => 'status';
 
   @override
-  Map<String, dynamic> dataFields() => {
-    'status': status.toWireString(),
-  };
+  Map<String, dynamic> dataFields() => {'status': status.toWireString()};
 
   @override
   String toString() => 'StatusEvent($status)';
@@ -701,11 +696,15 @@ final class PermissionRequestEvent extends VideEvent {
   String toString() => 'PermissionRequestEvent($toolName, $requestId)';
 }
 
-/// Permission request timed out.
-final class PermissionTimeoutEvent extends VideEvent {
+/// Permission request was resolved (allowed or denied) by a client.
+///
+/// Broadcast to all connected clients so they can dismiss stale permission UI.
+final class PermissionResolvedEvent extends VideEvent {
   final String requestId;
+  final bool allow;
+  final String? message;
 
-  PermissionTimeoutEvent({
+  PermissionResolvedEvent({
     super.seq,
     required super.agentId,
     required super.agentType,
@@ -713,16 +712,22 @@ final class PermissionTimeoutEvent extends VideEvent {
     super.taskName,
     super.timestamp,
     required this.requestId,
+    required this.allow,
+    this.message,
   });
 
   @override
-  String get wireType => 'permission-timeout';
+  String get wireType => 'permission-resolved';
 
   @override
-  Map<String, dynamic> dataFields() => {'request-id': requestId};
+  Map<String, dynamic> dataFields() => {
+    'request-id': requestId,
+    'allow': allow,
+    if (message != null) 'message': message,
+  };
 
   @override
-  String toString() => 'PermissionTimeoutEvent($requestId)';
+  String toString() => 'PermissionResolvedEvent($requestId, allow=$allow)';
 }
 
 /// Agent needs to ask the user a question (AskUserQuestion tool).

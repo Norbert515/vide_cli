@@ -100,13 +100,15 @@ sealed class VideEvent {
         requestId: data!['request-id'] as String,
         tool: data['tool'] as Map<String, dynamic>,
       ),
-      'permission-timeout' => PermissionTimeoutEvent(
+      'permission-resolved' => PermissionResolvedEvent(
         seq: seq,
         eventId: eventId,
         timestamp: timestamp,
         agent: agent,
         // Required field - will throw if missing (intentional)
         requestId: data!['request-id'] as String,
+        allow: data['allow'] as bool? ?? false,
+        message: data['message'] as String?,
       ),
       'agent-spawned' => AgentSpawnedEvent(
         seq: seq,
@@ -276,16 +278,20 @@ class PermissionRequestEvent extends VideEvent {
   String get toolName => tool['name'] as String? ?? '';
 }
 
-/// Permission request timed out.
-class PermissionTimeoutEvent extends VideEvent {
+/// Permission request was resolved (allowed or denied).
+class PermissionResolvedEvent extends VideEvent {
   final String requestId;
+  final bool allow;
+  final String? message;
 
-  const PermissionTimeoutEvent({
+  const PermissionResolvedEvent({
     super.seq,
     super.eventId,
     required super.timestamp,
     super.agent,
     required this.requestId,
+    required this.allow,
+    this.message,
   });
 }
 

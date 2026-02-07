@@ -483,27 +483,6 @@ class SessionEvent {
     );
   }
 
-  /// Create a permission-timeout event
-  factory SessionEvent.permissionTimeout({
-    required int seq,
-    required String agentId,
-    required String agentType,
-    String? agentName,
-    String? taskName,
-    required String requestId,
-  }) {
-    return SessionEvent(
-      seq: seq,
-      eventId: const Uuid().v4(),
-      type: 'permission-timeout',
-      agentId: agentId,
-      agentType: agentType,
-      agentName: agentName,
-      taskName: taskName,
-      data: {'request-id': requestId},
-    );
-  }
-
   /// Create an ask-user-question event
   factory SessionEvent.askUserQuestion({
     required int seq,

@@ -91,7 +91,7 @@ class EventRenderer {
       case HistoryEvent _:
       case AbortedEvent _:
       case CommandResultEvent _:
-      case PermissionTimeoutEvent _:
+      case PermissionResolvedEvent _:
       case UnknownEvent _:
         // Internal/transport events, no rendering needed
         break;

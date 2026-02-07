@@ -100,9 +100,8 @@ class _TabChip extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: isSelected
-                    ? videColors.accent
-                    : videColors.textSecondary,
+                color:
+                    isSelected ? videColors.accent : videColors.textSecondary,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -127,8 +126,16 @@ class _AgentStatusIndicator extends StatefulWidget {
 class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
     with SingleTickerProviderStateMixin {
   static const _brailleFrames = [
-    '\u280B', '\u2819', '\u2839', '\u2838', '\u283C', '\u2834',
-    '\u2826', '\u2827', '\u2807', '\u280F',
+    '\u280B',
+    '\u2819',
+    '\u2839',
+    '\u2838',
+    '\u283C',
+    '\u2834',
+    '\u2826',
+    '\u2827',
+    '\u2807',
+    '\u280F',
   ];
 
   late AnimationController _controller;

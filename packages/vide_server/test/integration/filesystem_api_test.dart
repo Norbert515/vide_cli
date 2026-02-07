@@ -48,11 +48,7 @@ void main() {
 
     // Write test config
     await configFile.writeAsString(
-      jsonEncode({
-        'permission-timeout-seconds': 60,
-        'auto-approve-all': false,
-        'filesystem-root': testDir.path,
-      }),
+      jsonEncode({'auto-approve-all': false, 'filesystem-root': testDir.path}),
     );
 
     // Start the server

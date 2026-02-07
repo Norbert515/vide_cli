@@ -15,10 +15,7 @@ enum VideConversationState {
 }
 
 /// Type of a conversation message.
-enum VideMessageType {
-  userMessage,
-  assistantText,
-}
+enum VideMessageType { userMessage, assistantText }
 
 /// A response within a conversation message (text, tool use, or tool result).
 sealed class VideResponse {

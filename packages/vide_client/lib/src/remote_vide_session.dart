@@ -376,8 +376,8 @@ class RemoteVideSession implements VideSession {
         _handleAskUserQuestion(event);
       case TaskNameChangedEvent():
         _handleTaskNameChanged(event);
-      case PermissionTimeoutEvent():
-        _handlePermissionTimeout(event);
+      case PermissionResolvedEvent():
+        _handlePermissionResolved(event);
       case AbortedEvent():
         _handleAborted(event);
       case CommandResultEvent():
@@ -737,11 +737,20 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  void _handlePermissionTimeout(PermissionTimeoutEvent event) {
-    final completer = _pendingPermissions.remove(event.requestId);
-    completer?.complete(
-      const VidePermissionDeny(
-        message: 'Permission request timed out',
+  void _handlePermissionResolved(PermissionResolvedEvent event) {
+    // Clean up any local pending state
+    _pendingPermissions.remove(event.requestId);
+
+    // Re-emit so UI consumers (mobile app) can dismiss stale permission dialogs
+    _hub.emit(
+      PermissionResolvedEvent(
+        agentId: event.agentId,
+        agentType: _resolveAgentType(event.agentId, event),
+        agentName: _resolveAgentName(event.agentId, event),
+        taskName: event.taskName,
+        requestId: event.requestId,
+        allow: event.allow,
+        message: event.message,
       ),
     );
   }

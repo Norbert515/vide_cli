@@ -149,7 +149,10 @@ void main() {
         expect(conversations.length, 2);
         expect(conversations.last.messages.length, 2);
         expect(conversations.last.messages.first.role, claude.MessageRole.user);
-        expect(conversations.last.messages.last.role, claude.MessageRole.assistant);
+        expect(
+          conversations.last.messages.last.role,
+          claude.MessageRole.assistant,
+        );
       });
 
       test('abort can be called without error', () async {

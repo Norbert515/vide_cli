@@ -63,10 +63,8 @@ class RemoteConversationBuilder {
       }
     }
 
-    var conversation =
-        _conversations[agentId] ?? const VideConversation();
-    final messages =
-        List<VideConversationMessage>.from(conversation.messages);
+    var conversation = _conversations[agentId] ?? const VideConversation();
+    final messages = List<VideConversationMessage>.from(conversation.messages);
 
     if (role == 'user') {
       _handleUserMessage(messages, agentId, eventId, content);
@@ -98,10 +96,8 @@ class RemoteConversationBuilder {
     required String toolName,
     required Map<String, dynamic> toolInput,
   }) {
-    var conversation =
-        _conversations[agentId] ?? const VideConversation();
-    final messages =
-        List<VideConversationMessage>.from(conversation.messages);
+    var conversation = _conversations[agentId] ?? const VideConversation();
+    final messages = List<VideConversationMessage>.from(conversation.messages);
 
     // Find or create the current assistant message
     var currentMsgId = _currentAssistantMessageId[agentId];
@@ -162,10 +158,8 @@ class RemoteConversationBuilder {
     required String result,
     required bool isError,
   }) {
-    var conversation =
-        _conversations[agentId] ?? const VideConversation();
-    final messages =
-        List<VideConversationMessage>.from(conversation.messages);
+    var conversation = _conversations[agentId] ?? const VideConversation();
+    final messages = List<VideConversationMessage>.from(conversation.messages);
 
     // Find the current assistant message
     final currentMsgId = _currentAssistantMessageId[agentId];
@@ -210,8 +204,7 @@ class RemoteConversationBuilder {
     var conversation = _conversations[agentId];
     if (conversation == null) return;
 
-    final messages =
-        List<VideConversationMessage>.from(conversation.messages);
+    final messages = List<VideConversationMessage>.from(conversation.messages);
     final existingIndex = messages.indexWhere((m) => m.id == currentMsgId);
 
     if (existingIndex >= 0) {
@@ -233,10 +226,8 @@ class RemoteConversationBuilder {
   ///
   /// Returns the updated conversation.
   VideConversation addUserMessage(String agentId, String content) {
-    var conversation =
-        _conversations[agentId] ?? const VideConversation();
-    final messages =
-        List<VideConversationMessage>.from(conversation.messages);
+    var conversation = _conversations[agentId] ?? const VideConversation();
+    final messages = List<VideConversationMessage>.from(conversation.messages);
 
     messages.add(
       VideConversationMessage(

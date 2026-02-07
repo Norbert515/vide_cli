@@ -89,7 +89,9 @@ void main() {
         // Each text chunk creates a TextResponse
         expect(conversation.messages[0].responses.length, equals(3));
         expect(
-          conversation.messages[0].responses.every((r) => r is VideTextResponse),
+          conversation.messages[0].responses.every(
+            (r) => r is VideTextResponse,
+          ),
           isTrue,
         );
       });
@@ -131,7 +133,10 @@ void main() {
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].responses.length, equals(2));
         expect(conversation.messages[0].responses[0], isA<VideTextResponse>());
-        expect(conversation.messages[0].responses[1], isA<VideToolUseResponse>());
+        expect(
+          conversation.messages[0].responses[1],
+          isA<VideToolUseResponse>(),
+        );
 
         final toolUse =
             conversation.messages[0].responses[1] as VideToolUseResponse;
@@ -155,7 +160,10 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].responses.length, equals(2));
-        expect(conversation.messages[0].responses[0], isA<VideToolUseResponse>());
+        expect(
+          conversation.messages[0].responses[0],
+          isA<VideToolUseResponse>(),
+        );
         expect(
           conversation.messages[0].responses[1],
           isA<VideToolResultResponse>(),
@@ -249,7 +257,10 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
         expect(conversation.messages[0].role, equals(MessageRole.assistant));
-        expect(conversation.messages[0].responses[0], isA<VideToolUseResponse>());
+        expect(
+          conversation.messages[0].responses[0],
+          isA<VideToolUseResponse>(),
+        );
       });
 
       test('tool result without matching tool use is handled gracefully', () {

@@ -14,7 +14,7 @@ class SessionEventTypes {
   static const agentSpawned = 'agent-spawned';
   static const agentTerminated = 'agent-terminated';
   static const permissionRequest = 'permission-request';
-  static const permissionTimeout = 'permission-timeout';
+  static const permissionResolved = 'permission-resolved';
   static const done = 'done';
   static const aborted = 'aborted';
   static const error = 'error';
@@ -28,7 +28,7 @@ class SessionEventTypes {
     agentSpawned,
     agentTerminated,
     permissionRequest,
-    permissionTimeout,
+    permissionResolved,
     done,
     aborted,
     error,

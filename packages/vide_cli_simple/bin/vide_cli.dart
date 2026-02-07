@@ -20,8 +20,7 @@ void main(List<String> args) async {
     ..addOption(
       'team',
       abbr: 't',
-      help:
-          'Team to use: enterprise, vide, flutter, parallel, exp-flutter-qa',
+      help: 'Team to use: enterprise, vide, flutter, parallel, exp-flutter-qa',
       defaultsTo: 'enterprise',
     )
     ..addFlag('help', abbr: 'h', help: 'Show this help', negatable: false)

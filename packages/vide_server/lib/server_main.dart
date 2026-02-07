@@ -59,7 +59,6 @@ Future<HttpServer> startServer(VideServerConfig config) async {
 
   // Load server configuration
   final serverConfig = await ServerConfig.load();
-  log.info('Permission timeout: ${serverConfig.permissionTimeoutSeconds}s');
   if (serverConfig.autoApproveAll) {
     log.warning(
       'Auto-approve-all is enabled - all permissions will be granted!',
@@ -129,12 +128,7 @@ Handler _createHandler(
     Request request,
     String sessionId,
   ) {
-    return streamSessionWebSocket(
-      sessionId,
-      videCore,
-      sessionCache,
-      serverConfig,
-    )(request);
+    return streamSessionWebSocket(sessionId, videCore, sessionCache)(request);
   });
 
   // Teams API

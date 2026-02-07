@@ -261,9 +261,18 @@ class _EventHandler {
         print('   Request ID: $requestId');
         print('   (Auto-approving in this client)');
 
-      case PermissionTimeoutEvent(:final requestId):
+      case PermissionResolvedEvent(
+        :final requestId,
+        :final allow,
+        :final message,
+      ):
         print('');
-        print('⏰ Permission timeout: $requestId');
+        print(
+          '${allow ? '✅' : '❌'} Permission ${allow ? 'allowed' : 'denied'}: $requestId',
+        );
+        if (message != null) {
+          print('   message: $message');
+        }
 
       case DoneEvent():
         _closeStreamingMessage();

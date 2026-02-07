@@ -72,8 +72,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return;
     }
 
-    sessionRepo.connectToExistingSession(widget.sessionId).then((_) {
-    }).catchError((e) {
+    sessionRepo
+        .connectToExistingSession(widget.sessionId)
+        .then((_) {})
+        .catchError((e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -189,7 +191,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           timestamp: event.timestamp,
         ));
 
-      case vc.PermissionTimeoutEvent(:final requestId):
+      case vc.PermissionResolvedEvent(:final requestId):
         final pending =
             ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
         if (pending?.requestId == requestId) {
@@ -197,14 +199,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (_isPermissionSheetShowing && mounted) {
             Navigator.of(context).pop();
             _isPermissionSheetShowing = false;
-          }
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Permission request timed out'),
-                behavior: SnackBarBehavior.fixed,
-              ),
-            );
           }
         }
 
@@ -705,9 +699,9 @@ class _SpawnAgentCard extends StatelessWidget {
     final agentType = toolUse.input['agentType'] as String? ?? '';
 
     final matchingAgent = agents.cast<Agent?>().firstWhere(
-      (a) => a!.name == agentName,
-      orElse: () => null,
-    );
+          (a) => a!.name == agentName,
+          orElse: () => null,
+        );
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -715,9 +709,8 @@ class _SpawnAgentCard extends StatelessWidget {
         vertical: VideSpacing.xs,
       ),
       child: GestureDetector(
-        onTap: matchingAgent != null
-            ? () => onTap?.call(matchingAgent.id)
-            : null,
+        onTap:
+            matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
         child: Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,

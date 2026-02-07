@@ -252,7 +252,7 @@ class ConversationStateManager {
       case TaskNameChangedEvent _:
       case ConnectedEvent _:
       case HistoryEvent _:
-      case PermissionTimeoutEvent _:
+      case PermissionResolvedEvent _:
       case AbortedEvent _:
       case CommandResultEvent _:
       case UnknownEvent _:
@@ -306,7 +306,9 @@ class ConversationStateManager {
     state.taskName = event.taskName;
 
     if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
-      state.messages.add(const ConversationEntry(role: 'assistant', content: []));
+      state.messages.add(
+        const ConversationEntry(role: 'assistant', content: []),
+      );
     }
 
     final lastMessage = state.messages.last;
@@ -343,10 +345,8 @@ class ConversationStateManager {
     final state = _agentStates[event.agentId];
     if (state == null) return;
 
-    final messageIndex =
-        state.pendingToolMessageIndex.remove(event.toolUseId);
-    final contentIndex =
-        state.pendingToolContentIndex.remove(event.toolUseId);
+    final messageIndex = state.pendingToolMessageIndex.remove(event.toolUseId);
+    final contentIndex = state.pendingToolContentIndex.remove(event.toolUseId);
 
     if (messageIndex == null ||
         contentIndex == null ||

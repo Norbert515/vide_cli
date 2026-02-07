@@ -41,9 +41,8 @@ class LocalVideSession implements VideSession {
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
 
-  /// Pending permission completers by request ID.
-  final Map<String, Completer<claude.PermissionResult>> _pendingPermissions =
-      {};
+  /// Pending permission completers by request ID, with agent metadata for the resolution event.
+  final Map<String, _PendingPermission> _pendingPermissions = {};
 
   /// Pending AskUserQuestion completers by request ID.
   final Map<String, Completer<Map<String, String>>> _pendingAskUserQuestions =
@@ -225,17 +224,28 @@ class LocalVideSession implements VideSession {
     String? message,
   }) {
     _checkNotDisposed();
-    final completer = _pendingPermissions.remove(requestId);
-    if (completer != null) {
+    final pending = _pendingPermissions.remove(requestId);
+    if (pending != null) {
       if (allow) {
-        completer.complete(const claude.PermissionResultAllow());
+        pending.completer.complete(const claude.PermissionResultAllow());
       } else {
-        completer.complete(
-          claude.PermissionResultDeny(
-            message: message ?? 'Permission denied',
-          ),
+        pending.completer.complete(
+          claude.PermissionResultDeny(message: message ?? 'Permission denied'),
         );
       }
+
+      // Broadcast resolution to all connected clients
+      _hub.emit(
+        PermissionResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          allow: allow,
+          message: message,
+        ),
+      );
     }
   }
 
@@ -448,8 +458,9 @@ class LocalVideSession implements VideSession {
       return switch (claudeResult) {
         claude.PermissionResultAllow(:final updatedInput) =>
           VidePermissionAllow(updatedInput: updatedInput),
-        claude.PermissionResultDeny(:final message) =>
-          VidePermissionDeny(message: message),
+        claude.PermissionResultDeny(:final message) => VidePermissionDeny(
+          message: message,
+        ),
       };
     };
   }
@@ -482,9 +493,9 @@ class LocalVideSession implements VideSession {
     _providerSubscriptions.clear();
 
     // Complete any pending permissions with deny
-    for (final completer in _pendingPermissions.values) {
-      if (!completer.isCompleted) {
-        completer.complete(
+    for (final pending in _pendingPermissions.values) {
+      if (!pending.completer.isCompleted) {
+        pending.completer.complete(
           const claude.PermissionResultDeny(message: 'Session disposed'),
         );
       }
@@ -577,7 +588,13 @@ class LocalVideSession implements VideSession {
         // Need to ask the user - emit event and wait
         final requestId = const Uuid().v4();
         final completer = Completer<claude.PermissionResult>();
-        _pendingPermissions[requestId] = completer;
+        _pendingPermissions[requestId] = _PendingPermission(
+          completer: completer,
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: state?.taskName,
+        );
 
         // Emit permission request event
         _hub.emit(
@@ -1038,12 +1055,10 @@ class LocalVideSession implements VideSession {
       totalInputTokens: conversation.totalInputTokens,
       totalOutputTokens: conversation.totalOutputTokens,
       totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens:
-          conversation.totalCacheCreationInputTokens,
+      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
       totalCostUsd: conversation.totalCostUsd,
       currentContextInputTokens: conversation.currentContextInputTokens,
-      currentContextCacheReadTokens:
-          conversation.currentContextCacheReadTokens,
+      currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
       currentContextCacheCreationTokens:
           conversation.currentContextCacheCreationTokens,
       currentError: conversation.currentError,
@@ -1051,9 +1066,7 @@ class LocalVideSession implements VideSession {
   }
 
   /// Convert a claude_sdk ConversationMessage to VideConversationMessage.
-  VideConversationMessage _convertMessage(
-    claude.ConversationMessage message,
-  ) {
+  VideConversationMessage _convertMessage(claude.ConversationMessage message) {
     return VideConversationMessage(
       id: message.id,
       role: message.role == claude.MessageRole.user
@@ -1139,6 +1152,23 @@ class LocalVideSession implements VideSession {
       internal.AgentStatus.idle => VideAgentStatus.idle,
     };
   }
+}
+
+/// Holds a pending permission request with its completer and agent metadata.
+class _PendingPermission {
+  final Completer<claude.PermissionResult> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
+
+  _PendingPermission({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+  });
 }
 
 /// Tracks state for a single agent's event stream.

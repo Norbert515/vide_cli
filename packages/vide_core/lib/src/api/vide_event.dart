@@ -15,7 +15,7 @@ export 'package:vide_interface/vide_interface.dart'
         AgentSpawnedEvent,
         AgentTerminatedEvent,
         PermissionRequestEvent,
-        PermissionTimeoutEvent,
+        PermissionResolvedEvent,
         AskUserQuestionEvent,
         AskUserQuestionData,
         AskUserQuestionOptionData,

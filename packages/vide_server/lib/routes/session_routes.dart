@@ -14,7 +14,6 @@ import 'package:vide_core/vide_core.dart'
     hide ConnectedEvent, AgentInfo, HistoryEvent, CommandResultEvent;
 import '../dto/session_dto.dart';
 import '../services/session_broadcaster.dart';
-import '../services/server_config.dart';
 
 final _log = Logger('SessionRoutes');
 
@@ -148,7 +147,6 @@ Future<Response> createSession(
 class _SimplifiedStreamHandler {
   final VideSession session;
   final WebSocketChannel channel;
-  final ServerConfig serverConfig;
 
   /// Broadcaster that stores events and broadcasts to all clients
   late final SessionBroadcaster _broadcaster;
@@ -156,14 +154,7 @@ class _SimplifiedStreamHandler {
   /// Function to unregister from broadcaster on cleanup
   void Function()? _unregister;
 
-  /// Permission timeout timers
-  final Map<String, Timer> _permissionTimers = {};
-
-  _SimplifiedStreamHandler({
-    required this.session,
-    required this.channel,
-    required this.serverConfig,
-  }) {
+  _SimplifiedStreamHandler({required this.session, required this.channel}) {
     _broadcaster = SessionBroadcasterRegistry.instance.getOrCreate(session);
   }
 
@@ -217,46 +208,7 @@ class _SimplifiedStreamHandler {
 
   /// Handle event from broadcaster (already stored, just forward)
   void _handleBroadcastEvent(Map<String, dynamic> event) {
-    // Start permission timeout if needed
-    if (event case {
-      'type': 'permission-request',
-      'data': {'request-id': String requestId},
-    }) {
-      _startPermissionTimeout(requestId);
-    }
-
-    // Forward to client
     channel.sink.add(jsonEncode(event));
-  }
-
-  /// Start permission timeout timer
-  void _startPermissionTimeout(String requestId) {
-    final timeoutSeconds = serverConfig.permissionTimeoutSeconds;
-    if (timeoutSeconds <= 0) return; // No timeout configured
-
-    _permissionTimers[requestId] = Timer(Duration(seconds: timeoutSeconds), () {
-      _log.info('[Session $sessionId] Permission timeout: $requestId');
-      _permissionTimers.remove(requestId);
-
-      // Auto-deny on timeout
-      session.respondToPermission(
-        requestId,
-        allow: false,
-        message: 'Permission timed out',
-      );
-
-      // Send timeout event to this client only (not stored in history)
-      channel.sink.add(
-        jsonEncode({
-          'type': 'permission-timeout',
-          'data': {
-            'request-id': requestId,
-            'message': 'Permission timed out after ${timeoutSeconds}s',
-          },
-          'timestamp': DateTime.now().toIso8601String(),
-        }),
-      );
-    });
   }
 
   /// Handle incoming client message
@@ -313,10 +265,6 @@ class _SimplifiedStreamHandler {
       '[Session $sessionId] Permission response: ${msg.requestId} = ${msg.allow}',
     );
 
-    // Cancel timeout timer
-    _permissionTimers.remove(msg.requestId)?.cancel();
-
-    // Forward to session
     session.respondToPermission(
       msg.requestId,
       allow: msg.allow,
@@ -521,10 +469,6 @@ class _SimplifiedStreamHandler {
   void _cleanup() {
     _log.info('[Session $sessionId] Cleaning up');
     _unregister?.call();
-    for (final timer in _permissionTimers.values) {
-      timer.cancel();
-    }
-    _permissionTimers.clear();
   }
 }
 
@@ -536,7 +480,6 @@ Handler streamSessionWebSocket(
   String sessionId,
   VideCore videCore,
   Map<String, VideSession> sessionCache,
-  ServerConfig serverConfig,
 ) {
   return webSocketHandler((WebSocketChannel channel, String? protocol) {
     _log.info('[WebSocket] Client connected for session=$sessionId');
@@ -558,7 +501,6 @@ Handler streamSessionWebSocket(
     final handler = _SimplifiedStreamHandler(
       session: session,
       channel: channel,
-      serverConfig: serverConfig,
     );
 
     handler.setup().catchError((error, stack) {

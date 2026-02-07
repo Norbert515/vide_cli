@@ -144,10 +144,12 @@ class PermissionHandler {
         VidePermissionContext(),
       );
       return switch (videResult) {
-        VidePermissionAllow(:final updatedInput) =>
-          PermissionResultAllow(updatedInput: updatedInput),
-        VidePermissionDeny(:final message) =>
-          PermissionResultDeny(message: message),
+        VidePermissionAllow(:final updatedInput) => PermissionResultAllow(
+          updatedInput: updatedInput,
+        ),
+        VidePermissionDeny(:final message) => PermissionResultDeny(
+          message: message,
+        ),
       };
     };
   }

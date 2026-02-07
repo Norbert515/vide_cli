@@ -2,7 +2,7 @@
 ///
 /// Tests verify:
 /// 1. Tool use events (tool-use, tool-result)
-/// 2. Permission handling (permission-request, permission-response, permission-timeout)
+/// 2. Permission handling (permission-request, permission-response, permission-resolved)
 /// 3. Model and permission-mode selection
 /// 4. Error handling (unknown message types)
 /// 5. Abort functionality
@@ -36,7 +36,7 @@ void main() {
     // Create a test directory for file operations
     testDir = await Directory.systemTemp.createTemp('phase25_e2e_test_');
 
-    // Create config file with short permission timeout for testing
+    // Create config file for testing
     final homeDir = Platform.environment['HOME'] ?? Directory.current.path;
     final configDir = Directory(p.join(homeDir, '.vide', 'api'));
     await configDir.create(recursive: true);
@@ -49,13 +49,9 @@ void main() {
       existingConfig = await configFile.readAsString();
     }
 
-    // Write test config with short timeout
+    // Write test config
     await configFile.writeAsString(
-      jsonEncode({
-        'permission-timeout-seconds': 5, // Short timeout for testing
-        'auto-approve-all': false,
-        'filesystem-root': testDir.path,
-      }),
+      jsonEncode({'auto-approve-all': false, 'filesystem-root': testDir.path}),
     );
 
     // Start the server
@@ -884,9 +880,9 @@ void main() {
               if (!completer.isCompleted) completer.complete();
             }
 
-            // Also handle permission-timeout
-            if (event['type'] == 'permission-timeout') {
-              stdout.writeln('[TEST] Permission timed out!');
+            // Also handle permission-resolved
+            if (event['type'] == 'permission-resolved') {
+              stdout.writeln('[TEST] Permission resolved!');
               if (!completer.isCompleted) completer.complete();
             }
           });
@@ -1014,7 +1010,7 @@ void main() {
               if (!completer.isCompleted) completer.complete();
             }
 
-            if (event['type'] == 'permission-timeout') {
+            if (event['type'] == 'permission-resolved') {
               if (!completer.isCompleted) completer.complete();
             }
           });
