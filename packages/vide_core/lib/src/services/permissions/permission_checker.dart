@@ -1,4 +1,5 @@
 import '../../models/claude_settings.dart';
+import '../../models/permission_mode.dart';
 import '../settings/local_settings_manager.dart';
 import 'gitignore_matcher.dart';
 import 'pattern_inference.dart';
@@ -98,6 +99,10 @@ class PermissionChecker {
   GitignoreMatcher? _gitignoreMatcher;
   final Set<String> _sessionCache = {};
 
+  /// Cached settings to avoid reading from disk on every permission check.
+  String? _cachedSettingsCwd;
+  ClaudeSettings? _cachedSettings;
+
   PermissionChecker({this.config = const PermissionCheckerConfig()});
 
   /// Check if allowed by session cache
@@ -138,14 +143,21 @@ class PermissionChecker {
     required String cwd,
     String? permissionMode,
   }) async {
-    // Load settings (if enabled)
+    // Load settings (if enabled), caching to avoid disk reads on every check.
+    // Cache is invalidated when cwd changes (different project).
     ClaudeSettings? settings;
     if (config.loadSettings) {
-      final settingsManager = LocalSettingsManager(
-        projectRoot: cwd,
-        parrottRoot: cwd,
-      );
-      settings = await settingsManager.readSettings();
+      if (_cachedSettings != null && _cachedSettingsCwd == cwd) {
+        settings = _cachedSettings;
+      } else {
+        final settingsManager = LocalSettingsManager(
+          projectRoot: cwd,
+          parrottRoot: cwd,
+        );
+        settings = await settingsManager.readSettings();
+        _cachedSettings = settings;
+        _cachedSettingsCwd = cwd;
+      }
     }
 
     // Load gitignore if needed (and enabled)
@@ -207,7 +219,8 @@ class PermissionChecker {
     }
 
     // Auto-approve write operations in acceptEdits mode
-    if (permissionMode == 'acceptEdits' && _isWriteOperation(toolName)) {
+    if (permissionMode == PermissionMode.acceptEdits.value &&
+        _isWriteOperation(toolName)) {
       return const PermissionAllow('Auto-approved (acceptEdits mode)');
     }
 
@@ -256,5 +269,7 @@ class PermissionChecker {
   void dispose() {
     _sessionCache.clear();
     _gitignoreMatcher = null;
+    _cachedSettings = null;
+    _cachedSettingsCwd = null;
   }
 }

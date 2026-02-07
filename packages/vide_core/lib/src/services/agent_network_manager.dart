@@ -6,6 +6,7 @@ import '../agents/agent_configuration.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
+import '../models/permission_mode.dart';
 import '../utils/working_dir_provider.dart';
 import 'agent_config_resolver.dart';
 import 'agent_lifecycle_service.dart';
@@ -161,29 +162,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       throw Exception('Agent configuration not found for: $mainAgentName');
     }
 
-    // Apply permission mode override if provided
-    // This allows session-level permission mode (e.g., 'ask') to override
-    // the agent's default permission mode from the team framework
-    //
-    // Valid modes:
-    // - 'ask': vide-specific mode (translated to 'default' for CLI, permissions handled via SDK callback)
-    // - 'acceptEdits', 'bypassPermissions', 'default', 'delegate', 'dontAsk', 'plan': Claude CLI modes
+    // Apply permission mode override if provided.
+    // Validates against PermissionMode enum to catch typos at startup.
     if (permissionMode != null) {
-      const validModes = {
-        'ask', // vide-specific
-        'acceptEdits',
-        'bypassPermissions',
-        'default',
-        'delegate',
-        'dontAsk',
-        'plan',
-      };
-      if (!validModes.contains(permissionMode)) {
-        throw ArgumentError(
-          'Invalid permission mode: $permissionMode. '
-          'Valid modes are: ${validModes.join(", ")}',
-        );
-      }
+      PermissionMode.parse(permissionMode); // throws ArgumentError if invalid
       leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
     }
 
@@ -241,9 +223,13 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Do persistence in background
     () async {
-      await _ref
-          .read(agentNetworkPersistenceManagerProvider)
-          .saveNetwork(network);
+      try {
+        await _ref
+            .read(agentNetworkPersistenceManagerProvider)
+            .saveNetwork(network);
+      } catch (e) {
+        print('[AgentNetworkManager] Error saving network: $e');
+      }
     }();
 
     // Send the initial message - it will be queued until client is ready

@@ -312,6 +312,8 @@ $initialPrompt''';
       if (metaResponse.sessionId != null) {
         _updateAgentSessionId(newAgentId, metaResponse.sessionId!);
       }
+    }, onError: (Object e) {
+      print('[AgentLifecycleService] Error capturing session ID for $newAgentId: $e');
     });
 
     // Update network with new agent metadata

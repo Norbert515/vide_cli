@@ -1,4 +1,5 @@
 import 'package:claude_sdk/claude_sdk.dart';
+import '../models/permission_mode.dart';
 import '../mcp/mcp_server_type.dart';
 
 /// High-level configuration for an agent.
@@ -93,16 +94,12 @@ class AgentConfiguration {
     bool enableStreaming = true,
     bool dangerouslySkipPermissions = false,
   }) {
-    // Translate client permission modes to valid Claude CLI modes.
-    // Valid CLI modes: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan
-    // 'ask' is not a valid CLI mode - it's a vide-specific mode that means
-    // "prompt the user via WebSocket". We translate it to 'default' for the CLI
-    // and let the SDK callback handle the actual permission decisions.
-    final cliPermissionMode = switch (permissionMode) {
-      'ask' => 'default', // 'ask' is vide-specific, use 'default' for CLI
-      null => 'acceptEdits',
-      _ => permissionMode,
-    };
+    // Translate permission mode to CLI-compatible value.
+    // 'ask' is vide-specific and maps to 'default' for the CLI.
+    final mode = permissionMode;
+    final cliPermissionMode = mode != null
+        ? (PermissionMode.tryParse(mode)?.cliValue ?? mode)
+        : PermissionMode.acceptEdits.value;
 
     return ClaudeConfig(
       appendSystemPrompt: systemPrompt,

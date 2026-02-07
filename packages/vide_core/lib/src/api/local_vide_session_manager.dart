@@ -250,6 +250,8 @@ class LocalVideSessionManager implements VideSessionManager {
       if (!_sessionsController.isClosed) {
         _sessionsController.add(sessions);
       }
+    }, onError: (Object e) {
+      print('[LocalVideSessionManager] Error listing sessions: $e');
     });
   }
 }

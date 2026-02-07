@@ -584,6 +584,14 @@ class LocalVideSession implements VideSession {
         return claude.PermissionResultDeny(message: reason);
 
       case PermissionAskUser(inferredPattern: final inferredPattern):
+        // Guard against disposed session — if dispose() already ran, deny
+        // immediately to avoid orphaned completers that never resolve.
+        if (_disposed) {
+          return const claude.PermissionResultDeny(
+            message: 'Session disposed',
+          );
+        }
+
         // Need to ask the user - emit event and wait
         final requestId = const Uuid().v4();
         final completer = Completer<claude.PermissionResult>();
@@ -613,8 +621,9 @@ class LocalVideSession implements VideSession {
         try {
           return await completer.future;
         } catch (e) {
-          _pendingPermissions.remove(requestId);
           return claude.PermissionResultDeny(message: 'Error: $e');
+        } finally {
+          _pendingPermissions.remove(requestId);
         }
     }
   }

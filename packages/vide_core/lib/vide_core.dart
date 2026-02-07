@@ -29,6 +29,7 @@ export 'src/models/agent_network.dart';
 export 'src/models/agent_metadata.dart';
 export 'src/models/agent_id.dart';
 export 'src/models/agent_status.dart';
+export 'src/models/permission_mode.dart';
 export 'src/models/team_framework/team_framework.dart';
 
 // =============================================================================

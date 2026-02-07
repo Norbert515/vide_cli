@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../agents/agent_configuration.dart';
 import '../models/agent_id.dart';
+import '../models/permission_mode.dart';
 import '../mcp/mcp_server_type.dart';
 import '../utils/working_dir_provider.dart';
 import 'claude_client_factory.dart';
@@ -119,7 +120,7 @@ AgentConfiguration _createTemporaryMainAgentConfig() {
     name: 'Main Triage & Operations Agent',
     description: 'Loading from team framework...',
     systemPrompt: 'Initializing main agent...',
-    permissionMode: 'acceptEdits',
+    permissionMode: PermissionMode.acceptEdits.value,
     mcpServers: [
       McpServerType.git,
       McpServerType.agent,
