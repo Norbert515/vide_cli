@@ -82,6 +82,12 @@ abstract interface class VideSession {
   /// Send a message to an agent.
   ///
   /// If [agentId] is not specified, the message is sent to the main agent.
+  ///
+  /// **Contract:** Implementations must add the user message to
+  /// [conversationState] synchronously before returning. This enables
+  /// optimistic UI updates — the message appears immediately regardless
+  /// of whether the backend has acknowledged it. Remote implementations
+  /// handle deduplication internally when the server echoes the message.
   void sendMessage(VideMessage message, {String? agentId});
 
   // ============================================================

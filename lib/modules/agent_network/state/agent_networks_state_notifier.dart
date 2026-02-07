@@ -1,88 +1,87 @@
-import 'package:vide_core/vide_core.dart';
+import 'dart:async';
+
 import 'package:riverpod/riverpod.dart';
+import 'package:vide_core/vide_core.dart';
+
+import 'vide_session_providers.dart';
 
 final agentNetworksStateNotifierProvider =
     StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((
       ref,
     ) {
-      return AgentNetworksStateNotifier(
-        ref.read(agentNetworkPersistenceManagerProvider),
-      );
+      final sessionManager = ref.watch(videSessionManagerProvider);
+      final notifier = AgentNetworksStateNotifier(sessionManager);
+      ref.onDispose(notifier.dispose);
+      return notifier;
     });
 
 class AgentNetworksState {
-  AgentNetworksState({required this.networks});
+  AgentNetworksState({required this.sessions});
 
-  final List<AgentNetwork> networks;
+  final List<VideSessionInfo> sessions;
 
-  AgentNetworksState copyWith({List<AgentNetwork>? networks}) {
-    return AgentNetworksState(networks: networks ?? this.networks);
+  AgentNetworksState copyWith({List<VideSessionInfo>? sessions}) {
+    return AgentNetworksState(sessions: sessions ?? this.sessions);
   }
+
+  /// Backward-compatible alias for session count.
+  @Deprecated('Use sessions')
+  List<VideSessionInfo> get networks => sessions;
 }
 
 class AgentNetworksStateNotifier extends StateNotifier<AgentNetworksState> {
-  AgentNetworksStateNotifier(this._persistenceManager)
-    : super(AgentNetworksState(networks: []));
+  AgentNetworksStateNotifier(this._sessionManager)
+    : super(AgentNetworksState(sessions: [])) {
+    _subscription = _sessionManager.sessionsStream.listen((sessions) {
+      if (mounted) {
+        state = state.copyWith(sessions: sessions);
+      }
+    });
+  }
 
-  final AgentNetworkPersistenceManager _persistenceManager;
+  final VideSessionManager _sessionManager;
+  StreamSubscription<List<VideSessionInfo>>? _subscription;
   bool _initialized = false;
 
   Future<void> init() async {
     if (_initialized) return;
     _initialized = true;
-
-    final networks = await _persistenceManager.loadNetworks();
-    // Sort by last active, most recent first
-    networks.sort((a, b) {
-      final aTime = a.lastActiveAt ?? a.createdAt;
-      final bTime = b.lastActiveAt ?? b.createdAt;
-      return bTime.compareTo(aTime);
-    });
-    state = state.copyWith(networks: networks);
+    await reload();
   }
 
-  /// Reload networks from persistence
+  /// Reload sessions from the session manager.
   Future<void> reload() async {
-    final networks = await _persistenceManager.loadNetworks();
-    networks.sort((a, b) {
-      final aTime = a.lastActiveAt ?? a.createdAt;
-      final bTime = b.lastActiveAt ?? b.createdAt;
-      return bTime.compareTo(aTime);
-    });
-    state = state.copyWith(networks: networks);
-  }
-
-  /// Add or update a network in the list
-  void upsertNetwork(AgentNetwork network) {
-    final networks = [...state.networks];
-    final existingIndex = networks.indexWhere((n) => n.id == network.id);
-
-    if (existingIndex >= 0) {
-      networks[existingIndex] = network;
-    } else {
-      networks.insert(0, network); // Add at the beginning (most recent)
+    final sessions = await _sessionManager.listSessions();
+    if (mounted) {
+      state = state.copyWith(sessions: sessions);
     }
-
-    state = state.copyWith(networks: networks);
   }
 
-  /// Delete a network by index
-  Future<void> deleteNetwork(int index) async {
-    final network = state.networks[index];
-    await _persistenceManager.deleteNetwork(network.id);
+  /// Delete a session by index.
+  Future<void> deleteSession(int index) async {
+    final session = state.sessions[index];
+    await _sessionManager.deleteSession(session.id);
 
-    final updatedNetworks = [...state.networks];
-    updatedNetworks.removeAt(index);
-    state = state.copyWith(networks: updatedNetworks);
+    final updated = [...state.sessions];
+    updated.removeAt(index);
+    if (mounted) {
+      state = state.copyWith(sessions: updated);
+    }
   }
 
-  /// Delete a network by ID
-  Future<void> deleteNetworkById(String networkId) async {
-    await _persistenceManager.deleteNetwork(networkId);
+  /// Delete a session by ID.
+  Future<void> deleteSessionById(String sessionId) async {
+    await _sessionManager.deleteSession(sessionId);
 
-    final updatedNetworks = state.networks
-        .where((n) => n.id != networkId)
-        .toList();
-    state = state.copyWith(networks: updatedNetworks);
+    final updated = state.sessions.where((s) => s.id != sessionId).toList();
+    if (mounted) {
+      state = state.copyWith(sessions: updated);
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

@@ -6,7 +6,6 @@ import 'package:vide_core/vide_core.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/settings/components/section_header.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 
@@ -45,9 +44,9 @@ class _McpServersSectionState extends State<McpServersSection> {
   }
 
   void _initMcpStatus() {
-    final videCore = context.read(videoCoreProvider);
-    _mcpStatus = videCore.mcpStatus;
-    _subscription = videCore.mcpStatusStream.listen((status) {
+    final initialClient = context.read(initialClaudeClientProvider);
+    _mcpStatus = initialClient.mcpStatus;
+    _subscription = initialClient.mcpStatusStream.listen((status) {
       setState(() => _mcpStatus = status);
     });
   }

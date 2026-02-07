@@ -12,11 +12,6 @@ library vide_core;
 export 'version.dart';
 
 // =============================================================================
-// Main Entry Point
-// =============================================================================
-export 'src/vide_core_impl.dart' show VideCore;
-
-// =============================================================================
 // Shared Interface Types (from vide_interface)
 // =============================================================================
 export 'package:vide_interface/vide_interface.dart';
@@ -25,7 +20,7 @@ export 'package:vide_interface/vide_interface.dart';
 // API Classes
 // =============================================================================
 export 'src/api/vide_session.dart' show LocalVideSession;
-export 'src/api/vide_config.dart' show VideCoreConfig;
+export 'src/api/local_vide_session_manager.dart' show LocalVideSessionManager;
 
 // =============================================================================
 // Models
@@ -47,6 +42,8 @@ export 'src/services/agent_network_persistence_manager.dart';
 export 'src/services/team_framework_loader.dart';
 export 'src/services/auto_update_service.dart';
 export 'src/services/claude_manager.dart' show claudeStatusProvider;
+export 'src/services/initial_claude_client.dart'
+    show InitialClaudeClient, initialClaudeClientProvider;
 
 // Permissions (public utilities used by TUI)
 export 'src/services/permissions/permission_matcher.dart';

@@ -6,11 +6,18 @@ library;
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
 
-/// Provider for the VideCore instance.
+/// Provider for the unified session manager.
 ///
-/// This is created from the existing ProviderContainer using [VideCore.fromContainer].
-final videoCoreProvider = Provider<VideCore>((ref) {
-  throw UnimplementedError('videoCoreProvider must be overridden in main.dart');
+/// Automatically selects [LocalVideSessionManager] or [RemoteVideSessionManager]
+/// based on daemon connection state. All session lifecycle operations (create,
+/// list, resume, delete) go through this provider.
+final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
+  // Import is deferred to avoid circular dependency — the provider watches
+  // daemonConnectionProvider which lives in the remote module.
+  // This provider is overridden with the concrete implementation in main.dart.
+  throw UnimplementedError(
+    'videSessionManagerProvider must be overridden in main.dart',
+  );
 });
 
 /// Unified TUI session selection state.
@@ -89,11 +96,7 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
     return activeSession;
   }
 
-  if (sessionId == null) return activeSession;
-
-  // Local mode - use session ID + VideCore lookup
-  final core = ref.watch(videoCoreProvider);
-  return core.getSessionForNetwork(sessionId) ?? activeSession;
+  return activeSession;
 });
 
 /// Provider for the current session's goal/task name.

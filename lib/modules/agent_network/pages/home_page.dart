@@ -17,7 +17,6 @@ import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
-import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 
@@ -76,8 +75,8 @@ class _HomePageState extends State<HomePage> {
 
   /// Initialize Claude client at startup so it's ready when user submits.
   void _initializeClaude() {
-    // Pre-warm by accessing initial client via VideCore
-    final _ = context.read(videoCoreProvider).initialClient;
+    // Pre-warm by triggering lazy initialization of the initial client provider.
+    final _ = context.read(initialClaudeClientProvider);
   }
 
   Future<void> _loadProjectInfo() async {
@@ -105,9 +104,8 @@ class _HomePageState extends State<HomePage> {
 
     Future.microtask(() async {
       try {
-        final session = await context
-            .read(daemonConnectionProvider.notifier)
-            .connectToSession(sessionId);
+        final sessionManager = context.read(videSessionManagerProvider);
+        final session = await sessionManager.resumeSession(sessionId);
         if (!mounted) return;
         await NetworkExecutionPage.push(context, sessionId, session: session);
       } catch (e) {
@@ -131,53 +129,22 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _handleSubmit(VideMessage message) async {
-    final daemonState = context.read(daemonConnectionProvider);
-
     try {
-      final String sessionId;
-      VideSession? sessionForNavigation;
+      final worktreePath = context.read(repoPathOverrideProvider);
+      final currentTeam = context.read(currentTeamProvider);
+      final sessionManager = context.read(videSessionManagerProvider);
 
-      if (daemonState.isConnected) {
-        // Daemon mode: create session on daemon server
-        // Use optimistic approach - navigate immediately, HTTP call in background
-        final optimisticSession = context
-            .read(daemonConnectionProvider.notifier)
-            .createSessionOptimistic(
-              initialMessage: message.text,
-              workingDirectory: Directory.current.path,
-            );
+      final session = await sessionManager.createSession(
+        initialMessage: message.text,
+        workingDirectory: worktreePath ?? Directory.current.path,
+        team: currentTeam,
+        attachments: message.attachments,
+      );
 
-        // Use the pending session immediately for optimistic navigation.
-        sessionForNavigation = optimisticSession;
-        sessionId = optimisticSession.id;
-      } else {
-        // Local mode: create session via VideCore
-        // Returns immediately - client initialization happens in background
-        final worktreePath = context.read(repoPathOverrideProvider);
-        final currentTeam = context.read(currentTeamProvider);
-        final videCore = context.read(videoCoreProvider);
-
-        final session = await videCore.startSessionWithMessage(
-          message,
-          workingDirectory: worktreePath ?? Directory.current.path,
-          team: currentTeam,
-        );
-        sessionForNavigation = session;
-
-        // Update the networks list for home page display
-        // The session is now active and will be found via sessionSelectionProvider
-        await context
-            .read(agentNetworksStateNotifierProvider.notifier)
-            .reload();
-
-        sessionId = session.id;
-      }
-
-      // Navigate to the execution page IMMEDIATELY (optimistic for daemon mode)
       await NetworkExecutionPage.push(
         context,
-        sessionId,
-        session: sessionForNavigation,
+        session.id,
+        session: session,
       );
     } catch (e) {
       setState(() {
@@ -271,8 +238,8 @@ class _HomePageState extends State<HomePage> {
       }
       return true;
     } else if (event.logicalKey == LogicalKey.enter) {
-      // Open daemon sessions dialog
-      DaemonSessionsDialog.show(context);
+      // Navigate to text field
+      setState(() => _focusState = 'textField');
       return true;
     }
     return false;
@@ -326,7 +293,7 @@ class _HomePageState extends State<HomePage> {
   /// Returns true if the event was handled.
   bool _handleNetworkListKeyEvent(
     KeyboardEvent event,
-    List<AgentNetwork> networks,
+    List<VideSessionInfo> networks,
   ) {
     if (networks.isEmpty) return false;
 
@@ -373,7 +340,7 @@ class _HomePageState extends State<HomePage> {
         // Second press - actually delete the network
         context
             .read(agentNetworksStateNotifierProvider.notifier)
-            .deleteNetwork(_selectedNetworkIndex);
+            .deleteSession(_selectedNetworkIndex);
         setState(() {
           _pendingDeleteIndex = null;
           if (_selectedNetworkIndex >= networks.length - 1) {
@@ -392,11 +359,13 @@ class _HomePageState extends State<HomePage> {
       return true;
     } else if (event.logicalKey == LogicalKey.enter) {
       final network = networks[_selectedNetworkIndex];
-      // Update the team provider to match the network's team
-      context.read(currentTeamProvider.notifier).state = network.team;
-      // Resume via VideCore
-      final videCore = context.read(videoCoreProvider);
-      videCore.resumeSession(network.id).then((session) {
+      // Update the team provider to match the session's team (if known)
+      if (network.team != null) {
+        context.read(currentTeamProvider.notifier).state = network.team!;
+      }
+      // Resume via unified session manager
+      final sessionManager = context.read(videSessionManagerProvider);
+      sessionManager.resumeSession(network.id).then((session) {
         NetworkExecutionPage.push(context, network.id, session: session);
       });
       return true;
@@ -422,8 +391,8 @@ class _HomePageState extends State<HomePage> {
     // Watch sidebar focus state from app-level provider
     final sidebarFocused = context.watch(sidebarFocusProvider);
 
-    // Get networks list
-    final networks = context.watch(agentNetworksStateNotifierProvider).networks;
+    // Get sessions list
+    final networks = context.watch(agentNetworksStateNotifierProvider).sessions;
 
     // Clamp selection if list length changed
     if (networks.isNotEmpty && _selectedNetworkIndex >= networks.length) {
@@ -609,16 +578,9 @@ class _HomePageState extends State<HomePage> {
                                               ),
                                             ),
                                           ],
-                                          if (daemonIndicatorFocused)
+                                          if (!daemonIndicatorFocused)
                                             Text(
-                                              '  ⏎ sessions',
-                                              style: TextStyle(
-                                                color: theme.base.primary,
-                                              ),
-                                            )
-                                          else
-                                            Text(
-                                              '  ↑ sessions',
+                                              '  ↑',
                                               style: TextStyle(
                                                 color: theme.base.onSurface
                                                     .withOpacity(
@@ -878,7 +840,7 @@ class _HomePageState extends State<HomePage> {
                               children: [
                                 for (int i = 0; i < networks.length; i++) ...[
                                   NetworkSummaryComponent(
-                                    network: networks[i],
+                                    sessionInfo: networks[i],
                                     selected: _selectedNetworkIndex == i,
                                     showDeleteConfirmation:
                                         _pendingDeleteIndex == i,

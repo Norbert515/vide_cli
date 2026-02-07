@@ -8,6 +8,8 @@ import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart
 import 'package:vide_cli/modules/setup/setup_scope.dart';
 import 'package:vide_cli/modules/setup/welcome_scope.dart';
 import 'package:vide_cli/modules/remote/remote_config.dart';
+import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
+import 'package:vide_cli/modules/remote/remote_vide_session_manager.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
@@ -121,13 +123,12 @@ Future<void> main(
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
-  // Create provider container with overrides from entry point
-  // Note: videoCoreProvider is overridden using Late pattern since it needs the container
-  late final VideCore videCore;
-  final container = ProviderContainer(
+  // Create provider container with overrides from entry point.
+  // Late reference needed because the session manager provider needs access
+  // to the container that's still being constructed.
+  late final ProviderContainer container;
+  container = ProviderContainer(
     overrides: [
-      // Override videoCoreProvider - uses late initialization since it needs container
-      videoCoreProvider.overrideWith((ref) => videCore),
       // Permission handler for late session binding. TUI uses AgentNetworkManager directly,
       // which reads this provider at construction time, so we must override it here.
       permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
@@ -143,15 +144,22 @@ Future<void> main(
       // Session-scoped skip permissions (CLI flag, not persisted)
       if (dangerouslySkipPermissions)
         dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+      // Unified session manager — switches between local and remote based on
+      // daemon connection state.
+      videSessionManagerProvider.overrideWith((ref) {
+        final daemonState = ref.watch(daemonConnectionProvider);
+        final VideSessionManager manager;
+        if (daemonState.isConnected) {
+          final notifier = ref.read(daemonConnectionProvider.notifier);
+          manager = RemoteVideSessionManager(notifier);
+        } else {
+          manager = LocalVideSessionManager(container, _tuiPermissionHandler);
+        }
+        ref.onDispose(() => manager.dispose());
+        return manager;
+      }),
       ...overrides,
     ],
-  );
-
-  // Create VideCore from the existing container with permission handler.
-  // The handler is also passed here for any future VideCore.startSession() calls.
-  videCore = VideCore.fromContainer(
-    container,
-    permissionHandler: _tuiPermissionHandler,
   );
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)

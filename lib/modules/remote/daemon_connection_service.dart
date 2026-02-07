@@ -180,6 +180,8 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     required String initialMessage,
     required String workingDirectory,
     String permissionMode = 'ask',
+    String? model,
+    String? team,
     void Function()? onReady,
   }) {
     final daemonClient = state.client;
@@ -201,6 +203,8 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
           initialMessage: initialMessage,
           workingDirectory: workingDirectory,
           permissionMode: permissionMode,
+          model: model,
+          team: team,
         );
         final clientSession = _createClientSession(
           response.sessionId,
@@ -317,6 +321,18 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     }
 
     return await client.getSession(sessionId);
+  }
+
+  /// Stop (delete) a session on the daemon.
+  ///
+  /// Throws if not connected.
+  Future<void> stopSession(String sessionId) async {
+    final client = state.client;
+    if (client == null || !state.isConnected) {
+      throw StateError('Not connected to daemon');
+    }
+
+    await client.stopSession(sessionId);
   }
 
   /// Subscribe to daemon events.

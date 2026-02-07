@@ -17,20 +17,28 @@ dependencies:
 ## Quick Start
 
 ```dart
-import 'package:vide_core/api.dart';
+import 'package:riverpod/riverpod.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() async {
-  // Create VideCore instance with required permission handler
+  // Create session manager with isolated containers (each session independent)
   final permissionHandler = PermissionHandler();
-  final core = VideCore(VideCoreConfig(
-    permissionHandler: permissionHandler,
-  ));
+  final container = ProviderContainer(
+    overrides: [
+      videConfigManagerProvider.overrideWithValue(VideConfigManager()),
+      workingDirProvider.overrideWithValue(Directory.current.path),
+    ],
+  );
+  final sessionManager = LocalVideSessionManager.isolated(
+    container,
+    permissionHandler,
+  );
 
   // Start a new session
-  final session = await core.startSession(VideSessionConfig(
+  final session = await sessionManager.createSession(
     workingDirectory: '/path/to/project',
     initialMessage: 'Help me fix the bug in auth.dart',
-  ));
+  );
 
   // Listen to events from all agents
   session.events.listen((event) {
@@ -62,7 +70,8 @@ void main() async {
 
   // Clean up when done
   await session.dispose();
-  core.dispose();
+  sessionManager.dispose();
+  container.dispose();
 }
 ```
 
@@ -109,7 +118,7 @@ The recommended entry point for new consumers. Provides a clean interface withou
 
 **Core Classes:**
 
-- `VideCore` - Main entry point for creating sessions
+- `LocalVideSessionManager` - Main entry point for creating sessions
 - `VideSession` - Active session with agent network
 - `VideEvent` - Sealed event hierarchy
 - `VideAgent` - Immutable agent state snapshot
@@ -231,13 +240,13 @@ Sessions can be persisted and resumed:
 
 ```dart
 // List available sessions
-final sessions = await core.listSessions();
+final sessions = await sessionManager.listSessions();
 
 // Resume a session
-final session = await core.resumeSession(sessionId);
+final session = await sessionManager.resumeSession(sessionId);
 
 // Delete a session
-await core.deleteSession(sessionId);
+await sessionManager.deleteSession(sessionId);
 ```
 
 ## User-Defined Agents

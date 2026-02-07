@@ -1,4 +1,4 @@
-/// LocalVideSession - In-process session implementation for the VideCore API.
+/// LocalVideSession - In-process session implementation.
 ///
 /// This provides the concrete local implementation of [VideSession],
 /// wrapping Riverpod providers and claude_sdk types.
@@ -24,8 +24,7 @@ import '../utils/dangerously_skip_permissions_provider.dart';
 /// An active local (in-process) session with a network of agents.
 ///
 /// This is the concrete implementation of [VideSession] that runs agents
-/// locally using the claude_sdk. Created by [VideCore.startSession] or
-/// [VideCore.resumeSession].
+/// locally using the claude_sdk. Created by [LocalVideSessionManager].
 ///
 /// For a remote (WebSocket-based) implementation, see `RemoteVideSession`
 /// in the vide_client package.
@@ -69,7 +68,7 @@ class LocalVideSession implements VideSession {
 
   /// Creates a new LocalVideSession for an existing network.
   ///
-  /// This is called internally by [VideCore.startSession] and [VideCore.resumeSession].
+  /// This is called internally by [LocalVideSessionManager].
   /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
   static LocalVideSession create({
     required String networkId,

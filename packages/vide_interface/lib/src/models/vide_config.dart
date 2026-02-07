@@ -53,6 +53,9 @@ class VideSessionInfo {
   /// Working directory for the session.
   final String? workingDirectory;
 
+  /// The team framework team used for this session.
+  final String? team;
+
   const VideSessionInfo({
     required this.id,
     required this.goal,
@@ -60,7 +63,11 @@ class VideSessionInfo {
     this.lastActiveAt,
     required this.agents,
     this.workingDirectory,
+    this.team,
   });
+
+  /// Number of agents in the session.
+  int get agentCount => agents.length;
 
   /// Total cost across all agents in USD.
   double get totalCostUsd =>

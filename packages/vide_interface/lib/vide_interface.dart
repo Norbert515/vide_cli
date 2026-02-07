@@ -15,6 +15,7 @@ library vide_interface;
 // Session Interface
 // =============================================================================
 export 'src/session.dart';
+export 'src/session_manager.dart';
 
 // =============================================================================
 // Events

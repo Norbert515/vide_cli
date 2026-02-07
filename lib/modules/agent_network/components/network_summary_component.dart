@@ -4,13 +4,13 @@ import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 class NetworkSummaryComponent extends StatefulComponent {
-  final AgentNetwork network;
+  final VideSessionInfo sessionInfo;
   final bool selected;
   final bool showDeleteConfirmation;
 
   const NetworkSummaryComponent({
     super.key,
-    required this.network,
+    required this.sessionInfo,
     required this.selected,
     this.showDeleteConfirmation = false,
   });
@@ -28,10 +28,10 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
 
   Component _buildSummary(BuildContext context) {
     final theme = VideTheme.of(context);
-    final network = component.network;
-    final displayName = network.goal;
-    final agentCount = network.agents.length;
-    final lastActive = network.lastActiveAt ?? network.createdAt;
+    final info = component.sessionInfo;
+    final displayName = info.goal;
+    final agentCount = info.agentCount;
+    final lastActive = info.lastActiveAt ?? info.createdAt;
     final timeAgo = _formatTimeAgo(lastActive);
 
     final textColor = component.selected

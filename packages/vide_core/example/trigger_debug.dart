@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
 
 void main() async {
@@ -12,27 +13,30 @@ void main() async {
   print('Working directory: ${Directory.current.path}');
   print('');
 
-  // Create VideCore instance with a permission handler that auto-allows
-  // (acceptable for debug/example scripts)
+  // Create session manager with isolated containers (each session independent)
   final permissionHandler = PermissionHandler();
-  final core = VideCore(
-    VideCoreConfig(
-      configDir: '${Platform.environment['HOME']}/.vide',
-      permissionHandler: permissionHandler,
-    ),
+  final container = ProviderContainer(
+    overrides: [
+      videConfigManagerProvider.overrideWithValue(
+        VideConfigManager(configRoot: '${Platform.environment['HOME']}/.vide'),
+      ),
+      workingDirProvider.overrideWithValue(Directory.current.path),
+    ],
+  );
+  final sessionManager = LocalVideSessionManager.isolated(
+    container,
+    permissionHandler,
   );
 
   print('Starting session with enterprise team...');
 
   try {
     // Start a session with the enterprise team
-    final session = await core.startSession(
-      VideSessionConfig(
-        workingDirectory: Directory.current.path,
-        initialMessage:
-            'Say "Hello, triggers are working!" and nothing else. This is a test.',
-        team: 'enterprise',
-      ),
+    final session = await sessionManager.createSession(
+      workingDirectory: Directory.current.path,
+      initialMessage:
+          'Say "Hello, triggers are working!" and nothing else. This is a test.',
+      team: 'enterprise',
     );
 
     print('Session started: ${session.id}');
@@ -85,7 +89,8 @@ void main() async {
     print('Error: $e');
     print(stack);
   } finally {
-    core.dispose();
+    sessionManager.dispose();
+    container.dispose();
   }
 
   exit(0);

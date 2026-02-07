@@ -10,6 +10,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:logging/logging.dart';
+import 'package:riverpod/riverpod.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -37,7 +38,7 @@ class VideServerConfig {
 /// This function:
 /// 1. Sets up logging
 /// 2. Loads server configuration
-/// 3. Creates VideCore instance
+/// 3. Creates session manager with isolated containers
 /// 4. Starts HTTP server with routes
 ///
 /// The caller is responsible for keeping the process alive.
@@ -64,17 +65,24 @@ Future<HttpServer> startServer(VideServerConfig config) async {
     );
   }
 
-  // Create VideCore instance with permission handler - the single interface for session management
+  // Create session manager with isolated containers (each session gets its own providers).
   final permissionHandler = PermissionHandler();
-  final videCore = VideCore(
-    VideCoreConfig(permissionHandler: permissionHandler),
+  final container = ProviderContainer(
+    overrides: [
+      videConfigManagerProvider.overrideWithValue(VideConfigManager()),
+      workingDirProvider.overrideWithValue(Directory.current.path),
+    ],
+  );
+  final sessionManager = LocalVideSessionManager.isolated(
+    container,
+    permissionHandler,
   );
 
   // Simple session cache for WebSocket access
   final sessionCache = <String, VideSession>{};
 
   // Create HTTP handler with routes
-  final handler = _createHandler(videCore, sessionCache, serverConfig);
+  final handler = _createHandler(sessionManager, sessionCache, serverConfig);
 
   // Start server on localhost only (no authentication for MVP)
   final server = await shelf_io.serve(
@@ -103,7 +111,7 @@ Future<HttpServer> startServer(VideServerConfig config) async {
 
 /// Create the HTTP handler with routes and middleware
 Handler _createHandler(
-  VideCore videCore,
+  VideSessionManager sessionManager,
   Map<String, VideSession> sessionCache,
   ServerConfig serverConfig,
 ) {
@@ -111,14 +119,14 @@ Handler _createHandler(
 
   // Phase 2.5 API routes (session-based, kebab-case)
   router.post('/api/v1/sessions', (Request request) {
-    return createSession(request, videCore, sessionCache);
+    return createSession(request, sessionManager, sessionCache);
   });
 
   router.get('/api/v1/sessions/<sessionId>/stream', (
     Request request,
     String sessionId,
   ) {
-    return streamSessionWebSocket(sessionId, videCore, sessionCache)(request);
+    return streamSessionWebSocket(sessionId, sessionCache)(request);
   });
 
   // Teams API

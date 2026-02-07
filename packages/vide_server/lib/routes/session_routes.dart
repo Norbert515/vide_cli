@@ -1,7 +1,7 @@
 /// Session routes for Phase 2.5 multiplexed WebSocket streaming.
 ///
-/// This module uses VideCore and VideSession as the single interface for
-/// all session management, events, and permissions.
+/// This module uses VideSessionManager and VideSession as the single interface
+/// for all session management, events, and permissions.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -17,10 +17,10 @@ import '../services/session_broadcaster.dart';
 
 final _log = Logger('SessionRoutes');
 
-/// Create a new session via VideCore
+/// Create a new session via VideSessionManager
 Future<Response> createSession(
   Request request,
-  VideCore videCore,
+  VideSessionManager sessionManager,
   Map<String, VideSession> sessionCache,
 ) async {
   _log.info('POST /sessions - Creating new session');
@@ -103,15 +103,13 @@ Future<Response> createSession(
     );
   }
 
-  // Create session via VideCore - the single interface
-  final session = await videCore.startSession(
-    VideSessionConfig(
-      workingDirectory: canonicalPath,
-      initialMessage: req.initialMessage,
-      model: req.model,
-      permissionMode: req.permissionMode,
-      team: req.team ?? 'vide',
-    ),
+  // Create session via session manager
+  final session = await sessionManager.createSession(
+    workingDirectory: canonicalPath,
+    initialMessage: req.initialMessage,
+    model: req.model,
+    permissionMode: req.permissionMode,
+    team: req.team ?? 'vide',
   );
 
   _log.info('Session created: ${session.id}');
@@ -478,7 +476,6 @@ const _keepalivePingInterval = Duration(seconds: 20);
 /// Stream session events via WebSocket (Phase 2.5 multiplexed endpoint)
 Handler streamSessionWebSocket(
   String sessionId,
-  VideCore videCore,
   Map<String, VideSession> sessionCache,
 ) {
   return webSocketHandler((WebSocketChannel channel, String? protocol) {
