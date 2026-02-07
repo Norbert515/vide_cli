@@ -194,6 +194,7 @@ class ChatNotifier extends _$ChatNotifier {
   }
 
   void reset() {
+    _streamingMessages.clear();
     state = const ChatState();
   }
 }

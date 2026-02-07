@@ -115,6 +115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       case vc.HistoryEvent(:final events):
         setState(() => _isLoadingHistory = true);
+        notifier.reset();
         for (final rawEvent in events) {
           _handleEvent(vc.VideEvent.fromJson(rawEvent as Map<String, dynamic>));
         }
