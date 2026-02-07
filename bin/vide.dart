@@ -137,13 +137,7 @@ void main(List<String> args) async {
   final dangerouslySkipPermissions =
       argResults['dangerously-skip-permissions'] as bool;
 
-  // Create provider overrides for TUI
-  final overrides = [
-    // Override VideConfigManager with TUI-specific config root
-    videConfigManagerProvider.overrideWithValue(configManager),
-    // Override working directory provider with current directory
-    workingDirProvider.overrideWithValue(Directory.current.path),
-  ];
+  final workingDirectory = Directory.current.path;
 
   // Parse connection options
   final connectArg = argResults['connect'] as String?;
@@ -174,7 +168,8 @@ void main(List<String> args) async {
 
   await app.main(
     argResults.rest,
-    overrides: overrides,
+    configManager: configManager,
+    workingDirectory: workingDirectory,
     remoteConfig: remoteConfig,
     forceLocal: forceLocal,
     forceDaemon: forceDaemon,

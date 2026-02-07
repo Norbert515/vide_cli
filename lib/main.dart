@@ -113,7 +113,8 @@ final forceDaemonModeProvider = StateProvider<bool>((ref) => false);
 
 Future<void> main(
   List<String> args, {
-  List<Override> overrides = const [],
+  VideConfigManager? configManager,
+  String? workingDirectory,
   RemoteConfig? remoteConfig,
   bool forceLocal = false,
   bool forceDaemon = false,
@@ -122,6 +123,12 @@ Future<void> main(
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
+  // Resolve defaults for config manager and working directory
+  final effectiveConfigManager = configManager ?? VideConfigManager(
+    configRoot: '${Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.'}/.vide',
+  );
+  final effectiveWorkingDirectory = workingDirectory ?? Directory.current.path;
+
   // Create provider container with overrides from entry point
   // Note: videoCoreProvider is overridden using Late pattern since it needs the container
   late final VideCore videCore;
@@ -129,6 +136,9 @@ Future<void> main(
     overrides: [
       // Override videoCoreProvider - uses late initialization since it needs container
       videoCoreProvider.overrideWith((ref) => videCore),
+      // Core config overrides
+      videConfigManagerProvider.overrideWithValue(effectiveConfigManager),
+      workingDirProvider.overrideWithValue(effectiveWorkingDirectory),
       // Permission handler for late session binding. TUI uses AgentNetworkManager directly,
       // which reads this provider at construction time, so we must override it here.
       permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
@@ -144,7 +154,6 @@ Future<void> main(
       // Session-scoped skip permissions (CLI flag, not persisted)
       if (dangerouslySkipPermissions)
         dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
-      ...overrides,
     ],
   );
 
@@ -152,9 +161,8 @@ Future<void> main(
   videCore = VideCore(VideCoreConfig(permissionHandler: _tuiPermissionHandler));
 
   // Initialize Bashboard analytics (non-blocking, fires app_started when ready)
-  final configManager = container.read(videConfigManagerProvider);
-  final telemetryEnabled = configManager.isTelemetryEnabled();
-  BashboardService.init(configManager, telemetryEnabled: telemetryEnabled);
+  final telemetryEnabled = effectiveConfigManager.isTelemetryEnabled();
+  BashboardService.init(effectiveConfigManager, telemetryEnabled: telemetryEnabled);
 
   // Note: Pending updates are applied by the wrapper script at ~/.local/bin/vide
   // before launching the actual binary. The version indicator shows "ready" when
