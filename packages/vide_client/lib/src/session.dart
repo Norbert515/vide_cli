@@ -80,12 +80,16 @@ class Session {
     required String requestId,
     required bool allow,
     String? message,
+    bool remember = false,
+    String? patternOverride,
   }) {
     _send({
       'type': 'permission-response',
       'request-id': requestId,
       'allow': allow,
       if (message != null) 'message': message,
+      if (remember) 'remember': remember,
+      if (patternOverride != null) 'pattern-override': patternOverride,
     });
   }
 

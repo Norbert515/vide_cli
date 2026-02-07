@@ -114,8 +114,14 @@ Future<Response> createSession(
 
   _log.info('Session created: ${session.id}');
 
-  // Register with broadcaster (ensures events are stored once)
+  // Register with broadcaster BEFORE emitting the initial user message,
+  // so the broadcaster captures it in history for replay to clients.
   SessionBroadcasterRegistry.instance.getOrCreate(session);
+
+  // Now emit the initial user message so it's captured by the broadcaster.
+  if (session is LocalVideSession) {
+    session.emitInitialUserMessage(req.initialMessage);
+  }
 
   // Cache for WebSocket access
   sessionCache[session.id] = session;
@@ -398,6 +404,8 @@ class _SimplifiedStreamHandler {
       msg.requestId,
       allow: msg.allow,
       message: msg.message,
+      remember: msg.remember,
+      patternOverride: msg.patternOverride,
     );
   }
 

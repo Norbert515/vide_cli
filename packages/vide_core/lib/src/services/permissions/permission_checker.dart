@@ -22,7 +22,6 @@ enum AskUserBehavior {
 ///
 /// Different UIs may need different behaviors:
 /// - TUI: Interactive prompts, session cache, settings files
-/// - REST API: No interactive prompts, may want different defaults
 class PermissionCheckerConfig {
   /// Whether to enable session cache for remembering approvals.
   /// Default: true
@@ -52,11 +51,6 @@ class PermissionCheckerConfig {
 
   /// Default configuration for TUI (interactive mode)
   static const tui = PermissionCheckerConfig();
-
-  /// Configuration for REST API (non-interactive mode)
-  static const restApi = PermissionCheckerConfig(
-    askUserBehavior: AskUserBehavior.deny,
-  );
 
   /// Configuration for testing (auto-allow everything that would ask user)
   static const testing = PermissionCheckerConfig(
@@ -126,6 +120,15 @@ class PermissionChecker {
   /// Clear session cache
   void clearSessionCache() {
     _sessionCache.clear();
+  }
+
+  /// Invalidate the cached settings so the next check re-reads from disk.
+  ///
+  /// Call this after modifying the settings file (e.g., adding to the allow
+  /// list via "remember") so subsequent permission checks see the update.
+  void invalidateSettingsCache() {
+    _cachedSettings = null;
+    _cachedSettingsCwd = null;
   }
 
   bool _isWriteOperation(String toolName) {

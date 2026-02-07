@@ -448,39 +448,9 @@ class _AgentChatState extends State<_AgentChat> {
     bool remember, {
     String? patternOverride,
     String? denyReason,
-  }) async {
+  }) {
     final session = context.read(currentVideSessionProvider);
 
-    // If remember and granted, decide where to store based on tool type
-    if (remember && granted) {
-      final toolName = request.toolName;
-      final toolInput = request.toolInput;
-
-      // Convert to type-safe ToolInput for pattern inference
-      final input = ToolInput.fromJson(toolName, toolInput);
-
-      // Check if this is a write operation
-      final isWriteOperation =
-          toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
-
-      if (isWriteOperation) {
-        // Add to session cache (in-memory only) using inferred pattern
-        final pattern =
-            patternOverride ?? PatternInference.inferPattern(toolName, input);
-        if (session != null) {
-          await session.addSessionPermissionPattern(pattern);
-        }
-      } else {
-        // Add to persistent whitelist with inferred pattern (or override)
-        final settingsManager = ClaudeSettingsManager(projectRoot: request.cwd);
-
-        final pattern =
-            patternOverride ?? PatternInference.inferPattern(toolName, input);
-        await settingsManager.addToAllowList(pattern);
-      }
-    }
-
-    // Determine the reason for the response
     String reason;
     if (granted) {
       reason = 'User approved';
@@ -490,11 +460,12 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    // Send the response through the session (unified path for local and remote)
     session?.respondToPermission(
       request.requestId,
       allow: granted,
       message: reason,
+      remember: remember,
+      patternOverride: patternOverride,
     );
 
     // Dequeue the current request to show the next one

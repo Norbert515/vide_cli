@@ -44,8 +44,9 @@ void main() {
         );
         expect(result, isA<PermissionAskUser>());
 
-        // Add to allow list
+        // Add to allow list and invalidate cache so the checker re-reads
         await settingsManager.addToAllowList('Bash(npm:*)');
+        permissionChecker.invalidateSettingsCache();
 
         // Now should be allowed
         result = await permissionChecker.checkPermission(
@@ -195,6 +196,9 @@ void main() {
             ),
           );
           await settingsFile.writeAsString(jsonEncode(settings.toJson()));
+
+          // Invalidate cache so the checker re-reads from disk
+          permissionChecker.invalidateSettingsCache();
 
           // Subsequent check should pick up new settings
           result = await permissionChecker.checkPermission(

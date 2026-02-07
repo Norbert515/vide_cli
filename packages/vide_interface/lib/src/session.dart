@@ -95,10 +95,17 @@ abstract interface class VideSession {
   // ============================================================
 
   /// Respond to a permission request.
+  ///
+  /// If [remember] is true and [allow] is true, the permission pattern will be
+  /// stored so the same operation is auto-approved in the future. Write
+  /// operations go to the session cache; non-write operations go to the
+  /// persistent allow list. [patternOverride] replaces the inferred pattern.
   void respondToPermission(
     String requestId, {
     required bool allow,
     String? message,
+    bool remember = false,
+    String? patternOverride,
   });
 
   /// Respond to an AskUserQuestion request.

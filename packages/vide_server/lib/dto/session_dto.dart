@@ -107,11 +107,15 @@ class PermissionResponse implements ClientMessage {
   final String requestId;
   final bool allow;
   final String? message;
+  final bool remember;
+  final String? patternOverride;
 
   PermissionResponse({
     required this.requestId,
     required this.allow,
     this.message,
+    this.remember = false,
+    this.patternOverride,
   });
 
   factory PermissionResponse.fromJson(Map<String, dynamic> json) {
@@ -119,6 +123,8 @@ class PermissionResponse implements ClientMessage {
       requestId: json['request-id'] as String,
       allow: json['allow'] as bool,
       message: json['message'] as String?,
+      remember: json['remember'] as bool? ?? false,
+      patternOverride: json['pattern-override'] as String?,
     );
   }
 }

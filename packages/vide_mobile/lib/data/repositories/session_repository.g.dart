@@ -6,7 +6,7 @@ part of 'session_repository.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sessionRepositoryHash() => r'a728d90ee8f7ac13572f7ee52ce5f73ea8d6d779';
+String _$sessionRepositoryHash() => r'0a016f60c0d5b559b62d0f7099cb898f87dcafa1';
 
 /// Repository for managing Vide sessions with reconnection support.
 ///

@@ -36,9 +36,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _inputController = TextEditingController();
   StreamSubscription<vc.VideEvent>? _eventSubscription;
 
-  /// Tracks accumulated content for streaming messages by eventId.
-  final Map<String, String> _streamingMessages = {};
-
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
 
@@ -65,13 +62,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _connectToSessionIfNeeded() {
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
-    final currentState = ref.read(sessionRepositoryProvider);
 
-    if (currentState.session?.sessionId == widget.sessionId &&
-        currentState.isActive) {
-      return;
-    }
-
+    // Always reconnect so this screen receives ConnectedEvent + HistoryEvent.
+    // When navigating here right after createSession, the WebSocket was set up
+    // before this widget subscribed to the event stream, so the initial events
+    // were lost on the broadcast stream.
     sessionRepo
         .connectToExistingSession(widget.sessionId)
         .then((_) {})
@@ -133,7 +128,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           :final isPartial,
           :final timestamp,
         ):
-        _handleMessageEvent(
+        notifier.handleMessageEvent(
           eventId: eventId,
           agentId: event.agentId,
           agentType: event.agentType,
@@ -143,6 +138,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           isPartial: isPartial,
           timestamp: timestamp,
         );
+        _scrollToBottom();
 
       case vc.StatusEvent(:final status):
         notifier.updateAgentStatus(
@@ -282,86 +278,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  void _handleMessageEvent({
-    required String eventId,
-    required String agentId,
-    required String agentType,
-    required String? agentName,
-    required String content,
-    required MessageRole role,
-    required bool isPartial,
-    required DateTime timestamp,
-  }) {
-    final notifier = ref.read(chatNotifierProvider(widget.sessionId).notifier);
-    final state = ref.read(chatNotifierProvider(widget.sessionId));
-
-    if (role == MessageRole.user) {
-      final isDuplicate = state.messages.any(
-        (m) => m.role == MessageRole.user && m.content == content,
-      );
-      if (isDuplicate) return;
-    }
-
-    if (isPartial) {
-      _streamingMessages[eventId] =
-          (_streamingMessages[eventId] ?? '') + content;
-
-      final existingIndex =
-          state.messages.indexWhere((m) => m.eventId == eventId);
-
-      if (existingIndex >= 0) {
-        notifier.updateMessage(
-          eventId,
-          state.messages[existingIndex].copyWith(
-            content: _streamingMessages[eventId]!,
-            isStreaming: true,
-          ),
-        );
-      } else {
-        notifier.addMessage(ChatMessage(
-          eventId: eventId,
-          role: role,
-          content: _streamingMessages[eventId]!,
-          agentId: agentId,
-          agentType: agentType,
-          agentName: agentName,
-          timestamp: timestamp,
-          isStreaming: true,
-        ));
-      }
-    } else {
-      final accumulatedContent = _streamingMessages[eventId] ?? '';
-      final finalContent = accumulatedContent + content;
-      _streamingMessages.remove(eventId);
-
-      final existingIndex =
-          state.messages.indexWhere((m) => m.eventId == eventId);
-
-      if (existingIndex >= 0) {
-        notifier.updateMessage(
-          eventId,
-          state.messages[existingIndex].copyWith(
-            content: finalContent,
-            isStreaming: false,
-          ),
-        );
-      } else if (finalContent.isNotEmpty) {
-        notifier.addMessage(ChatMessage(
-          eventId: eventId,
-          role: role,
-          content: finalContent,
-          agentId: agentId,
-          agentType: agentType,
-          agentName: agentName,
-          timestamp: timestamp,
-          isStreaming: false,
-        ));
-      }
-    }
-
-    _scrollToBottom();
-  }
-
   void _sendMessage() {
     final message = _inputController.text.trim();
     if (message.isEmpty) return;
@@ -427,7 +343,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  void _handlePermission(bool allow) {
+  void _handlePermission(bool allow, {bool remember = false}) {
     final state = ref.read(chatNotifierProvider(widget.sessionId));
     final pendingPermission = state.pendingPermission;
     if (pendingPermission == null) return;
@@ -436,6 +352,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     sessionRepo.respondToPermission(
       pendingPermission.requestId,
       allow,
+      remember: remember,
     );
 
     ref
@@ -455,7 +372,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       enableDrag: false,
       builder: (context) => PermissionSheet(
         request: request,
-        onAllow: () => _handlePermission(true),
+        onAllow: ({required bool remember}) =>
+            _handlePermission(true, remember: remember),
         onDeny: () => _handlePermission(false),
       ),
     ).whenComplete(() {
@@ -552,9 +470,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final tabViews = <Widget>[
-      for (final agentId in _agentTabIds)
+      for (final (index, agentId) in _agentTabIds.indexed)
         _MessageList(
-          messages: state.messages.where((m) => m.agentId == agentId).toList(),
+          messages: state.messages
+              .where((m) =>
+                  m.agentId == agentId ||
+                  (m.role == MessageRole.user && index == 0))
+              .toList(),
           toolUses: state.toolUses.where((t) => t.agentId == agentId).toList(),
           toolResults: state.toolResults,
           agents: state.agents,

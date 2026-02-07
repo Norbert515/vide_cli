@@ -11,7 +11,7 @@ import '../../domain/models/models.dart';
 /// Bottom sheet for permission requests.
 class PermissionSheet extends StatefulWidget {
   final PermissionRequest request;
-  final VoidCallback onAllow;
+  final void Function({required bool remember}) onAllow;
   final VoidCallback onDeny;
   final Duration timeout;
 
@@ -55,14 +55,12 @@ class _PermissionSheetState extends State<PermissionSheet> {
 
   void _handleAllow() {
     _timer.cancel();
-    widget.onAllow();
-    Navigator.of(context).pop();
+    widget.onAllow(remember: _alwaysAllow);
   }
 
   void _handleDeny() {
     _timer.cancel();
     widget.onDeny();
-    Navigator.of(context).pop();
   }
 
   @override

@@ -112,7 +112,6 @@ class LocalVideSessionManager implements VideSessionManager {
     final session = LocalVideSession.create(
       networkId: network.id,
       container: sessionContainer,
-      initialMessage: initialMessage,
     );
 
     _permissionHandler.setSession(session);

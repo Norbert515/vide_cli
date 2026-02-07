@@ -15,8 +15,10 @@ import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
 import '../services/agent_network_manager.dart';
 import '../services/claude_manager.dart';
+import '../services/permissions/pattern_inference.dart';
 import '../services/permissions/permission_checker.dart';
 import '../services/permissions/tool_input.dart';
+import '../services/settings/local_settings_manager.dart';
 import '../services/vide_config_manager.dart';
 import '../state/agent_status_manager.dart';
 import '../utils/dangerously_skip_permissions_provider.dart';
@@ -70,11 +72,13 @@ class LocalVideSession implements VideSession {
   ///
   /// This is called internally by [LocalVideSessionManager].
   /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
+  ///
+  /// Call [emitInitialUserMessage] after any event listeners (e.g. broadcasters)
+  /// are set up, to ensure the initial user message is captured in history.
   static LocalVideSession create({
     required String networkId,
     required ProviderContainer container,
     PermissionCheckerConfig? permissionConfig,
-    String? initialMessage,
   }) {
     final session = LocalVideSession._(
       networkId: networkId,
@@ -82,16 +86,18 @@ class LocalVideSession implements VideSession {
       permissionConfig: permissionConfig,
     );
     session._initialize();
-    // Emit the initial user message so it appears in the event stream
-    // and server history. The message was already sent to the agent by
-    // AgentNetworkManager.startNew before the session was created.
-    if (initialMessage != null) {
-      final mainAgentId = session.mainAgent?.id;
-      if (mainAgentId != null) {
-        session._emitUserMessage(initialMessage, agentId: mainAgentId);
-      }
-    }
     return session;
+  }
+
+  /// Emits the initial user message on the event stream.
+  ///
+  /// Must be called after any event listeners (e.g. SessionBroadcaster) are
+  /// set up, so the message is captured in history for replay to clients.
+  void emitInitialUserMessage(String message) {
+    final mainAgentId = mainAgent?.id;
+    if (mainAgentId != null) {
+      _emitUserMessage(message, agentId: mainAgentId);
+    }
   }
 
   void _initialize() {
@@ -221,10 +227,16 @@ class LocalVideSession implements VideSession {
     String requestId, {
     required bool allow,
     String? message,
+    bool remember = false,
+    String? patternOverride,
   }) {
     _checkNotDisposed();
     final pending = _pendingPermissions.remove(requestId);
     if (pending != null) {
+      if (remember && allow) {
+        _rememberPermission(pending, patternOverride);
+      }
+
       if (allow) {
         pending.completer.complete(const claude.PermissionResultAllow());
       } else {
@@ -244,6 +256,33 @@ class LocalVideSession implements VideSession {
           allow: allow,
           message: message,
         ),
+      );
+    }
+  }
+
+  void _rememberPermission(
+    _PendingPermission pending,
+    String? patternOverride,
+  ) {
+    final toolName = pending.toolName;
+    final typedInput = ToolInput.fromJson(toolName, pending.toolInput);
+    final pattern =
+        patternOverride ?? PatternInference.inferPattern(toolName, typedInput);
+
+    final isWriteOperation =
+        toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
+
+    if (isWriteOperation) {
+      _permissionChecker.addSessionPattern(pattern);
+    } else {
+      final settingsManager = LocalSettingsManager(
+        projectRoot: pending.cwd,
+        parrottRoot: pending.cwd,
+      );
+      unawaited(
+        settingsManager.addToAllowList(pattern).then((_) {
+          _permissionChecker.invalidateSettingsCache();
+        }),
       );
     }
   }
@@ -599,6 +638,10 @@ class LocalVideSession implements VideSession {
           agentType: agentType ?? 'unknown',
           agentName: agentName,
           taskName: state?.taskName,
+          toolName: toolName,
+          toolInput: input,
+          inferredPattern: inferredPattern,
+          cwd: cwd,
         );
 
         // Emit permission request event
@@ -966,7 +1009,12 @@ class LocalVideSession implements VideSession {
       if (currentContentLength > state.lastContentLength) {
         final delta = latestMessage.content.substring(state.lastContentLength);
         if (delta.isNotEmpty) {
-          final eventId = state.currentMessageEventId ?? const Uuid().v4();
+          // If currentMessageEventId is null (e.g. after a tool call finalized
+          // the previous message), generate a new eventId and persist it so all
+          // subsequent delta chunks share the same id — otherwise each chunk
+          // would appear as a separate message on the client.
+          state.currentMessageEventId ??= const Uuid().v4();
+          final eventId = state.currentMessageEventId!;
           _hub.emit(
             MessageEvent(
               agentId: agent.id,
@@ -1188,6 +1236,10 @@ class _PendingPermission {
   final String agentType;
   final String? agentName;
   final String? taskName;
+  final String toolName;
+  final Map<String, dynamic> toolInput;
+  final String? inferredPattern;
+  final String cwd;
 
   _PendingPermission({
     required this.completer,
@@ -1195,6 +1247,10 @@ class _PendingPermission {
     required this.agentType,
     this.agentName,
     this.taskName,
+    required this.toolName,
+    required this.toolInput,
+    this.inferredPattern,
+    required this.cwd,
   });
 }
 

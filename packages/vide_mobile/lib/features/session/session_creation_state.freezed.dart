@@ -169,7 +169,7 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
   const _$SessionCreationStateImpl(
       {this.initialMessage = '',
       this.workingDirectory = '',
-      this.team = 'vide',
+      this.team = 'enterprise',
       this.permissionMode = PermissionMode.defaultMode,
       this.isCreating = false,
       this.error});

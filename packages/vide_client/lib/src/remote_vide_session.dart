@@ -936,12 +936,16 @@ class RemoteVideSession implements VideSession {
     String requestId, {
     required bool allow,
     String? message,
+    bool remember = false,
+    String? patternOverride,
   }) {
     _checkNotDisposed();
     _clientSession?.respondToPermission(
       requestId: requestId,
       allow: allow,
       message: message,
+      remember: remember,
+      patternOverride: patternOverride,
     );
   }
 

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:collection';
+
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
@@ -16,7 +16,7 @@ class PermissionQueueState {
 
 /// State notifier for permission requests with queue support
 class PermissionStateNotifier extends StateNotifier<PermissionQueueState> {
-  final Queue<PermissionRequest> _queue = Queue<PermissionRequest>();
+  final List<PermissionRequest> _queue = [];
 
   PermissionStateNotifier() : super(PermissionQueueState());
 
@@ -29,8 +29,14 @@ class PermissionStateNotifier extends StateNotifier<PermissionQueueState> {
   /// Remove the current request and show the next one
   void dequeueRequest() {
     if (_queue.isNotEmpty) {
-      _queue.removeFirst();
+      _queue.removeAt(0);
     }
+    _updateState();
+  }
+
+  /// Remove a specific request by its ID (e.g., when resolved remotely)
+  void removeByRequestId(String requestId) {
+    _queue.removeWhere((r) => r.requestId == requestId);
     _updateState();
   }
 
@@ -78,8 +84,7 @@ class AskUserQuestionQueueState {
 /// State notifier for AskUserQuestion requests with queue support
 class AskUserQuestionStateNotifier
     extends StateNotifier<AskUserQuestionQueueState> {
-  final Queue<AskUserQuestionUIRequest> _queue =
-      Queue<AskUserQuestionUIRequest>();
+  final List<AskUserQuestionUIRequest> _queue = [];
 
   AskUserQuestionStateNotifier() : super(AskUserQuestionQueueState());
 
@@ -92,8 +97,14 @@ class AskUserQuestionStateNotifier
   /// Remove the current request and show the next one
   void dequeueRequest() {
     if (_queue.isNotEmpty) {
-      _queue.removeFirst();
+      _queue.removeAt(0);
     }
+    _updateState();
+  }
+
+  /// Remove a specific request by its ID (e.g., when resolved remotely)
+  void removeByRequestId(String requestId) {
+    _queue.removeWhere((r) => r.requestId == requestId);
     _updateState();
   }
 
@@ -154,7 +165,6 @@ class _PermissionScopeState extends State<PermissionScope> {
     _sessionEventSub = session.events.listen((event) {
       switch (event) {
         case PermissionRequestEvent():
-          // Convert to UI PermissionRequest
           final request = PermissionRequest.fromEvent(
             event,
             session.workingDirectory,
@@ -163,15 +173,18 @@ class _PermissionScopeState extends State<PermissionScope> {
               .read(permissionStateProvider.notifier)
               .enqueueRequest(request);
 
+        case PermissionResolvedEvent():
+          context
+              .read(permissionStateProvider.notifier)
+              .removeByRequestId(event.requestId);
+
         case AskUserQuestionEvent():
-          // Convert to UI request
           final request = AskUserQuestionUIRequest.fromEvent(event);
           context
               .read(askUserQuestionStateProvider.notifier)
               .enqueueRequest(request);
 
         default:
-          // Ignore other events
           break;
       }
     });

@@ -293,6 +293,52 @@ void main() {
       });
     });
 
+    group('allow list runs before asking user', () {
+      test(
+        'returns PermissionAllow when allow list matches, even with deny askUserBehavior',
+        () async {
+          // Use a config that would deny if it reached the ask-user step
+          final denyChecker = PermissionChecker(
+            config: const PermissionCheckerConfig(
+              askUserBehavior: AskUserBehavior.deny,
+            ),
+          );
+          addTearDown(denyChecker.dispose);
+
+          await writeSettings(allow: ['Bash(npm:*)']);
+
+          final result = await denyChecker.checkPermission(
+            toolName: 'Bash',
+            input: const BashToolInput(command: 'npm install'),
+            cwd: cwd,
+          );
+
+          expect(result, isA<PermissionAllow>());
+          expect((result as PermissionAllow).reason, contains('allow list'));
+        },
+      );
+
+      test(
+        'returns PermissionDeny for unmatched tools when askUserBehavior is deny',
+        () async {
+          final denyChecker = PermissionChecker(
+            config: const PermissionCheckerConfig(
+              askUserBehavior: AskUserBehavior.deny,
+            ),
+          );
+          addTearDown(denyChecker.dispose);
+
+          final result = await denyChecker.checkPermission(
+            toolName: 'Bash',
+            input: const BashToolInput(command: 'npm install'),
+            cwd: cwd,
+          );
+
+          expect(result, isA<PermissionDeny>());
+        },
+      );
+    });
+
     group('isAllowedBySessionCache', () {
       test('returns true for matching write pattern', () {
         checker.addSessionPattern('Write(/path/**)');
@@ -328,6 +374,65 @@ void main() {
       });
     });
 
+    group('invalidateSettingsCache', () {
+      test('re-reads settings from disk after invalidation', () async {
+        // First check with no allow list — should ask user
+        var result = await checker.checkPermission(
+          toolName: 'Bash',
+          input: const BashToolInput(command: 'npm install'),
+          cwd: cwd,
+        );
+        expect(result, isA<PermissionAskUser>());
+
+        // Write allow list to disk (simulating "remember")
+        await writeSettings(allow: ['Bash(npm:*)']);
+
+        // Without invalidation, cached settings are stale — still asks user
+        result = await checker.checkPermission(
+          toolName: 'Bash',
+          input: const BashToolInput(command: 'npm install'),
+          cwd: cwd,
+        );
+        expect(result, isA<PermissionAskUser>());
+
+        // After invalidation, re-reads from disk — now allowed
+        checker.invalidateSettingsCache();
+        result = await checker.checkPermission(
+          toolName: 'Bash',
+          input: const BashToolInput(command: 'npm install'),
+          cwd: cwd,
+        );
+        expect(result, isA<PermissionAllow>());
+      });
+    });
+
+    group('indefinite permission waiting', () {
+      test('permission requests return PermissionAskUser with no timeout — '
+          'callers await indefinitely until explicitly resolved', () async {
+        // This test documents INTENTIONAL behavior: when no allow/deny
+        // list matches, PermissionChecker returns PermissionAskUser.
+        // The caller (LocalVideSession) creates a Completer and awaits
+        // it with NO timeout. The user can take as long as needed to
+        // respond. Only explicit resolution or session disposal completes
+        // the future.
+        final result = await checker.checkPermission(
+          toolName: 'Bash',
+          input: const BashToolInput(command: 'npm install'),
+          cwd: cwd,
+        );
+
+        // The result is PermissionAskUser, NOT PermissionDeny with a
+        // timeout message. This confirms no timeout is applied at the
+        // checker level.
+        expect(result, isA<PermissionAskUser>());
+
+        // Verify the result doesn't carry a timeout or expiry — it's
+        // a pure "ask the user" signal with an optional inferred pattern.
+        final askResult = result as PermissionAskUser;
+        expect(askResult.inferredPattern, isNotNull);
+      });
+    });
+
     group('dispose', () {
       test('clears session cache', () async {
         checker.addSessionPattern('Write($cwd/**)');
@@ -341,6 +446,23 @@ void main() {
 
         expect(allowed, isFalse);
       });
+    });
+  });
+
+  group('PermissionCheckerConfig', () {
+    test('tui config has default values', () {
+      const config = PermissionCheckerConfig.tui;
+      expect(config.enableSessionCache, isTrue);
+      expect(config.loadSettings, isTrue);
+      expect(config.respectGitignore, isTrue);
+      expect(config.askUserBehavior, AskUserBehavior.ask);
+    });
+
+    test('testing config auto-allows and skips settings/gitignore', () {
+      const config = PermissionCheckerConfig.testing;
+      expect(config.askUserBehavior, AskUserBehavior.allow);
+      expect(config.loadSettings, isFalse);
+      expect(config.respectGitignore, isFalse);
     });
   });
 

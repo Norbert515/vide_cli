@@ -155,15 +155,12 @@ class SessionRepository extends _$SessionRepository {
 
   /// Connects to an existing session by ID.
   ///
-  /// This is used when navigating to a session from the sessions list.
+  /// Always creates a fresh WebSocket connection, even if already connected
+  /// to the same session. This ensures the caller receives ConnectedEvent +
+  /// HistoryEvent through the broadcast stream (important when the chat screen
+  /// subscribes after session creation).
   Future<Session> connectToExistingSession(String sessionId) async {
     _log('Connecting to existing session: $sessionId');
-
-    // If already connected to this session, return
-    if (state.session?.sessionId == sessionId && state.isActive) {
-      _log('Already connected to session $sessionId');
-      return state.session!;
-    }
 
     final connectionState = ref.read(connectionRepositoryProvider);
     if (!connectionState.isConnected || connectionState.connection == null) {
@@ -172,10 +169,8 @@ class SessionRepository extends _$SessionRepository {
 
     final connection = connectionState.connection!;
 
-    // Close existing session if different
-    if (state.session?.sessionId != sessionId) {
-      close();
-    }
+    // Close existing session (same or different)
+    close();
 
     // Update connection state to connecting
     ref.read(webSocketConnectionProvider.notifier).setConnecting();
@@ -355,7 +350,12 @@ class SessionRepository extends _$SessionRepository {
   }
 
   /// Responds to a permission request.
-  void respondToPermission(String requestId, bool allow, {String? message}) {
+  void respondToPermission(
+    String requestId,
+    bool allow, {
+    String? message,
+    bool remember = false,
+  }) {
     if (state.videSession == null || !state.isActive) {
       throw SessionException('No active session');
     }
@@ -363,6 +363,7 @@ class SessionRepository extends _$SessionRepository {
       requestId: requestId,
       allow: allow,
       message: message,
+      remember: remember,
     );
   }
 
