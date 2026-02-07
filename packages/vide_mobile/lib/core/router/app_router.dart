@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../features/chat/chat_screen.dart';
+import '../../features/chat/widgets/tool_card.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
 import '../../features/sessions/sessions_list_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../domain/models/models.dart';
 
 part 'app_router.g.dart';
 
@@ -18,8 +20,10 @@ abstract class AppRoutes {
   static const newSession = '/session/new';
   static const session = '/session/:id';
   static const settings = '/settings';
+  static const toolDetail = '/session/:id/tool';
 
   static String sessionPath(String id) => '/session/$id';
+  static String toolDetailPath(String sessionId) => '/session/$sessionId/tool';
 }
 
 @riverpod
@@ -49,6 +53,17 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final sessionId = state.pathParameters['id']!;
           return ChatScreen(sessionId: sessionId);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.toolDetail,
+        name: 'toolDetail',
+        builder: (context, state) {
+          final extra = state.extra! as Map<String, dynamic>;
+          return ToolDetailScreen(
+            toolUse: extra['toolUse'] as ToolUse,
+            result: extra['result'] as ToolResult?,
+          );
         },
       ),
       GoRoute(

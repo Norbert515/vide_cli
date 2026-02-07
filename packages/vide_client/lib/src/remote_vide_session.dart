@@ -235,10 +235,12 @@ class RemoteVideSession implements VideSession {
   void completePending(Session clientSession) {
     if (!_isPending) return;
 
-    // Save placeholder agent ID for conversation migration when ConnectedEvent arrives
+    // Save placeholder agent ID for conversation migration when ConnectedEvent arrives.
+    // Keep the placeholder in _agents so the UI continues to show it until
+    // the ConnectedEvent arrives with the real agent list (avoids a brief
+    // empty-agents flash).
     if (_mainAgentId != null) {
       _pendingAgentIdToMigrate = _mainAgentId;
-      _agents.remove(_mainAgentId);
     }
 
     // Update with real details
@@ -416,6 +418,11 @@ class RemoteVideSession implements VideSession {
     _mainAgentId = event.mainAgentId;
     _lastSeq = event.lastSeq;
     _applyConnectedMetadata(event.metadata);
+
+    // Remove stale placeholder agent (if any) before populating with real data.
+    if (_pendingAgentIdToMigrate != null) {
+      _agents.remove(_pendingAgentIdToMigrate);
+    }
 
     // Parse agents list from connected event
     for (final agent in event.agents) {
@@ -633,6 +640,9 @@ class RemoteVideSession implements VideSession {
 
   void _handleAgentSpawned(AgentSpawnedEvent event) {
     final agentId = event.agentId;
+
+    // Skip if agent already exists (e.g. from ConnectedEvent before history replay).
+    if (_agents.containsKey(agentId)) return;
 
     _agents[agentId] = _RemoteAgentInfo(
       id: agentId,

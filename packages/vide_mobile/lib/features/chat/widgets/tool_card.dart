@@ -6,30 +6,26 @@ import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
 import '../../../domain/models/models.dart';
 
-/// A collapsible card displaying tool use and result.
-class ToolCard extends StatefulWidget {
+/// A compact, dense card displaying a tool invocation.
+/// Shows tool name + contextual subtitle. Tap opens full detail page.
+class ToolCard extends StatelessWidget {
   final ToolUse toolUse;
   final ToolResult? result;
+  final VoidCallback? onTap;
 
   const ToolCard({
     super.key,
     required this.toolUse,
     this.result,
+    this.onTap,
   });
-
-  @override
-  State<ToolCard> createState() => _ToolCardState();
-}
-
-class _ToolCardState extends State<ToolCard> {
-  bool _isExpanded = false;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final hasResult = widget.result != null;
-    final isError = widget.result?.isError ?? false;
+    final hasResult = result != null;
+    final isError = result?.isError ?? false;
 
     final statusColor = isError
         ? videColors.error
@@ -37,217 +33,291 @@ class _ToolCardState extends State<ToolCard> {
             ? videColors.success
             : videColors.accent;
 
-    final statusContainerColor = isError
-        ? videColors.errorContainer
-        : hasResult
-            ? videColors.successContainer
-            : videColors.accentSubtle;
+    final displayName = _toolDisplayName(toolUse.toolName);
+    final subtitle = _toolSubtitle(toolUse);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: VideSpacing.sm,
-        vertical: VideSpacing.xs,
+        vertical: 2,
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: VideRadius.smAll,
-          border: Border(
-            left: BorderSide(color: statusColor, width: 3),
-          ),
-        ),
-        child: InkWell(
-          onTap: () => setState(() => _isExpanded = !_isExpanded),
-          borderRadius: VideRadius.smAll,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: statusContainerColor,
-                        borderRadius: VideRadius.smAll,
-                      ),
-                      child: Icon(
-                        isError
-                            ? Icons.error_outline
-                            : hasResult
-                                ? Icons.check_circle_outline
-                                : Icons.sync,
-                        size: 18,
-                        color: statusColor,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.toolUse.toolName,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                          ),
-                          if (widget.toolUse.agentName != null)
-                            Text(
-                              'by ${widget.toolUse.agentName}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: videColors.textSecondary,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      _isExpanded ? Icons.expand_less : Icons.expand_more,
-                      color: videColors.textSecondary,
-                    ),
-                  ],
-                ),
-                if (_isExpanded) ...[
-                  const SizedBox(height: 12),
-                  Divider(height: 1, color: colorScheme.outlineVariant),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Input',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: videColors.accent,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  _JsonView(json: widget.toolUse.input),
-                  if (hasResult) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      'Result',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isError ? videColors.error : videColors.success,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _ResultView(result: widget.result!),
-                  ],
-                ],
-              ],
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: VideRadius.smAll,
+            border: Border(
+              left: BorderSide(color: statusColor, width: 2),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _JsonView extends StatelessWidget {
-  final Map<String, dynamic> json;
-
-  const _JsonView({required this.json});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    const encoder = JsonEncoder.withIndent('  ');
-    final prettyJson = encoder.convert(json);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: VideRadius.smAll,
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Text(
-          prettyJson,
-          style: TextStyle(
-            fontSize: 12,
-            color: colorScheme.onSurface,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: Row(
+            children: [
+              Icon(
+                _statusIcon(hasResult, isError),
+                size: 14,
+                color: statusColor,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      displayName,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    if (subtitle != null)
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: videColors.textSecondary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+              if (!hasResult)
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: videColors.textTertiary,
+                  ),
+                )
+              else
+                Icon(
+                  Icons.chevron_right,
+                  size: 16,
+                  color: videColors.textTertiary,
+                ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  IconData _statusIcon(bool hasResult, bool isError) {
+    if (isError) return Icons.error_outline;
+    if (hasResult) return Icons.check;
+    return Icons.play_arrow;
+  }
 }
 
-class _ResultView extends StatelessWidget {
-  final ToolResult result;
+/// Extracts a human-friendly display name from a raw tool name.
+String _toolDisplayName(String toolName) {
+  // Strip MCP prefixes like "mcp__vide-agent__" or "mcp__flutter-runtime__"
+  final mcpPrefix = RegExp(r'^mcp__[^_]+__');
+  final stripped = toolName.replaceFirst(mcpPrefix, '');
+  return stripped;
+}
 
-  const _ResultView({required this.result});
+/// Extracts a contextual subtitle from the tool input.
+String? _toolSubtitle(ToolUse toolUse) {
+  final input = toolUse.input;
+  final toolName = _toolDisplayName(toolUse.toolName);
+
+  switch (toolName) {
+    case 'Read':
+      return input['file_path'] as String?;
+    case 'Edit':
+      return input['file_path'] as String?;
+    case 'Write':
+      return input['file_path'] as String?;
+    case 'Bash':
+      final cmd = input['command'] as String?;
+      return cmd;
+    case 'Grep':
+      final pattern = input['pattern'] as String?;
+      final path = input['path'] as String?;
+      if (pattern != null && path != null) return '"$pattern" in $path';
+      return pattern != null ? '"$pattern"' : null;
+    case 'Glob':
+      return input['pattern'] as String?;
+    case 'WebFetch':
+      return input['url'] as String?;
+    case 'WebSearch':
+      return input['query'] as String?;
+    case 'TodoWrite':
+      return null;
+    case 'Task':
+      return input['description'] as String?;
+    case 'NotebookEdit':
+      return input['notebook_path'] as String?;
+    default:
+      // For unknown tools, try common field names
+      return input['file_path'] as String? ??
+          input['command'] as String? ??
+          input['pattern'] as String? ??
+          input['query'] as String? ??
+          input['description'] as String?;
+  }
+}
+
+/// Full-screen detail view for a tool invocation.
+class ToolDetailScreen extends StatelessWidget {
+  final ToolUse toolUse;
+  final ToolResult? result;
+
+  const ToolDetailScreen({
+    super.key,
+    required this.toolUse,
+    this.result,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final resultData = result.result;
+    final hasResult = result != null;
+    final isError = result?.isError ?? false;
 
-    String displayText;
-    if (resultData is Map || resultData is List) {
-      displayText = const JsonEncoder.withIndent('  ').convert(resultData);
-    } else {
-      displayText = resultData?.toString() ?? 'null';
-    }
+    final statusColor = isError
+        ? videColors.error
+        : hasResult
+            ? videColors.success
+            : videColors.accent;
 
-    // Truncate long results
-    const maxLength = 500;
-    final isTruncated = displayText.length > maxLength;
-    if (isTruncated) {
-      displayText = '${displayText.substring(0, maxLength)}...';
-    }
+    final displayName = _toolDisplayName(toolUse.toolName);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: result.isError
-            ? videColors.errorContainer
-            : colorScheme.surfaceContainerHighest,
-        borderRadius: VideRadius.smAll,
-        border: Border.all(
-          color: result.isError
-              ? videColors.error.withValues(alpha: 0.3)
-              : colorScheme.outlineVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Text(
-              displayText,
-              style: TextStyle(
-                fontSize: 12,
-                color:
-                    result.isError ? videColors.error : colorScheme.onSurface,
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: statusColor,
+                shape: BoxShape.circle,
               ),
             ),
-          ),
-          if (isTruncated) ...[
+            const SizedBox(width: 8),
+            Text(displayName),
+          ],
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(VideSpacing.md),
+        children: [
+          if (toolUse.agentName != null) ...[
+            _SectionLabel(
+              label: 'Agent',
+              color: videColors.textSecondary,
+            ),
             const SizedBox(height: 4),
             Text(
-              '(truncated)',
+              toolUse.agentName!,
               style: TextStyle(
-                fontSize: 12,
-                color: videColors.textSecondary,
-                fontStyle: FontStyle.italic,
+                fontSize: 13,
+                color: colorScheme.onSurface,
               ),
+            ),
+            const SizedBox(height: VideSpacing.md),
+          ],
+          _SectionLabel(
+            label: 'Input',
+            color: videColors.accent,
+          ),
+          const SizedBox(height: 4),
+          _CodeBlock(
+            text: const JsonEncoder.withIndent('  ').convert(toolUse.input),
+            backgroundColor: colorScheme.surfaceContainerHighest,
+            borderColor: colorScheme.outlineVariant,
+            textColor: colorScheme.onSurface,
+          ),
+          if (hasResult) ...[
+            const SizedBox(height: VideSpacing.md),
+            _SectionLabel(
+              label: isError ? 'Error' : 'Result',
+              color: isError ? videColors.error : videColors.success,
+            ),
+            const SizedBox(height: 4),
+            _CodeBlock(
+              text: _formatResult(result!.result),
+              backgroundColor: isError
+                  ? videColors.errorContainer
+                  : colorScheme.surfaceContainerHighest,
+              borderColor: isError
+                  ? videColors.error.withValues(alpha: 0.3)
+                  : colorScheme.outlineVariant,
+              textColor: isError ? videColors.error : colorScheme.onSurface,
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  String _formatResult(dynamic resultData) {
+    if (resultData is Map || resultData is List) {
+      return const JsonEncoder.withIndent('  ').convert(resultData);
+    }
+    return resultData?.toString() ?? 'null';
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _SectionLabel({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+        color: color,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+class _CodeBlock extends StatelessWidget {
+  final String text;
+  final Color backgroundColor;
+  final Color borderColor;
+  final Color textColor;
+
+  const _CodeBlock({
+    required this.text,
+    required this.backgroundColor,
+    required this.borderColor,
+    required this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: VideRadius.smAll,
+        border: Border.all(color: borderColor),
+      ),
+      child: SelectableText(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: textColor,
+        ),
       ),
     );
   }

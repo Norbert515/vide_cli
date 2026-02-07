@@ -381,6 +381,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  void _openToolDetail(ToolUse toolUse, ToolResult? result) {
+    context.push(
+      AppRoutes.toolDetailPath(widget.sessionId),
+      extra: {
+        'toolUse': toolUse,
+        'result': result,
+      },
+    );
+  }
+
   void _switchToAgentTab(String agentId) {
     final index = _agentTabIds.indexOf(agentId);
     if (index >= 0) {
@@ -482,6 +492,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           agents: state.agents,
           scrollController: _scrollControllers[agentId] ?? ScrollController(),
           onAgentTap: _switchToAgentTab,
+          onToolTap: _openToolDetail,
         ),
     ];
 
@@ -537,6 +548,7 @@ class _MessageList extends StatelessWidget {
   final List<Agent> agents;
   final ScrollController scrollController;
   final ValueChanged<String>? onAgentTap;
+  final void Function(ToolUse toolUse, ToolResult? result)? onToolTap;
 
   const _MessageList({
     required this.messages,
@@ -545,6 +557,7 @@ class _MessageList extends StatelessWidget {
     required this.agents,
     required this.scrollController,
     this.onAgentTap,
+    this.onToolTap,
   });
 
   @override
@@ -570,11 +583,13 @@ class _MessageList extends StatelessWidget {
       );
     }
 
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: ListView.builder(
+        controller: scrollController,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        itemCount: items.length,
+        itemBuilder: (context, index) {
         final item = items[index];
         return item.when(
           message: (message) => MessageBubble(message: message),
@@ -589,10 +604,12 @@ class _MessageList extends StatelessWidget {
             return ToolCard(
               toolUse: toolUse,
               result: result,
+              onTap: () => onToolTap?.call(toolUse, result),
             );
           },
         );
       },
+      ),
     );
   }
 
