@@ -179,7 +179,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   VideSession createSessionOptimistic({
     required String initialMessage,
     required String workingDirectory,
-    String permissionMode = 'ask',
+    String? permissionMode,
     String? model,
     String? team,
     void Function()? onReady,
@@ -230,7 +230,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   Future<VideSession> createSession({
     required String initialMessage,
     required String workingDirectory,
-    String permissionMode = 'ask',
+    String? permissionMode,
   }) async {
     final daemonClient = state.client;
     if (daemonClient == null || !state.isConnected) {

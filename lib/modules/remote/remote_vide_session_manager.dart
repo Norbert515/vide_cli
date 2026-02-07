@@ -56,7 +56,7 @@ class RemoteVideSessionManager implements VideSessionManager {
     final session = _notifier.createSessionOptimistic(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
-      permissionMode: permissionMode ?? 'ask',
+      permissionMode: permissionMode,
       model: model,
       team: team,
     );
