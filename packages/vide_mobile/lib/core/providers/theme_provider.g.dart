@@ -1,28 +1,26 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'settings_storage.dart';
+part of 'theme_provider.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$settingsStorageHash() => r'f32dd163f354e6bf3a4b9f6380e4221dc2d762b1';
+String _$themeModeNotifierHash() => r'4fcbe9327f2d4e77040916e31d1e89a92c91870f';
 
-/// Wrapper for SharedPreferences to persist app settings.
-///
-/// Copied from [SettingsStorage].
-@ProviderFor(SettingsStorage)
-final settingsStorageProvider =
-    AsyncNotifierProvider<SettingsStorage, void>.internal(
-  SettingsStorage.new,
-  name: r'settingsStorageProvider',
+/// See also [ThemeModeNotifier].
+@ProviderFor(ThemeModeNotifier)
+final themeModeNotifierProvider =
+    NotifierProvider<ThemeModeNotifier, ThemeMode>.internal(
+  ThemeModeNotifier.new,
+  name: r'themeModeNotifierProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
       ? null
-      : _$settingsStorageHash,
+      : _$themeModeNotifierHash,
   dependencies: null,
   allTransitiveDependencies: null,
 );
 
-typedef _$SettingsStorage = AsyncNotifier<void>;
+typedef _$ThemeModeNotifier = Notifier<ThemeMode>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/providers/theme_provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
@@ -51,6 +52,7 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () {
                 ref.read(connectionRepositoryProvider.notifier).disconnect();
                 ref.read(settingsStorageProvider.notifier).clear();
+                ref.read(themeModeNotifierProvider.notifier).setThemeMode(ThemeMode.system);
                 context.go(AppRoutes.connection);
               },
             ),
@@ -60,7 +62,11 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsTile(
             icon: Icons.dark_mode_outlined,
             title: 'Theme',
-            subtitle: 'System default',
+            subtitle: switch (ref.watch(themeModeNotifierProvider)) {
+              ThemeMode.system => 'System default',
+              ThemeMode.light => 'Light',
+              ThemeMode.dark => 'Dark',
+            },
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               _showThemeSelector(context);
@@ -137,6 +143,7 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(connectionRepositoryProvider.notifier).disconnect();
               ref.read(settingsStorageProvider.notifier).clear();
+              ref.read(themeModeNotifierProvider.notifier).setThemeMode(ThemeMode.system);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Data cleared')),
@@ -235,11 +242,13 @@ class _SettingsTile extends StatelessWidget {
   }
 }
 
-class _ThemeSelectorDialog extends StatelessWidget {
+class _ThemeSelectorDialog extends ConsumerWidget {
   const _ThemeSelectorDialog();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentMode = ref.watch(themeModeNotifierProvider);
+
     return AlertDialog(
       title: const Text('Choose Theme'),
       content: Column(
@@ -249,25 +258,27 @@ class _ThemeSelectorDialog extends StatelessWidget {
             title: const Text('System'),
             subtitle: const Text('Follow system settings'),
             value: ThemeMode.system,
-            groupValue: ThemeMode.system, // TODO: Get from provider
+            groupValue: currentMode,
             onChanged: (value) {
-              // TODO: Update theme
+              ref.read(themeModeNotifierProvider.notifier).setThemeMode(value!);
               Navigator.pop(context);
             },
           ),
           RadioListTile<ThemeMode>(
             title: const Text('Light'),
             value: ThemeMode.light,
-            groupValue: ThemeMode.system,
+            groupValue: currentMode,
             onChanged: (value) {
+              ref.read(themeModeNotifierProvider.notifier).setThemeMode(value!);
               Navigator.pop(context);
             },
           ),
           RadioListTile<ThemeMode>(
             title: const Text('Dark'),
             value: ThemeMode.dark,
-            groupValue: ThemeMode.system,
+            groupValue: currentMode,
             onChanged: (value) {
+              ref.read(themeModeNotifierProvider.notifier).setThemeMode(value!);
               Navigator.pop(context);
             },
           ),

@@ -6,7 +6,7 @@ part of 'session_monitor_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sessionMonitorHash() => r'0a5cd4dfbc7b69290c86a2d7e9d255cee1743b52';
+String _$sessionMonitorHash() => r'a26a522c6b53ad68a35eba924dcef615f5808169';
 
 /// Service that eagerly connects to all active session WebSockets
 /// to get live metadata (latest message, agent status, agent count).

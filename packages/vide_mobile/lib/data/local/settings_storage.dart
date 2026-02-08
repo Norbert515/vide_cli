@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,6 +16,7 @@ class SettingsKeys {
   static const recentConnections = 'recent_connections';
   static const recentWorkingDirectories = 'recent_working_directories';
   static const lastTeam = 'last_team';
+  static const themeMode = 'theme_mode';
 }
 
 /// Wrapper for SharedPreferences to persist app settings.
@@ -136,6 +138,23 @@ class SettingsStorage extends _$SettingsStorage {
     await _prefs.setString(SettingsKeys.lastTeam, team);
   }
 
+  /// Gets the stored theme mode.
+  Future<ThemeMode> getThemeMode() async {
+    await future;
+    final value = _prefs.getString(SettingsKeys.themeMode);
+    return switch (value) {
+      'light' => ThemeMode.light,
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+  }
+
+  /// Saves the theme mode.
+  Future<void> saveThemeMode(ThemeMode mode) async {
+    await future;
+    await _prefs.setString(SettingsKeys.themeMode, mode.name);
+  }
+
   /// Clears all stored settings.
   Future<void> clear() async {
     await future;
@@ -144,5 +163,6 @@ class SettingsStorage extends _$SettingsStorage {
     await _prefs.remove(SettingsKeys.recentConnections);
     await _prefs.remove(SettingsKeys.recentWorkingDirectories);
     await _prefs.remove(SettingsKeys.lastTeam);
+    await _prefs.remove(SettingsKeys.themeMode);
   }
 }
