@@ -58,35 +58,16 @@ class _PermissionSheetState extends State<PermissionSheet> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: videColors.warningContainer,
-                          borderRadius: BorderRadius.circular(12),
+                  Text(
+                    'Permission Request',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(
+                          fontWeight: FontWeight.bold,
                         ),
-                        child: Icon(
-                          Icons.security_outlined,
-                          size: 24,
-                          color: videColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Permission Request',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
-                        ),
-                      ),
-                    ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   // Tool info
                   Container(
                     width: double.infinity,
