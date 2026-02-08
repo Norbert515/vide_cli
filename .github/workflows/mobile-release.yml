@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 env:
-  FLUTTER_VERSION: "3.29.0"
+  FLUTTER_VERSION: "3.38.9"
 
 jobs:
   build-ios:
