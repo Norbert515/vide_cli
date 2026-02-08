@@ -17,6 +17,7 @@ import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/tool_card.dart';
+import 'widgets/typing_indicator.dart';
 
 /// Main chat screen for a session.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -51,6 +52,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Per-tab scroll controllers keyed by agent ID.
   final Map<String, ScrollController> _scrollControllers = {};
 
+  /// Agent IDs where auto-follow (scroll-to-bottom on new content) is active.
+  /// Starts as following. When user scrolls up, following stops.
+  /// When user scrolls back to the bottom, following resumes.
+  final Set<String> _followingAgents = {};
+
   /// Current agents list — owned by RemoteVideSession, cached here for rendering.
   List<VideAgent> _agents = [];
 
@@ -70,7 +76,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Only open a new connection when navigating to a different session.
       final existing = sessionRepo.session;
       final RemoteVideSession session;
-      if (existing != null && existing.id == widget.sessionId && sessionRepo.isActive) {
+      if (existing != null &&
+          existing.id == widget.sessionId &&
+          sessionRepo.isActive) {
         session = existing;
       } else {
         session = await sessionRepo.connectToExistingSession(widget.sessionId);
@@ -97,7 +105,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (currentAgents.isNotEmpty) {
       _agents = currentAgents;
       for (final agent in currentAgents) {
-        _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+        if (!_scrollControllers.containsKey(agent.id)) {
+          _scrollControllers[agent.id] = ScrollController();
+          _followingAgents.add(agent.id);
+        }
       }
     }
 
@@ -112,7 +123,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       setState(() {
         _agents = agents;
         for (final agent in agents) {
-          _scrollControllers.putIfAbsent(agent.id, () => ScrollController());
+          if (!_scrollControllers.containsKey(agent.id)) {
+            _scrollControllers[agent.id] = ScrollController();
+            _followingAgents.add(agent.id);
+          }
         }
         // Clean up controllers for removed agents
         final agentIds = agents.map((a) => a.id).toSet();
@@ -122,6 +136,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         for (final id in removedIds) {
           _scrollControllers[id]?.dispose();
           _scrollControllers.remove(id);
+          _followingAgents.remove(id);
         }
         // Adjust selected tab if needed
         if (_selectedTabIndex >= _agents.length && _agents.isNotEmpty) {
@@ -190,7 +205,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     sessionRepo.sendMessage(message);
 
     _inputController.clear();
-    _scrollToBottom();
+
+    // User sent a message — always jump to bottom and resume following.
+    final agentId = _activeAgentId;
+    if (agentId != null) _followingAgents.add(agentId);
+    _scrollToBottom(force: true);
   }
 
   void _abort() {
@@ -207,7 +226,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return _scrollControllers.values.firstOrNull ?? ScrollController();
   }
 
-  void _scrollToBottom() {
+  /// Returns the agent ID of the currently selected tab, or null.
+  String? get _activeAgentId {
+    if (_selectedTabIndex < _agents.length) {
+      return _agents[_selectedTabIndex].id;
+    }
+    return null;
+  }
+
+  /// Threshold in pixels from the bottom to consider the user "at the bottom".
+  static const _followThreshold = 150.0;
+
+  void _scrollToBottom({bool force = false}) {
+    final agentId = _activeAgentId;
+    if (!force && (agentId == null || !_followingAgents.contains(agentId))) {
+      return;
+    }
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final controller = _activeScrollController;
       if (controller.hasClients) {
@@ -218,6 +253,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
       }
     });
+  }
+
+  /// Called by [NotificationListener] when user scrolls.
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is! ScrollUpdateNotification) return false;
+
+    final agentId = _activeAgentId;
+    if (agentId == null) return false;
+
+    final position = notification.metrics;
+    final distanceFromBottom = position.maxScrollExtent - position.pixels;
+    final isAtBottom = distanceFromBottom <= _followThreshold;
+
+    if (isAtBottom) {
+      _followingAgents.add(agentId);
+    } else {
+      _followingAgents.remove(agentId);
+    }
+
+    return false;
   }
 
   void _handlePermission(bool allow, {bool remember = false}) {
@@ -354,13 +409,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final tabViews = <Widget>[
       for (final (index, agent) in _agents.indexed)
-        _MessageList(
-          agentState: session.conversationState.getAgentState(agent.id),
-          isMainAgent: index == 0,
-          agents: _agents,
-          scrollController: _scrollControllers[agent.id] ?? ScrollController(),
-          onAgentTap: _switchToAgentTab,
-          onToolTap: _openToolDetail,
+        NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: _MessageList(
+            agentState: session.conversationState.getAgentState(agent.id),
+            agentStatus: agent.status,
+            isMainAgent: index == 0,
+            agents: _agents,
+            scrollController:
+                _scrollControllers[agent.id] ?? ScrollController(),
+            onAgentTap: _switchToAgentTab,
+            onToolTap: _openToolDetail,
+          ),
         ),
     ];
 
@@ -415,6 +475,7 @@ class _EmptyState extends StatelessWidget {
 /// [ConversationEntry]s with interleaved [TextContent] and [ToolContent].
 class _MessageList extends StatelessWidget {
   final AgentConversationState? agentState;
+  final VideAgentStatus agentStatus;
   final bool isMainAgent;
   final List<VideAgent> agents;
   final ScrollController scrollController;
@@ -423,12 +484,17 @@ class _MessageList extends StatelessWidget {
 
   const _MessageList({
     required this.agentState,
+    required this.agentStatus,
     required this.isMainAgent,
     required this.agents,
     required this.scrollController,
     this.onAgentTap,
     this.onToolTap,
   });
+
+  bool get _isAgentBusy =>
+      agentStatus == VideAgentStatus.working ||
+      agentStatus == VideAgentStatus.waitingForAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -459,6 +525,12 @@ class _MessageList extends StatelessWidget {
     }
 
     if (items.isEmpty) {
+      if (_isAgentBusy) {
+        return const Align(
+          alignment: Alignment.bottomLeft,
+          child: TypingIndicator(),
+        );
+      }
       return const Center(
         child: Text(
           'No messages from this agent yet',
@@ -467,13 +539,19 @@ class _MessageList extends StatelessWidget {
       );
     }
 
+    final showTypingIndicator = _isAgentBusy;
+    final totalCount = items.length + (showTypingIndicator ? 1 : 0);
+
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: ListView.builder(
         controller: scrollController,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        itemCount: items.length,
+        itemCount: totalCount,
         itemBuilder: (context, index) {
+          if (index == items.length && showTypingIndicator) {
+            return const TypingIndicator();
+          }
           final item = items[index];
           switch (item) {
             case _TextRenderItem(:final entry):

@@ -1,9 +1,12 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
+import 'typing_indicator.dart' show loadingMessages;
 
 /// Floating message input bar with liquid glass effect.
 class InputBar extends StatefulWidget {
@@ -27,13 +30,36 @@ class InputBar extends StatefulWidget {
 }
 
 class _InputBarState extends State<InputBar> {
+  static final _random = Random();
+
   bool _hasText = false;
+  int _loadingMessageIndex = _random.nextInt(loadingMessages.length);
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onTextChanged);
     _hasText = widget.controller.text.isNotEmpty;
+    if (widget.isLoading) _startMessageRotation();
+  }
+
+  @override
+  void didUpdateWidget(InputBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isLoading && !oldWidget.isLoading) {
+      _loadingMessageIndex = _random.nextInt(loadingMessages.length);
+      _startMessageRotation();
+    }
+  }
+
+  void _startMessageRotation() {
+    Future.delayed(const Duration(seconds: 4), () {
+      if (!mounted || !widget.isLoading) return;
+      setState(() {
+        _loadingMessageIndex = _random.nextInt(loadingMessages.length);
+      });
+      _startMessageRotation();
+    });
   }
 
   void _onTextChanged() {
@@ -114,7 +140,7 @@ class _InputBarState extends State<InputBar> {
                       style: TextStyle(color: colorScheme.onSurface),
                       decoration: InputDecoration(
                         hintText: widget.isLoading
-                            ? 'Agent is working...'
+                            ? '${loadingMessages[_loadingMessageIndex]}...'
                             : 'Type a message...',
                         hintStyle:
                             TextStyle(color: colorScheme.onSurfaceVariant),

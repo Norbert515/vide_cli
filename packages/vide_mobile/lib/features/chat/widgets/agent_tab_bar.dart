@@ -41,6 +41,7 @@ class AgentTabBar extends StatelessWidget {
           final agent = agents[index];
           return _TabChip(
             label: agent.name,
+            subtitle: agent.taskName,
             isSelected: index == selectedIndex,
             statusIndicator: _AgentStatusIndicator(status: agent.status),
             onTap: () => onTabSelected(index),
@@ -53,12 +54,14 @@ class AgentTabBar extends StatelessWidget {
 
 class _TabChip extends StatelessWidget {
   final String label;
+  final String? subtitle;
   final bool isSelected;
   final Widget? statusIndicator;
   final VoidCallback onTap;
 
   const _TabChip({
     required this.label,
+    this.subtitle,
     required this.isSelected,
     this.statusIndicator,
     required this.onTap,
@@ -95,15 +98,35 @@ class _TabChip extends StatelessWidget {
               statusIndicator!,
               const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color:
-                    isSelected ? videColors.accent : videColors.textSecondary,
+            Flexible(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected
+                          ? videColors.accent
+                          : videColors.textSecondary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: videColors.textTertiary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                ],
               ),
-              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
