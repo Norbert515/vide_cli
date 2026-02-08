@@ -6,6 +6,56 @@ import 'package:vide_client/vide_client.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
 
+/// Braille spinner for in-progress tool calls.
+class _BrailleSpinner extends StatefulWidget {
+  final Color color;
+
+  const _BrailleSpinner({required this.color});
+
+  @override
+  State<_BrailleSpinner> createState() => _BrailleSpinnerState();
+}
+
+class _BrailleSpinnerState extends State<_BrailleSpinner>
+    with SingleTickerProviderStateMixin {
+  static const _frames = [
+    '\u280B', '\u2819', '\u2839', '\u2838', '\u283C',
+    '\u2834', '\u2826', '\u2827', '\u2807', '\u280F',
+  ];
+
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final frameIndex =
+            (_controller.value * _frames.length).floor() % _frames.length;
+        return Text(
+          _frames[frameIndex],
+          style: TextStyle(fontSize: 12, color: widget.color),
+        );
+      },
+    );
+  }
+}
+
 /// A compact, dense card displaying a tool invocation.
 /// Shows tool name + contextual subtitle. Tap opens full detail page.
 class ToolCard extends StatelessWidget {
@@ -85,14 +135,7 @@ class ToolCard extends StatelessWidget {
                 ),
               ),
               if (!hasResult)
-                SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: videColors.textTertiary,
-                  ),
-                )
+                _BrailleSpinner(color: videColors.textTertiary)
               else
                 Icon(
                   Icons.chevron_right,
