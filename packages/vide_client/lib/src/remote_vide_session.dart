@@ -723,20 +723,11 @@ class RemoteVideSession implements VideSession {
       requestId: event.requestId,
       toolName: event.toolName,
       toolInput: event.toolInput,
+      inferredPattern: event.inferredPattern,
     );
     _pendingPermissionRequest = enrichedEvent;
 
-    _hub.emit(
-      PermissionRequestEvent(
-        agentId: agentId,
-        agentType: _resolveAgentType(agentId, event),
-        agentName: _resolveAgentName(agentId, event),
-        taskName: event.taskName,
-        requestId: event.requestId,
-        toolName: event.toolName,
-        toolInput: event.toolInput,
-      ),
-    );
+    _hub.emit(enrichedEvent);
   }
 
   void _handleAskUserQuestion(AskUserQuestionEvent event) {
