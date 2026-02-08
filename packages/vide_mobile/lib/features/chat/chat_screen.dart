@@ -326,16 +326,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         },
                       ),
                     ),
+                  // Input bar floats at the bottom
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: InputBar(
+                      controller: _inputController,
+                      enabled: inputEnabled,
+                      isLoading: isProcessing,
+                      onSend: _sendMessage,
+                      onAbort: _abort,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          InputBar(
-            controller: _inputController,
-            enabled: inputEnabled,
-            isLoading: isProcessing,
-            onSend: _sendMessage,
-            onAbort: _abort,
           ),
         ],
       ),
@@ -465,7 +471,7 @@ class _MessageList extends StatelessWidget {
         child: ListView.builder(
           reverse: true,
           controller: scrollController,
-          padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 16),
+          padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 80),
           itemCount: totalCount,
           itemBuilder: (context, reverseIndex) {
             // In a reversed list, index 0 is the bottom (newest).
