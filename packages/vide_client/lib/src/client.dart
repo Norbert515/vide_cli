@@ -9,10 +9,7 @@ import 'session.dart';
 class SessionSummary {
   final String sessionId;
   final String workingDirectory;
-  final String? goal;
   final DateTime createdAt;
-  final DateTime? lastActiveAt;
-  final int agentCount;
   final String state;
   final int connectedClients;
   final int port;
@@ -20,10 +17,7 @@ class SessionSummary {
   SessionSummary({
     required this.sessionId,
     required this.workingDirectory,
-    this.goal,
     required this.createdAt,
-    this.lastActiveAt,
-    required this.agentCount,
     required this.state,
     required this.connectedClients,
     required this.port,
@@ -33,12 +27,7 @@ class SessionSummary {
     return SessionSummary(
       sessionId: json['session-id'] as String,
       workingDirectory: json['working-directory'] as String,
-      goal: json['goal'] as String?,
       createdAt: DateTime.parse(json['created-at'] as String),
-      lastActiveAt: json['last-active-at'] != null
-          ? DateTime.parse(json['last-active-at'] as String)
-          : null,
-      agentCount: json['agent-count'] as int,
       state: json['state'] as String,
       connectedClients: json['connected-clients'] as int,
       port: json['port'] as int,
@@ -50,12 +39,10 @@ class SessionSummary {
 class SessionDetails {
   final String sessionId;
   final String workingDirectory;
-  final String? goal;
   final String wsUrl;
   final String httpUrl;
   final int port;
   final DateTime createdAt;
-  final DateTime? lastActiveAt;
   final String state;
   final int connectedClients;
   final int pid;
@@ -63,12 +50,10 @@ class SessionDetails {
   SessionDetails({
     required this.sessionId,
     required this.workingDirectory,
-    this.goal,
     required this.wsUrl,
     required this.httpUrl,
     required this.port,
     required this.createdAt,
-    this.lastActiveAt,
     required this.state,
     required this.connectedClients,
     required this.pid,
@@ -78,14 +63,10 @@ class SessionDetails {
     return SessionDetails(
       sessionId: json['session-id'] as String,
       workingDirectory: json['working-directory'] as String,
-      goal: json['goal'] as String?,
       wsUrl: json['ws-url'] as String,
       httpUrl: json['http-url'] as String,
       port: json['port'] as int,
       createdAt: DateTime.parse(json['created-at'] as String),
-      lastActiveAt: json['last-active-at'] != null
-          ? DateTime.parse(json['last-active-at'] as String)
-          : null,
       state: json['state'] as String,
       connectedClients: json['connected-clients'] as int,
       pid: json['pid'] as int,

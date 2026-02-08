@@ -223,7 +223,6 @@ void main() {
                   'session-id': 'session-1',
                   'working-directory': '/path/1',
                   'created-at': '2024-01-01T00:00:00.000Z',
-                  'agent-count': 1,
                   'state': 'ready',
                   'connected-clients': 0,
                   'port': 8001,
@@ -232,7 +231,6 @@ void main() {
                   'session-id': 'session-2',
                   'working-directory': '/path/2',
                   'created-at': '2024-01-02T00:00:00.000Z',
-                  'agent-count': 3,
                   'state': 'starting',
                   'connected-clients': 2,
                   'port': 8002,
@@ -251,7 +249,6 @@ void main() {
         expect(sessions[0].sessionId, 'session-1');
         expect(sessions[0].state, SessionProcessState.ready);
         expect(sessions[1].sessionId, 'session-2');
-        expect(sessions[1].agentCount, 3);
         daemonClient.close();
       });
 
@@ -280,12 +277,10 @@ void main() {
             jsonEncode({
               'session-id': 'test-session-id',
               'working-directory': '/test/path',
-              'goal': 'Fix the bug',
               'ws-url': 'ws://127.0.0.1:8080/stream',
               'http-url': 'http://127.0.0.1:8080',
               'port': 8080,
               'created-at': '2024-03-15T10:00:00.000Z',
-              'last-active-at': '2024-03-15T12:30:00.000Z',
               'state': 'ready',
               'connected-clients': 1,
               'pid': 12345,
@@ -299,7 +294,6 @@ void main() {
         final details = await daemonClient.getSession('test-session-id');
 
         expect(details.sessionId, 'test-session-id');
-        expect(details.goal, 'Fix the bug');
         expect(details.state, SessionProcessState.ready);
         expect(details.pid, 12345);
         daemonClient.close();

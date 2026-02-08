@@ -168,8 +168,10 @@ class AgentLifecycleService {
     // Track analytics
     BashboardService.agentSpawned(agentType);
 
-    // Prepend context about who spawned this agent
-    final contextualPrompt = '''[SPAWNED BY AGENT: $spawnedBy]
+    // Wrap in <system-reminder> to distinguish from regular user messages
+    final contextualPrompt = '''<system-reminder>
+SPAWNED BY AGENT: $spawnedBy — Extract this agent ID and save it. You will need it to send messages back to your parent agent.
+</system-reminder>
 
 $initialPrompt''';
 

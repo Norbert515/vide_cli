@@ -95,16 +95,8 @@ class SessionSummary {
   @JsonKey(name: 'working-directory')
   final String workingDirectory;
 
-  final String? goal;
-
   @JsonKey(name: 'created-at')
   final DateTime createdAt;
-
-  @JsonKey(name: 'last-active-at')
-  final DateTime? lastActiveAt;
-
-  @JsonKey(name: 'agent-count')
-  final int agentCount;
 
   final SessionProcessState state;
 
@@ -113,16 +105,27 @@ class SessionSummary {
 
   final int port;
 
+  /// Overall goal/task name for the session.
+  final String? goal;
+
+  /// When the session was last active.
+  @JsonKey(name: 'last-active-at')
+  final DateTime? lastActiveAt;
+
+  /// Number of agents in the session.
+  @JsonKey(name: 'agent-count')
+  final int agentCount;
+
   SessionSummary({
     required this.sessionId,
     required this.workingDirectory,
-    this.goal,
     required this.createdAt,
-    this.lastActiveAt,
-    required this.agentCount,
     required this.state,
     required this.connectedClients,
     required this.port,
+    this.goal,
+    this.lastActiveAt,
+    this.agentCount = 0,
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) =>
@@ -153,8 +156,6 @@ class SessionDetailsResponse {
   @JsonKey(name: 'working-directory')
   final String workingDirectory;
 
-  final String? goal;
-
   @JsonKey(name: 'ws-url')
   final String wsUrl;
 
@@ -166,9 +167,6 @@ class SessionDetailsResponse {
   @JsonKey(name: 'created-at')
   final DateTime createdAt;
 
-  @JsonKey(name: 'last-active-at')
-  final DateTime? lastActiveAt;
-
   final SessionProcessState state;
 
   @JsonKey(name: 'connected-clients')
@@ -179,12 +177,10 @@ class SessionDetailsResponse {
   SessionDetailsResponse({
     required this.sessionId,
     required this.workingDirectory,
-    this.goal,
     required this.wsUrl,
     required this.httpUrl,
     required this.port,
     required this.createdAt,
-    this.lastActiveAt,
     required this.state,
     required this.connectedClients,
     required this.pid,

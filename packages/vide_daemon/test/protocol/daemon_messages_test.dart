@@ -175,7 +175,6 @@ void main() {
         sessionId: 'summary-session',
         workingDirectory: '/work/dir',
         createdAt: DateTime.utc(2024, 1, 1),
-        agentCount: 2,
         state: SessionProcessState.ready,
         connectedClients: 1,
         port: 3000,
@@ -185,42 +184,17 @@ void main() {
 
       expect(json['session-id'], 'summary-session');
       expect(json['working-directory'], '/work/dir');
-      expect(json['goal'], isNull);
       expect(json['created-at'], '2024-01-01T00:00:00.000Z');
-      expect(json['last-active-at'], isNull);
-      expect(json['agent-count'], 2);
       expect(json['state'], 'ready');
       expect(json['connected-clients'], 1);
       expect(json['port'], 3000);
-    });
-
-    test('serializes to JSON with optional fields', () {
-      final summary = SessionSummary(
-        sessionId: 'summary-session',
-        workingDirectory: '/work/dir',
-        goal: 'Fix the bug',
-        createdAt: DateTime.utc(2024, 1, 1),
-        lastActiveAt: DateTime.utc(2024, 1, 2),
-        agentCount: 3,
-        state: SessionProcessState.starting,
-        connectedClients: 0,
-        port: 4000,
-      );
-
-      final json = summary.toJson();
-
-      expect(json['goal'], 'Fix the bug');
-      expect(json['last-active-at'], '2024-01-02T00:00:00.000Z');
     });
 
     test('deserializes from JSON', () {
       final json = {
         'session-id': 'parsed-session',
         'working-directory': '/parsed/dir',
-        'goal': 'Implement feature',
         'created-at': '2024-05-15T12:00:00.000Z',
-        'last-active-at': '2024-05-15T13:30:00.000Z',
-        'agent-count': 5,
         'state': 'error',
         'connected-clients': 2,
         'port': 6000,
@@ -230,10 +204,7 @@ void main() {
 
       expect(summary.sessionId, 'parsed-session');
       expect(summary.workingDirectory, '/parsed/dir');
-      expect(summary.goal, 'Implement feature');
       expect(summary.createdAt, DateTime.utc(2024, 5, 15, 12));
-      expect(summary.lastActiveAt, DateTime.utc(2024, 5, 15, 13, 30));
-      expect(summary.agentCount, 5);
       expect(summary.state, SessionProcessState.error);
       expect(summary.connectedClients, 2);
       expect(summary.port, 6000);
@@ -256,7 +227,6 @@ void main() {
             sessionId: 'session-1',
             workingDirectory: '/path/1',
             createdAt: DateTime.utc(2024, 1, 1),
-            agentCount: 1,
             state: SessionProcessState.ready,
             connectedClients: 0,
             port: 8001,
@@ -265,7 +235,6 @@ void main() {
             sessionId: 'session-2',
             workingDirectory: '/path/2',
             createdAt: DateTime.utc(2024, 1, 2),
-            agentCount: 2,
             state: SessionProcessState.starting,
             connectedClients: 1,
             port: 8002,
@@ -290,7 +259,6 @@ void main() {
             'session-id': 'deserialized-1',
             'working-directory': '/des/1',
             'created-at': '2024-06-01T00:00:00.000Z',
-            'agent-count': 1,
             'state': 'ready',
             'connected-clients': 0,
             'port': 9001,
@@ -311,12 +279,10 @@ void main() {
       final details = SessionDetailsResponse(
         sessionId: 'details-session',
         workingDirectory: '/details/dir',
-        goal: 'Complete task',
         wsUrl: 'ws://localhost:7000/stream',
         httpUrl: 'http://localhost:7000',
         port: 7000,
         createdAt: DateTime.utc(2024, 4, 1),
-        lastActiveAt: DateTime.utc(2024, 4, 1, 12),
         state: SessionProcessState.ready,
         connectedClients: 3,
         pid: 12345,
@@ -326,12 +292,10 @@ void main() {
 
       expect(json['session-id'], 'details-session');
       expect(json['working-directory'], '/details/dir');
-      expect(json['goal'], 'Complete task');
       expect(json['ws-url'], 'ws://localhost:7000/stream');
       expect(json['http-url'], 'http://localhost:7000');
       expect(json['port'], 7000);
       expect(json['created-at'], '2024-04-01T00:00:00.000Z');
-      expect(json['last-active-at'], '2024-04-01T12:00:00.000Z');
       expect(json['state'], 'ready');
       expect(json['connected-clients'], 3);
       expect(json['pid'], 12345);
@@ -354,12 +318,10 @@ void main() {
 
       expect(details.sessionId, 'parsed-details');
       expect(details.workingDirectory, '/parsed/details');
-      expect(details.goal, isNull);
       expect(details.wsUrl, 'ws://localhost:8888/stream');
       expect(details.httpUrl, 'http://localhost:8888');
       expect(details.port, 8888);
       expect(details.createdAt, DateTime.utc(2024, 7, 1, 9));
-      expect(details.lastActiveAt, isNull);
       expect(details.state, SessionProcessState.stopping);
       expect(details.connectedClients, 0);
       expect(details.pid, 54321);

@@ -240,12 +240,10 @@ class DaemonServer {
     final response = SessionDetailsResponse(
       sessionId: sessionDetails.sessionId,
       workingDirectory: sessionDetails.workingDirectory,
-      goal: sessionDetails.goal,
       wsUrl: _buildSessionProxyWsUrl(request, sessionId),
       httpUrl: _buildDaemonBaseHttpUrl(request),
       port: sessionDetails.port,
       createdAt: sessionDetails.createdAt,
-      lastActiveAt: sessionDetails.lastActiveAt,
       state: sessionDetails.state,
       connectedClients: sessionDetails.connectedClients,
       pid: sessionDetails.pid,

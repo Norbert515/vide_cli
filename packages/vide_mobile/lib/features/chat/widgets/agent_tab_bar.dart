@@ -1,38 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
 
-/// Tab bar showing one tab per agent with TUI-style status indicators.
+/// The height of the agent tab bar including padding.
+const agentTabBarHeight = 44.0;
+
+/// Tab bar showing one tab per agent as liquid glass chips.
+///
+/// Must be placed inside a [LiquidGlassLayer] to get refraction effects.
 class AgentTabBar extends StatelessWidget {
   final List<VideAgent> agents;
   final int selectedIndex;
   final ValueChanged<int> onTabSelected;
 
-  const AgentTabBar({
-    super.key,
-    required this.agents,
-    required this.selectedIndex,
-    required this.onTabSelected,
-  });
+  const AgentTabBar({super.key, required this.agents, required this.selectedIndex, required this.onTabSelected});
 
   @override
   Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(
-            color: videColors.glassBorder,
-            width: 1,
-          ),
-        ),
-      ),
-      height: 44,
+    return SizedBox(
+      height: agentTabBarHeight,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: VideSpacing.sm),
@@ -71,64 +60,47 @@ class _TabChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(
-          horizontal: VideSpacing.xs,
-          vertical: 6,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: VideSpacing.md,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? videColors.accentSubtle : Colors.transparent,
-          borderRadius: VideRadius.mdAll,
-          border: Border.all(
-            color: isSelected
-                ? videColors.accent.withValues(alpha: 0.3)
-                : Colors.transparent,
-            width: 1,
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (statusIndicator != null) ...[statusIndicator!, const SizedBox(width: 6)],
+        Flexible(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? videColors.accent : videColors.textSecondary,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (subtitle != null)
+                Text(
+                  subtitle!,
+                  style: TextStyle(fontSize: 10, color: videColors.textTertiary),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+            ],
           ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (statusIndicator != null) ...[
-              statusIndicator!,
-              const SizedBox(width: 6),
-            ],
-            Flexible(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w600 : FontWeight.w400,
-                      color: isSelected
-                          ? videColors.accent
-                          : videColors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (subtitle != null)
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: videColors.textTertiary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                ],
-              ),
-            ),
-          ],
+      ],
+    );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: VideSpacing.xs, vertical: 6),
+        child: LiquidGlass(
+          shape: const LiquidRoundedSuperellipse(borderRadius: VideRadius.md),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: VideSpacing.md),
+            child: content,
+          ),
         ),
       ),
     );
@@ -146,8 +118,7 @@ class _AgentStatusIndicator extends StatefulWidget {
   State<_AgentStatusIndicator> createState() => _AgentStatusIndicatorState();
 }
 
-class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
-    with SingleTickerProviderStateMixin {
+class _AgentStatusIndicatorState extends State<_AgentStatusIndicator> with SingleTickerProviderStateMixin {
   static const _brailleFrames = [
     '\u280B',
     '\u2819',
@@ -166,10 +137,7 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    );
+    _controller = AnimationController(duration: const Duration(seconds: 1), vsync: this);
     _updateAnimation();
   }
 
@@ -203,16 +171,8 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
       return AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          final frameIndex =
-              (_controller.value * _brailleFrames.length).floor() %
-                  _brailleFrames.length;
-          return Text(
-            _brailleFrames[frameIndex],
-            style: TextStyle(
-              fontSize: 13,
-              color: videColors.accent,
-            ),
-          );
+          final frameIndex = (_controller.value * _brailleFrames.length).floor() % _brailleFrames.length;
+          return Text(_brailleFrames[frameIndex], style: TextStyle(fontSize: 13, color: videColors.accent));
         },
       );
     }
@@ -224,12 +184,6 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
       VideAgentStatus.idle => ('\u2713', videColors.success),
     };
 
-    return Text(
-      char,
-      style: TextStyle(
-        fontSize: 13,
-        color: color,
-      ),
-    );
+    return Text(char, style: TextStyle(fontSize: 13, color: color));
   }
 }

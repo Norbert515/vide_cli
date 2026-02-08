@@ -52,28 +52,28 @@ SessionSummary _$SessionSummaryFromJson(Map<String, dynamic> json) =>
     SessionSummary(
       sessionId: json['session-id'] as String,
       workingDirectory: json['working-directory'] as String,
-      goal: json['goal'] as String?,
       createdAt: DateTime.parse(json['created-at'] as String),
-      lastActiveAt: json['last-active-at'] == null
-          ? null
-          : DateTime.parse(json['last-active-at'] as String),
-      agentCount: (json['agent-count'] as num).toInt(),
       state: $enumDecode(_$SessionProcessStateEnumMap, json['state']),
       connectedClients: (json['connected-clients'] as num).toInt(),
       port: (json['port'] as num).toInt(),
+      goal: json['goal'] as String?,
+      lastActiveAt: json['last-active-at'] == null
+          ? null
+          : DateTime.parse(json['last-active-at'] as String),
+      agentCount: (json['agent-count'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$SessionSummaryToJson(SessionSummary instance) =>
     <String, dynamic>{
       'session-id': instance.sessionId,
       'working-directory': instance.workingDirectory,
-      'goal': instance.goal,
       'created-at': instance.createdAt.toIso8601String(),
-      'last-active-at': instance.lastActiveAt?.toIso8601String(),
-      'agent-count': instance.agentCount,
       'state': _$SessionProcessStateEnumMap[instance.state]!,
       'connected-clients': instance.connectedClients,
       'port': instance.port,
+      'goal': instance.goal,
+      'last-active-at': instance.lastActiveAt?.toIso8601String(),
+      'agent-count': instance.agentCount,
     };
 
 const _$SessionProcessStateEnumMap = {
@@ -100,14 +100,10 @@ SessionDetailsResponse _$SessionDetailsResponseFromJson(
 ) => SessionDetailsResponse(
   sessionId: json['session-id'] as String,
   workingDirectory: json['working-directory'] as String,
-  goal: json['goal'] as String?,
   wsUrl: json['ws-url'] as String,
   httpUrl: json['http-url'] as String,
   port: (json['port'] as num).toInt(),
   createdAt: DateTime.parse(json['created-at'] as String),
-  lastActiveAt: json['last-active-at'] == null
-      ? null
-      : DateTime.parse(json['last-active-at'] as String),
   state: $enumDecode(_$SessionProcessStateEnumMap, json['state']),
   connectedClients: (json['connected-clients'] as num).toInt(),
   pid: (json['pid'] as num).toInt(),
@@ -118,12 +114,10 @@ Map<String, dynamic> _$SessionDetailsResponseToJson(
 ) => <String, dynamic>{
   'session-id': instance.sessionId,
   'working-directory': instance.workingDirectory,
-  'goal': instance.goal,
   'ws-url': instance.wsUrl,
   'http-url': instance.httpUrl,
   'port': instance.port,
   'created-at': instance.createdAt.toIso8601String(),
-  'last-active-at': instance.lastActiveAt?.toIso8601String(),
   'state': _$SessionProcessStateEnumMap[instance.state]!,
   'connected-clients': instance.connectedClients,
   'pid': instance.pid,

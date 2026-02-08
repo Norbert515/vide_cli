@@ -6,7 +6,7 @@ part of 'sessions_list_screen.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sessionsListHash() => r'ef7c56a751976f1c6045af3dbe82c540e3a4ec5e';
+String _$sessionsListHash() => r'046098cb9a7d85488fec19d41af2de3f79e5eeb0';
 
 /// Provider to fetch sessions list.
 ///

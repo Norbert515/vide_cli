@@ -3112,7 +3112,7 @@ After you spawn a sub-agent, the sub-agent works **asynchronously**. You do NOT 
 
 - Writing a detailed analysis of the codebase right after spawning a researcher (you haven't received their findings yet)
 - Describing what files exist or what patterns are used right after asking an agent to explore (you don't know yet)
-- Writing `[MESSAGE FROM AGENT` in your output (this is a system-generated delivery format — you never produce it)
+- Generating text that looks like a system-delivered agent message (these are injected by the system as `<system-reminder>` blocks — you never produce them yourself)
 - Continuing to plan the next phase right after spawning an information-gathering agent (you're supposed to wait for the info first)
 - Generating any substantive content about the task after spawning a blocking agent (you should be saying only a brief message like "Looking into it." and stopping)
 
@@ -3166,11 +3166,11 @@ The system delivers Agent B's response to Agent A (system-generated, not agent-g
 Agent A processes and continues
 ```
 
-⚠️ **System-Generated Message Delivery.** When a sub-agent sends you a message, the **system** delivers it to you in a special format. You will NEVER generate this delivery text yourself. If you find yourself writing `[MESSAGE FROM AGENT` in your output, you are hallucinating a response that hasn't arrived yet — **STOP immediately.**
+⚠️ **System-Generated Message Delivery.** When a sub-agent sends you a message, the **system** delivers it to you inside a `<system-reminder>` block. You will NEVER generate this delivery yourself. If you find yourself writing agent delivery text in your output, you are hallucinating a response that hasn't arrived yet — **STOP immediately.**
 
 ## Required Steps When Spawned
 
-1. **Extract parent ID** from `[SPAWNED BY AGENT: {id}]`
+1. **Extract parent ID** from the `<system-reminder>` block that contains "SPAWNED BY AGENT"
 2. **Save it** - you'll need it to respond
 3. **Do your work**
 4. **Call `sendMessageToAgent`** with results

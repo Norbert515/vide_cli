@@ -248,7 +248,7 @@ void main() {
         'Do NOT generate your own answer',
         'Do NOT guess or hallucinate',
         'STOP producing output',
-        '[MESSAGE FROM AGENT',
+        'system-reminder',
       ];
 
       for (final teamName in ['vide', 'enterprise', 'flutter']) {

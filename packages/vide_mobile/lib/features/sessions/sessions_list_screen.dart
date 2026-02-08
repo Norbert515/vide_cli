@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import 'package:vide_client/vide_client.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/connection_repository.dart';
+import '../../domain/services/session_monitor_service.dart';
 
 part 'sessions_list_screen.g.dart';
 
@@ -19,7 +19,12 @@ Future<List<SessionSummary>> sessionsList(Ref ref) async {
     return [];
   }
 
-  return await connectionState.client!.listSessions();
+  final sessions = await connectionState.client!.listSessions();
+
+  // Update the session monitor with the latest sessions list
+  ref.read(sessionMonitorProvider.notifier).updateSessions(sessions);
+
+  return sessions;
 }
 
 /// Screen showing list of existing sessions.
@@ -36,7 +41,7 @@ class SessionsListScreen extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: const Text('Stop session?'),
         content: Text(
-          'This will stop "${session.goal ?? 'Untitled Session'}" and terminate all agents.',
+          'This will stop session "${session.sessionId}" and terminate all agents.',
         ),
         actions: [
           TextButton(
@@ -74,6 +79,8 @@ class SessionsListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionsAsync = ref.watch(sessionsListProvider);
+    // Watch monitor state so cards rebuild when live metadata arrives
+    final monitorState = ref.watch(sessionMonitorProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -162,8 +169,10 @@ class SessionsListScreen extends ConsumerWidget {
               itemCount: sessions.length,
               itemBuilder: (context, index) {
                 final session = sessions[index];
+                final liveMetadata = monitorState[session.sessionId];
                 return _SessionCard(
                   session: session,
+                  liveMetadata: liveMetadata,
                   onStop: () => _stopSession(context, ref, session),
                 );
               },
@@ -180,14 +189,19 @@ class SessionsListScreen extends ConsumerWidget {
   }
 }
 
-class _SessionCard extends StatelessWidget {
+class _SessionCard extends ConsumerWidget {
   final SessionSummary session;
+  final SessionLiveMetadata? liveMetadata;
   final VoidCallback? onStop;
 
-  const _SessionCard({required this.session, this.onStop});
+  const _SessionCard({
+    required this.session,
+    this.liveMetadata,
+    this.onStop,
+  });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final isReady = session.state == 'ready';
@@ -200,6 +214,11 @@ class _SessionCard extends StatelessWidget {
 
     // Format time ago
     final timeAgo = _formatTimeAgo(session.createdAt);
+
+    // Live metadata from WebSocket monitor
+    final latestActivity = liveMetadata?.latestActivity;
+    final pendingPermission = liveMetadata?.pendingPermission;
+    final agentCount = liveMetadata?.agentCount ?? 1;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -225,14 +244,15 @@ class _SessionCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Goal or "Untitled"
+                  // Session title (task name or session ID)
                   Expanded(
                     child: Text(
-                      session.goal ?? 'Untitled Session',
+                      liveMetadata?.taskName ??
+                          'Session ${session.sessionId.substring(0, 8)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -291,11 +311,43 @@ class _SessionCard extends StatelessWidget {
                   ),
                 ],
               ),
+              // Latest activity preview (message or tool call)
+              if (latestActivity != null) ...[
+                const SizedBox(height: 6),
+                _LatestActivityWidget(
+                  activity: latestActivity,
+                  colorScheme: colorScheme,
+                  videColors: videColors,
+                ),
+              ],
+              // Inline permission request
+              if (pendingPermission != null) ...[
+                const SizedBox(height: 8),
+                _InlinePermissionWidget(
+                  permission: pendingPermission,
+                  colorScheme: colorScheme,
+                  videColors: videColors,
+                  onAllow: () => ref
+                      .read(sessionMonitorProvider.notifier)
+                      .respondToPermission(
+                        session.sessionId,
+                        pendingPermission.requestId,
+                        allow: true,
+                      ),
+                  onDeny: () => ref
+                      .read(sessionMonitorProvider.notifier)
+                      .respondToPermission(
+                        session.sessionId,
+                        pendingPermission.requestId,
+                        allow: false,
+                      ),
+                ),
+              ],
               const SizedBox(height: 4),
               // Metadata row
               Row(
                 children: [
-                  // Agent count
+                  // Agent count (from WebSocket monitor)
                   Icon(
                     Icons.smart_toy_outlined,
                     size: 14,
@@ -303,7 +355,7 @@ class _SessionCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${session.agentCount} agent${session.agentCount != 1 ? 's' : ''}',
+                    '$agentCount agent${agentCount != 1 ? 's' : ''}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: colorScheme.outline,
                         ),
@@ -323,14 +375,20 @@ class _SessionCard extends StatelessWidget {
                         ),
                   ),
                   const Spacer(),
-                  // Status text
-                  Text(
-                    session.state,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w500,
-                        ),
-                  ),
+                  // Status indicator
+                  if (liveMetadata?.mainAgentStatus ==
+                          VideAgentStatus.working ||
+                      liveMetadata?.mainAgentStatus ==
+                          VideAgentStatus.waitingForAgent)
+                    _BrailleSpinner(color: videColors.accent)
+                  else
+                    Text(
+                      session.state,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                    ),
                   const SizedBox(width: 8),
                   // Stop button
                   SizedBox(
@@ -370,6 +428,247 @@ class _SessionCard extends StatelessWidget {
       return '${difference.inDays}d ago';
     } else {
       return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+}
+
+/// Displays the latest activity: either a message preview or a tool call.
+class _LatestActivityWidget extends StatelessWidget {
+  final LatestActivity activity;
+  final ColorScheme colorScheme;
+  final VideThemeColors videColors;
+
+  const _LatestActivityWidget({
+    required this.activity,
+    required this.colorScheme,
+    required this.videColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    switch (activity.type) {
+      case LatestActivityType.message:
+        return Text(
+          activity.text,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        );
+      case LatestActivityType.toolUse:
+        return Row(
+          children: [
+            Icon(
+              Icons.build_outlined,
+              size: 13,
+              color: videColors.accent,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              activity.text,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: videColors.accent,
+              ),
+            ),
+            if (activity.subtitle != null) ...[
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  activity.subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ],
+        );
+    }
+  }
+}
+
+/// Braille spinner for indicating active work.
+class _BrailleSpinner extends StatefulWidget {
+  final Color color;
+
+  const _BrailleSpinner({required this.color});
+
+  @override
+  State<_BrailleSpinner> createState() => _BrailleSpinnerState();
+}
+
+class _BrailleSpinnerState extends State<_BrailleSpinner>
+    with SingleTickerProviderStateMixin {
+  static const _frames = [
+    '\u280B', '\u2819', '\u2839', '\u2838', '\u283C',
+    '\u2834', '\u2826', '\u2827', '\u2807', '\u280F',
+  ];
+
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final frameIndex =
+            (_controller.value * _frames.length).floor() % _frames.length;
+        return Text(
+          _frames[frameIndex],
+          style: TextStyle(fontSize: 12, color: widget.color),
+        );
+      },
+    );
+  }
+}
+
+/// Inline permission request with allow/deny buttons.
+class _InlinePermissionWidget extends StatelessWidget {
+  final PendingPermission permission;
+  final ColorScheme colorScheme;
+  final VideThemeColors videColors;
+  final VoidCallback onAllow;
+  final VoidCallback onDeny;
+
+  const _InlinePermissionWidget({
+    required this.permission,
+    required this.colorScheme,
+    required this.videColors,
+    required this.onAllow,
+    required this.onDeny,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final displayName = _stripMcpPrefix(permission.toolName);
+    final subtitle = _permissionSubtitle(displayName, permission.toolInput);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: videColors.warningContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.security_outlined,
+                size: 14,
+                color: videColors.warning,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  displayName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 20),
+              child: Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 32,
+                  child: OutlinedButton(
+                    onPressed: onDeny,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: videColors.error,
+                      side: BorderSide(color: videColors.error),
+                      padding: EdgeInsets.zero,
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('Deny'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 32,
+                  child: FilledButton(
+                    onPressed: onAllow,
+                    style: FilledButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      textStyle: const TextStyle(fontSize: 12),
+                    ),
+                    child: const Text('Allow'),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _stripMcpPrefix(String toolName) {
+    final mcpPrefix = RegExp(r'^mcp__[^_]+__');
+    return toolName.replaceFirst(mcpPrefix, '');
+  }
+
+  static String? _permissionSubtitle(
+    String displayName,
+    Map<String, dynamic> input,
+  ) {
+    switch (displayName) {
+      case 'Read':
+      case 'Edit':
+      case 'Write':
+        return input['file_path'] as String?;
+      case 'Bash':
+        return input['command'] as String?;
+      case 'Grep':
+        final pattern = input['pattern'] as String?;
+        return pattern != null ? '"$pattern"' : null;
+      default:
+        return input['file_path'] as String? ??
+            input['command'] as String? ??
+            input['description'] as String?;
     }
   }
 }
