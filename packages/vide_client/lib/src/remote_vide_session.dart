@@ -147,6 +147,13 @@ class RemoteVideSession implements VideSession {
   /// Pending permission completers.
   final Map<String, Completer<VidePermissionResult>> _pendingPermissions = {};
 
+  /// Current pending permission request (survives across UI lifecycle).
+  PermissionRequestEvent? _pendingPermissionRequest;
+
+  /// Current pending permission request, if any.
+  PermissionRequestEvent? get pendingPermissionRequest =>
+      _pendingPermissionRequest;
+
   /// Cached queued messages by agent.
   final Map<String, String?> _queuedMessages = {};
 
@@ -707,6 +714,18 @@ class RemoteVideSession implements VideSession {
   void _handlePermissionRequest(PermissionRequestEvent event) {
     final agentId = event.agentId;
 
+    // Store pending permission so it survives across UI lifecycle
+    final enrichedEvent = PermissionRequestEvent(
+      agentId: agentId,
+      agentType: _resolveAgentType(agentId, event),
+      agentName: _resolveAgentName(agentId, event),
+      taskName: event.taskName,
+      requestId: event.requestId,
+      toolName: event.toolName,
+      toolInput: event.toolInput,
+    );
+    _pendingPermissionRequest = enrichedEvent;
+
     _hub.emit(
       PermissionRequestEvent(
         agentId: agentId,
@@ -758,6 +777,11 @@ class RemoteVideSession implements VideSession {
   void _handlePermissionResolved(PermissionResolvedEvent event) {
     // Clean up any local pending state
     _pendingPermissions.remove(event.requestId);
+
+    // Clear stored pending permission if it matches
+    if (_pendingPermissionRequest?.requestId == event.requestId) {
+      _pendingPermissionRequest = null;
+    }
 
     // Re-emit so UI consumers (mobile app) can dismiss stale permission dialogs
     _hub.emit(
@@ -944,6 +968,14 @@ class RemoteVideSession implements VideSession {
     // Optimistically add the user message for immediate display.
     if (targetAgentId != null) {
       _conversationBuilder.addUserMessage(targetAgentId, message.text);
+    }
+
+    // Optimistically set agent status to working so loading indicators
+    // appear immediately, before the server sends back a StatusEvent.
+    if (targetAgentId != null &&
+        _agentStatuses[targetAgentId] == VideAgentStatus.idle) {
+      _agentStatuses[targetAgentId] = VideAgentStatus.working;
+      _agentsController.add(agents);
     }
 
     // Optimistically reflect queued message when agent is already busy.

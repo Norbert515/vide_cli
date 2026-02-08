@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import 'package:vide_client/vide_client.dart';
 
 import '../../core/providers/connection_state_provider.dart';
@@ -23,10 +24,7 @@ import 'widgets/typing_indicator.dart';
 class ChatScreen extends ConsumerStatefulWidget {
   final String sessionId;
 
-  const ChatScreen({
-    super.key,
-    required this.sessionId,
-  });
+  const ChatScreen({super.key, required this.sessionId});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -76,9 +74,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Only open a new connection when navigating to a different session.
       final existing = sessionRepo.session;
       final RemoteVideSession session;
-      if (existing != null &&
-          existing.id == widget.sessionId &&
-          sessionRepo.isActive) {
+      if (existing != null && existing.id == widget.sessionId && sessionRepo.isActive) {
         session = existing;
       } else {
         session = await sessionRepo.connectToExistingSession(widget.sessionId);
@@ -88,12 +84,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _subscribeToSession(session);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to connect: $e'),
-            behavior: SnackBarBehavior.fixed,
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to connect: $e'), behavior: SnackBarBehavior.fixed));
       }
     }
   }
@@ -130,9 +123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         // Clean up controllers for removed agents
         final agentIds = agents.map((a) => a.id).toSet();
-        final removedIds = _scrollControllers.keys
-            .where((id) => !agentIds.contains(id))
-            .toList();
+        final removedIds = _scrollControllers.keys.where((id) => !agentIds.contains(id)).toList();
         for (final id in removedIds) {
           _scrollControllers[id]?.dispose();
           _scrollControllers.remove(id);
@@ -146,13 +137,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     // 3. Conversation state changes — triggers rebuild for new messages/tools
-    _conversationSubscription =
-        session.conversationState.onStateChanged.listen((_) {
+    _conversationSubscription = session.conversationState.onStateChanged.listen((_) {
       if (mounted) {
         setState(() {});
         _scrollToBottom();
       }
     });
+
+    // 4. Sync pending permission from session (may have arrived before we subscribed)
+    final pendingPerm = session.pendingPermissionRequest;
+    if (pendingPerm != null) {
+      ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(pendingPerm);
+    }
   }
 
   @override
@@ -175,8 +171,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         notifier.setPendingPermission(event);
 
       case PermissionResolvedEvent(:final requestId):
-        final pending =
-            ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
+        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
         if (pending?.requestId == requestId) {
           notifier.setPendingPermission(null);
           if (_isPermissionSheetShowing && mounted) {
@@ -281,15 +276,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (pendingPermission == null) return;
 
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
-    sessionRepo.respondToPermission(
-      pendingPermission.requestId,
-      allow,
-      remember: remember,
-    );
+    sessionRepo.respondToPermission(pendingPermission.requestId, allow, remember: remember);
 
-    ref
-        .read(chatNotifierProvider(widget.sessionId).notifier)
-        .setPendingPermission(null);
+    ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(null);
     _isPermissionSheetShowing = false;
     Navigator.of(context).pop();
   }
@@ -304,8 +293,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       enableDrag: false,
       builder: (context) => PermissionSheet(
         request: request,
-        onAllow: ({required bool remember}) =>
-            _handlePermission(true, remember: remember),
+        onAllow: ({required bool remember}) => _handlePermission(true, remember: remember),
         onDeny: () => _handlePermission(false),
       ),
     ).whenComplete(() {
@@ -314,10 +302,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _openToolDetail(ToolContent tool) {
-    context.push(
-      AppRoutes.toolDetailPath(widget.sessionId),
-      extra: tool,
-    );
+    context.push(AppRoutes.toolDetailPath(widget.sessionId), extra: tool);
   }
 
   void _switchToAgentTab(String agentId) {
@@ -342,18 +327,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     }
 
-    final isDisconnected =
-        connectionState.status != WebSocketConnectionStatus.connected;
+    final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
     final isProcessing = session?.isProcessing ?? false;
     final inputEnabled = !isProcessing && !isDisconnected;
     final hasAgents = _agents.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoutes.sessions),
-        ),
+        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go(AppRoutes.sessions)),
         title: const Text('Session'),
         actions: const [
           Padding(
@@ -372,23 +353,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    ref
-                        .read(chatNotifierProvider(widget.sessionId).notifier)
-                        .setError(null);
+                    ref.read(chatNotifierProvider(widget.sessionId).notifier).setError(null);
                   },
                   child: const Text('Dismiss'),
                 ),
               ],
             ),
-          if (hasAgents)
-            AgentTabBar(
-              agents: _agents,
-              selectedIndex: _selectedTabIndex,
-              onTabSelected: (index) {
-                setState(() => _selectedTabIndex = index);
-              },
+          Expanded(
+            child: LiquidGlassLayer(
+              settings: const LiquidGlassSettings(
+                thickness: 02,
+                refractiveIndex: 1.2,
+                glassColor: Color(0x18FFFFFF),
+                lightAngle: 0.5,
+              ),
+              child: Stack(
+                children: [
+                  // Message content fills the full area
+                  Positioned.fill(child: _buildTabContent()),
+                  // Glass tab bar floats on top
+                  if (hasAgents)
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: AgentTabBar(
+                        agents: _agents,
+                        selectedIndex: _selectedTabIndex,
+                        onTabSelected: (index) {
+                          setState(() => _selectedTabIndex = index);
+                        },
+                      ),
+                    ),
+                ],
+              ),
             ),
-          Expanded(child: _buildTabContent()),
+          ),
           InputBar(
             controller: _inputController,
             enabled: inputEnabled,
@@ -416,8 +416,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             agentStatus: agent.status,
             isMainAgent: index == 0,
             agents: _agents,
-            scrollController:
-                _scrollControllers[agent.id] ?? ScrollController(),
+            scrollController: _scrollControllers[agent.id] ?? ScrollController(),
             onAgentTap: _switchToAgentTab,
             onToolTap: _openToolDetail,
           ),
@@ -428,10 +427,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return _EmptyState();
     }
 
-    return IndexedStack(
-      index: _selectedTabIndex.clamp(0, tabViews.length - 1),
-      children: tabViews,
-    );
+    return IndexedStack(index: _selectedTabIndex.clamp(0, tabViews.length - 1), children: tabViews);
   }
 }
 
@@ -444,24 +440,18 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.chat_bubble_outline,
-            size: 64,
-            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          ),
+          Icon(Icons.chat_bubble_outline, size: 64, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             'Start a conversation',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
             'Send a message to begin',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -492,9 +482,7 @@ class _MessageList extends StatelessWidget {
     this.onToolTap,
   });
 
-  bool get _isAgentBusy =>
-      agentStatus == VideAgentStatus.working ||
-      agentStatus == VideAgentStatus.waitingForAgent;
+  bool get _isAgentBusy => agentStatus == VideAgentStatus.working || agentStatus == VideAgentStatus.waitingForAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -502,10 +490,7 @@ class _MessageList extends StatelessWidget {
 
     if (messages.isEmpty) {
       return const Center(
-        child: Text(
-          'No messages from this agent yet',
-          style: TextStyle(color: Colors.grey),
-        ),
+        child: Text('No messages from this agent yet', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -526,16 +511,10 @@ class _MessageList extends StatelessWidget {
 
     if (items.isEmpty) {
       if (_isAgentBusy) {
-        return const Align(
-          alignment: Alignment.bottomLeft,
-          child: TypingIndicator(),
-        );
+        return const Align(alignment: Alignment.bottomLeft, child: TypingIndicator());
       }
       return const Center(
-        child: Text(
-          'No messages from this agent yet',
-          style: TextStyle(color: Colors.grey),
-        ),
+        child: Text('No messages from this agent yet', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -546,7 +525,7 @@ class _MessageList extends StatelessWidget {
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 16),
         itemCount: totalCount,
         itemBuilder: (context, index) {
           if (index == items.length && showTypingIndicator) {
@@ -558,16 +537,9 @@ class _MessageList extends StatelessWidget {
               return MessageBubble(entry: entry);
             case _ToolRenderItem(:final tool):
               if (_isSpawnAgentTool(tool)) {
-                return _SpawnAgentCard(
-                  tool: tool,
-                  agents: agents,
-                  onTap: onAgentTap,
-                );
+                return _SpawnAgentCard(tool: tool, agents: agents, onTap: onAgentTap);
               }
-              return ToolCard(
-                tool: tool,
-                onTap: () => onToolTap?.call(tool),
-              );
+              return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
           }
         },
       ),
@@ -584,11 +556,7 @@ class _SpawnAgentCard extends StatelessWidget {
   final List<VideAgent> agents;
   final ValueChanged<String>? onTap;
 
-  const _SpawnAgentCard({
-    required this.tool,
-    required this.agents,
-    this.onTap,
-  });
+  const _SpawnAgentCard({required this.tool, required this.agents, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -598,39 +566,22 @@ class _SpawnAgentCard extends StatelessWidget {
     final agentName = tool.toolInput['name'] as String? ?? 'Agent';
     final agentType = tool.toolInput['agentType'] as String? ?? '';
 
-    final matchingAgent = agents.cast<VideAgent?>().firstWhere(
-          (a) => a!.name == agentName,
-          orElse: () => null,
-        );
+    final matchingAgent = agents.cast<VideAgent?>().firstWhere((a) => a!.name == agentName, orElse: () => null);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: VideSpacing.sm,
-        vertical: VideSpacing.xs,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: VideSpacing.sm, vertical: VideSpacing.xs),
       child: GestureDetector(
-        onTap:
-            matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
+        onTap: matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
         child: Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: VideRadius.smAll,
-            border: Border.all(
-              color: videColors.glassBorder,
-              width: 1,
-            ),
+            border: Border.all(color: videColors.glassBorder, width: 1),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: VideSpacing.md,
-            vertical: 12,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: VideSpacing.md, vertical: 12),
           child: Row(
             children: [
-              Icon(
-                Icons.arrow_forward_rounded,
-                size: 18,
-                color: videColors.accent,
-              ),
+              Icon(Icons.arrow_forward_rounded, size: 18, color: videColors.accent),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -638,29 +589,14 @@ class _SpawnAgentCard extends StatelessWidget {
                   children: [
                     Text(
                       agentName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: videColors.accent,
-                      ),
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: videColors.accent),
                     ),
                     if (agentType.isNotEmpty)
-                      Text(
-                        agentType,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: videColors.textSecondary,
-                        ),
-                      ),
+                      Text(agentType, style: TextStyle(fontSize: 12, color: videColors.textSecondary)),
                   ],
                 ),
               ),
-              if (matchingAgent != null)
-                Icon(
-                  Icons.chevron_right,
-                  size: 18,
-                  color: videColors.textTertiary,
-                ),
+              if (matchingAgent != null) Icon(Icons.chevron_right, size: 18, color: videColors.textTertiary),
             ],
           ),
         ),
@@ -671,10 +607,8 @@ class _SpawnAgentCard extends StatelessWidget {
 
 /// A flattened render item from ConversationEntry content blocks.
 sealed class _RenderItem {
-  factory _RenderItem.text(ConversationEntry entry, TextContent content) =
-      _TextRenderItem;
-  factory _RenderItem.tool(ConversationEntry entry, ToolContent tool) =
-      _ToolRenderItem;
+  factory _RenderItem.text(ConversationEntry entry, TextContent content) = _TextRenderItem;
+  factory _RenderItem.tool(ConversationEntry entry, ToolContent tool) = _ToolRenderItem;
 }
 
 class _TextRenderItem implements _RenderItem {

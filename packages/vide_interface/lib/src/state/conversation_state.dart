@@ -264,6 +264,14 @@ class ConversationStateManager {
     final state = _getOrCreateAgentState(event);
     state.taskName = event.taskName;
 
+    // Deduplicate user messages by content (matches RemoteConversationBuilder)
+    if (event.role == 'user') {
+      final isDuplicate = state.messages.any(
+        (m) => m.role == 'user' && m.text == event.content,
+      );
+      if (isDuplicate) return;
+    }
+
     if (state.currentMessageEventId != event.eventId) {
       state.currentMessageEventId = event.eventId;
       state.messages.add(
