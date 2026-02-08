@@ -50,11 +50,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// Per-tab scroll controllers keyed by agent ID.
   final Map<String, ScrollController> _scrollControllers = {};
 
-  /// Agent IDs where auto-follow (scroll-to-bottom on new content) is active.
-  /// Starts as following. When user scrolls up, following stops.
-  /// When user scrolls back to the bottom, following resumes.
-  final Set<String> _followingAgents = {};
-
   /// Current agents list — owned by RemoteVideSession, cached here for rendering.
   List<VideAgent> _agents = [];
 
@@ -100,7 +95,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       for (final agent in currentAgents) {
         if (!_scrollControllers.containsKey(agent.id)) {
           _scrollControllers[agent.id] = ScrollController();
-          _followingAgents.add(agent.id);
         }
       }
     }
@@ -118,7 +112,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         for (final agent in agents) {
           if (!_scrollControllers.containsKey(agent.id)) {
             _scrollControllers[agent.id] = ScrollController();
-            _followingAgents.add(agent.id);
           }
         }
         // Clean up controllers for removed agents
@@ -127,7 +120,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         for (final id in removedIds) {
           _scrollControllers[id]?.dispose();
           _scrollControllers.remove(id);
-          _followingAgents.remove(id);
         }
         // Adjust selected tab if needed
         if (_selectedTabIndex >= _agents.length && _agents.isNotEmpty) {
@@ -138,10 +130,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     // 3. Conversation state changes — triggers rebuild for new messages/tools
     _conversationSubscription = session.conversationState.onStateChanged.listen((_) {
-      if (mounted) {
-        setState(() {});
-        _scrollToBottom();
-      }
+      if (mounted) setState(() {});
     });
 
     // 4. Sync pending permission from session (may have arrived before we subscribed)
@@ -201,10 +190,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     _inputController.clear();
 
-    // User sent a message — always jump to bottom and resume following.
-    final agentId = _activeAgentId;
-    if (agentId != null) _followingAgents.add(agentId);
-    _scrollToBottom(force: true);
+    // Scroll to bottom (offset 0 in a reversed list).
+    final controller = _activeScrollController;
+    if (controller.hasClients && controller.offset != 0.0) {
+      controller.animateTo(0, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+    }
   }
 
   void _abort() {
@@ -219,55 +209,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (controller != null) return controller;
     }
     return _scrollControllers.values.firstOrNull ?? ScrollController();
-  }
-
-  /// Returns the agent ID of the currently selected tab, or null.
-  String? get _activeAgentId {
-    if (_selectedTabIndex < _agents.length) {
-      return _agents[_selectedTabIndex].id;
-    }
-    return null;
-  }
-
-  /// Threshold in pixels from the bottom to consider the user "at the bottom".
-  static const _followThreshold = 150.0;
-
-  void _scrollToBottom({bool force = false}) {
-    final agentId = _activeAgentId;
-    if (!force && (agentId == null || !_followingAgents.contains(agentId))) {
-      return;
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final controller = _activeScrollController;
-      if (controller.hasClients) {
-        controller.animateTo(
-          controller.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  /// Called by [NotificationListener] when user scrolls.
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is! ScrollUpdateNotification) return false;
-
-    final agentId = _activeAgentId;
-    if (agentId == null) return false;
-
-    final position = notification.metrics;
-    final distanceFromBottom = position.maxScrollExtent - position.pixels;
-    final isAtBottom = distanceFromBottom <= _followThreshold;
-
-    if (isAtBottom) {
-      _followingAgents.add(agentId);
-    } else {
-      _followingAgents.remove(agentId);
-    }
-
-    return false;
   }
 
   void _handlePermission(bool allow, {bool remember = false}) {
@@ -409,17 +350,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final tabViews = <Widget>[
       for (final (index, agent) in _agents.indexed)
-        NotificationListener<ScrollNotification>(
-          onNotification: _handleScrollNotification,
-          child: _MessageList(
-            agentState: session.conversationState.getAgentState(agent.id),
-            agentStatus: agent.status,
-            isMainAgent: index == 0,
-            agents: _agents,
-            scrollController: _scrollControllers[agent.id] ?? ScrollController(),
-            onAgentTap: _switchToAgentTab,
-            onToolTap: _openToolDetail,
-          ),
+        _MessageList(
+          agentState: session.conversationState.getAgentState(agent.id),
+          agentStatus: agent.status,
+          isMainAgent: index == 0,
+          agents: _agents,
+          scrollController: _scrollControllers[agent.id] ?? ScrollController(),
+          onAgentTap: _switchToAgentTab,
+          onToolTap: _openToolDetail,
         ),
     ];
 
@@ -521,27 +459,33 @@ class _MessageList extends StatelessWidget {
     final showTypingIndicator = _isAgentBusy;
     final totalCount = items.length + (showTypingIndicator ? 1 : 0);
 
-    return ScrollConfiguration(
-      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-      child: ListView.builder(
-        controller: scrollController,
-        padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 16),
-        itemCount: totalCount,
-        itemBuilder: (context, index) {
-          if (index == items.length && showTypingIndicator) {
-            return const TypingIndicator();
-          }
-          final item = items[index];
-          switch (item) {
-            case _TextRenderItem(:final entry):
-              return MessageBubble(entry: entry);
-            case _ToolRenderItem(:final tool):
-              if (_isSpawnAgentTool(tool)) {
-                return _SpawnAgentCard(tool: tool, agents: agents, onTap: onAgentTap);
-              }
-              return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
-          }
-        },
+    return SelectionArea(
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: ListView.builder(
+          reverse: true,
+          controller: scrollController,
+          padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 16),
+          itemCount: totalCount,
+          itemBuilder: (context, reverseIndex) {
+            // In a reversed list, index 0 is the bottom (newest).
+            // Map back to chronological order.
+            if (showTypingIndicator && reverseIndex == 0) {
+              return const TypingIndicator();
+            }
+            final itemIndex = items.length - 1 - (showTypingIndicator ? reverseIndex - 1 : reverseIndex);
+            final item = items[itemIndex];
+            switch (item) {
+              case _TextRenderItem(:final entry):
+                return MessageBubble(entry: entry);
+              case _ToolRenderItem(:final tool):
+                if (_isSpawnAgentTool(tool)) {
+                  return _SpawnAgentCard(tool: tool, agents: agents, onTap: onAgentTap);
+                }
+                return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
+            }
+          },
+        ),
       ),
     );
   }
