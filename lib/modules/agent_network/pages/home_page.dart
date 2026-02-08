@@ -19,6 +19,7 @@ import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dar
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
+import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 
 enum _HomeSection { input, teamSelector, daemonIndicator, networksList }
@@ -269,9 +270,7 @@ class _HomePageState extends State<HomePage> {
                               }
                             },
                             onEnter: () {
-                              setState(
-                                () => _focusSection = _HomeSection.input,
-                              );
+                              DaemonSessionsDialog.show(context);
                             },
                           ),
                           const SizedBox(height: 1),
