@@ -598,6 +598,8 @@ class RemoteVideSession implements VideSession {
     _refreshQueuedMessage(agentId);
     _refreshModel(agentId);
 
+    _agentsController.add(agents);
+
     _hub.emit(
       StatusEvent(
         agentId: agentId,
@@ -615,6 +617,8 @@ class RemoteVideSession implements VideSession {
     _refreshQueuedMessage(agentId);
 
     _conversationBuilder.markAssistantTurnComplete(agentId);
+
+    _agentsController.add(agents);
 
     _hub.emit(
       TurnCompleteEvent(
@@ -773,6 +777,8 @@ class RemoteVideSession implements VideSession {
     final agentId = event.agentId;
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
+
+    _agentsController.add(agents);
 
     _hub.emit(
       TurnCompleteEvent(
