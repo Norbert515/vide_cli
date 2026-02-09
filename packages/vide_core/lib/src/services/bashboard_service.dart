@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bashboard/bashboard.dart';
 import 'package:uuid/uuid.dart';
+import '../../version.dart';
 import 'vide_config_manager.dart';
 
 /// Bashboard analytics service for tracking product usage.
@@ -37,7 +38,7 @@ class BashboardService {
           apiKey: _apiKey,
           config: BashboardConfig(
             cliName: 'vide',
-            cliVersion: '1.0.0',
+            cliVersion: videVersion,
             respectDoNotTrack: true,
             // Flush every 10 seconds
             flushInterval: Duration(seconds: 10),
@@ -51,6 +52,9 @@ class BashboardService {
         Bashboard.startSession();
 
         _initialized = true;
+
+        // Clean up legacy PostHog distinct ID file
+        _cleanupLegacyPosthog(configManager);
 
         // Track app started now that we're initialized
         appStarted();
@@ -91,6 +95,18 @@ class BashboardService {
     return newId;
   }
 
+  /// Delete the legacy PostHog distinct ID file if it exists.
+  static void _cleanupLegacyPosthog(VideConfigManager configManager) {
+    try {
+      final file = File('${configManager.configRoot}/posthog_distinct_id');
+      if (file.existsSync()) {
+        file.deleteSync();
+      }
+    } catch (_) {
+      // Best-effort cleanup
+    }
+  }
+
   /// Capture an event with optional properties.
   static void capture(String event, [Map<String, dynamic>? properties]) {
     if (!_initialized) return;
@@ -107,9 +123,13 @@ class BashboardService {
 
   // --- Helper methods for common events ---
 
-  /// Track app launch
+  /// Track app launch with platform metadata.
   static void appStarted() {
-    capture('app_started');
+    capture('app_started', {
+      'os': Platform.operatingSystem,
+      'os_version': Platform.operatingSystemVersion,
+      'dart_version': Platform.version.split(' ').first,
+    });
   }
 
   /// Track new conversation starting
