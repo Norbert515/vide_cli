@@ -7,7 +7,7 @@ description: Owns a feature end-to-end. Spawns and coordinates their own team. R
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus-4.6
+model: opus
 
 agents:
   - researcher

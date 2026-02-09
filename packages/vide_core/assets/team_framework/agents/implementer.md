@@ -7,7 +7,7 @@ description: Implementation agent. Writes and edits code. Runs verification befo
 tools: Read, Write, Edit, Grep, Glob, Bash
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus-4.6
+model: opus
 
 ---
 

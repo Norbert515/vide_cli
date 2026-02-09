@@ -127,7 +127,7 @@ void main() {
 
         expect(agent, isNotNull);
         expect(agent!.name, 'main');
-        expect(agent.model, 'opus-4.6');
+        expect(agent.model, 'opus');
       });
 
       test('implementer agent exists', () async {

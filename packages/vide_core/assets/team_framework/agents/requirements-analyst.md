@@ -7,7 +7,7 @@ description: Deep requirements analysis. Ensures problem is crystal clear before
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: opus-4.6
+model: opus
 
 ---
 

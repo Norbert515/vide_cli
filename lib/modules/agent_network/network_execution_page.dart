@@ -521,24 +521,17 @@ class _AgentChatState extends State<_AgentChat> {
     return false;
   }
 
-  /// Formats a model identifier to a short display name.
-  /// e.g., "opus-4.6" -> "opus 4.6"
-  ///       "claude-opus-4-6-20250514" -> "opus 4.6"
-  ///       "opus" -> "opus"
+  /// Formats a full model ID to a short display name.
+  /// e.g., "claude-sonnet-4-5-20250929" -> "sonnet"
+  ///       "claude-opus-4-5-20251101" -> "opus"
   String _formatModelName(String model) {
     final lower = model.toLowerCase();
-    for (final family in ['opus', 'sonnet', 'haiku']) {
-      if (lower.contains(family)) {
-        // Try to extract version: look for digits after family name
-        final pattern = RegExp('$family[- ]?(\\d+)[.-](\\d+)');
-        final match = pattern.firstMatch(lower);
-        if (match != null) {
-          return '$family ${match.group(1)}.${match.group(2)}';
-        }
-        return family;
-      }
-    }
+    if (lower.contains('opus')) return 'opus';
+    if (lower.contains('sonnet')) return 'sonnet';
+    if (lower.contains('haiku')) return 'haiku';
+    // Fallback: return last part before date suffix, or full name if short
     if (model.length <= 10) return model;
+    // Try to extract meaningful part
     final parts = model.split('-');
     if (parts.length >= 2) return parts[1];
     return model;

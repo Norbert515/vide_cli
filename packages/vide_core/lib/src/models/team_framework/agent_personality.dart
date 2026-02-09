@@ -61,7 +61,7 @@ class AgentPersonality {
   /// MCP servers this agent can access
   final List<String> mcpServers;
 
-  /// Model to use (e.g., opus-4.6, sonnet-4.5, haiku-4.5)
+  /// Model to use (sonnet, opus, haiku)
   final String? model;
 
   /// Permission mode for this agent (acceptEdits, plan, ask, etc.)

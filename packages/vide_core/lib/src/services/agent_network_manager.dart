@@ -112,7 +112,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// If provided, it's atomically set as worktreePath in the network.
   /// If null, effectiveWorkingDirectory falls back to the provider value.
   ///
-  /// [model] - Optional model override (e.g., 'opus-4.6', 'sonnet-4.5', 'haiku-4.5').
+  /// [model] - Optional model override (e.g., 'sonnet', 'opus', 'haiku').
   /// If provided, overrides the default model for the main agent.
   ///
   /// [permissionMode] - Optional permission mode override (e.g., 'accept-edits', 'plan', 'ask', 'deny').

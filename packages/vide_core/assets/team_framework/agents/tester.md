@@ -7,7 +7,7 @@ description: Testing agent. Runs apps, validates changes, takes screenshots. Can
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
 
-model: opus-4.6
+model: opus
 
 agents:
   - implementer

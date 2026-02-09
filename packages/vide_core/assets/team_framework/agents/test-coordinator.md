@@ -7,7 +7,7 @@ description: Test orchestrator. Detects platform/FVM, spawns batches of 1-5 test
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-task-management
 
-model: sonnet-4.5
+model: sonnet
 
 agents:
   - test-runner

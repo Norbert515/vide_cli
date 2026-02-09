@@ -7,7 +7,7 @@ description: Orchestrator agent. Assesses tasks, clarifies requirements, delegat
 tools: Read, Grep, Glob, Skill
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus-4.6
+model: opus
 
 agents:
   - researcher

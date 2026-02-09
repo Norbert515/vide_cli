@@ -56,7 +56,7 @@ Content-Type: application/json
 {
   "initial-message": "Your prompt here",
   "working-directory": "/path/to/project",
-  "model": "sonnet-4.5",       // optional: "sonnet-4.5" (default), "opus-4.6", "haiku-4.5"
+  "model": "sonnet",           // optional: "sonnet" (default), "opus", "haiku"
   "permission-mode": "ask"     // optional: "accept-edits" (default), "plan", "ask", "deny"
 }
 ```

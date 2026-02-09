@@ -181,7 +181,7 @@ void main() {
         final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
-        expect(config!.model, 'opus-4.6');
+        expect(config!.model, 'opus');
       });
 
       test('implementer has no permission mode (managed externally)', () async {

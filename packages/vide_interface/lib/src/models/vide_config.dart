@@ -11,7 +11,7 @@ class VideSessionConfig {
   /// Initial message to send to the main agent.
   final String initialMessage;
 
-  /// Model to use: 'opus-4.6', 'sonnet-4.5', or 'haiku-4.5'.
+  /// Model to use: 'sonnet', 'opus', or 'haiku'.
   final String? model;
 
   /// Permission mode: 'accept-edits', 'plan', 'ask', or 'deny'.
