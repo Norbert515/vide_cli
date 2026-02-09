@@ -449,6 +449,8 @@ class _MessageList extends StatelessWidget {
             }
           case ToolContent():
             items.add(_RenderItem.tool(entry, content));
+          case AttachmentContent():
+            break;
         }
       }
     }
