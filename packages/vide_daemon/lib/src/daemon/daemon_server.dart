@@ -77,6 +77,7 @@ class DaemonServer {
     // Session management
     router.post('/sessions', _handleCreateSession);
     router.get('/sessions', _handleListSessions);
+    router.post('/sessions/<sessionId>/resume', _handleResumeSession);
     router.get('/sessions/<sessionId>/stream', _handleSessionStreamWebSocket);
     router.get('/sessions/<sessionId>', _handleGetSession);
     router.delete('/sessions/<sessionId>', _handleStopSession);
@@ -193,6 +194,7 @@ class DaemonServer {
         model: createRequest.model,
         permissionMode: createRequest.permissionMode,
         team: createRequest.team,
+        attachments: createRequest.attachments,
       );
 
       final response = CreateSessionResponse(
@@ -210,6 +212,46 @@ class DaemonServer {
       );
     } catch (e, st) {
       _log.severe('Failed to create session: $e', e, st);
+      return Response.internalServerError(
+        body: jsonEncode({'error': e.toString()}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+  }
+
+  Future<Response> _handleResumeSession(
+    Request request,
+    String sessionId,
+  ) async {
+    try {
+      final body = await request.readAsString();
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      final resumeRequest = ResumeSessionRequest.fromJson(json);
+
+      _log.info(
+        'Resuming session $sessionId for: ${resumeRequest.workingDirectory}',
+      );
+
+      final session = await registry.resumeSession(
+        sessionId: sessionId,
+        workingDirectory: resumeRequest.workingDirectory,
+      );
+
+      final response = CreateSessionResponse(
+        sessionId: session.sessionId,
+        mainAgentId: session.mainAgentId,
+        wsUrl: _buildSessionProxyWsUrl(request, session.sessionId),
+        httpUrl: _buildDaemonBaseHttpUrl(request),
+        port: session.port,
+        createdAt: session.createdAt,
+      );
+
+      return Response.ok(
+        jsonEncode(response.toJson()),
+        headers: {'Content-Type': 'application/json'},
+      );
+    } catch (e, st) {
+      _log.severe('Failed to resume session: $e', e, st);
       return Response.internalServerError(
         body: jsonEncode({'error': e.toString()}),
         headers: {'Content-Type': 'application/json'},

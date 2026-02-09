@@ -8,6 +8,7 @@ class CreateSessionRequest {
   final String? model;
   final String? permissionMode;
   final String? team;
+  final List<UserMessageAttachment>? attachments;
 
   CreateSessionRequest({
     required this.initialMessage,
@@ -15,15 +16,23 @@ class CreateSessionRequest {
     this.model,
     this.permissionMode,
     this.team,
+    this.attachments,
   });
 
   factory CreateSessionRequest.fromJson(Map<String, dynamic> json) {
+    final rawAttachments = json['attachments'] as List<dynamic>?;
     return CreateSessionRequest(
       initialMessage: json['initial-message'] as String,
       workingDirectory: json['working-directory'] as String,
       model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
       team: json['team'] as String?,
+      attachments: rawAttachments
+          ?.map(
+            (a) =>
+                UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
@@ -81,20 +90,53 @@ class UserMessage implements ClientMessage {
   final String? agentId;
   final String? model;
   final String? permissionMode;
+  final List<UserMessageAttachment>? attachments;
 
   UserMessage({
     required this.content,
     this.agentId,
     this.model,
     this.permissionMode,
+    this.attachments,
   });
 
   factory UserMessage.fromJson(Map<String, dynamic> json) {
+    final rawAttachments = json['attachments'] as List<dynamic>?;
     return UserMessage(
       content: json['content'] as String,
       agentId: json['agent-id'] as String?,
       model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
+      attachments: rawAttachments
+          ?.map(
+            (a) =>
+                UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+}
+
+/// Attachment within a user message (client → server).
+class UserMessageAttachment {
+  final String type;
+  final String? filePath;
+  final String? content;
+  final String? mimeType;
+
+  UserMessageAttachment({
+    required this.type,
+    this.filePath,
+    this.content,
+    this.mimeType,
+  });
+
+  factory UserMessageAttachment.fromJson(Map<String, dynamic> json) {
+    return UserMessageAttachment(
+      type: json['type'] as String,
+      filePath: json['file-path'] as String?,
+      content: json['content'] as String?,
+      mimeType: json['mime-type'] as String?,
     );
   }
 }

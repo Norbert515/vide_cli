@@ -60,6 +60,7 @@ class SessionRegistry {
     String? model,
     String? permissionMode,
     String? team,
+    List<Map<String, dynamic>>? attachments,
   }) async {
     _log.info('Creating session for workDir: $workingDirectory');
 
@@ -70,6 +71,7 @@ class SessionRegistry {
       model: model,
       permissionMode: permissionMode,
       team: team,
+      attachments: attachments,
     );
 
     // Set up event handlers
@@ -101,6 +103,60 @@ class SessionRegistry {
     await persist();
 
     _log.info('Session created: ${session.sessionId}');
+    return session;
+  }
+
+  /// Resume a persisted session by spawning a new vide_server process.
+  ///
+  /// If the session is already running, returns the existing process.
+  Future<SessionProcess> resumeSession({
+    required String sessionId,
+    required String workingDirectory,
+  }) async {
+    // Return existing session if already running.
+    final existing = _sessions[sessionId];
+    if (existing != null && existing.isAlive) {
+      _log.info('Session $sessionId is already running');
+      return existing;
+    }
+
+    _log.info('Resuming session $sessionId for workDir: $workingDirectory');
+
+    final session = await SessionProcess.spawnForResume(
+      sessionId: sessionId,
+      workingDirectory: workingDirectory,
+      spawnConfig: spawnConfig,
+    );
+
+    // Set up event handlers
+    session.onUnexpectedExit = (exitCode) {
+      _handleSessionCrash(session.sessionId, exitCode);
+    };
+
+    session.onStateChanged = (state) {
+      _eventController.add(
+        SessionHealthEvent(sessionId: session.sessionId, state: state),
+      );
+    };
+
+    _sessions[session.sessionId] = session;
+
+    // Emit event
+    _eventController.add(
+      SessionCreatedEvent(
+        sessionId: session.sessionId,
+        workingDirectory: session.workingDirectory,
+        wsUrl: session.wsUrl,
+        httpUrl: session.httpUrl,
+        port: session.port,
+        createdAt: session.createdAt,
+      ),
+    );
+
+    // Persist state
+    await persist();
+
+    _log.info('Session resumed: ${session.sessionId}');
     return session;
   }
 

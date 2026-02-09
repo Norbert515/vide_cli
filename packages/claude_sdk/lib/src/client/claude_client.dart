@@ -305,19 +305,20 @@ class ClaudeClientImpl implements ClaudeClient {
 
     _isInitialized = true;
 
-    // Start MCP servers
-    for (int i = 0; i < mcpServers.length; i++) {
-      final server = mcpServers[i];
-      // Skip if server is already running (e.g., shared servers between agents)
-      if (server.isRunning) {
-        continue;
+    // For resumed sessions (existing conversation loaded from disk),
+    // defer starting MCP servers and the Claude process until the user
+    // sends a message. This avoids unnecessary processing when just
+    // viewing history.
+    if (_isFirstMessage) {
+      // New session — start everything eagerly
+      for (int i = 0; i < mcpServers.length; i++) {
+        final server = mcpServers[i];
+        if (server.isRunning) continue;
+        await server.start();
       }
 
-      await server.start();
+      await _startControlProtocol();
     }
-
-    // Control protocol is always required
-    await _startControlProtocol();
 
     // Signal that initialization is complete
     if (!_initializedCompleter.isCompleted) {

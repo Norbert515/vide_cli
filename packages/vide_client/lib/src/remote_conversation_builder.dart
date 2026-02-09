@@ -225,7 +225,11 @@ class RemoteConversationBuilder {
   /// Add a user message directly (for optimistic display).
   ///
   /// Returns the updated conversation.
-  VideConversation addUserMessage(String agentId, String content) {
+  VideConversation addUserMessage(
+    String agentId,
+    String content, {
+    List<VideAttachment>? attachments,
+  }) {
     var conversation = _conversations[agentId] ?? const VideConversation();
     final messages = List<VideConversationMessage>.from(conversation.messages);
 
@@ -239,6 +243,7 @@ class RemoteConversationBuilder {
         isStreaming: false,
         isComplete: true,
         messageType: VideMessageType.userMessage,
+        attachments: attachments,
       ),
     );
 

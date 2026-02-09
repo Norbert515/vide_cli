@@ -103,6 +103,18 @@ Future<Response> createSession(
     );
   }
 
+  // Convert DTO attachments to VideAttachment for the session manager.
+  final attachments = req.attachments
+      ?.map(
+        (a) => VideAttachment(
+          type: a.type,
+          filePath: a.filePath,
+          content: a.content,
+          mimeType: a.mimeType,
+        ),
+      )
+      .toList();
+
   // Create session via session manager
   final session = await sessionManager.createSession(
     workingDirectory: canonicalPath,
@@ -110,6 +122,7 @@ Future<Response> createSession(
     model: req.model,
     permissionMode: req.permissionMode,
     team: req.team ?? 'vide',
+    attachments: attachments,
   );
 
   _log.info('Session created: ${session.id}');
@@ -120,7 +133,7 @@ Future<Response> createSession(
 
   // Now emit the initial user message so it's captured by the broadcaster.
   if (session is LocalVideSession) {
-    session.emitInitialUserMessage(req.initialMessage);
+    session.emitInitialUserMessage(req.initialMessage, attachments: attachments);
   }
 
   // Cache for WebSocket access
@@ -392,7 +405,20 @@ class _SimplifiedStreamHandler {
     _log.info(
       '[Session $sessionId] User message: ${msg.content} (agent=${msg.agentId ?? "main"})',
     );
-    session.sendMessage(VideMessage(text: msg.content), agentId: msg.agentId);
+    final attachments = msg.attachments
+        ?.map(
+          (a) => VideAttachment(
+            type: a.type,
+            filePath: a.filePath,
+            content: a.content,
+            mimeType: a.mimeType,
+          ),
+        )
+        .toList();
+    session.sendMessage(
+      VideMessage(text: msg.content, attachments: attachments),
+      agentId: msg.agentId,
+    );
   }
 
   void _handlePermissionResponse(PermissionResponse msg) {

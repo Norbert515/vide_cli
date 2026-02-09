@@ -6,6 +6,7 @@
 library;
 
 import '../models/vide_agent.dart';
+import '../models/vide_message.dart';
 import 'agent_info.dart';
 
 /// Base class for all session events.
@@ -132,6 +133,7 @@ sealed class VideEvent {
         role: data?['role'] as String? ?? 'assistant',
         content: data?['content'] as String? ?? '',
         isPartial: json['is-partial'] as bool? ?? false,
+        attachments: _parseAttachments(data?['attachments']),
       ),
       'status' => StatusEvent(
         seq: seq,
@@ -392,6 +394,9 @@ final class MessageEvent extends VideEvent {
   /// True if this is a partial chunk, false if complete.
   final bool isPartial;
 
+  /// Attachments included with this message (only for user messages, first chunk).
+  final List<VideAttachment>? attachments;
+
   MessageEvent({
     super.seq,
     required super.agentId,
@@ -403,13 +408,24 @@ final class MessageEvent extends VideEvent {
     required this.role,
     required this.content,
     required this.isPartial,
+    this.attachments,
   });
 
   @override
   String get wireType => 'message';
 
   @override
-  Map<String, dynamic> dataFields() => {'role': role, 'content': content};
+  Map<String, dynamic> dataFields() => {
+    'role': role,
+    'content': content,
+    if (attachments != null && attachments!.isNotEmpty)
+      'attachments': attachments!.map((a) => {
+        'type': a.type,
+        if (a.filePath != null) 'file-path': a.filePath,
+        if (a.content != null) 'content': a.content,
+        if (a.mimeType != null) 'mime-type': a.mimeType,
+      }).toList(),
+  };
 
   @override
   Map<String, dynamic> topLevelFields() => {
@@ -955,6 +971,19 @@ String? _extractInferredPattern(dynamic tool) {
   final suggestions = tool['permission-suggestions'] as List<dynamic>?;
   if (suggestions == null || suggestions.isEmpty) return null;
   return suggestions.first as String?;
+}
+
+List<VideAttachment>? _parseAttachments(dynamic attachmentsJson) {
+  if (attachmentsJson is! List || attachmentsJson.isEmpty) return null;
+  return attachmentsJson.map((a) {
+    final map = a is Map<String, dynamic> ? a : <String, dynamic>{};
+    return VideAttachment(
+      type: map['type'] as String? ?? 'file',
+      filePath: map['file-path'] as String?,
+      content: map['content'] as String?,
+      mimeType: map['mime-type'] as String?,
+    );
+  }).toList();
 }
 
 List<AskUserQuestionData> _parseQuestions(dynamic questionsJson) {

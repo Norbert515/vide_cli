@@ -59,6 +59,7 @@ class RemoteVideSessionManager implements VideSessionManager {
       permissionMode: permissionMode,
       model: model,
       team: team,
+      attachments: attachments,
     );
     _emitSessionList();
     return session;
@@ -69,7 +70,22 @@ class RemoteVideSessionManager implements VideSessionManager {
     String sessionId, {
     String? workingDirectory,
   }) async {
-    return _notifier.connectToSession(sessionId);
+    // Look up working directory from persistence if not provided.
+    var effectiveWorkingDir = workingDirectory;
+    if (effectiveWorkingDir == null) {
+      final networks = await _persistenceManager.loadNetworks();
+      final network = networks.where((n) => n.id == sessionId).firstOrNull;
+      effectiveWorkingDir = network?.worktreePath;
+    }
+
+    // Use optimistic connection — returns immediately with a pending session.
+    // The actual connect/resume happens in the background.
+    final session = _notifier.connectToSessionOptimistic(
+      sessionId,
+      workingDirectory: effectiveWorkingDir,
+    );
+    _emitSessionList();
+    return session;
   }
 
   @override

@@ -91,9 +91,13 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     }
 
     final session = context.watch(currentVideSessionProvider);
-    if (session == null) {
-      // Session still being created - show optimistic loading state
-      // This looks the same as when we're waiting for a response
+    final connectionAsync = context.watch(sessionConnectionProvider);
+    // Default to true: local sessions never emit on connectionStateStream,
+    // so valueOrNull stays null. Only remote/pending sessions emit false→true.
+    final isConnected = connectionAsync.valueOrNull ?? true;
+
+    if (session == null || !isConnected) {
+      // Session pending or connecting — show explicit connecting state
       final theme = VideTheme.of(context);
       return Expanded(
         child: Container(
@@ -108,7 +112,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                   EnhancedLoadingIndicator(agentId: agentId),
                   SizedBox(width: 2),
                   Text(
-                    '(Press ESC to stop)',
+                    'Connecting to session...',
                     style: TextStyle(
                       color: theme.base.onSurface.withOpacity(
                         TextOpacity.tertiary,
@@ -247,6 +251,11 @@ class _AgentChatState extends State<_AgentChat> {
   String? _queuedMessage;
   String? _model;
 
+  /// Tracks attachments sent with user messages (keyed by message content).
+  /// Used to display attachment indicators for messages in local mode where
+  /// VideConversationMessage doesn't carry attachment info from claude_sdk.
+  final Map<String, List<VideAttachment>> _sentAttachments = {};
+
   Future<void> _loadInitialAgentRuntimeMetadata(VideSession session) async {
     final queuedMessage = await session.getQueuedMessage(component.agentId);
     final model = await session.getModel(component.agentId);
@@ -313,6 +322,9 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _sendMessage(VideMessage message) {
+    if (message.attachments != null && message.attachments!.isNotEmpty) {
+      _sentAttachments[message.text] = message.attachments!;
+    }
     final session = context.read(currentVideSessionProvider);
     session?.sendMessage(message, agentId: component.agentId);
   }
@@ -611,23 +623,26 @@ class _AgentChatState extends State<_AgentChat> {
     // Total items = todos (if any) + filtered messages
     final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
 
-    return ListView.builder(
-      controller: _scrollController,
-      reverse: true,
-      padding: EdgeInsets.all(1),
-      lazy: true,
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        // First item (index 0) is the todo list if it exists
-        if (hasTodos && index == 0) {
-          return TodoListComponent(todos: todos);
-        }
+    return SelectionArea(
+      onSelectionCompleted: ClipboardManager.copy,
+      child: ListView.builder(
+        controller: _scrollController,
+        reverse: true,
+        padding: EdgeInsets.all(1),
+        lazy: true,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          // First item (index 0) is the todo list if it exists
+          if (hasTodos && index == 0) {
+            return TodoListComponent(todos: todos);
+          }
 
-        // Adjust index for messages (subtract 1 if todos exist)
-        final messageIndex = hasTodos ? index - 1 : index;
-        final message = filteredMessages[messageIndex];
-        return _buildMessage(context, message);
-      },
+          // Adjust index for messages (subtract 1 if todos exist)
+          final messageIndex = hasTodos ? index - 1 : index;
+          final message = filteredMessages[messageIndex];
+          return _buildMessage(context, message);
+        },
+      ),
     );
   }
 
@@ -964,6 +979,31 @@ class _AgentChatState extends State<_AgentChat> {
     }
 
     if (message.role == MessageRole.user) {
+      // Resolve attachments from multiple sources:
+      // 1. message.attachments - populated in remote mode by RemoteConversationBuilder
+      // 2. _sentAttachments - locally tracked for follow-up messages in local mode
+      // 3. ConversationStateManager - captures attachments from MessageEvent for
+      //    the initial session message in local mode
+      var attachments = message.attachments ??
+          _sentAttachments[message.content];
+      if (attachments == null) {
+        final csm = context.read(conversationStateManagerProvider);
+        final agentState = csm?.getAgentState(component.agentId);
+        if (agentState != null) {
+          for (final entry in agentState.messages) {
+            if (entry.role == 'user' && entry.text == message.content) {
+              for (final c in entry.content) {
+                if (c is AttachmentContent) {
+                  attachments = c.attachments;
+                  break;
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
       return Container(
         padding: EdgeInsets.only(bottom: 1),
         child: Column(
@@ -973,7 +1013,16 @@ class _AgentChatState extends State<_AgentChat> {
               '> ${message.content}',
               style: TextStyle(color: theme.base.onSurface),
             ),
-            // Attachments rendering removed - VideConversationMessage doesn't carry attachments
+            if (attachments != null && attachments.isNotEmpty)
+              for (final attachment in attachments)
+                Text(
+                  '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
+                  style: TextStyle(
+                    color: theme.base.onSurface.withOpacity(
+                      TextOpacity.secondary,
+                    ),
+                  ),
+                ),
           ],
         ),
       );

@@ -14,6 +14,9 @@ CreateSessionRequest _$CreateSessionRequestFromJson(
   model: json['model'] as String?,
   permissionMode: json['permission-mode'] as String?,
   team: json['team'] as String?,
+  attachments: (json['attachments'] as List<dynamic>?)
+      ?.map((e) => e as Map<String, dynamic>)
+      .toList(),
 );
 
 Map<String, dynamic> _$CreateSessionRequestToJson(
@@ -24,7 +27,17 @@ Map<String, dynamic> _$CreateSessionRequestToJson(
   'model': instance.model,
   'permission-mode': instance.permissionMode,
   'team': instance.team,
+  'attachments': instance.attachments,
 };
+
+ResumeSessionRequest _$ResumeSessionRequestFromJson(
+  Map<String, dynamic> json,
+) =>
+    ResumeSessionRequest(workingDirectory: json['working-directory'] as String);
+
+Map<String, dynamic> _$ResumeSessionRequestToJson(
+  ResumeSessionRequest instance,
+) => <String, dynamic>{'working-directory': instance.workingDirectory};
 
 CreateSessionResponse _$CreateSessionResponseFromJson(
   Map<String, dynamic> json,

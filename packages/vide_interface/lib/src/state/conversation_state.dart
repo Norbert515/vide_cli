@@ -7,6 +7,7 @@ library;
 import 'dart:async';
 
 import '../models/vide_agent.dart';
+import '../models/vide_message.dart';
 import '../events/vide_event.dart';
 
 /// A piece of content within a conversation entry.
@@ -75,6 +76,14 @@ final class ToolContent extends ConversationContent {
       isError: isError ?? this.isError,
     );
   }
+}
+
+/// An attachment included with a user message (image, file, etc.).
+final class AttachmentContent extends ConversationContent {
+  /// The attachments.
+  final List<VideAttachment> attachments;
+
+  const AttachmentContent({required this.attachments});
 }
 
 /// A message entry in the conversation (for UI rendering).
@@ -274,12 +283,15 @@ class ConversationStateManager {
 
     if (state.currentMessageEventId != event.eventId) {
       state.currentMessageEventId = event.eventId;
+      final contentBlocks = <ConversationContent>[
+        if (event.attachments != null && event.attachments!.isNotEmpty)
+          AttachmentContent(attachments: event.attachments!),
+        TextContent(text: event.content, isStreaming: event.isPartial),
+      ];
       state.messages.add(
         ConversationEntry(
           role: event.role,
-          content: [
-            TextContent(text: event.content, isStreaming: event.isPartial),
-          ],
+          content: contentBlocks,
         ),
       );
     } else {

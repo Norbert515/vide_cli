@@ -93,10 +93,13 @@ class LocalVideSession implements VideSession {
   ///
   /// Must be called after any event listeners (e.g. SessionBroadcaster) are
   /// set up, so the message is captured in history for replay to clients.
-  void emitInitialUserMessage(String message) {
+  void emitInitialUserMessage(
+    String message, {
+    List<VideAttachment>? attachments,
+  }) {
     final mainAgentId = mainAgent?.id;
     if (mainAgentId != null) {
-      _emitUserMessage(message, agentId: mainAgentId);
+      _emitUserMessage(message, agentId: mainAgentId, attachments: attachments);
     }
   }
 
@@ -195,7 +198,11 @@ class LocalVideSession implements VideSession {
     if (targetAgent == null) {
       throw StateError('No agents in session');
     }
-    _emitUserMessage(message.text, agentId: targetAgent);
+    _emitUserMessage(
+      message.text,
+      agentId: targetAgent,
+      attachments: message.attachments,
+    );
     // Convert VideMessage to claude_sdk.Message
     final claudeAttachments = message.attachments?.map((a) {
       return claude.Attachment(
@@ -212,7 +219,11 @@ class LocalVideSession implements VideSession {
     manager.sendMessage(targetAgent, claudeMessage);
   }
 
-  void _emitUserMessage(String content, {required String agentId}) {
+  void _emitUserMessage(
+    String content, {
+    required String agentId,
+    List<VideAttachment>? attachments,
+  }) {
     _hub.emit(
       MessageEvent(
         agentId: agentId,
@@ -221,6 +232,7 @@ class LocalVideSession implements VideSession {
         role: 'user',
         content: content,
         isPartial: false,
+        attachments: attachments,
       ),
     );
   }

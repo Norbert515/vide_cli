@@ -182,6 +182,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     String? permissionMode,
     String? model,
     String? team,
+    List<vc.VideAttachment>? attachments,
     void Function()? onReady,
   }) {
     final daemonClient = state.client;
@@ -192,8 +193,19 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     // Create a pending session immediately for instant navigation
     final pendingSession = createPendingRemoteVideSession(
       initialMessage: initialMessage,
+      attachments: attachments,
       onReady: onReady,
     );
+
+    // Serialize attachments to raw JSON maps for the daemon protocol.
+    final rawAttachments = attachments
+        ?.map((a) => <String, dynamic>{
+              'type': a.type,
+              if (a.filePath != null) 'file-path': a.filePath,
+              if (a.content != null) 'content': a.content,
+              if (a.mimeType != null) 'mime-type': a.mimeType,
+            })
+        .toList();
 
     // Do the HTTP call in background
     () async {
@@ -205,6 +217,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
           permissionMode: permissionMode,
           model: model,
           team: team,
+          attachments: rawAttachments,
         );
         final clientSession = _createClientSession(
           response.sessionId,
@@ -252,18 +265,58 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     return createRemoteVideSessionFromClientSession(clientSession);
   }
 
-  /// Connect to an existing daemon session and return a [VideSession].
+  /// Connect to an existing daemon session and return a [VideSession]
+  /// immediately for optimistic navigation.
   ///
-  /// Throws if not connected to daemon or if connection fails.
-  Future<VideSession> connectToSession(String sessionId) async {
+  /// Returns a pending session that can be used right away. The actual
+  /// connection (or resume) happens in the background.
+  ///
+  /// [workingDirectory] is required for resuming historical sessions.
+  /// [onReady] is called when the background work completes.
+  VideSession connectToSessionOptimistic(
+    String sessionId, {
+    String? workingDirectory,
+    void Function()? onReady,
+  }) {
     final daemonClient = state.client;
     if (daemonClient == null || !state.isConnected) {
       throw StateError('Not connected to daemon');
     }
 
-    final details = await daemonClient.getSession(sessionId);
-    final clientSession = _createClientSession(sessionId, details.wsUrl);
-    return createRemoteVideSessionFromClientSession(clientSession);
+    // Create a pending session immediately for instant navigation.
+    // No initial message for resume (unlike create).
+    final pendingSession = createPendingRemoteVideSession(onReady: onReady);
+
+    // Do the connect/resume work in background
+    () async {
+      try {
+        String wsUrl;
+        try {
+          final details = await daemonClient.getSession(sessionId);
+          wsUrl = details.wsUrl;
+        } on SessionNotFoundException {
+          // Session not running on daemon — resume from persistence.
+          if (workingDirectory == null) {
+            throw StateError(
+              'Session $sessionId not found on daemon and no working directory '
+              'provided for resume',
+            );
+          }
+          final response = await daemonClient.resumeSession(
+            sessionId: sessionId,
+            workingDirectory: workingDirectory,
+          );
+          wsUrl = response.wsUrl;
+        }
+
+        final clientSession = _createClientSession(sessionId, wsUrl);
+        pendingSession.completeWithClientSession(clientSession);
+      } catch (e) {
+        pendingSession.fail('Failed to connect to session: $e');
+      }
+    }();
+
+    return pendingSession.session;
   }
 
   vc.Session _createClientSession(String sessionId, String wsUrl) {

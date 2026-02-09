@@ -67,11 +67,24 @@ class Session {
   Object? get error => _error;
 
   /// Send a user message to the agent.
-  void sendMessage(String content, {String? agentId}) {
+  void sendMessage(
+    String content, {
+    String? agentId,
+    List<VideAttachment>? attachments,
+  }) {
     _send({
       'type': 'user-message',
       'content': content,
       if (agentId != null) 'agent-id': agentId,
+      if (attachments != null && attachments.isNotEmpty)
+        'attachments': attachments
+            .map((a) => {
+                  'type': a.type,
+                  if (a.filePath != null) 'file-path': a.filePath,
+                  if (a.content != null) 'content': a.content,
+                  if (a.mimeType != null) 'mime-type': a.mimeType,
+                })
+            .toList(),
     });
   }
 

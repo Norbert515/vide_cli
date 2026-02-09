@@ -103,6 +103,87 @@ void main() {
       expect(restored.permissionMode, original.permissionMode);
       expect(restored.team, original.team);
     });
+
+    test('serializes without attachments', () {
+      final request = CreateSessionRequest(
+        initialMessage: 'Hello',
+        workingDirectory: '/path',
+      );
+
+      final json = request.toJson();
+
+      expect(json['attachments'], isNull);
+    });
+
+    test('serializes with attachments', () {
+      final request = CreateSessionRequest(
+        initialMessage: 'Check this',
+        workingDirectory: '/path',
+        attachments: [
+          {
+            'type': 'image',
+            'file-path': '/path/to/screenshot.png',
+            'mime-type': 'image/png',
+          },
+        ],
+      );
+
+      final json = request.toJson();
+
+      expect(json['attachments'], hasLength(1));
+      final att = json['attachments'][0] as Map<String, dynamic>;
+      expect(att['type'], 'image');
+      expect(att['file-path'], '/path/to/screenshot.png');
+      expect(att['mime-type'], 'image/png');
+    });
+
+    test('deserializes attachments from JSON', () {
+      final json = {
+        'initial-message': 'Image attached',
+        'working-directory': '/path',
+        'attachments': [
+          {
+            'type': 'image',
+            'file-path': '/path/to/img.png',
+            'mime-type': 'image/png',
+          },
+          {
+            'type': 'image',
+            'content': 'base64data==',
+            'mime-type': 'image/jpeg',
+          },
+        ],
+      };
+
+      final request = CreateSessionRequest.fromJson(json);
+
+      expect(request.attachments, hasLength(2));
+      expect(request.attachments![0]['type'], 'image');
+      expect(request.attachments![0]['file-path'], '/path/to/img.png');
+      expect(request.attachments![1]['content'], 'base64data==');
+    });
+
+    test('round-trips attachments through JSON', () {
+      final original = CreateSessionRequest(
+        initialMessage: 'With image',
+        workingDirectory: '/path',
+        attachments: [
+          {
+            'type': 'image',
+            'file-path': '/screenshot.png',
+            'mime-type': 'image/png',
+          },
+        ],
+      );
+
+      final json = original.toJson();
+      final restored = CreateSessionRequest.fromJson(json);
+
+      expect(restored.attachments, hasLength(1));
+      expect(restored.attachments![0]['type'], 'image');
+      expect(restored.attachments![0]['file-path'], '/screenshot.png');
+      expect(restored.attachments![0]['mime-type'], 'image/png');
+    });
   });
 
   group('CreateSessionResponse', () {

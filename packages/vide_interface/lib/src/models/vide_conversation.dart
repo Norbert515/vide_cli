@@ -4,6 +4,7 @@
 library;
 
 import 'enums.dart';
+import 'vide_message.dart';
 
 /// State of a conversation.
 enum VideConversationState {
@@ -85,6 +86,9 @@ class VideConversationMessage {
   final bool isComplete;
   final VideMessageType messageType;
 
+  /// Attachments included with this message (user messages only).
+  final List<VideAttachment>? attachments;
+
   const VideConversationMessage({
     required this.id,
     required this.role,
@@ -94,6 +98,7 @@ class VideConversationMessage {
     this.isStreaming = false,
     this.isComplete = true,
     required this.messageType,
+    this.attachments,
   });
 
   VideConversationMessage copyWith({
@@ -105,6 +110,7 @@ class VideConversationMessage {
     bool? isStreaming,
     bool? isComplete,
     VideMessageType? messageType,
+    List<VideAttachment>? attachments,
   }) {
     return VideConversationMessage(
       id: id ?? this.id,
@@ -115,6 +121,7 @@ class VideConversationMessage {
       isStreaming: isStreaming ?? this.isStreaming,
       isComplete: isComplete ?? this.isComplete,
       messageType: messageType ?? this.messageType,
+      attachments: attachments ?? this.attachments,
     );
   }
 }

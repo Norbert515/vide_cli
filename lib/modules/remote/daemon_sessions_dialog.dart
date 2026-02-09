@@ -151,7 +151,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
   Future<void> _connectToSession(SessionSummary session) async {
     try {
       final notifier = context.read(daemonConnectionProvider.notifier);
-      final connectedSession = await notifier.connectToSession(
+      final connectedSession = notifier.connectToSessionOptimistic(
         session.sessionId,
       );
 

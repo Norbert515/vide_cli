@@ -37,18 +37,36 @@ class CreateSessionRequest {
 
   final String? team;
 
+  /// Raw attachment JSON maps, forwarded as-is to the vide_server.
+  final List<Map<String, dynamic>>? attachments;
+
   CreateSessionRequest({
     required this.initialMessage,
     required this.workingDirectory,
     this.model,
     this.permissionMode,
     this.team,
+    this.attachments,
   });
 
   factory CreateSessionRequest.fromJson(Map<String, dynamic> json) =>
       _$CreateSessionRequestFromJson(json);
 
   Map<String, dynamic> toJson() => _$CreateSessionRequestToJson(this);
+}
+
+/// Request to resume an existing session from persistence.
+@JsonSerializable()
+class ResumeSessionRequest {
+  @JsonKey(name: 'working-directory')
+  final String workingDirectory;
+
+  ResumeSessionRequest({required this.workingDirectory});
+
+  factory ResumeSessionRequest.fromJson(Map<String, dynamic> json) =>
+      _$ResumeSessionRequestFromJson(json);
+
+  Map<String, dynamic> toJson() => _$ResumeSessionRequestToJson(this);
 }
 
 /// Response after creating a session.

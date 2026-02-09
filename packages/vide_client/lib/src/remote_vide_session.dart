@@ -48,11 +48,12 @@ class PendingRemoteVideSession {
 /// Create a pending remote session handle for optimistic UI flows.
 PendingRemoteVideSession createPendingRemoteVideSession({
   String? initialMessage,
+  List<VideAttachment>? attachments,
   void Function()? onReady,
 }) {
   final session = RemoteVideSession.pending();
   if (initialMessage != null && initialMessage.isNotEmpty) {
-    session.addPendingUserMessage(initialMessage);
+    session.addPendingUserMessage(initialMessage, attachments: attachments);
   }
   session.onPendingComplete = onReady;
   return PendingRemoteVideSession._(session);
@@ -292,13 +293,20 @@ class RemoteVideSession implements VideSession {
   ///
   /// Also emits a status event showing the agent as "working" so the UI
   /// displays activity immediately.
-  void addPendingUserMessage(String content) {
+  void addPendingUserMessage(
+    String content, {
+    List<VideAttachment>? attachments,
+  }) {
     final agentId = _mainAgentId;
     if (agentId == null) return;
 
     final agentInfo = _agents[agentId];
 
-    _conversationBuilder.addUserMessage(agentId, content);
+    _conversationBuilder.addUserMessage(
+      agentId,
+      content,
+      attachments: attachments,
+    );
 
     // Emit optimistic status event so UI shows the agent as working
     _hub.emit(
@@ -954,11 +962,19 @@ class RemoteVideSession implements VideSession {
   void sendMessage(VideMessage message, {String? agentId}) {
     _checkNotDisposed();
     final targetAgentId = agentId ?? _mainAgentId;
-    _clientSession?.sendMessage(message.text, agentId: targetAgentId);
+    _clientSession?.sendMessage(
+      message.text,
+      agentId: targetAgentId,
+      attachments: message.attachments,
+    );
 
     // Optimistically add the user message for immediate display.
     if (targetAgentId != null) {
-      _conversationBuilder.addUserMessage(targetAgentId, message.text);
+      _conversationBuilder.addUserMessage(
+        targetAgentId,
+        message.text,
+        attachments: message.attachments,
+      );
     }
 
     // Optimistically set agent status to working so loading indicators

@@ -74,6 +74,7 @@ class SessionProcess {
     String? model,
     String? permissionMode,
     String? team,
+    List<Map<String, dynamic>>? attachments,
     Duration startupTimeout = const Duration(seconds: 30),
   }) async {
     final log = Logger('SessionProcess.spawn');
@@ -164,6 +165,8 @@ class SessionProcess {
       if (model != null) 'model': model,
       if (permissionMode != null) 'permission-mode': permissionMode,
       if (team != null) 'team': team,
+      if (attachments != null && attachments.isNotEmpty)
+        'attachments': attachments,
     });
 
     log.info('Creating session via POST $createUrl');
@@ -200,6 +203,143 @@ class SessionProcess {
       model: model,
       permissionMode: permissionMode,
       team: team,
+    );
+
+    sessionProcess._setState(SessionProcessState.ready);
+
+    return sessionProcess;
+  }
+
+  /// Spawn a new vide_server process and resume an existing session from
+  /// persistence within it.
+  ///
+  /// Similar to [spawn], but instead of creating a new session it calls
+  /// the vide_server resume endpoint to reload a persisted session.
+  static Future<SessionProcess> spawnForResume({
+    required String sessionId,
+    required String workingDirectory,
+    required SessionSpawnConfig spawnConfig,
+    Duration startupTimeout = const Duration(seconds: 30),
+  }) async {
+    final log = Logger('SessionProcess.spawnForResume');
+
+    // Find an available port
+    final serverSocket = await ServerSocket.bind(
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final port = serverSocket.port;
+    await serverSocket.close();
+
+    log.info(
+      'Starting session server on port $port to resume $sessionId '
+      'for workDir: $workingDirectory',
+    );
+
+    // Get spawn command from config
+    final spawnCommand = spawnConfig.getSpawnCommand(
+      port: port,
+      workingDirectory: workingDirectory,
+    );
+
+    log.fine(
+      'Spawn command: ${spawnCommand.executable} ${spawnCommand.args.join(' ')}',
+    );
+
+    // Start session server process
+    final process = await Process.start(
+      spawnCommand.executable,
+      spawnCommand.args,
+      workingDirectory: workingDirectory,
+      environment: {
+        ...Platform.environment,
+        'VIDE_WORKING_DIR': workingDirectory,
+      },
+    );
+
+    // Log process output
+    process.stdout.transform(utf8.decoder).listen((data) {
+      log.fine('[stdout:$port] $data');
+    });
+    process.stderr.transform(utf8.decoder).listen((data) {
+      log.warning('[stderr:$port] $data');
+    });
+
+    // Wait for server to be ready
+    final client = http.Client();
+    final healthUrl = Uri.parse('http://127.0.0.1:$port/health');
+    final startTime = DateTime.now();
+
+    while (DateTime.now().difference(startTime) < startupTimeout) {
+      try {
+        final response = await client
+            .get(healthUrl)
+            .timeout(const Duration(seconds: 2));
+        if (response.statusCode == 200) {
+          log.info('Server ready on port $port');
+          break;
+        }
+      } catch (_) {
+        // Server not ready yet
+      }
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    // Check if server is ready
+    try {
+      final response = await client
+          .get(healthUrl)
+          .timeout(const Duration(seconds: 2));
+      if (response.statusCode != 200) {
+        process.kill();
+        throw StateError(
+          'vide_server failed to start: health check returned ${response.statusCode}',
+        );
+      }
+    } catch (e) {
+      process.kill();
+      throw StateError('vide_server failed to start: $e');
+    }
+
+    // Resume session via REST API
+    final resumeUrl = Uri.parse(
+      'http://127.0.0.1:$port/api/v1/sessions/$sessionId/resume',
+    );
+    final resumeBody = jsonEncode({
+      'working-directory': workingDirectory,
+    });
+
+    log.info('Resuming session via POST $resumeUrl');
+    final resumeResponse = await client.post(
+      resumeUrl,
+      headers: {'Content-Type': 'application/json'},
+      body: resumeBody,
+    );
+
+    client.close();
+
+    if (resumeResponse.statusCode != 200 &&
+        resumeResponse.statusCode != 201) {
+      process.kill();
+      throw StateError(
+        'Failed to resume session: ${resumeResponse.statusCode} ${resumeResponse.body}',
+      );
+    }
+
+    final responseJson =
+        jsonDecode(resumeResponse.body) as Map<String, dynamic>;
+    final mainAgentId = responseJson['main-agent-id'] as String? ?? '';
+
+    log.info('Session resumed: $sessionId with main agent: $mainAgentId');
+
+    final sessionProcess = SessionProcess._(
+      sessionId: sessionId,
+      mainAgentId: mainAgentId,
+      workingDirectory: workingDirectory,
+      port: port,
+      createdAt: DateTime.now(),
+      initialMessage: '',
+      process: process,
     );
 
     sessionProcess._setState(SessionProcessState.ready);

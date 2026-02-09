@@ -67,6 +67,7 @@ class DaemonClient {
     String? model,
     String? permissionMode,
     String? team,
+    List<Map<String, dynamic>>? attachments,
   }) async {
     final request = CreateSessionRequest(
       initialMessage: initialMessage,
@@ -74,6 +75,7 @@ class DaemonClient {
       model: model,
       permissionMode: permissionMode,
       team: team,
+      attachments: attachments,
     );
 
     final response = await _httpClient.post(
@@ -85,6 +87,34 @@ class DaemonClient {
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw DaemonClientException(
         'Failed to create session: ${response.statusCode} ${response.body}',
+      );
+    }
+
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return CreateSessionResponse.fromJson(json);
+  }
+
+  /// Resume an existing session from persistence.
+  ///
+  /// Spawns a new vide_server process and loads the session from disk.
+  /// Returns the same [CreateSessionResponse] as [createSession].
+  Future<CreateSessionResponse> resumeSession({
+    required String sessionId,
+    required String workingDirectory,
+  }) async {
+    final request = ResumeSessionRequest(
+      workingDirectory: workingDirectory,
+    );
+
+    final response = await _httpClient.post(
+      Uri.parse('$_baseUrl/sessions/$sessionId/resume'),
+      headers: _headers,
+      body: jsonEncode(request.toJson()),
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw DaemonClientException(
+        'Failed to resume session: ${response.statusCode} ${response.body}',
       );
     }
 
