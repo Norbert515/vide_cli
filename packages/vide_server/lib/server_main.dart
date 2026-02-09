@@ -3,7 +3,7 @@
 /// This module provides the [startServer] function which can be called
 /// from either:
 /// - `bin/vide_server.dart` (standalone server)
-/// - `bin/vide.dart --session-server` (embedded in vide binary)
+/// - `vide session-server` (embedded in vide binary)
 library;
 
 import 'dart:async';

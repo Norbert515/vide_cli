@@ -60,7 +60,7 @@ class SessionSpawnConfig {
   /// The executable to run (e.g., 'dart' or '/path/to/vide').
   final String executable;
 
-  /// Base arguments before --session-server (e.g., ['run', 'bin/vide.dart']).
+  /// Base arguments before the session-server subcommand (e.g., ['run', 'bin/vide.dart']).
   /// Empty for compiled binaries.
   final List<String> baseArgs;
 
@@ -78,7 +78,7 @@ class SessionSpawnConfig {
       executable: executable,
       args: [
         ...baseArgs,
-        '--session-server',
+        'session-server',
         '--port',
         port.toString(),
         '--working-dir',
@@ -98,7 +98,7 @@ class SessionSpawnConfig {
 
 /// Shared daemon startup logic.
 ///
-/// Used by both `bin/vide.dart --serve` and `bin/vide_daemon.dart`.
+/// Used by both `vide serve` and `bin/vide_daemon.dart`.
 class DaemonStarter {
   final DaemonConfig config;
   final Logger _log = Logger('VideDaemon');
@@ -223,10 +223,10 @@ class DaemonStarter {
   /// Determine how to spawn session server processes.
   ///
   /// When running from source (via `dart run`), we need to use:
-  ///   dart run <script-path> --session-server ...
+  ///   dart run <script-path> session-server ...
   ///
   /// When running as a compiled binary, we use:
-  ///   <binary-path> --session-server ...
+  ///   <binary-path> session-server ...
   static SessionSpawnConfig _determineSpawnConfig(String? overridePath) {
     final log = Logger('VideDaemon');
 
@@ -235,7 +235,7 @@ class DaemonStarter {
     final isCompiled = executableName != 'dart' && executableName != 'dart.exe';
 
     if (isCompiled) {
-      // Compiled binary - spawn using the same binary with --session-server
+      // Compiled binary - spawn using the same binary with session-server subcommand
       log.fine('Running as compiled binary');
       return SessionSpawnConfig(
         executable: Platform.resolvedExecutable,
