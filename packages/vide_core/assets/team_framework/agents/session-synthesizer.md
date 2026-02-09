@@ -7,7 +7,7 @@ description: Triggered at session end to extract decisions, findings, and patter
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: sonnet
+model: sonnet-4.5
 
 ---
 

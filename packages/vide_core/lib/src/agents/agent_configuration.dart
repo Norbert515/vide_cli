@@ -46,7 +46,8 @@ class AgentConfiguration {
 
   /// Model to use for this agent
   ///
-  /// Common values: 'sonnet', 'opus', 'haiku'
+  /// Common values: 'opus-4.6', 'sonnet-4.5', 'haiku-4.5'
+  /// Legacy short names ('opus', 'sonnet', 'haiku') also accepted.
   /// If null, uses default model.
   final String? model;
 

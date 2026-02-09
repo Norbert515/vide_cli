@@ -97,7 +97,7 @@ abstract class ClaudeClient {
 
   /// Set the model for subsequent API calls.
   ///
-  /// [model] - Model identifier (e.g., 'sonnet', 'opus', 'haiku',
+  /// [model] - Model identifier (e.g., 'opus-4.6', 'sonnet-4.5', 'haiku-4.5',
   /// or full model ID like 'claude-sonnet-4-5-20250929')
   Future<SetModelResponse> setModel(String model);
 

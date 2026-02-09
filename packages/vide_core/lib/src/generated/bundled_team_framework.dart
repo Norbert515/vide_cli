@@ -514,7 +514,7 @@ description: Triggered on task completion to review code changes for bugs, secur
 tools: Read, Grep, Glob, Bash
 mcpServers: vide-agent, vide-task-management
 
-model: sonnet
+model: sonnet-4.5
 
 ---
 
@@ -587,7 +587,7 @@ description: Single-purpose Flutter tester. Runs one test scope using provided b
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent
 
-model: haiku
+model: haiku-4.5
 
 ---
 
@@ -694,7 +694,7 @@ description: Deep requirements analysis. Ensures problem is crystal clear before
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 
@@ -815,7 +815,7 @@ description: Flutter testing agent. Runs Flutter apps, interacts via semantic el
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent, vide-task-management
 
-model: haiku
+model: haiku-4.5
 
 ---
 
@@ -929,7 +929,7 @@ description: Test orchestrator. Detects platform/FVM, spawns batches of 1-5 test
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-task-management
 
-model: sonnet
+model: sonnet-4.5
 
 agents:
   - test-runner
@@ -1086,7 +1086,7 @@ description: Owns a feature end-to-end. Spawns and coordinates their own team. R
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - researcher
@@ -1437,7 +1437,7 @@ description: Research agent. Explores codebases, gathers context. Read-only.
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: sonnet
+model: sonnet-4.5
 
 ---
 
@@ -1477,7 +1477,7 @@ description: Orchestrator agent. Assesses tasks, clarifies requirements, delegat
 tools: Read, Grep, Glob, Skill
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - researcher
@@ -1533,7 +1533,7 @@ description: Enterprise orchestrator. Breaks work into features, spawns feature 
 tools: Skill
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - feature-lead
@@ -2023,7 +2023,7 @@ description: Explores multiple solution approaches. Never implements - only desi
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 
@@ -2197,7 +2197,7 @@ description: Adversarial QA agent. Mission is to BREAK the implementation by fin
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 
@@ -2444,7 +2444,7 @@ description: General-purpose implementation agent. Does the actual work. Reports
 tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 
@@ -2546,7 +2546,7 @@ description: Git-aware request router. Never does work. Spawns agents on worktre
 disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - worker
@@ -2665,7 +2665,7 @@ description: Testing agent. Runs apps, validates changes, takes screenshots. Can
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - implementer
@@ -2713,7 +2713,7 @@ description: Triggered at session end to extract decisions, findings, and patter
 tools: Read, Grep, Glob
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: sonnet
+model: sonnet-4.5
 
 ---
 
@@ -2783,7 +2783,7 @@ description: Implementation agent. Writes and edits code. Runs verification befo
 tools: Read, Write, Edit, Grep, Glob, Bash
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 

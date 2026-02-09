@@ -7,7 +7,7 @@ description: Enterprise orchestrator. Breaks work into features, spawns feature 
 tools: Skill
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - feature-lead

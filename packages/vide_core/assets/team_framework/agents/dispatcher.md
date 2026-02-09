@@ -7,7 +7,7 @@ description: Git-aware request router. Never does work. Spawns agents on worktre
 disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 agents:
   - worker

@@ -7,7 +7,7 @@ description: Explores multiple solution approaches. Never implements - only desi
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 

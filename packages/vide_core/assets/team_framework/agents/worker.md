@@ -7,7 +7,7 @@ description: General-purpose implementation agent. Does the actual work. Reports
 tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
 mcpServers: vide-agent, vide-git, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 

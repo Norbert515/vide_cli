@@ -7,7 +7,7 @@ description: Flutter testing agent. Runs Flutter apps, interacts via semantic el
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent, vide-task-management
 
-model: haiku
+model: haiku-4.5
 
 ---
 

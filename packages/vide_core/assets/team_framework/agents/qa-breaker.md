@@ -7,7 +7,7 @@ description: Adversarial QA agent. Mission is to BREAK the implementation by fin
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
 
-model: opus
+model: opus-4.6
 
 ---
 
