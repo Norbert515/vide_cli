@@ -375,11 +375,8 @@ class _SessionCard extends ConsumerWidget {
                         ),
                   ),
                   const Spacer(),
-                  // Status indicator
-                  if (liveMetadata?.mainAgentStatus ==
-                          VideAgentStatus.working ||
-                      liveMetadata?.mainAgentStatus ==
-                          VideAgentStatus.waitingForAgent)
+                  // Status indicator — show spinner if any agent is busy
+                  if (liveMetadata?.anyAgentBusy == true)
                     _BrailleSpinner(color: videColors.accent)
                   else
                     Text(

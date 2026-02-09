@@ -55,6 +55,9 @@ class SessionLiveMetadata {
   final int agentCount;
   final bool isConnected;
 
+  /// Whether any agent in the session is actively working or waiting.
+  final bool anyAgentBusy;
+
   const SessionLiveMetadata({
     this.latestMessage,
     this.latestActivity,
@@ -63,6 +66,7 @@ class SessionLiveMetadata {
     this.mainAgentStatus,
     this.agentCount = 1,
     this.isConnected = false,
+    this.anyAgentBusy = false,
   });
 
   SessionLiveMetadata copyWith({
@@ -73,6 +77,7 @@ class SessionLiveMetadata {
     VideAgentStatus? Function()? mainAgentStatus,
     int? agentCount,
     bool? isConnected,
+    bool? anyAgentBusy,
   }) {
     return SessionLiveMetadata(
       latestMessage: latestMessage != null
@@ -90,6 +95,7 @@ class SessionLiveMetadata {
           : this.mainAgentStatus,
       agentCount: agentCount ?? this.agentCount,
       isConnected: isConnected ?? this.isConnected,
+      anyAgentBusy: anyAgentBusy ?? this.anyAgentBusy,
     );
   }
 }
@@ -108,6 +114,9 @@ class _SessionConnection {
 
   /// Main agent ID (from connected event).
   String? _mainAgentId;
+
+  /// Per-agent status tracking to derive anyAgentBusy.
+  final Map<String, VideAgentStatus> _agentStatuses = {};
 
   /// Track message accumulation by event-id.
   final Map<String, StringBuffer> _messageBuffers = {};
@@ -177,9 +186,9 @@ class _SessionConnection {
       case 'status':
         _handleStatusEvent(json);
       case 'agent-spawned':
-        _handleAgentSpawned();
+        _handleAgentSpawned(json);
       case 'agent-terminated':
-        _handleAgentTerminated();
+        _handleAgentTerminated(json);
       case 'permission-request':
         _handlePermissionRequest(json);
       case 'permission-resolved':
@@ -226,8 +235,10 @@ class _SessionConnection {
       switch (eventType) {
         case 'agent-spawned':
           knownAgents.add(agentId);
+          _agentStatuses[agentId] = VideAgentStatus.working;
         case 'agent-terminated':
           knownAgents.remove(agentId);
+          _agentStatuses.remove(agentId);
         case 'message':
           final role = eventData?['role'] as String?;
           final content = eventData?['content'] as String? ?? '';
@@ -277,12 +288,15 @@ class _SessionConnection {
             taskName = newGoal;
           }
         case 'status':
+          final statusStr = eventData?['status'] as String?;
+          final status = VideAgentStatus.fromWireString(statusStr);
+          _agentStatuses[agentId] = status;
           if (agentId == _mainAgentId) {
-            final statusStr = eventData?['status'] as String?;
-            mainStatus = VideAgentStatus.fromWireString(statusStr);
+            mainStatus = status;
           }
         case 'done':
         case 'aborted':
+          _agentStatuses[agentId] = VideAgentStatus.idle;
           if (agentId == _mainAgentId) {
             mainStatus = VideAgentStatus.idle;
           }
@@ -301,6 +315,7 @@ class _SessionConnection {
       pendingPermission: () => pendingPermission,
       taskName: taskName != null ? () => taskName : null,
       mainAgentStatus: mainStatus != null ? () => mainStatus : null,
+      anyAgentBusy: _isAnyAgentBusy(),
     ));
   }
 
@@ -432,36 +447,64 @@ class _SessionConnection {
 
   void _handleStatusEvent(Map<String, dynamic> json) {
     final agentId = json['agent-id'] as String? ?? '';
-    if (agentId != _mainAgentId) return;
-
     final data = json['data'] as Map<String, dynamic>?;
     final statusStr = data?['status'] as String?;
     final status = VideAgentStatus.fromWireString(statusStr);
 
-    _updateMetadata(_metadata.copyWith(
-      mainAgentStatus: () => status,
-    ));
+    _agentStatuses[agentId] = status;
+
+    final updates = _metadata.copyWith(
+      anyAgentBusy: _isAnyAgentBusy(),
+    );
+
+    if (agentId == _mainAgentId) {
+      _updateMetadata(updates.copyWith(
+        mainAgentStatus: () => status,
+      ));
+    } else {
+      _updateMetadata(updates);
+    }
   }
 
-  void _handleAgentSpawned() {
+  bool _isAnyAgentBusy() {
+    return _agentStatuses.values.any(
+      (s) => s == VideAgentStatus.working || s == VideAgentStatus.waitingForAgent,
+    );
+  }
+
+  void _handleAgentSpawned(Map<String, dynamic> json) {
+    final agentId = json['agent-id'] as String? ?? '';
+    _agentStatuses[agentId] = VideAgentStatus.working;
     _updateMetadata(_metadata.copyWith(
       agentCount: _metadata.agentCount + 1,
+      anyAgentBusy: true,
     ));
   }
 
-  void _handleAgentTerminated() {
+  void _handleAgentTerminated(Map<String, dynamic> json) {
+    final agentId = json['agent-id'] as String? ?? '';
+    _agentStatuses.remove(agentId);
     _updateMetadata(_metadata.copyWith(
       agentCount: (_metadata.agentCount - 1).clamp(1, 999),
+      anyAgentBusy: _isAnyAgentBusy(),
     ));
   }
 
   void _handleDoneOrAborted(Map<String, dynamic> json) {
     final agentId = json['agent-id'] as String? ?? '';
-    if (agentId != _mainAgentId) return;
+    _agentStatuses[agentId] = VideAgentStatus.idle;
 
-    _updateMetadata(_metadata.copyWith(
-      mainAgentStatus: () => VideAgentStatus.idle,
-    ));
+    final updates = _metadata.copyWith(
+      anyAgentBusy: _isAnyAgentBusy(),
+    );
+
+    if (agentId == _mainAgentId) {
+      _updateMetadata(updates.copyWith(
+        mainAgentStatus: () => VideAgentStatus.idle,
+      ));
+    } else {
+      _updateMetadata(updates);
+    }
   }
 
   void _updateMetadata(SessionLiveMetadata newMetadata) {
@@ -499,6 +542,7 @@ class _SessionConnection {
     _channel?.sink.close();
     _channel = null;
     _messageBuffers.clear();
+    _agentStatuses.clear();
     _scheduleRetry();
   }
 

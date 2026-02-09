@@ -471,7 +471,10 @@ class _MessageList extends StatelessWidget {
         child: ListView.builder(
           reverse: true,
           controller: scrollController,
-          padding: const EdgeInsets.only(top: agentTabBarHeight + 8, bottom: 80),
+          padding: EdgeInsets.only(
+            top: agentTabBarHeight + 8,
+            bottom: 120 + MediaQuery.of(context).padding.bottom,
+          ),
           itemCount: totalCount,
           itemBuilder: (context, reverseIndex) {
             // In a reversed list, index 0 is the bottom (newest).

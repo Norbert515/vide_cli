@@ -91,12 +91,22 @@ class _TabChip extends StatelessWidget {
       ],
     );
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return GestureDetector(
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: VideSpacing.xs, vertical: 6),
-        child: LiquidGlass(
+        child: LiquidGlass.withOwnLayer(
+          settings: LiquidGlassSettings(
+            thickness: 12,
+            blur: 30,
+            glassColor: colorScheme.surface.withValues(alpha: 0.4),
+            refractiveIndex: 1.1,
+            lightIntensity: 0.3,
+          ),
           shape: const LiquidRoundedSuperellipse(borderRadius: VideRadius.md),
+          clipBehavior: Clip.antiAlias,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: VideSpacing.md),
             child: content,
