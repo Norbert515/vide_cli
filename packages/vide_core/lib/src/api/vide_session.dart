@@ -49,6 +49,9 @@ class LocalVideSession implements VideSession {
   final Map<String, Completer<Map<String, String>>> _pendingAskUserQuestions =
       {};
 
+  /// Pending plan approval completers by request ID.
+  final Map<String, _PendingPlanApproval> _pendingPlanApprovals = {};
+
   /// Permission checker for business logic (allow lists, deny lists, etc.).
   late final PermissionChecker _permissionChecker;
 
@@ -465,6 +468,33 @@ class LocalVideSession implements VideSession {
   }
 
   @override
+  void respondToPlanApproval(
+    String requestId, {
+    required String action,
+    String? feedback,
+  }) {
+    _checkNotDisposed();
+    final pending = _pendingPlanApprovals.remove(requestId);
+    if (pending != null) {
+      pending.completer.complete(
+        _PlanApprovalResult(action: action, feedback: feedback),
+      );
+
+      _hub.emit(
+        PlanApprovalResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          action: action,
+          feedback: feedback,
+        ),
+      );
+    }
+  }
+
+  @override
   Future<void> addSessionPermissionPattern(String pattern) async {
     _permissionChecker.addSessionPattern(pattern);
   }
@@ -563,6 +593,16 @@ class LocalVideSession implements VideSession {
     }
     _pendingAskUserQuestions.clear();
 
+    // Complete any pending plan approvals with reject
+    for (final pending in _pendingPlanApprovals.values) {
+      if (!pending.completer.isCompleted) {
+        pending.completer.complete(
+          _PlanApprovalResult(action: 'reject', feedback: 'Session disposed'),
+        );
+      }
+    }
+    _pendingPlanApprovals.clear();
+
     // Clear agent states
     _agentStates.clear();
 
@@ -610,6 +650,17 @@ class LocalVideSession implements VideSession {
     // Special handling for AskUserQuestion tool
     if (toolName == 'AskUserQuestion') {
       return _handleAskUserQuestion(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        taskName: state?.taskName,
+        toolInput: input,
+      );
+    }
+
+    // Special handling for ExitPlanMode tool (plan approval)
+    if (toolName == 'ExitPlanMode') {
+      return _handleExitPlanMode(
         agentId: agentId,
         agentName: agentName,
         agentType: agentType,
@@ -770,6 +821,112 @@ class LocalVideSession implements VideSession {
         message: 'Failed to process AskUserQuestion: $e',
       );
     }
+  }
+
+  Future<claude.PermissionResult> _handleExitPlanMode({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String? taskName,
+    required Map<String, dynamic> toolInput,
+  }) async {
+    try {
+      if (_disposed) {
+        return const claude.PermissionResultDeny(message: 'Session disposed');
+      }
+
+      // Extract plan content from the agent's conversation.
+      // The plan is the last assistant text message before ExitPlanMode was called.
+      final client = _container.read(claudeProvider(agentId));
+      final planContent = _extractPlanContent(client?.currentConversation);
+
+      // Extract allowedPrompts from tool input
+      final allowedPrompts = (toolInput['allowedPrompts'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      // Create completer and emit event
+      final requestId = const Uuid().v4();
+      final completer = Completer<_PlanApprovalResult>();
+      _pendingPlanApprovals[requestId] = _PendingPlanApproval(
+        completer: completer,
+        agentId: agentId,
+        agentType: agentType ?? 'unknown',
+        agentName: agentName,
+        taskName: taskName,
+      );
+
+      _hub.emit(
+        PlanApprovalRequestEvent(
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: taskName,
+          requestId: requestId,
+          planContent: planContent,
+          allowedPrompts: allowedPrompts,
+        ),
+      );
+
+      // Wait for user response
+      final result = await completer.future;
+
+      switch (result.action) {
+        case 'accept':
+          return const claude.PermissionResultAllow();
+        case 'reject':
+          return claude.PermissionResultDeny(
+            message: result.feedback ?? 'User rejected the plan',
+          );
+        default:
+          return const claude.PermissionResultDeny(
+            message: 'Unknown plan approval action',
+          );
+      }
+    } catch (e) {
+      return claude.PermissionResultDeny(
+        message: 'Failed to process ExitPlanMode: $e',
+      );
+    }
+  }
+
+  /// Extracts the plan content from the agent's conversation.
+  ///
+  /// Claude writes the plan to a file (typically ~/.claude/plans/*.md) via the
+  /// Write tool before calling ExitPlanMode. We search the last assistant
+  /// message for a Write tool invocation targeting a `.claude/plans/` directory
+  /// and extract the file content.
+  /// Falls back to the last assistant text if no plan file write is found.
+  String _extractPlanContent(claude.Conversation? conversation) {
+    if (conversation == null) return '(No plan content available)';
+
+    // Find the last assistant message (the current turn where ExitPlanMode is called)
+    final lastAssistantMessage = conversation.messages.reversed
+        .where((m) => m.role == claude.MessageRole.assistant)
+        .firstOrNull;
+
+    if (lastAssistantMessage != null) {
+      // Search within this turn for a Write tool targeting .claude/plans/
+      for (final response in lastAssistantMessage.responses.reversed) {
+        if (response is claude.ToolUseResponse &&
+            response.toolName == 'Write') {
+          final filePath = response.parameters['file_path'] as String?;
+          final content = response.parameters['content'] as String?;
+          if (filePath != null &&
+              content != null &&
+              filePath.contains('.claude/plans/')) {
+            return content;
+          }
+        }
+      }
+
+      // Fallback: use the assistant message text from this turn
+      if (lastAssistantMessage.content.isNotEmpty) {
+        return lastAssistantMessage.content;
+      }
+    }
+
+    return '(No plan content available)';
   }
 
   void _subscribeToNetworkChanges() {
@@ -1267,6 +1424,31 @@ class _PendingPermission {
     this.inferredPattern,
     required this.cwd,
   });
+}
+
+/// Pending plan approval with agent metadata for the resolution event.
+class _PendingPlanApproval {
+  final Completer<_PlanApprovalResult> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
+
+  _PendingPlanApproval({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+  });
+}
+
+/// Result of a plan approval decision.
+class _PlanApprovalResult {
+  final String action; // 'accept' or 'reject'
+  final String? feedback;
+
+  _PlanApprovalResult({required this.action, this.feedback});
 }
 
 /// Tracks state for a single agent's event stream.

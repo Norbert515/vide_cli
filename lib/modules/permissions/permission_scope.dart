@@ -123,6 +123,76 @@ final askUserQuestionStateProvider =
       AskUserQuestionQueueState
     >((ref) => AskUserQuestionStateNotifier());
 
+/// UI request wrapper for PlanApproval events
+class PlanApprovalUIRequest {
+  final String requestId;
+  final String planContent;
+  final List<Map<String, dynamic>>? allowedPrompts;
+
+  const PlanApprovalUIRequest({
+    required this.requestId,
+    required this.planContent,
+    this.allowedPrompts,
+  });
+
+  /// Create from a session event
+  factory PlanApprovalUIRequest.fromEvent(PlanApprovalRequestEvent event) {
+    return PlanApprovalUIRequest(
+      requestId: event.requestId,
+      planContent: event.planContent,
+      allowedPrompts: event.allowedPrompts,
+    );
+  }
+}
+
+/// State for plan approval requests - includes queue and current request
+class PlanApprovalQueueState {
+  final PlanApprovalUIRequest? current;
+  final int queueLength;
+
+  PlanApprovalQueueState({this.current, this.queueLength = 0});
+}
+
+/// State notifier for plan approval requests with queue support
+class PlanApprovalStateNotifier extends StateNotifier<PlanApprovalQueueState> {
+  final List<PlanApprovalUIRequest> _queue = [];
+
+  PlanApprovalStateNotifier() : super(PlanApprovalQueueState());
+
+  /// Add a request to the queue
+  void enqueueRequest(PlanApprovalUIRequest request) {
+    _queue.add(request);
+    _updateState();
+  }
+
+  /// Remove the current request and show the next one
+  void dequeueRequest() {
+    if (_queue.isNotEmpty) {
+      _queue.removeAt(0);
+    }
+    _updateState();
+  }
+
+  /// Remove a specific request by its ID (e.g., when resolved remotely)
+  void removeByRequestId(String requestId) {
+    _queue.removeWhere((r) => r.requestId == requestId);
+    _updateState();
+  }
+
+  void _updateState() {
+    state = PlanApprovalQueueState(
+      current: _queue.isEmpty ? null : _queue.first,
+      queueLength: _queue.length,
+    );
+  }
+}
+
+/// Provider for the current plan approval request state
+final planApprovalStateProvider =
+    StateNotifierProvider<PlanApprovalStateNotifier, PlanApprovalQueueState>(
+      (ref) => PlanApprovalStateNotifier(),
+    );
+
 /// A widget that manages permission requests by listening to VideSession events.
 ///
 /// All permission requests (both local and remote) flow through the session's
@@ -183,6 +253,17 @@ class _PermissionScopeState extends State<PermissionScope> {
           context
               .read(askUserQuestionStateProvider.notifier)
               .enqueueRequest(request);
+
+        case PlanApprovalRequestEvent():
+          final request = PlanApprovalUIRequest.fromEvent(event);
+          context
+              .read(planApprovalStateProvider.notifier)
+              .enqueueRequest(request);
+
+        case PlanApprovalResolvedEvent():
+          context
+              .read(planApprovalStateProvider.notifier)
+              .removeByRequestId(event.requestId);
 
         default:
           break;

@@ -357,6 +357,23 @@ class SessionRepository extends _$SessionRepository {
     );
   }
 
+  /// Responds to a plan approval request.
+  void respondToPlanApproval(
+    String requestId,
+    String action, {
+    String? feedback,
+  }) {
+    final session = state.session;
+    if (session == null || !state.isActive) {
+      throw SessionException('No active session');
+    }
+    session.respondToPlanApproval(
+      requestId,
+      action: action,
+      feedback: feedback,
+    );
+  }
+
   /// Aborts all active agents.
   void abort() {
     final session = state.session;

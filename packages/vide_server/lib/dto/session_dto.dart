@@ -29,8 +29,7 @@ class CreateSessionRequest {
       team: json['team'] as String?,
       attachments: rawAttachments
           ?.map(
-            (a) =>
-                UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+            (a) => UserMessageAttachment.fromJson(a as Map<String, dynamic>),
           )
           .toList(),
     );
@@ -73,6 +72,8 @@ abstract class ClientMessage {
         return AskUserQuestionResponseMessage.fromJson(json);
       case 'session-command':
         return SessionCommandMessage.fromJson(json);
+      case 'plan-approval-response':
+        return PlanApprovalResponseMessage.fromJson(json);
       case 'abort':
         return AbortMessage();
       default:
@@ -109,8 +110,7 @@ class UserMessage implements ClientMessage {
       permissionMode: json['permission-mode'] as String?,
       attachments: rawAttachments
           ?.map(
-            (a) =>
-                UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+            (a) => UserMessageAttachment.fromJson(a as Map<String, dynamic>),
           )
           .toList(),
     );
@@ -191,6 +191,30 @@ class AskUserQuestionResponseMessage implements ClientMessage {
       answers: rawAnswers.map(
         (key, value) => MapEntry(key, value?.toString() ?? ''),
       ),
+    );
+  }
+}
+
+/// Plan approval response (client -> server)
+class PlanApprovalResponseMessage implements ClientMessage {
+  @override
+  String get type => 'plan-approval-response';
+
+  final String requestId;
+  final String action;
+  final String? feedback;
+
+  PlanApprovalResponseMessage({
+    required this.requestId,
+    required this.action,
+    this.feedback,
+  });
+
+  factory PlanApprovalResponseMessage.fromJson(Map<String, dynamic> json) {
+    return PlanApprovalResponseMessage(
+      requestId: json['request-id'] as String,
+      action: json['action'] as String,
+      feedback: json['feedback'] as String?,
     );
   }
 }

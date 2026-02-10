@@ -78,12 +78,14 @@ class Session {
       if (agentId != null) 'agent-id': agentId,
       if (attachments != null && attachments.isNotEmpty)
         'attachments': attachments
-            .map((a) => {
-                  'type': a.type,
-                  if (a.filePath != null) 'file-path': a.filePath,
-                  if (a.content != null) 'content': a.content,
-                  if (a.mimeType != null) 'mime-type': a.mimeType,
-                })
+            .map(
+              (a) => {
+                'type': a.type,
+                if (a.filePath != null) 'file-path': a.filePath,
+                if (a.content != null) 'content': a.content,
+                if (a.mimeType != null) 'mime-type': a.mimeType,
+              },
+            )
             .toList(),
     });
   }
@@ -120,6 +122,20 @@ class Session {
       'type': 'ask-user-question-response',
       'request-id': requestId,
       'answers': answers,
+    });
+  }
+
+  /// Respond to a plan approval request.
+  void respondToPlanApproval({
+    required String requestId,
+    required String action,
+    String? feedback,
+  }) {
+    _send({
+      'type': 'plan-approval-response',
+      'request-id': requestId,
+      'action': action,
+      if (feedback != null) 'feedback': feedback,
     });
   }
 

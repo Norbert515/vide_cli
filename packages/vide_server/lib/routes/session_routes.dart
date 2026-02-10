@@ -133,7 +133,10 @@ Future<Response> createSession(
 
   // Now emit the initial user message so it's captured by the broadcaster.
   if (session is LocalVideSession) {
-    session.emitInitialUserMessage(req.initialMessage, attachments: attachments);
+    session.emitInitialUserMessage(
+      req.initialMessage,
+      attachments: attachments,
+    );
   }
 
   // Cache for WebSocket access
@@ -394,6 +397,8 @@ class _SimplifiedStreamHandler {
         _handlePermissionResponse(msg);
       case AskUserQuestionResponseMessage msg:
         _handleAskUserQuestionResponse(msg);
+      case PlanApprovalResponseMessage msg:
+        _handlePlanApprovalResponse(msg);
       case SessionCommandMessage msg:
         unawaited(_handleSessionCommand(msg));
       case AbortMessage _:
@@ -441,6 +446,18 @@ class _SimplifiedStreamHandler {
     );
 
     session.respondToAskUserQuestion(msg.requestId, answers: msg.answers);
+  }
+
+  void _handlePlanApprovalResponse(PlanApprovalResponseMessage msg) {
+    _log.info(
+      '[Session $sessionId] Plan approval response: ${msg.requestId} = ${msg.action}',
+    );
+
+    session.respondToPlanApproval(
+      msg.requestId,
+      action: msg.action,
+      feedback: msg.feedback,
+    );
   }
 
   Future<void> _handleSessionCommand(SessionCommandMessage msg) async {

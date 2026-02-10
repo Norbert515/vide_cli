@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:test/test.dart';
 import 'package:vide_client/vide_client.dart';
 
@@ -211,6 +213,71 @@ void main() {
       expect(SessionStatus.values, contains(SessionStatus.open));
       expect(SessionStatus.values, contains(SessionStatus.closed));
       expect(SessionStatus.values, contains(SessionStatus.error));
+    });
+  });
+
+  group('RemoteVideSession event forwarding', () {
+    test('forwards PlanApprovalRequestEvent through event stream', () async {
+      final session = RemoteVideSession.pending();
+      addTearDown(session.dispose);
+
+      final events = <VideEvent>[];
+      session.events.listen(events.add);
+
+      session.handleWebSocketMessage(jsonEncode({
+        'type': 'plan-approval-request',
+        'seq': 1,
+        'agent-id': 'agent-1',
+        'agent-type': 'main',
+        'agent-name': 'Elena',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'data': {
+          'request-id': 'plan-1',
+          'plan-content': '# My Plan\n\nStep 1: Do things',
+          'allowed-prompts': [
+            {'tool': 'Bash', 'prompt': 'run tests'},
+          ],
+        },
+      }));
+
+      // Allow the stream event to be delivered.
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, hasLength(1));
+      expect(events.first, isA<PlanApprovalRequestEvent>());
+      final planEvent = events.first as PlanApprovalRequestEvent;
+      expect(planEvent.requestId, equals('plan-1'));
+      expect(planEvent.planContent, equals('# My Plan\n\nStep 1: Do things'));
+      expect(planEvent.agentName, equals('Elena'));
+      expect(planEvent.allowedPrompts, hasLength(1));
+    });
+
+    test('forwards PlanApprovalResolvedEvent through event stream', () async {
+      final session = RemoteVideSession.pending();
+      addTearDown(session.dispose);
+
+      final events = <VideEvent>[];
+      session.events.listen(events.add);
+
+      session.handleWebSocketMessage(jsonEncode({
+        'type': 'plan-approval-resolved',
+        'seq': 2,
+        'agent-id': 'agent-1',
+        'agent-type': 'main',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'data': {
+          'request-id': 'plan-1',
+          'action': 'accept',
+        },
+      }));
+
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events, hasLength(1));
+      expect(events.first, isA<PlanApprovalResolvedEvent>());
+      final resolved = events.first as PlanApprovalResolvedEvent;
+      expect(resolved.requestId, equals('plan-1'));
+      expect(resolved.action, equals('accept'));
     });
   });
 }

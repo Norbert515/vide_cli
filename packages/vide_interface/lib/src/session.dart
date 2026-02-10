@@ -117,6 +117,17 @@ abstract interface class VideSession {
     required Map<String, String> answers,
   });
 
+  /// Respond to a plan approval request (ExitPlanMode).
+  ///
+  /// [action] must be 'accept' or 'reject'.
+  /// When rejecting, [feedback] is sent back to Claude as a deny message
+  /// so it can revise the plan.
+  void respondToPlanApproval(
+    String requestId, {
+    required String action,
+    String? feedback,
+  });
+
   /// Add a pattern to the session permission cache.
   Future<void> addSessionPermissionPattern(String pattern);
 

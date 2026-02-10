@@ -19,6 +19,7 @@ import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog.dart';
 import 'package:vide_cli/modules/permissions/components/permission_dialog.dart';
+import 'package:vide_cli/modules/permissions/components/plan_approval_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_core/vide_core.dart';
@@ -497,7 +498,29 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
   }
 
+  void _handlePlanApprovalResponse(
+    PlanApprovalUIRequest request,
+    String action,
+    String? feedback,
+  ) {
+    final session = context.read(currentVideSessionProvider);
+
+    session?.respondToPlanApproval(
+      request.requestId,
+      action: action,
+      feedback: feedback,
+    );
+
+    // Dequeue the current request to show the next one
+    context.read(planApprovalStateProvider.notifier).dequeueRequest();
+  }
+
   bool _handleKeyEvent(KeyboardEvent event) {
+    // Don't intercept keys when plan approval dialog is active —
+    // the dialog handles its own key events (Escape, Tab, etc.)
+    final planState = context.read(planApprovalStateProvider);
+    if (planState.current != null) return false;
+
     if (event.logicalKey == LogicalKey.escape) {
       final session = context.read(currentVideSessionProvider);
       if (session == null) return false;
@@ -660,14 +683,35 @@ class _AgentChatState extends State<_AgentChat> {
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
+    // Get the current plan approval queue state from the provider
+    final planApprovalQueueState = context.watch(planApprovalStateProvider);
+    final currentPlanApproval = planApprovalQueueState.current;
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
       child: Container(
         child: Column(
           children: [
-            // Messages area
-            Expanded(child: _buildMessageList(context)),
+            // Messages area (hidden when plan approval is active to give it
+            // the full Expanded space for scrolling)
+            if (currentPlanApproval == null)
+              Expanded(child: _buildMessageList(context)),
+
+            // Plan approval dialog takes the Expanded slot when active
+            if (currentPlanApproval != null)
+              Expanded(
+                child: PlanApprovalDialog(
+                  request: currentPlanApproval,
+                  onResponse: (action, feedback) =>
+                      _handlePlanApprovalResponse(
+                        currentPlanApproval,
+                        action,
+                        feedback,
+                      ),
+                  key: Key('plan_approval_${currentPlanApproval.requestId}'),
+                ),
+              ),
 
             // Input area - conditionally show permission dialog or text field
             Column(
@@ -690,6 +734,7 @@ class _AgentChatState extends State<_AgentChat> {
 
                 // Loading indicator row - always 1 cell height to prevent layout jumps
                 if (_conversation.isProcessing &&
+                    currentPlanApproval == null &&
                     currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)
                   Row(
@@ -722,7 +767,8 @@ class _AgentChatState extends State<_AgentChat> {
                   ),
 
                 // Show AskUserQuestion dialog above text field (if active)
-                if (currentAskUserQuestionRequest != null)
+                if (currentPlanApproval == null &&
+                    currentAskUserQuestionRequest != null)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
@@ -799,7 +845,8 @@ class _AgentChatState extends State<_AgentChat> {
 
                 // Text field - rendered when no dialogs are active
                 // Text persists through pendingInputTextProvider when dialogs appear
-                if (currentAskUserQuestionRequest == null &&
+                if (currentPlanApproval == null &&
+                    currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)
                   Builder(
                     builder: (context) {
@@ -984,8 +1031,8 @@ class _AgentChatState extends State<_AgentChat> {
       // 2. _sentAttachments - locally tracked for follow-up messages in local mode
       // 3. ConversationStateManager - captures attachments from MessageEvent for
       //    the initial session message in local mode
-      var attachments = message.attachments ??
-          _sentAttachments[message.content];
+      var attachments =
+          message.attachments ?? _sentAttachments[message.content];
       if (attachments == null) {
         final csm = context.read(conversationStateManagerProvider);
         final agentState = csm?.getAgentState(component.agentId);

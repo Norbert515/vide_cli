@@ -295,6 +295,30 @@ sealed class VideEvent {
             ? (data?['error'] as Map)['code'] as String?
             : null,
       ),
+      'plan-approval-request' => PlanApprovalRequestEvent(
+        seq: seq,
+        agentId: agentId,
+        agentType: agentType,
+        agentName: agentName,
+        taskName: taskName,
+        timestamp: timestamp,
+        requestId: data?['request-id'] as String? ?? '',
+        planContent: data?['plan-content'] as String? ?? '',
+        allowedPrompts: (data?['allowed-prompts'] as List<dynamic>?)
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList(),
+      ),
+      'plan-approval-resolved' => PlanApprovalResolvedEvent(
+        seq: seq,
+        agentId: agentId,
+        agentType: agentType,
+        agentName: agentName,
+        taskName: taskName,
+        timestamp: timestamp,
+        requestId: data?['request-id'] as String? ?? '',
+        action: data?['action'] as String? ?? '',
+        feedback: data?['feedback'] as String?,
+      ),
       _ => UnknownEvent(
         seq: seq,
         agentId: agentId,
@@ -419,12 +443,16 @@ final class MessageEvent extends VideEvent {
     'role': role,
     'content': content,
     if (attachments != null && attachments!.isNotEmpty)
-      'attachments': attachments!.map((a) => {
-        'type': a.type,
-        if (a.filePath != null) 'file-path': a.filePath,
-        if (a.content != null) 'content': a.content,
-        if (a.mimeType != null) 'mime-type': a.mimeType,
-      }).toList(),
+      'attachments': attachments!
+          .map(
+            (a) => {
+              'type': a.type,
+              if (a.filePath != null) 'file-path': a.filePath,
+              if (a.content != null) 'content': a.content,
+              if (a.mimeType != null) 'mime-type': a.mimeType,
+            },
+          )
+          .toList(),
   };
 
   @override
@@ -814,6 +842,85 @@ class AskUserQuestionOptionData {
     required this.label,
     required this.description,
   });
+}
+
+/// Plan approval is required before implementation begins.
+///
+/// Emitted when an agent calls `ExitPlanMode`. The plan content is extracted
+/// from the agent's conversation (the assistant text preceding the tool call).
+/// Call [VideSession.respondToPlanApproval] to accept or reject.
+final class PlanApprovalRequestEvent extends VideEvent {
+  /// Unique ID for this approval request.
+  final String requestId;
+
+  /// The markdown plan content to display to the user.
+  final String planContent;
+
+  /// Pre-requested Bash permissions for the implementation phase.
+  final List<Map<String, dynamic>>? allowedPrompts;
+
+  PlanApprovalRequestEvent({
+    super.seq,
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.requestId,
+    required this.planContent,
+    this.allowedPrompts,
+  });
+
+  @override
+  String get wireType => 'plan-approval-request';
+
+  @override
+  Map<String, dynamic> dataFields() => {
+    'request-id': requestId,
+    'plan-content': planContent,
+    if (allowedPrompts != null) 'allowed-prompts': allowedPrompts,
+  };
+
+  @override
+  String toString() => 'PlanApprovalRequestEvent($requestId)';
+}
+
+/// Plan approval was resolved (accepted or rejected) by a client.
+///
+/// Broadcast to all connected clients so they can dismiss stale plan approval UI.
+final class PlanApprovalResolvedEvent extends VideEvent {
+  final String requestId;
+
+  /// The user's action: 'accept' or 'reject'.
+  final String action;
+
+  /// Optional feedback when rejecting (sent back to Claude as deny message).
+  final String? feedback;
+
+  PlanApprovalResolvedEvent({
+    super.seq,
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.requestId,
+    required this.action,
+    this.feedback,
+  });
+
+  @override
+  String get wireType => 'plan-approval-resolved';
+
+  @override
+  Map<String, dynamic> dataFields() => {
+    'request-id': requestId,
+    'action': action,
+    if (feedback != null) 'feedback': feedback,
+  };
+
+  @override
+  String toString() => 'PlanApprovalResolvedEvent($requestId, action=$action)';
 }
 
 /// The session/network goal (task name) was changed.

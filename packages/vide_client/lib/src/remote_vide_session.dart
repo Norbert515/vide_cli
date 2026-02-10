@@ -399,6 +399,10 @@ class RemoteVideSession implements VideSession {
         _handleTaskNameChanged(event);
       case PermissionResolvedEvent():
         _handlePermissionResolved(event);
+      case PlanApprovalRequestEvent():
+        _handlePlanApprovalRequest(event);
+      case PlanApprovalResolvedEvent():
+        _handlePlanApprovalResolved(event);
       case AbortedEvent():
         _handleAborted(event);
       case CommandResultEvent():
@@ -796,6 +800,36 @@ class RemoteVideSession implements VideSession {
     );
   }
 
+  void _handlePlanApprovalRequest(PlanApprovalRequestEvent event) {
+    final agentId = event.agentId;
+
+    _hub.emit(
+      PlanApprovalRequestEvent(
+        agentId: agentId,
+        agentType: _resolveAgentType(agentId, event),
+        agentName: _resolveAgentName(agentId, event),
+        taskName: event.taskName,
+        requestId: event.requestId,
+        planContent: event.planContent,
+        allowedPrompts: event.allowedPrompts,
+      ),
+    );
+  }
+
+  void _handlePlanApprovalResolved(PlanApprovalResolvedEvent event) {
+    _hub.emit(
+      PlanApprovalResolvedEvent(
+        agentId: event.agentId,
+        agentType: _resolveAgentType(event.agentId, event),
+        agentName: _resolveAgentName(event.agentId, event),
+        taskName: event.taskName,
+        requestId: event.requestId,
+        action: event.action,
+        feedback: event.feedback,
+      ),
+    );
+  }
+
   void _handleAborted(AbortedEvent event) {
     final agentId = event.agentId;
     _agentStatuses[agentId] = VideAgentStatus.idle;
@@ -1101,8 +1135,7 @@ class RemoteVideSession implements VideSession {
     final session = _clientSession;
     if (session == null) return;
     final result = await session.setWorktreePath(path);
-    final newDir =
-        result?['working-directory'] as String? ?? _workingDirectory;
+    final newDir = result?['working-directory'] as String? ?? _workingDirectory;
     if (newDir != _workingDirectory) {
       _workingDirectory = newDir;
       _workingDirectoryController.add(newDir);
@@ -1257,6 +1290,20 @@ class RemoteVideSession implements VideSession {
     _clientSession?.respondToAskUserQuestion(
       requestId: requestId,
       answers: answers,
+    );
+  }
+
+  @override
+  void respondToPlanApproval(
+    String requestId, {
+    required String action,
+    String? feedback,
+  }) {
+    _checkNotDisposed();
+    _clientSession?.respondToPlanApproval(
+      requestId: requestId,
+      action: action,
+      feedback: feedback,
     );
   }
 

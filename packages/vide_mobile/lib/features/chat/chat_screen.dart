@@ -12,6 +12,7 @@ import '../../core/theme/tokens.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/session_repository.dart';
 import '../permissions/permission_sheet.dart';
+import '../permissions/plan_approval_sheet.dart';
 import 'chat_state.dart';
 import 'widgets/agent_tab_bar.dart';
 import 'widgets/connection_status_banner.dart';
@@ -43,6 +44,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
+
+  /// Tracks whether plan approval sheet is currently showing.
+  bool _isPlanApprovalSheetShowing = false;
 
   /// Currently selected tab index (0 = main agent, 1+ = other agents).
   int _selectedTabIndex = 0;
@@ -169,6 +173,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         }
 
+      case PlanApprovalRequestEvent():
+        notifier.setPendingPlanApproval(event);
+
+      case PlanApprovalResolvedEvent(:final requestId):
+        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPlanApproval;
+        if (pending?.requestId == requestId) {
+          notifier.setPendingPlanApproval(null);
+          if (_isPlanApprovalSheetShowing && mounted) {
+            Navigator.of(context).pop();
+            _isPlanApprovalSheetShowing = false;
+          }
+        }
+
       case ErrorEvent(:final message):
         notifier.setError(message);
 
@@ -220,8 +237,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     sessionRepo.respondToPermission(pendingPermission.requestId, allow, remember: remember);
 
     ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(null);
-    _isPermissionSheetShowing = false;
-    Navigator.of(context).pop();
+    if (_isPermissionSheetShowing) {
+      _isPermissionSheetShowing = false;
+      Navigator.of(context).pop();
+    }
   }
 
   void _showPermissionSheet(PermissionRequestEvent request) {
@@ -239,6 +258,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     ).whenComplete(() {
       _isPermissionSheetShowing = false;
+    });
+  }
+
+  void _handlePlanApproval(String action, String? feedback) {
+    final state = ref.read(chatNotifierProvider(widget.sessionId));
+    final pending = state.pendingPlanApproval;
+    if (pending == null) return;
+
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    sessionRepo.respondToPlanApproval(pending.requestId, action, feedback: feedback);
+
+    ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPlanApproval(null);
+    if (_isPlanApprovalSheetShowing) {
+      _isPlanApprovalSheetShowing = false;
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _showPlanApprovalSheet(PlanApprovalRequestEvent request) {
+    if (_isPlanApprovalSheetShowing) return;
+    _isPlanApprovalSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (context) => PlanApprovalSheet(
+        request: request,
+        onResponse: _handlePlanApproval,
+      ),
+    ).whenComplete(() {
+      _isPlanApprovalSheetShowing = false;
     });
   }
 
@@ -264,6 +316,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && state.pendingPermission != null) {
           _showPermissionSheet(state.pendingPermission!);
+        }
+      });
+    }
+
+    if (state.pendingPlanApproval != null && !_isPlanApprovalSheetShowing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && state.pendingPlanApproval != null) {
+          _showPlanApprovalSheet(state.pendingPlanApproval!);
         }
       });
     }
@@ -448,7 +508,9 @@ class _MessageList extends StatelessWidget {
               items.add(_RenderItem.text(entry, content));
             }
           case ToolContent():
-            items.add(_RenderItem.tool(entry, content));
+            if (!_isHiddenTool(content)) {
+              items.add(_RenderItem.tool(entry, content));
+            }
           case AttachmentContent():
             break;
         }
@@ -493,6 +555,9 @@ class _MessageList extends StatelessWidget {
                 if (_isSpawnAgentTool(tool)) {
                   return _SpawnAgentCard(tool: tool, agents: agents, onTap: onAgentTap);
                 }
+                if (tool.toolName == 'ExitPlanMode') {
+                  return _PlanResultIndicator(tool: tool);
+                }
                 return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
             }
           },
@@ -503,6 +568,74 @@ class _MessageList extends StatelessWidget {
 
   bool _isSpawnAgentTool(ToolContent tool) {
     return tool.toolName == 'mcp__vide-agent__spawnAgent';
+  }
+
+  /// Tools that should not be rendered in the message list.
+  bool _isHiddenTool(ToolContent tool) {
+    final name = tool.toolName;
+    if (name == 'EnterPlanMode' ||
+        name == 'mcp__vide-task-management__setTaskName' ||
+        name == 'mcp__vide-task-management__setAgentTaskName' ||
+        name == 'mcp__vide-agent__setAgentStatus' ||
+        name == 'TodoWrite') {
+      return true;
+    }
+    // Hide Write tool targeting Claude's plans directory
+    if (name == 'Write') {
+      final filePath = tool.toolInput['file_path'] as String?;
+      if (filePath != null && filePath.contains('.claude/plans/')) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+/// Inline indicator for ExitPlanMode results.
+/// Shows green "Plan accepted" or red "Plan rejected" with feedback.
+class _PlanResultIndicator extends StatelessWidget {
+  final ToolContent tool;
+
+  const _PlanResultIndicator({required this.tool});
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    // While waiting for result, show nothing
+    if (tool.result == null) {
+      return const SizedBox.shrink();
+    }
+
+    final isError = tool.isError;
+    final color = isError ? videColors.error : videColors.success;
+    final icon = isError ? Icons.cancel_outlined : Icons.check_circle;
+    final label = isError
+        ? 'Plan rejected: ${tool.result ?? 'User rejected the plan'}'
+        : 'Plan accepted';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

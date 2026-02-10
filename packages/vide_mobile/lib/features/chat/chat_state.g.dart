@@ -6,7 +6,7 @@ part of 'chat_state.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$chatNotifierHash() => r'5dbfe7fe9d7344ed7a129bd43198a127db59666a';
+String _$chatNotifierHash() => r'52e25e9a7e991186e5be7c12913d067fa0afd7db';
 
 /// Copied from Dart SDK
 class _SystemHash {
@@ -41,7 +41,7 @@ abstract class _$ChatNotifier extends BuildlessNotifier<ChatState> {
 ///
 /// All conversation data (messages, tools, agents, processing status) is
 /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-/// concerns: pending permission dialogs and error banners.
+/// concerns: pending permission dialogs, plan approval sheets, and error banners.
 ///
 /// Copied from [ChatNotifier].
 @ProviderFor(ChatNotifier)
@@ -51,7 +51,7 @@ const chatNotifierProvider = ChatNotifierFamily();
 ///
 /// All conversation data (messages, tools, agents, processing status) is
 /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-/// concerns: pending permission dialogs and error banners.
+/// concerns: pending permission dialogs, plan approval sheets, and error banners.
 ///
 /// Copied from [ChatNotifier].
 class ChatNotifierFamily extends Family<ChatState> {
@@ -59,7 +59,7 @@ class ChatNotifierFamily extends Family<ChatState> {
   ///
   /// All conversation data (messages, tools, agents, processing status) is
   /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-  /// concerns: pending permission dialogs and error banners.
+  /// concerns: pending permission dialogs, plan approval sheets, and error banners.
   ///
   /// Copied from [ChatNotifier].
   const ChatNotifierFamily();
@@ -68,7 +68,7 @@ class ChatNotifierFamily extends Family<ChatState> {
   ///
   /// All conversation data (messages, tools, agents, processing status) is
   /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-  /// concerns: pending permission dialogs and error banners.
+  /// concerns: pending permission dialogs, plan approval sheets, and error banners.
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider call(
@@ -107,7 +107,7 @@ class ChatNotifierFamily extends Family<ChatState> {
 ///
 /// All conversation data (messages, tools, agents, processing status) is
 /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-/// concerns: pending permission dialogs and error banners.
+/// concerns: pending permission dialogs, plan approval sheets, and error banners.
 ///
 /// Copied from [ChatNotifier].
 class ChatNotifierProvider
@@ -116,7 +116,7 @@ class ChatNotifierProvider
   ///
   /// All conversation data (messages, tools, agents, processing status) is
   /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-  /// concerns: pending permission dialogs and error banners.
+  /// concerns: pending permission dialogs, plan approval sheets, and error banners.
   ///
   /// Copied from [ChatNotifier].
   ChatNotifierProvider(

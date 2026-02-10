@@ -36,7 +36,12 @@ class ToolInvocationRouter extends StatelessComponent {
       return SizedBox();
     }
 
-    // Route 1: AskUserQuestion - show as a nice user response block
+    // Route 1: ExitPlanMode - show plan accepted/rejected indicator
+    if (invocation.toolName == 'ExitPlanMode') {
+      return _buildExitPlanModeResult(context);
+    }
+
+    // Route 2: AskUserQuestion - show as a nice user response block
     if (invocation.toolName == 'mcp__vide-ask-user-question__askUserQuestion') {
       return _buildAskUserQuestionResult(context);
     }
@@ -87,10 +92,72 @@ class ToolInvocationRouter extends StatelessComponent {
 
   /// Tools that should not be rendered at all (have their own UI or are internal)
   bool _isHiddenTool() {
-    return invocation.toolName == 'mcp__vide-task-management__setTaskName' ||
+    if (invocation.toolName == 'mcp__vide-task-management__setTaskName' ||
         invocation.toolName == 'mcp__vide-task-management__setAgentTaskName' ||
         invocation.toolName == 'mcp__vide-agent__setAgentStatus' ||
-        invocation.toolName == 'TodoWrite';
+        invocation.toolName == 'TodoWrite' ||
+        invocation.toolName == 'EnterPlanMode') {
+      return true;
+    }
+
+    // Hide the Write tool when it writes to Claude's plans directory
+    // (the plan content is shown in the PlanApprovalDialog instead)
+    if (invocation.toolName == 'Write') {
+      final filePath = invocation.parameters['file_path'] as String?;
+      if (filePath != null && filePath.contains('.claude/plans/')) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Build a display for ExitPlanMode tool results.
+  ///
+  /// Shows "Plan accepted" (green) or "Plan rejected: reason" (red) based on
+  /// whether the tool succeeded or was denied.
+  Component _buildExitPlanModeResult(BuildContext context) {
+    // While waiting for user response, show nothing (dialog handles it)
+    if (!invocation.hasResult) {
+      return SizedBox();
+    }
+
+    if (invocation.isError) {
+      // Plan was rejected - show rejection with feedback if available
+      final reason = invocation.resultContent ?? 'User rejected the plan';
+      return Container(
+        padding: EdgeInsets.symmetric(vertical: 1),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('◇ ', style: TextStyle(color: Colors.red)),
+            Expanded(
+              child: Text(
+                'Plan rejected: $reason',
+                style: TextStyle(color: Colors.red),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Plan was accepted
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          Text('◆ ', style: TextStyle(color: Colors.green)),
+          Text(
+            'Plan accepted',
+            style: TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Build a nice display for AskUserQuestion tool results

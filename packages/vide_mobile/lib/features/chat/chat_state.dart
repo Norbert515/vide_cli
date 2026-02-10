@@ -10,21 +10,27 @@ part 'chat_state.g.dart';
 /// purely UI concerns with no home in the session model.
 class ChatState {
   final PermissionRequestEvent? pendingPermission;
+  final PlanApprovalRequestEvent? pendingPlanApproval;
   final String? error;
 
   const ChatState({
     this.pendingPermission,
+    this.pendingPlanApproval,
     this.error,
   });
 
   ChatState copyWith({
     PermissionRequestEvent? Function()? pendingPermission,
+    PlanApprovalRequestEvent? Function()? pendingPlanApproval,
     String? Function()? error,
   }) {
     return ChatState(
       pendingPermission: pendingPermission != null
           ? pendingPermission()
           : this.pendingPermission,
+      pendingPlanApproval: pendingPlanApproval != null
+          ? pendingPlanApproval()
+          : this.pendingPlanApproval,
       error: error != null ? error() : this.error,
     );
   }
@@ -34,7 +40,7 @@ class ChatState {
 ///
 /// All conversation data (messages, tools, agents, processing status) is
 /// owned by [RemoteVideSession]. This notifier only tracks transient UI
-/// concerns: pending permission dialogs and error banners.
+/// concerns: pending permission dialogs, plan approval sheets, and error banners.
 @Riverpod(keepAlive: true)
 class ChatNotifier extends _$ChatNotifier {
   @override
@@ -44,6 +50,10 @@ class ChatNotifier extends _$ChatNotifier {
 
   void setPendingPermission(PermissionRequestEvent? request) {
     state = state.copyWith(pendingPermission: () => request);
+  }
+
+  void setPendingPlanApproval(PlanApprovalRequestEvent? request) {
+    state = state.copyWith(pendingPlanApproval: () => request);
   }
 
   void setError(String? error) {

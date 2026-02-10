@@ -257,6 +257,8 @@ class ConversationStateManager {
         _handleAgentTerminated(e);
       case PermissionRequestEvent _:
       case AskUserQuestionEvent _:
+      case PlanApprovalRequestEvent _:
+      case PlanApprovalResolvedEvent _:
       case ErrorEvent _:
       case TaskNameChangedEvent _:
       case ConnectedEvent _:
@@ -289,10 +291,7 @@ class ConversationStateManager {
         TextContent(text: event.content, isStreaming: event.isPartial),
       ];
       state.messages.add(
-        ConversationEntry(
-          role: event.role,
-          content: contentBlocks,
-        ),
+        ConversationEntry(role: event.role, content: contentBlocks),
       );
     } else {
       if (state.messages.isEmpty) return;
