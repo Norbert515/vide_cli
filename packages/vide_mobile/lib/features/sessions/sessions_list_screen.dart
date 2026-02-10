@@ -7,24 +7,19 @@ import 'package:vide_client/vide_client.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/connection_repository.dart';
-import '../../domain/services/session_monitor_service.dart';
+import '../../domain/services/session_list_manager.dart';
 
 part 'sessions_list_screen.g.dart';
 
-/// Provider to fetch sessions list.
+/// Triggers a refresh of the session list from the daemon.
+///
+/// The actual session data lives in [sessionListManagerProvider] (keepAlive).
+/// This provider just kicks off the fetch; the screen watches the manager
+/// directly for live updates.
 @riverpod
-Future<List<SessionSummary>> sessionsList(Ref ref) async {
-  final connectionState = ref.watch(connectionRepositoryProvider);
-  if (!connectionState.isConnected || connectionState.client == null) {
-    return [];
-  }
-
-  final sessions = await connectionState.client!.listSessions();
-
-  // Update the session monitor with the latest sessions list
-  ref.read(sessionMonitorProvider.notifier).updateSessions(sessions);
-
-  return sessions;
+Future<void> sessionsListRefresh(Ref ref) async {
+  ref.watch(connectionRepositoryProvider);
+  await ref.read(sessionListManagerProvider.notifier).refresh();
 }
 
 /// Screen showing list of existing sessions.
@@ -63,7 +58,7 @@ class SessionsListScreen extends ConsumerWidget {
 
     try {
       await connectionState.client!.stopSession(session.sessionId);
-      ref.invalidate(sessionsListProvider);
+      ref.invalidate(sessionsListRefreshProvider);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -76,11 +71,66 @@ class SessionsListScreen extends ConsumerWidget {
     }
   }
 
+  Widget _buildList(
+    BuildContext context,
+    WidgetRef ref,
+    List<SessionListEntry> entries,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (entries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.folder_open_outlined,
+              size: 64,
+              color: colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No active sessions',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create a new session to get started',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.outline,
+                  ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(sessionsListRefreshProvider);
+        await ref.read(sessionsListRefreshProvider.future);
+      },
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: entries.length,
+        itemBuilder: (context, index) {
+          final entry = entries[index];
+          return _SessionCard(
+            entry: entry,
+            onStop: () => _stopSession(context, ref, entry.summary),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sessionsAsync = ref.watch(sessionsListProvider);
-    // Watch monitor state so cards rebuild when live metadata arrives
-    final monitorState = ref.watch(sessionMonitorProvider);
+    final refreshAsync = ref.watch(sessionsListRefreshProvider);
+    final managerState = ref.watch(sessionListManagerProvider);
+    final entries = ref.read(sessionListManagerProvider.notifier).sortedEntries;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -89,7 +139,7 @@ class SessionsListScreen extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(sessionsListProvider),
+            onPressed: () => ref.invalidate(sessionsListRefreshProvider),
             tooltip: 'Refresh',
           ),
           IconButton(
@@ -99,86 +149,42 @@ class SessionsListScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: sessionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline,
-                size: 48,
-                color: colorScheme.error,
+      body: refreshAsync.when(
+        loading: () => managerState.isEmpty
+            ? const Center(child: CircularProgressIndicator())
+            : _buildList(context, ref, entries),
+        error: (error, _) => managerState.isNotEmpty
+            ? _buildList(context, ref, entries)
+            : Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load sessions',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      error.toString(),
+                      style: Theme.of(context).textTheme.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.tonal(
+                      onPressed: () =>
+                          ref.invalidate(sessionsListRefreshProvider),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Failed to load sessions',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                error.toString(),
-                style: Theme.of(context).textTheme.bodySmall,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonal(
-                onPressed: () => ref.invalidate(sessionsListProvider),
-                child: const Text('Retry'),
-              ),
-            ],
-          ),
-        ),
-        data: (sessions) {
-          if (sessions.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.folder_open_outlined,
-                    size: 64,
-                    color: colorScheme.outline,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No active sessions',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Create a new session to get started',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.outline,
-                        ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async {
-              ref.invalidate(sessionsListProvider);
-              await ref.read(sessionsListProvider.future);
-            },
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemCount: sessions.length,
-              itemBuilder: (context, index) {
-                final session = sessions[index];
-                final liveMetadata = monitorState[session.sessionId];
-                return _SessionCard(
-                  session: session,
-                  liveMetadata: liveMetadata,
-                  onStop: () => _stopSession(context, ref, session),
-                );
-              },
-            ),
-          );
-        },
+        data: (_) => _buildList(context, ref, entries),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(AppRoutes.newSession),
@@ -190,13 +196,11 @@ class SessionsListScreen extends ConsumerWidget {
 }
 
 class _SessionCard extends ConsumerWidget {
-  final SessionSummary session;
-  final SessionLiveMetadata? liveMetadata;
+  final SessionListEntry entry;
   final VoidCallback? onStop;
 
   const _SessionCard({
-    required this.session,
-    this.liveMetadata,
+    required this.entry,
     this.onStop,
   });
 
@@ -204,6 +208,8 @@ class _SessionCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final session = entry.summary;
+    final remoteSession = entry.session;
     final isReady = session.state == 'ready';
     final statusColor = isReady ? videColors.success : videColors.warning;
 
@@ -212,13 +218,14 @@ class _SessionCard extends ConsumerWidget {
     final shortDir =
         dirParts.length > 1 ? '.../${dirParts.last}' : session.workingDirectory;
 
-    // Format time ago
-    final timeAgo = _formatTimeAgo(session.createdAt);
+    // Format time ago using last activity or creation time
+    final timeAgo = _formatTimeAgo(entry.sortTime);
 
-    // Live metadata from WebSocket monitor
-    final latestActivity = liveMetadata?.latestActivity;
-    final pendingPermission = liveMetadata?.pendingPermission;
-    final agentCount = liveMetadata?.agentCount ?? 1;
+    // Live data from RemoteVideSession
+    final latestActivity = entry.latestActivity;
+    final pendingPermission = entry.pendingPermission;
+    final agentCount = remoteSession?.agents.length ?? 1;
+    final anyAgentBusy = remoteSession?.isProcessing ?? false;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -244,10 +251,10 @@ class _SessionCard extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Session title (task name or session ID)
+                  // Session title (goal or session ID)
                   Expanded(
                     child: Text(
-                      liveMetadata?.taskName ??
+                      remoteSession?.goal ??
                           'Session ${session.sessionId.substring(0, 8)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,
@@ -328,14 +335,14 @@ class _SessionCard extends ConsumerWidget {
                   colorScheme: colorScheme,
                   videColors: videColors,
                   onAllow: () => ref
-                      .read(sessionMonitorProvider.notifier)
+                      .read(sessionListManagerProvider.notifier)
                       .respondToPermission(
                         session.sessionId,
                         pendingPermission.requestId,
                         allow: true,
                       ),
                   onDeny: () => ref
-                      .read(sessionMonitorProvider.notifier)
+                      .read(sessionListManagerProvider.notifier)
                       .respondToPermission(
                         session.sessionId,
                         pendingPermission.requestId,
@@ -347,7 +354,7 @@ class _SessionCard extends ConsumerWidget {
               // Metadata row
               Row(
                 children: [
-                  // Agent count (from WebSocket monitor)
+                  // Agent count
                   Icon(
                     Icons.smart_toy_outlined,
                     size: 14,
@@ -376,7 +383,7 @@ class _SessionCard extends ConsumerWidget {
                   ),
                   const Spacer(),
                   // Status indicator — show spinner if any agent is busy
-                  if (liveMetadata?.anyAgentBusy == true)
+                  if (anyAgentBusy)
                     _BrailleSpinner(color: videColors.accent)
                   else
                     Text(
@@ -541,7 +548,7 @@ class _BrailleSpinnerState extends State<_BrailleSpinner>
 
 /// Inline permission request with allow/deny buttons.
 class _InlinePermissionWidget extends StatelessWidget {
-  final PendingPermission permission;
+  final PermissionRequestEvent permission;
   final ColorScheme colorScheme;
   final VideThemeColors videColors;
   final VoidCallback onAllow;
