@@ -33,7 +33,14 @@ import '../utils/dangerously_skip_permissions_provider.dart';
 class LocalVideSession implements VideSession {
   final String _networkId;
   final ProviderContainer _container;
-  final SessionEventHub _hub;
+
+  /// Direct event pipeline (replaces SessionEventHub).
+  final StreamController<VideEvent> _eventController =
+      StreamController<VideEvent>.broadcast(sync: true);
+  final ConversationStateManager _conversationState = ConversationStateManager();
+  final StreamController<VideState> _stateController =
+      StreamController<VideState>.broadcast();
+  bool _disposed = false;
 
   /// Subscriptions to clean up on dispose.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
@@ -60,9 +67,8 @@ class LocalVideSession implements VideSession {
     required ProviderContainer container,
     PermissionCheckerConfig? permissionConfig,
   }) : _networkId = networkId,
-       _container = container,
-       _hub = SessionEventHub(syncController: true) {
-    _hub.setStateBuilder(_buildState);
+       _container = container {
+    _eventController.stream.listen(_conversationState.handleEvent);
     // Create permission checker for this session
     _permissionChecker = PermissionChecker(
       config: permissionConfig ?? PermissionCheckerConfig.tui,
@@ -157,12 +163,20 @@ class LocalVideSession implements VideSession {
     return false;
   }
 
+  /// Build a snapshot of per-agent conversation states.
+  List<AgentConversationState> get _agentConversationStateSnapshot {
+    return _conversationState.agentIds
+        .map((id) => _conversationState.getAgentState(id))
+        .whereType<AgentConversationState>()
+        .toList();
+  }
+
   /// Build the current immutable state snapshot.
   VideState _buildState() {
     return VideState(
       id: _networkId,
       agents: _buildAgents(),
-      agentConversationStates: _hub.agentConversationStateSnapshot,
+      agentConversationStates: _agentConversationStateSnapshot,
       team: _currentTeam(),
       goal: _currentGoal(),
       workingDirectory: _currentWorkingDirectory(),
@@ -170,25 +184,41 @@ class LocalVideSession implements VideSession {
     );
   }
 
+  void _emit(VideEvent event) => _eventController.add(event);
+
+  void _emitState() {
+    if (!_disposed) {
+      _stateController.add(_buildState());
+    }
+  }
+
+  void _checkNotDisposed() {
+    if (_disposed) {
+      throw StateError('Session has been disposed');
+    }
+  }
+
   @override
   String get id => _networkId;
 
   @override
-  ConversationStateManager get conversationState =>
-      _hub.conversationStateManager;
+  ConversationStateManager get conversationState => _conversationState;
 
   @override
-  VideState get state => _hub.state;
+  VideState get state => _buildState();
 
   @override
-  Stream<VideState> get stateStream => _hub.stateStream;
+  Stream<VideState> get stateStream => _stateController.stream;
 
   @override
-  Stream<VideEvent> get events => _hub.events;
+  Stream<VideEvent> get events => _eventController.stream;
+
+  @override
+  List<VideEvent> get eventHistory => _conversationState.eventHistory;
 
   @override
   void sendMessage(VideMessage message, {String? agentId}) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     final targetAgent = agentId ?? state.mainAgent?.id;
     if (targetAgent == null) {
@@ -213,6 +243,13 @@ class LocalVideSession implements VideSession {
       attachments: claudeAttachments,
     );
     manager.sendMessage(targetAgent, claudeMessage);
+
+    // Set agent to working immediately so the UI shows loading without
+    // waiting for the Claude API round-trip.
+    final statusNotifier = _container.read(
+      agentStatusProvider(targetAgent).notifier,
+    );
+    statusNotifier.setStatus(internal.AgentStatus.working);
   }
 
   void _emitUserMessage(
@@ -220,7 +257,7 @@ class LocalVideSession implements VideSession {
     required String agentId,
     List<VideAttachment>? attachments,
   }) {
-    _hub.emit(
+    _emit(
       MessageEvent(
         agentId: agentId,
         agentType: 'user',
@@ -241,7 +278,7 @@ class LocalVideSession implements VideSession {
     bool remember = false,
     String? patternOverride,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final pending = _pendingPermissions.remove(requestId);
     if (pending != null) {
       if (remember && allow) {
@@ -257,7 +294,7 @@ class LocalVideSession implements VideSession {
       }
 
       // Broadcast resolution to all connected clients
-      _hub.emit(
+      _emit(
         PermissionResolvedEvent(
           agentId: pending.agentId,
           agentType: pending.agentType,
@@ -300,7 +337,7 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> abort() async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return;
 
@@ -315,7 +352,7 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> abortAgent(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     if (client != null) {
       await client.abort();
@@ -324,7 +361,7 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> clearConversation({String? agentId}) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final targetId = agentId ?? state.mainAgent?.id;
     if (targetId == null) return;
 
@@ -334,26 +371,21 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> setWorktreePath(String? path) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     await manager.setWorktreePath(path);
   }
 
   @override
-  VideConversation? getConversation(String agentId) {
-    _hub.checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    final conversation = client?.currentConversation;
-    if (conversation == null) return null;
-    return _convertConversation(conversation);
+  AgentConversationState? getConversation(String agentId) {
+    _checkNotDisposed();
+    return _conversationState.getAgentState(agentId);
   }
 
   @override
-  Stream<VideConversation> conversationStream(String agentId) {
-    _hub.checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    if (client == null) return const Stream.empty();
-    return client.conversation.map(_convertConversation);
+  Stream<AgentConversationState> conversationStream(String agentId) {
+    _checkNotDisposed();
+    return _conversationState.agentStream(agentId);
   }
 
   @override
@@ -365,7 +397,7 @@ class LocalVideSession implements VideSession {
     required int totalCacheCreationInputTokens,
     required double totalCostUsd,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     manager.updateAgentTokenStats(
       agentId,
@@ -383,7 +415,7 @@ class LocalVideSession implements VideSession {
     required String terminatedBy,
     String? reason,
   }) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     await manager.terminateAgent(
       targetAgentId: agentId,
@@ -394,7 +426,7 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<String> forkAgent(String agentId, {String? name}) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
@@ -406,7 +438,7 @@ class LocalVideSession implements VideSession {
     required String initialPrompt,
     required String spawnedBy,
   }) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return await manager.spawnAgent(
       agentType: agentType,
@@ -430,21 +462,21 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> clearQueuedMessage(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     client?.clearQueuedMessage();
   }
 
   @override
   Future<String?> getModel(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     return client?.initData?.model;
   }
 
   @override
   Stream<String?> modelStream(String agentId) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     if (client == null) return Stream.value(null);
     return client.initDataStream.map((meta) => meta.model);
@@ -455,7 +487,7 @@ class LocalVideSession implements VideSession {
     String requestId, {
     required Map<String, String> answers,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final completer = _pendingAskUserQuestions.remove(requestId);
     completer?.complete(answers);
   }
@@ -466,14 +498,14 @@ class LocalVideSession implements VideSession {
     required String action,
     String? feedback,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final pending = _pendingPlanApprovals.remove(requestId);
     if (pending != null) {
       pending.completer.complete(
         _PlanApprovalResult(action: action, feedback: feedback),
       );
 
-      _hub.emit(
+      _emit(
         PlanApprovalResolvedEvent(
           agentId: pending.agentId,
           agentType: pending.agentType,
@@ -543,7 +575,7 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<void> dispose({bool fireEndTrigger = true}) async {
-    if (_hub.isDisposed) return;
+    if (_disposed) return;
 
     // Fire onSessionEnd trigger before cleanup (if enabled)
     if (fireEndTrigger) {
@@ -598,9 +630,12 @@ class LocalVideSession implements VideSession {
     // Clear agent states
     _agentStates.clear();
 
-    // Dispose permission checker and event hub (also closes state stream)
+    // Dispose resources
+    _disposed = true;
     _permissionChecker.dispose();
-    _hub.dispose();
+    _conversationState.dispose();
+    _eventController.close();
+    _stateController.close();
   }
 
   // ===========================================================================
@@ -677,7 +712,7 @@ class LocalVideSession implements VideSession {
       case PermissionAskUser(inferredPattern: final inferredPattern):
         // Guard against disposed session — if dispose() already ran, deny
         // immediately to avoid orphaned completers that never resolve.
-        if (_hub.isDisposed) {
+        if (_disposed) {
           return const claude.PermissionResultDeny(message: 'Session disposed');
         }
 
@@ -697,7 +732,7 @@ class LocalVideSession implements VideSession {
         );
 
         // Emit permission request event
-        _hub.emit(
+        _emit(
           PermissionRequestEvent(
             agentId: agentId,
             agentType: agentType ?? 'unknown',
@@ -786,7 +821,7 @@ class LocalVideSession implements VideSession {
       final completer = Completer<Map<String, String>>();
       _pendingAskUserQuestions[requestId] = completer;
 
-      _hub.emit(
+      _emit(
         AskUserQuestionEvent(
           agentId: agentId,
           agentType: agentType ?? 'unknown',
@@ -817,7 +852,7 @@ class LocalVideSession implements VideSession {
     required Map<String, dynamic> toolInput,
   }) async {
     try {
-      if (_hub.isDisposed) {
+      if (_disposed) {
         return const claude.PermissionResultDeny(message: 'Session disposed');
       }
 
@@ -842,7 +877,7 @@ class LocalVideSession implements VideSession {
         taskName: taskName,
       );
 
-      _hub.emit(
+      _emit(
         PlanApprovalRequestEvent(
           agentId: agentId,
           agentType: agentType ?? 'unknown',
@@ -935,7 +970,7 @@ class LocalVideSession implements VideSession {
             ? next.currentNetwork!.agents.first
             : null;
 
-        _hub.emit(
+        _emit(
           TaskNameChangedEvent(
             agentId: mainAgent?.id ?? 'unknown',
             agentType: mainAgent?.type ?? 'main',
@@ -953,7 +988,7 @@ class LocalVideSession implements VideSession {
           (a) => a.id == agentId,
         );
 
-        _hub.emit(
+        _emit(
           AgentSpawnedEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -972,7 +1007,7 @@ class LocalVideSession implements VideSession {
           (a) => a.id == agentId,
         );
 
-        _hub.emit(
+        _emit(
           AgentTerminatedEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -984,7 +1019,7 @@ class LocalVideSession implements VideSession {
         _unsubscribeFromAgent(agentId);
       }
 
-      _hub.emitState();
+      _emitState();
     }, fireImmediately: false);
     _providerSubscriptions.add(subscription);
   }
@@ -1002,7 +1037,7 @@ class LocalVideSession implements VideSession {
     );
 
     final initialStatus = _container.read(agentStatusProvider(agent.id));
-    _hub.emit(
+    _emit(
       StatusEvent(
         agentId: agent.id,
         agentType: agent.type,
@@ -1020,7 +1055,7 @@ class LocalVideSession implements VideSession {
     final conversationSub = client.conversation.listen(
       (conversation) => _handleConversation(agent, conversation),
       onError: (error) {
-        _hub.emit(
+        _emit(
           ErrorEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -1035,7 +1070,7 @@ class LocalVideSession implements VideSession {
     final turnCompleteSub = client.onTurnComplete.listen((_) {
       final state = _agentStates[agent.id];
       if (state != null && state.currentMessageEventId != null) {
-        _hub.emit(
+        _emit(
           MessageEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -1051,7 +1086,7 @@ class LocalVideSession implements VideSession {
       }
 
       final conversation = client.currentConversation;
-      _hub.emit(
+      _emit(
         TurnCompleteEvent(
           agentId: agent.id,
           agentType: agent.type,
@@ -1089,7 +1124,7 @@ class LocalVideSession implements VideSession {
             state.taskName = agentMeta.taskName;
           }
 
-          _hub.emit(
+          _emit(
             StatusEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -1098,7 +1133,7 @@ class LocalVideSession implements VideSession {
               status: _mapStatus(next),
             ),
           );
-          _hub.emitState();
+          _emitState();
         }
       },
       fireImmediately: false,
@@ -1133,15 +1168,16 @@ class LocalVideSession implements VideSession {
       for (int i = state.lastMessageCount; i < currentMessageCount; i++) {
         final message = conversation.messages[i];
         final eventId = const Uuid().v4();
+        final isLastMessage = i == currentMessageCount - 1;
 
-        if (i == currentMessageCount - 1) {
-          state.currentMessageEventId = eventId;
+        state.currentMessageEventId = eventId;
+        state.lastResponseCount = 0;
+        if (isLastMessage) {
           state.lastContentLength = message.content.length;
-          state.lastResponseCount = 0;
         }
 
         if (message.content.isNotEmpty) {
-          _hub.emit(
+          _emit(
             MessageEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -1152,14 +1188,12 @@ class LocalVideSession implements VideSession {
                   ? 'user'
                   : 'assistant',
               content: message.content,
-              isPartial: i == currentMessageCount - 1,
+              isPartial: isLastMessage && conversation.isProcessing,
             ),
           );
         }
 
-        if (i == currentMessageCount - 1) {
-          _emitToolEvents(agent, message, state);
-        }
+        _emitToolEvents(agent, message, state);
       }
 
       state.lastMessageCount = currentMessageCount;
@@ -1176,7 +1210,7 @@ class LocalVideSession implements VideSession {
           // would appear as a separate message on the client.
           state.currentMessageEventId ??= const Uuid().v4();
           final eventId = state.currentMessageEventId!;
-          _hub.emit(
+          _emit(
             MessageEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -1198,7 +1232,7 @@ class LocalVideSession implements VideSession {
     }
 
     if (conversation.currentError != null) {
-      _hub.emit(
+      _emit(
         ErrorEvent(
           agentId: agent.id,
           agentType: agent.type,
@@ -1227,7 +1261,7 @@ class LocalVideSession implements VideSession {
         // finalized (isPartial: false), causing rendering bugs in clients
         // that consume events sequentially (e.g., mobile via WebSocket).
         if (state.currentMessageEventId != null) {
-          _hub.emit(
+          _emit(
             MessageEvent(
               agentId: agent.id,
               agentType: agent.type,
@@ -1245,7 +1279,7 @@ class LocalVideSession implements VideSession {
         final toolUseId = response.toolUseId ?? const Uuid().v4();
         state.toolNamesByUseId[toolUseId] = response.toolName;
 
-        _hub.emit(
+        _emit(
           ToolUseEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -1259,7 +1293,7 @@ class LocalVideSession implements VideSession {
       } else if (response is claude.ToolResultResponse) {
         final toolName =
             state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        _hub.emit(
+        _emit(
           ToolResultEvent(
             agentId: agent.id,
             agentType: agent.type,
@@ -1275,91 +1309,6 @@ class LocalVideSession implements VideSession {
     }
 
     state.lastResponseCount = responses.length;
-  }
-
-  // ===========================================================================
-  // Adapter methods
-  // ===========================================================================
-
-  /// Convert a claude_sdk Conversation to a VideConversation.
-  VideConversation _convertConversation(claude.Conversation conversation) {
-    return VideConversation(
-      messages: conversation.messages.map(_convertMessage).toList(),
-      state: conversation.isProcessing
-          ? VideConversationState.processing
-          : VideConversationState.idle,
-      totalInputTokens: conversation.totalInputTokens,
-      totalOutputTokens: conversation.totalOutputTokens,
-      totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
-      totalCostUsd: conversation.totalCostUsd,
-      currentContextInputTokens: conversation.currentContextInputTokens,
-      currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
-      currentContextCacheCreationTokens:
-          conversation.currentContextCacheCreationTokens,
-      currentError: conversation.currentError,
-    );
-  }
-
-  /// Convert a claude_sdk ConversationMessage to VideConversationMessage.
-  VideConversationMessage _convertMessage(claude.ConversationMessage message) {
-    return VideConversationMessage(
-      id: message.id,
-      role: message.role == claude.MessageRole.user
-          ? MessageRole.user
-          : MessageRole.assistant,
-      content: message.content,
-      timestamp: message.timestamp,
-      responses: message.responses
-          .map(_convertResponse)
-          .whereType<VideResponse>()
-          .toList(),
-      isStreaming: message.isStreaming,
-      isComplete: message.isComplete,
-      messageType: message.role == claude.MessageRole.user
-          ? VideMessageType.userMessage
-          : VideMessageType.assistantText,
-    );
-  }
-
-  /// Convert a claude_sdk response to VideResponse, or null if the response
-  /// should be filtered out (metadata-only types like CompletionResponse).
-  VideResponse? _convertResponse(claude.ClaudeResponse response) {
-    return switch (response) {
-      claude.TextResponse r => VideTextResponse(
-        id: r.id,
-        timestamp: r.timestamp,
-        content: r.content,
-        isPartial: r.isPartial,
-        isCumulative: r.isCumulative,
-      ),
-      claude.ToolUseResponse r => VideToolUseResponse(
-        id: r.id,
-        timestamp: r.timestamp,
-        toolName: r.toolName,
-        parameters: r.parameters,
-        toolUseId: r.toolUseId,
-      ),
-      claude.ToolResultResponse r => VideToolResultResponse(
-        id: r.id,
-        timestamp: r.timestamp,
-        toolUseId: r.toolUseId,
-        content: r.content,
-        isError: r.isError,
-      ),
-      // Metadata-only responses — no renderable content
-      claude.CompletionResponse() => null,
-      claude.ErrorResponse() => null,
-      claude.ApiErrorResponse() => null,
-      claude.StatusResponse() => null,
-      claude.MetaResponse() => null,
-      claude.TurnDurationResponse() => null,
-      claude.LocalCommandResponse() => null,
-      claude.CompactBoundaryResponse() => null,
-      claude.CompactSummaryResponse() => null,
-      claude.UserMessageResponse() => null,
-      claude.UnknownResponse() => null,
-    };
   }
 
   VideAgent _mapAgent(AgentMetadata agent) {

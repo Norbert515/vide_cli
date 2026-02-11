@@ -80,7 +80,7 @@ enum _AggregatedStatus {
 /// This provides safeguards against agents forgetting to call setAgentStatus.
 api.VideAgentStatus _inferActualStatus(
   api.VideAgentStatus explicitStatus,
-  api.VideConversation? conversation,
+  api.AgentConversationState? conversation,
 ) {
   if (conversation == null) {
     return explicitStatus;
@@ -91,9 +91,9 @@ api.VideAgentStatus _inferActualStatus(
     return api.VideAgentStatus.working;
   }
 
-  // If conversation is idle but agent claims to be working, override to idle
+  // If conversation is not processing but agent claims to be working, override to idle
   // This handles cases where agent forgot to call setAgentStatus("idle")
-  if (conversation.state == api.VideConversationState.idle &&
+  if (!conversation.isProcessing &&
       explicitStatus == api.VideAgentStatus.working) {
     return api.VideAgentStatus.idle;
   }

@@ -3,7 +3,7 @@
 /// This package defines the canonical types used across all Vide packages:
 /// - [VideSession] - Abstract session interface
 /// - [VideEvent] hierarchy - Unified event types with serialization
-/// - [VideAgent], [VideMessage], [VideConversation] - Core models
+/// - [VideAgent], [VideMessage] - Core models
 /// - [ConversationStateManager] - UI state accumulator
 ///
 /// ```dart
@@ -29,7 +29,6 @@ export 'src/events/agent_info.dart';
 export 'src/models/vide_agent.dart';
 export 'src/models/vide_config.dart';
 export 'src/models/vide_message.dart';
-export 'src/models/vide_conversation.dart';
 export 'src/models/vide_permission.dart';
 export 'src/models/enums.dart';
 
@@ -37,9 +36,3 @@ export 'src/models/enums.dart';
 // State Management
 // =============================================================================
 export 'src/state/conversation_state.dart';
-export 'src/state/session_event_hub.dart';
-
-// =============================================================================
-// Utilities
-// =============================================================================
-export 'src/utils/buffered_event_stream.dart';

@@ -145,10 +145,7 @@ void main() {
     });
 
     test('fromJson parses user-message without attachments', () {
-      final json = {
-        'type': 'user-message',
-        'content': 'No attachments here',
-      };
+      final json = {'type': 'user-message', 'content': 'No attachments here'};
 
       final message = ClientMessage.fromJson(json) as UserMessage;
 
@@ -320,86 +317,85 @@ void main() {
     });
   });
 
-  group('Attachment round-trip (client serialization → server deserialization)',
-      () {
-    test('image file attachment survives round-trip', () {
-      // Simulate what vide_client Session.sendMessage() produces
-      final clientJson = {
-        'type': 'user-message',
-        'content': 'Check this',
-        'attachments': [
-          {
-            'type': 'image',
-            'file-path': '/Users/me/screenshot.png',
-            'mime-type': 'image/png',
-          },
-        ],
-      };
+  group(
+    'Attachment round-trip (client serialization → server deserialization)',
+    () {
+      test('image file attachment survives round-trip', () {
+        // Simulate what vide_client Session.sendMessage() produces
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Check this',
+          'attachments': [
+            {
+              'type': 'image',
+              'file-path': '/Users/me/screenshot.png',
+              'mime-type': 'image/png',
+            },
+          ],
+        };
 
-      // Server parses it
-      final message = ClientMessage.fromJson(clientJson) as UserMessage;
+        // Server parses it
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
 
-      expect(message.attachments, hasLength(1));
-      final att = message.attachments![0];
-      expect(att.type, 'image');
-      expect(att.filePath, '/Users/me/screenshot.png');
-      expect(att.mimeType, 'image/png');
-      expect(att.content, isNull);
-    });
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'image');
+        expect(att.filePath, '/Users/me/screenshot.png');
+        expect(att.mimeType, 'image/png');
+        expect(att.content, isNull);
+      });
 
-    test('base64 image attachment survives round-trip', () {
-      final clientJson = {
-        'type': 'user-message',
-        'content': 'Pasted',
-        'attachments': [
-          {
-            'type': 'image',
-            'content': 'base64encodeddata==',
-            'mime-type': 'image/jpeg',
-          },
-        ],
-      };
+      test('base64 image attachment survives round-trip', () {
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Pasted',
+          'attachments': [
+            {
+              'type': 'image',
+              'content': 'base64encodeddata==',
+              'mime-type': 'image/jpeg',
+            },
+          ],
+        };
 
-      final message = ClientMessage.fromJson(clientJson) as UserMessage;
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
 
-      expect(message.attachments, hasLength(1));
-      final att = message.attachments![0];
-      expect(att.type, 'image');
-      expect(att.filePath, isNull);
-      expect(att.content, 'base64encodeddata==');
-      expect(att.mimeType, 'image/jpeg');
-    });
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'image');
+        expect(att.filePath, isNull);
+        expect(att.content, 'base64encodeddata==');
+        expect(att.mimeType, 'image/jpeg');
+      });
 
-    test('attachment with only required type field survives round-trip', () {
-      final clientJson = {
-        'type': 'user-message',
-        'content': 'Minimal',
-        'attachments': [
-          {'type': 'file'},
-        ],
-      };
+      test('attachment with only required type field survives round-trip', () {
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Minimal',
+          'attachments': [
+            {'type': 'file'},
+          ],
+        };
 
-      final message = ClientMessage.fromJson(clientJson) as UserMessage;
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
 
-      expect(message.attachments, hasLength(1));
-      final att = message.attachments![0];
-      expect(att.type, 'file');
-      expect(att.filePath, isNull);
-      expect(att.content, isNull);
-      expect(att.mimeType, isNull);
-    });
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'file');
+        expect(att.filePath, isNull);
+        expect(att.content, isNull);
+        expect(att.mimeType, isNull);
+      });
 
-    test('no attachments field results in null', () {
-      final clientJson = {
-        'type': 'user-message',
-        'content': 'Just text',
-      };
+      test('no attachments field results in null', () {
+        final clientJson = {'type': 'user-message', 'content': 'Just text'};
 
-      final message = ClientMessage.fromJson(clientJson) as UserMessage;
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
 
-      expect(message.attachments, isNull);
-    });
-  });
+        expect(message.attachments, isNull);
+      });
+    },
+  );
 
   group('SessionEvent', () {
     test('message event has correct kebab-case format', () {

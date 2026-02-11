@@ -9,7 +9,6 @@ import 'dart:async';
 
 import 'events/vide_event.dart';
 import 'models/vide_agent.dart';
-import 'models/vide_conversation.dart';
 import 'models/vide_message.dart';
 import 'models/vide_permission.dart';
 import 'state/conversation_state.dart';
@@ -159,6 +158,9 @@ abstract class VideSession {
   /// Stream of all events from all agents in the session.
   Stream<VideEvent> get events;
 
+  /// The authoritative list of all events processed by this session.
+  List<VideEvent> get eventHistory;
+
   // ============================================================
   // Messaging
   // ============================================================
@@ -242,11 +244,11 @@ abstract class VideSession {
   /// Clear the conversation for an agent (resets context).
   Future<void> clearConversation({String? agentId});
 
-  /// Get the current conversation for an agent.
-  VideConversation? getConversation(String agentId);
+  /// Get the current conversation state for an agent.
+  AgentConversationState? getConversation(String agentId);
 
-  /// Stream of conversation updates for an agent.
-  Stream<VideConversation> conversationStream(String agentId);
+  /// Stream of conversation state updates for an agent.
+  Stream<AgentConversationState> conversationStream(String agentId);
 
   /// Update token/cost statistics for an agent.
   void updateAgentTokenStats(

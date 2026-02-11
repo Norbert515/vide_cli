@@ -25,6 +25,5 @@ library;
 export 'package:vide_interface/vide_interface.dart';
 
 export 'src/client.dart';
-export 'src/remote_conversation_builder.dart';
 export 'src/remote_vide_session.dart';
 export 'src/session.dart';

@@ -243,10 +243,10 @@ class _AgentChat extends StatefulComponent {
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  StreamSubscription<VideConversation>? _conversationSubscription;
+  StreamSubscription<AgentConversationState>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
   StreamSubscription<String?>? _modelSubscription;
-  VideConversation _conversation = const VideConversation();
+  AgentConversationState? _conversation;
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
@@ -254,8 +254,6 @@ class _AgentChatState extends State<_AgentChat> {
   String? _model;
 
   /// Tracks attachments sent with user messages (keyed by message content).
-  /// Used to display attachment indicators for messages in local mode where
-  /// VideConversationMessage doesn't carry attachment info from claude_sdk.
   final Map<String, List<VideAttachment>> _sentAttachments = {};
 
   Future<void> _loadInitialAgentRuntimeMetadata(VideSession session) async {
@@ -286,8 +284,7 @@ class _AgentChatState extends State<_AgentChat> {
           // Sync token stats to AgentMetadata for persistence and network-wide tracking
           _syncTokenStats(conversation, session);
         });
-    _conversation =
-        session.getConversation(component.agentId) ?? const VideConversation();
+    _conversation = session.getConversation(component.agentId);
 
     // Listen to queued message updates
     _queueSubscription = session.queuedMessageStream(component.agentId).listen((
@@ -304,7 +301,7 @@ class _AgentChatState extends State<_AgentChat> {
     unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
-  void _syncTokenStats(VideConversation conversation, VideSession session) {
+  void _syncTokenStats(AgentConversationState conversation, VideSession session) {
     session.updateAgentTokenStats(
       component.agentId,
       totalInputTokens: conversation.totalInputTokens,
@@ -354,7 +351,7 @@ class _AgentChatState extends State<_AgentChat> {
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
         setState(() {
-          _conversation = const VideConversation();
+          _conversation = null;
         });
       },
       exitApp: shutdownApp,
@@ -442,11 +439,12 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   List<Map<String, dynamic>>? _getLatestTodos() {
-    for (final message in _conversation.messages.reversed) {
-      for (final response in message.responses.reversed) {
-        if (response is VideToolUseResponse &&
-            response.toolName == 'TodoWrite') {
-          final todos = response.parameters['todos'];
+    final conv = _conversation;
+    if (conv == null) return null;
+    for (final entry in conv.messages.reversed) {
+      for (final content in entry.content.reversed) {
+        if (content is ToolContent && content.toolName == 'TodoWrite') {
+          final todos = content.toolInput['todos'];
           if (todos is List) {
             return todos.cast<Map<String, dynamic>>();
           }
@@ -562,14 +560,16 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   Component _buildContextUsageSection(VideThemeData theme) {
+    final conv = _conversation;
     // Use currentContextWindowTokens for context window percentage.
     // This is the CURRENT context size (from latest turn), which includes:
     // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
     // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens =
-        _conversation.currentContextInputTokens +
-        _conversation.currentContextCacheReadTokens +
-        _conversation.currentContextCacheCreationTokens;
+    final usedTokens = conv != null
+        ? conv.currentContextInputTokens +
+              conv.currentContextCacheReadTokens +
+              conv.currentContextCacheCreationTokens
+        : 0;
     final percentage = kClaudeContextWindowSize > 0
         ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
         : 0.0;
@@ -582,7 +582,7 @@ class _AgentChatState extends State<_AgentChat> {
     // If nothing to show (no model, no context warning, no cost), return empty
     if (_model == null &&
         !showContextUsage &&
-        _conversation.totalCostUsd <= 0) {
+        (conv == null || conv.totalCostUsd <= 0)) {
       return SizedBox();
     }
 
@@ -627,12 +627,13 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   /// Builds the filtered list of messages (excluding slash commands)
-  List<VideConversationMessage> _getFilteredMessages() {
-    return _conversation.messages.reversed
+  List<ConversationEntry> _getFilteredMessages() {
+    final conv = _conversation;
+    if (conv == null) return [];
+    return conv.messages.reversed
         .where(
-          (message) =>
-              !(message.role == MessageRole.user &&
-                  message.content.startsWith('/')),
+          (entry) =>
+              !(entry.role == 'user' && entry.text.startsWith('/')),
         )
         .toList();
   }
@@ -734,7 +735,7 @@ class _AgentChatState extends State<_AgentChat> {
                   ),
 
                 // Loading indicator row - always 1 cell height to prevent layout jumps
-                if (_conversation.isProcessing &&
+                if (_conversation?.isProcessing == true &&
                     currentPlanApproval == null &&
                     currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)
@@ -954,103 +955,20 @@ class _AgentChatState extends State<_AgentChat> {
 
   Component _buildMessage(
     BuildContext context,
-    VideConversationMessage message,
+    ConversationEntry entry,
   ) {
     final theme = VideTheme.of(context);
 
-    // Check for compact boundary message using messageType
-    if (message.messageType == MessageType.compactBoundary) {
-      // Extract compact metadata for display
-      final compactResponse =
-          message.responses.firstWhere((r) => r is CompactBoundaryResponse)
-              as CompactBoundaryResponse;
-      final trigger = compactResponse.trigger;
-      final preTokens = compactResponse.preTokens;
-
-      return Container(
-        padding: EdgeInsets.symmetric(vertical: 1),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '────────────── Conversation Compacted ($trigger) ──────────────',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (preTokens > 0)
-              Text(
-                'Previous context: ${(preTokens / 1000).toStringAsFixed(0)}k tokens',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    // Check for compact summary user message
-    if (message.messageType == MessageType.compactSummary) {
-      // Show compact summary as collapsed/truncated
-      final summaryPreview = message.content.length > 100
-          ? '${message.content.substring(0, 100)}...'
-          : message.content;
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '📋 Continuation Summary',
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              summaryPreview,
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (message.role == MessageRole.user) {
-      // Resolve attachments from multiple sources:
-      // 1. message.attachments - populated in remote mode by RemoteConversationBuilder
-      // 2. _sentAttachments - locally tracked for follow-up messages in local mode
-      // 3. ConversationStateManager - captures attachments from MessageEvent for
-      //    the initial session message in local mode
-      var attachments =
-          message.attachments ?? _sentAttachments[message.content];
-      if (attachments == null) {
-        final csm = context.read(conversationStateManagerProvider);
-        final agentState = csm?.getAgentState(component.agentId);
-        if (agentState != null) {
-          for (final entry in agentState.messages) {
-            if (entry.role == 'user' && entry.text == message.content) {
-              for (final c in entry.content) {
-                if (c is AttachmentContent) {
-                  attachments = c.attachments;
-                  break;
-                }
-              }
-              break;
-            }
-          }
+    if (entry.role == 'user') {
+      // Resolve attachments from entry content or locally tracked
+      List<VideAttachment>? attachments;
+      for (final c in entry.content) {
+        if (c is AttachmentContent) {
+          attachments = c.attachments;
+          break;
         }
       }
+      attachments ??= _sentAttachments[entry.text];
 
       return Container(
         padding: EdgeInsets.only(bottom: 1),
@@ -1058,7 +976,7 @@ class _AgentChatState extends State<_AgentChat> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '> ${message.content}',
+              '> ${entry.text}',
               style: TextStyle(color: theme.base.onSurface),
             ),
             if (attachments != null && attachments.isNotEmpty)
@@ -1075,94 +993,48 @@ class _AgentChatState extends State<_AgentChat> {
         ),
       );
     } else {
-      // Build tool results lookup for pairing with tool calls
-      final toolResultsById = <String, VideToolResultResponse>{};
-      for (final response in message.responses) {
-        if (response is VideToolResultResponse) {
-          toolResultsById[response.toolUseId] = response;
-        }
-      }
-
-      // Process responses in order, preserving interleaving of text and tool calls.
-      // Text segments are accumulated between tool calls to handle streaming deltas.
+      // Assistant message — iterate content blocks
       final widgets = <Component>[];
-      final renderedToolResults = <String>{};
 
-      // Track text accumulation for the current segment
-      final textBuffer = StringBuffer();
+      for (final content in entry.content) {
+        if (content is TextContent) {
+          if (content.text.isNotEmpty) {
+            // Check for context-full errors and add helpful hint
+            final isContextFullError =
+                content.text.toLowerCase().contains('prompt is too long') ||
+                content.text.toLowerCase().contains('context window') ||
+                content.text.toLowerCase().contains('token limit');
 
-      // Helper to flush accumulated text as a widget
-      void flushTextSegment() {
-        final text = textBuffer.toString();
-        if (text.isNotEmpty) {
-          // Check for context-full errors and add helpful hint
-          final isContextFullError =
-              text.toLowerCase().contains('prompt is too long') ||
-              text.toLowerCase().contains('context window') ||
-              text.toLowerCase().contains('token limit');
+            widgets.add(MarkdownText(content.text));
 
-          widgets.add(MarkdownText(text));
-
-          if (isContextFullError) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(top: 1),
-                child: Text(
-                  '💡 Tip: Type /compact to free up context space',
-                  style: TextStyle(color: theme.base.primary),
+            if (isContextFullError) {
+              widgets.add(
+                Container(
+                  padding: EdgeInsets.only(top: 1),
+                  child: Text(
+                    '💡 Tip: Type /compact to free up context space',
+                    style: TextStyle(color: theme.base.primary),
+                  ),
                 ),
-              ),
-            );
-          }
-        }
-        textBuffer.clear();
-      }
-
-      bool hasPartialInSegment = false;
-
-      for (final response in message.responses) {
-        if (response is VideTextResponse) {
-          // Accumulate text for the current segment, handling streaming deduplication.
-          // When we have partial (delta) responses, only use those.
-          // When we have cumulative responses, use only the last one (clear before writing).
-          if (response.isPartial) {
-            hasPartialInSegment = true;
-            textBuffer.write(response.content);
-          } else if (response.isCumulative) {
-            // Cumulative contains full text up to this point - only use if no partials
-            if (!hasPartialInSegment) {
-              textBuffer.clear();
-              textBuffer.write(response.content);
+              );
             }
-            // If we have partials, ignore cumulative to avoid duplicates
-          } else {
-            // Sequential non-partial, non-cumulative - concatenate
-            textBuffer.write(response.content);
           }
-        } else if (response is VideToolUseResponse) {
-          // Flush any accumulated text before this tool call
-          flushTextSegment();
-
-          // Check if we have a result for this tool call
-          final result = response.toolUseId != null
-              ? toolResultsById[response.toolUseId]
-              : null;
-
+        } else if (content is ToolContent) {
           // Bridge to claude_sdk ToolInvocation for rendering
           final toolCall = ToolUseResponse(
-            id: response.id,
-            timestamp: response.timestamp,
-            toolName: response.toolName,
-            parameters: response.parameters,
-            toolUseId: response.toolUseId,
+            id: content.toolUseId,
+            timestamp: DateTime.now(),
+            toolName: content.toolName,
+            parameters: content.toolInput,
+            toolUseId: content.toolUseId,
           );
-          final toolResult = result != null
+          final toolResult = content.result != null
               ? ToolResultResponse(
-                  id: result.id,
-                  timestamp: result.timestamp,
-                  toolUseId: result.toolUseId,
-                  content: result.content,
-                  isError: result.isError,
+                  id: content.toolUseId,
+                  timestamp: DateTime.now(),
+                  toolUseId: content.toolUseId,
+                  content: content.result!,
+                  isError: content.isError,
                 )
               : null;
 
@@ -1175,39 +1047,18 @@ class _AgentChatState extends State<_AgentChat> {
           final session = context.read(currentVideSessionProvider);
           widgets.add(
             ToolInvocationRouter(
-              key: ValueKey(response.toolUseId ?? response.id),
+              key: ValueKey(content.toolUseId),
               invocation: invocation,
               workingDirectory: session?.state.workingDirectory ?? '',
               executionId: component.networkId,
               agentId: component.agentId,
             ),
           );
-          if (result != null && response.toolUseId != null) {
-            renderedToolResults.add(response.toolUseId!);
-          }
-        } else if (response is VideToolResultResponse) {
-          // Tool results are paired with their calls above, so we skip them here
-          // unless they're orphaned (which shouldn't normally happen)
-          if (!renderedToolResults.contains(response.toolUseId)) {
-            flushTextSegment();
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[orphaned result: ${response.content}]',
-                  style: TextStyle(color: theme.base.error),
-                ),
-              ),
-            );
-          }
         }
       }
 
-      // Flush any remaining text after the last tool call
-      flushTextSegment();
-
       // Show loading indicator if streaming with no content yet
-      if (widgets.isEmpty && message.isStreaming) {
+      if (widgets.isEmpty && entry.isStreaming) {
         widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
       }
 
@@ -1217,8 +1068,8 @@ class _AgentChatState extends State<_AgentChat> {
           children: [
             ...widgets,
 
-            // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming)
+            // If no content yet but streaming, show loading
+            if (entry.content.isEmpty && entry.isStreaming)
               EnhancedLoadingIndicator(agentId: component.agentId),
           ],
         ),

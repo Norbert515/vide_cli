@@ -5,7 +5,6 @@ import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vide_interface/vide_interface.dart';
 
-import 'remote_conversation_builder.dart';
 import 'session.dart';
 
 /// Handle for an optimistic remote session that is still connecting.
@@ -118,9 +117,13 @@ class RemoteVideSession implements VideSession {
   Session? _clientSession;
   StreamSubscription<VideEvent>? _eventSubscription;
 
-  final SessionEventHub _hub = SessionEventHub();
-  final RemoteConversationBuilder _conversationBuilder =
-      RemoteConversationBuilder();
+  /// Direct event pipeline (replaces SessionEventHub).
+  final StreamController<VideEvent> _eventController =
+      StreamController<VideEvent>.broadcast(sync: true);
+  final ConversationStateManager _conversationState = ConversationStateManager();
+  final StreamController<VideState> _stateController =
+      StreamController<VideState>.broadcast();
+  bool _disposed = false;
 
   /// Tracks agent info from connected/spawn events.
   final Map<String, _RemoteAgentInfo> _agents = {};
@@ -210,7 +213,7 @@ class RemoteVideSession implements VideSession {
     String? mainAgentId,
   }) : _sessionId = clientSession.id,
        _clientSession = clientSession {
-    _hub.setStateBuilder(_buildState);
+    _eventController.stream.listen(_conversationState.handleEvent);
     _initWithMainAgent(mainAgentId);
     _setupEventListening();
   }
@@ -222,7 +225,7 @@ class RemoteVideSession implements VideSession {
   RemoteVideSession.pending()
     : _sessionId = const Uuid().v4(),
       _isPending = true {
-    _hub.setStateBuilder(_buildState);
+    _eventController.stream.listen(_conversationState.handleEvent);
     // Pre-populate with a placeholder main agent
     final placeholderId = const Uuid().v4();
     _mainAgentId = placeholderId;
@@ -292,16 +295,24 @@ class RemoteVideSession implements VideSession {
 
     final agentInfo = _agents[agentId];
 
-    _conversationBuilder.addUserMessage(
-      agentId,
-      content,
-      attachments: attachments,
+    // Emit a user message event so ConversationStateManager picks it up
+    _emit(
+      MessageEvent(
+        agentId: agentId,
+        agentType: agentInfo?.type ?? 'main',
+        agentName: agentInfo?.name,
+        eventId: const Uuid().v4(),
+        role: 'user',
+        content: content,
+        isPartial: false,
+        attachments: attachments,
+      ),
     );
 
     _hadInitialMessage = true;
 
     // Emit optimistic status event so UI shows the agent as working
-    _hub.emit(
+    _emit(
       StatusEvent(
         agentId: agentId,
         agentType: agentInfo?.type ?? 'main',
@@ -332,13 +343,13 @@ class RemoteVideSession implements VideSession {
     _eventSubscription = session.events.listen(
       _handleClientEvent,
       onError: (error) {
-        _hub.emitError(error);
+        _eventController.addError(error);
         if (!_connectCompleter.isCompleted) {
           _connectCompleter.completeError(error);
         }
       },
       onDone: () {
-        if (!_hub.isDisposed) {
+        if (!_disposed) {
           _connected = false;
           _connectionStateController.add(false);
         }
@@ -458,18 +469,11 @@ class RemoteVideSession implements VideSession {
       _refreshQueuedMessage(agent.id);
     }
 
-    // Migrate pending conversation from placeholder to real main agent
-    if (_pendingAgentIdToMigrate != null && _mainAgentId != null) {
-      _conversationBuilder.migrateConversation(
-        fromAgentId: _pendingAgentIdToMigrate!,
-        toAgentId: _mainAgentId!,
-      );
-      _pendingAgentIdToMigrate = null;
-    }
+    _pendingAgentIdToMigrate = null;
 
     _connected = true;
     _connectionStateController.add(true);
-    _hub.emitState();
+    _emitState();
     if (!_connectCompleter.isCompleted) {
       _connectCompleter.complete();
     }
@@ -536,16 +540,7 @@ class RemoteVideSession implements VideSession {
     final eventId = event.eventId;
     final role = event.role == 'user' ? 'user' : 'assistant';
 
-    _conversationBuilder.handleMessage(
-      agentId: agentId,
-      eventId: eventId,
-      role: role,
-      content: event.content,
-      isPartial: event.isPartial,
-      isHistoryReplay: isHistoryReplay,
-    );
-
-    _hub.emit(
+    _emit(
       MessageEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -562,14 +557,7 @@ class RemoteVideSession implements VideSession {
   void _handleToolUse(ToolUseEvent event) {
     final agentId = event.agentId;
 
-    _conversationBuilder.handleToolUse(
-      agentId: agentId,
-      toolUseId: event.toolUseId,
-      toolName: event.toolName,
-      toolInput: event.toolInput,
-    );
-
-    _hub.emit(
+    _emit(
       ToolUseEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -586,14 +574,7 @@ class RemoteVideSession implements VideSession {
     final agentId = event.agentId;
     final resultStr = event.result;
 
-    _conversationBuilder.handleToolResult(
-      agentId: agentId,
-      toolUseId: event.toolUseId,
-      result: resultStr,
-      isError: event.isError,
-    );
-
-    _hub.emit(
+    _emit(
       ToolResultEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -614,7 +595,7 @@ class RemoteVideSession implements VideSession {
     _refreshQueuedMessage(agentId);
     _refreshModel(agentId);
 
-    _hub.emit(
+    _emit(
       StatusEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -623,7 +604,7 @@ class RemoteVideSession implements VideSession {
         status: event.status,
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   void _handleDone(TurnCompleteEvent event) {
@@ -631,9 +612,7 @@ class RemoteVideSession implements VideSession {
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
-    _conversationBuilder.markAssistantTurnComplete(agentId);
-
-    _hub.emit(
+    _emit(
       TurnCompleteEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -642,13 +621,13 @@ class RemoteVideSession implements VideSession {
         reason: event.reason,
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   void _handleError(ErrorEvent event) {
     final agentId = event.agentId;
 
-    _hub.emit(
+    _emit(
       ErrorEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -675,7 +654,7 @@ class RemoteVideSession implements VideSession {
     _refreshModel(agentId);
     _refreshQueuedMessage(agentId);
 
-    _hub.emit(
+    _emit(
       AgentSpawnedEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -684,7 +663,7 @@ class RemoteVideSession implements VideSession {
         spawnedBy: event.spawnedBy,
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   void _handleAgentTerminated(AgentTerminatedEvent event) {
@@ -701,9 +680,7 @@ class RemoteVideSession implements VideSession {
     _queuedRefreshInFlight.remove(agentId);
     unawaited(_modelControllers.remove(agentId)?.close());
     unawaited(_queuedMessageControllers.remove(agentId)?.close());
-    _conversationBuilder.removeAgent(agentId);
-
-    _hub.emit(
+    _emit(
       AgentTerminatedEvent(
         agentId: agentId,
         agentType: agentType,
@@ -713,7 +690,7 @@ class RemoteVideSession implements VideSession {
         terminatedBy: event.terminatedBy,
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   void _handlePermissionRequest(PermissionRequestEvent event) {
@@ -732,13 +709,13 @@ class RemoteVideSession implements VideSession {
     );
     _pendingPermissionRequest = enrichedEvent;
 
-    _hub.emit(enrichedEvent);
+    _emit(enrichedEvent);
   }
 
   void _handleAskUserQuestion(AskUserQuestionEvent event) {
     final agentId = event.agentId;
 
-    _hub.emit(
+    _emit(
       AskUserQuestionEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -757,7 +734,7 @@ class RemoteVideSession implements VideSession {
     final previousGoal = _goal;
     _goal = event.newGoal;
 
-    _hub.emit(
+    _emit(
       TaskNameChangedEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -767,7 +744,7 @@ class RemoteVideSession implements VideSession {
         previousGoal: event.previousGoal ?? previousGoal,
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   void _handlePermissionResolved(PermissionResolvedEvent event) {
@@ -780,7 +757,7 @@ class RemoteVideSession implements VideSession {
     }
 
     // Re-emit so UI consumers (mobile app) can dismiss stale permission dialogs
-    _hub.emit(
+    _emit(
       PermissionResolvedEvent(
         agentId: event.agentId,
         agentType: _resolveAgentType(event.agentId, event),
@@ -796,7 +773,7 @@ class RemoteVideSession implements VideSession {
   void _handlePlanApprovalRequest(PlanApprovalRequestEvent event) {
     final agentId = event.agentId;
 
-    _hub.emit(
+    _emit(
       PlanApprovalRequestEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -810,7 +787,7 @@ class RemoteVideSession implements VideSession {
   }
 
   void _handlePlanApprovalResolved(PlanApprovalResolvedEvent event) {
-    _hub.emit(
+    _emit(
       PlanApprovalResolvedEvent(
         agentId: event.agentId,
         agentType: _resolveAgentType(event.agentId, event),
@@ -828,7 +805,7 @@ class RemoteVideSession implements VideSession {
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
-    _hub.emit(
+    _emit(
       TurnCompleteEvent(
         agentId: agentId,
         agentType: _resolveAgentType(agentId, event),
@@ -837,7 +814,7 @@ class RemoteVideSession implements VideSession {
         reason: 'aborted',
       ),
     );
-    _hub.emitState();
+    _emitState();
   }
 
   StreamController<String?> _getOrCreateQueuedMessageController(
@@ -870,7 +847,7 @@ class RemoteVideSession implements VideSession {
     unawaited(() async {
       try {
         final value = await fetch(session, agentId);
-        if (_hub.isDisposed) return;
+        if (_disposed) return;
         if (cache[agentId] != value) {
           cache[agentId] = value;
           getController(agentId).add(value);
@@ -935,17 +912,39 @@ class RemoteVideSession implements VideSession {
         .toList();
   }
 
+  /// Build a snapshot of per-agent conversation states.
+  List<AgentConversationState> get _agentConversationStateSnapshot {
+    return _conversationState.agentIds
+        .map((id) => _conversationState.getAgentState(id))
+        .whereType<AgentConversationState>()
+        .toList();
+  }
+
   /// Build the current immutable state snapshot.
   VideState _buildState() {
     return VideState(
       id: _sessionId,
       agents: _buildAgents(),
-      agentConversationStates: _hub.agentConversationStateSnapshot,
+      agentConversationStates: _agentConversationStateSnapshot,
       team: _team,
       goal: _goal,
       workingDirectory: _workingDirectory,
       isProcessing: _agentStatuses.values.any((s) => s != VideAgentStatus.idle),
     );
+  }
+
+  void _emit(VideEvent event) => _eventController.add(event);
+
+  void _emitState() {
+    if (!_disposed) {
+      _stateController.add(_buildState());
+    }
+  }
+
+  void _checkNotDisposed() {
+    if (_disposed) {
+      throw StateError('Session has been disposed');
+    }
   }
 
   // ============================================================
@@ -956,21 +955,23 @@ class RemoteVideSession implements VideSession {
   String get id => _sessionId;
 
   @override
-  ConversationStateManager get conversationState =>
-      _hub.conversationStateManager;
+  ConversationStateManager get conversationState => _conversationState;
 
   @override
-  VideState get state => _hub.state;
+  VideState get state => _buildState();
 
   @override
-  Stream<VideState> get stateStream => _hub.stateStream;
+  Stream<VideState> get stateStream => _stateController.stream;
 
   @override
-  Stream<VideEvent> get events => _hub.events;
+  Stream<VideEvent> get events => _eventController.stream;
+
+  @override
+  List<VideEvent> get eventHistory => _conversationState.eventHistory;
 
   @override
   void sendMessage(VideMessage message, {String? agentId}) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final targetAgentId = agentId ?? _mainAgentId;
     _clientSession?.sendMessage(
       message.text,
@@ -980,10 +981,17 @@ class RemoteVideSession implements VideSession {
 
     // Optimistically add the user message for immediate display.
     if (targetAgentId != null) {
-      _conversationBuilder.addUserMessage(
-        targetAgentId,
-        message.text,
-        attachments: message.attachments,
+      _emit(
+        MessageEvent(
+          agentId: targetAgentId,
+          agentType: _agents[targetAgentId]?.type ?? 'unknown',
+          agentName: _agents[targetAgentId]?.name,
+          eventId: const Uuid().v4(),
+          role: 'user',
+          content: message.text,
+          isPartial: false,
+          attachments: message.attachments,
+        ),
       );
     }
 
@@ -992,7 +1000,7 @@ class RemoteVideSession implements VideSession {
     if (targetAgentId != null &&
         _agentStatuses[targetAgentId] == VideAgentStatus.idle) {
       _agentStatuses[targetAgentId] = VideAgentStatus.working;
-      _hub.emitState();
+      _emitState();
     }
 
     // Optimistically reflect queued message when agent is already busy.
@@ -1013,7 +1021,7 @@ class RemoteVideSession implements VideSession {
     bool remember = false,
     String? patternOverride,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     _clientSession?.respondToPermission(
       requestId: requestId,
       allow: allow,
@@ -1025,13 +1033,13 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> abort() async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     _clientSession?.abort();
   }
 
   @override
   Future<void> abortAgent(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     await session.abortAgent(agentId);
@@ -1039,7 +1047,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> dispose({bool fireEndTrigger = true}) async {
-    if (_hub.isDisposed) return;
+    if (_disposed) return;
 
     await _eventSubscription?.cancel();
     await _clientSession?.close();
@@ -1055,9 +1063,11 @@ class RemoteVideSession implements VideSession {
     }
     _pendingPermissions.clear();
 
-    // Dispose hub (also closes _stateController and sets _disposed)
-    _hub.dispose();
-    _conversationBuilder.dispose();
+    // Dispose resources
+    _disposed = true;
+    _conversationState.dispose();
+    _eventController.close();
+    _stateController.close();
 
     for (final controller in _queuedMessageControllers.values) {
       await controller.close();
@@ -1084,39 +1094,38 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> clearConversation({String? agentId}) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
 
     final targetAgentId = agentId ?? _mainAgentId;
     await session.clearConversation(agentId: targetAgentId);
 
-    if (targetAgentId != null) {
-      _conversationBuilder.clearConversation(targetAgentId);
-    }
+    // ConversationStateManager doesn't have per-agent clear, but the server
+    // handles the actual clear. A fresh conversation will be built from new events.
   }
 
   @override
   Future<void> setWorktreePath(String? path) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     final result = await session.setWorktreePath(path);
     final newDir = result?['working-directory'] as String? ?? _workingDirectory;
     if (newDir != _workingDirectory) {
       _workingDirectory = newDir;
-      _hub.emitState();
+      _emitState();
     }
   }
 
   @override
-  VideConversation? getConversation(String agentId) {
-    return _conversationBuilder.getConversation(agentId);
+  AgentConversationState? getConversation(String agentId) {
+    return _conversationState.getAgentState(agentId);
   }
 
   @override
-  Stream<VideConversation> conversationStream(String agentId) {
-    return _conversationBuilder.conversationStream(agentId);
+  Stream<AgentConversationState> conversationStream(String agentId) {
+    return _conversationState.agentStream(agentId);
   }
 
   @override
@@ -1137,7 +1146,7 @@ class RemoteVideSession implements VideSession {
     required String terminatedBy,
     String? reason,
   }) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     await session.terminateAgent(
@@ -1149,7 +1158,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<String> forkAgent(String agentId, {String? name}) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) {
       throw StateError('Remote session is not connected');
@@ -1164,7 +1173,7 @@ class RemoteVideSession implements VideSession {
     required String initialPrompt,
     required String spawnedBy,
   }) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) {
       throw StateError('Remote session is not connected');
@@ -1179,7 +1188,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<String?> getQueuedMessage(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return _queuedMessages[agentId];
 
@@ -1199,7 +1208,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> clearQueuedMessage(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     await session.clearQueuedMessage(agentId);
@@ -1209,7 +1218,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<String?> getModel(String agentId) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return _models[agentId];
 
@@ -1253,7 +1262,7 @@ class RemoteVideSession implements VideSession {
     String requestId, {
     required Map<String, String> answers,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     _clientSession?.respondToAskUserQuestion(
       requestId: requestId,
       answers: answers,
@@ -1266,7 +1275,7 @@ class RemoteVideSession implements VideSession {
     required String action,
     String? feedback,
   }) {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     _clientSession?.respondToPlanApproval(
       requestId: requestId,
       action: action,
@@ -1276,7 +1285,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> addSessionPermissionPattern(String pattern) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     await session.addSessionPermissionPattern(pattern);
@@ -1287,7 +1296,7 @@ class RemoteVideSession implements VideSession {
     String toolName,
     Map<String, dynamic> input,
   ) async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return false;
     return await session.isAllowedBySessionCache(toolName, input);
@@ -1295,7 +1304,7 @@ class RemoteVideSession implements VideSession {
 
   @override
   Future<void> clearSessionPermissionCache() async {
-    _hub.checkNotDisposed();
+    _checkNotDisposed();
     final session = _clientSession;
     if (session == null) return;
     await session.clearSessionPermissionCache();

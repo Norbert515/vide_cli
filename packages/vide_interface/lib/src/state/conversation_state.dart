@@ -161,11 +161,8 @@ class AgentConversationState {
   int currentContextCacheReadTokens;
   int currentContextCacheCreationTokens;
 
-  /// Whether the agent is currently processing (has streaming content).
-  bool get isProcessing {
-    if (messages.isEmpty) return false;
-    return messages.last.isStreaming;
-  }
+  /// Whether the agent is currently processing.
+  bool get isProcessing => status == VideAgentStatus.working;
 
   /// Total context tokens used across all turns.
   int get totalContextTokens =>
@@ -207,6 +204,8 @@ class AgentConversationState {
 /// Manages conversation state accumulated from [VideEvent]s.
 ///
 /// This is the bridge between the event stream and UI rendering.
+/// It also serves as the authoritative store of event history for the session,
+/// enabling features like history replay for late-joining clients.
 class ConversationStateManager {
   /// Per-agent conversation state.
   final Map<String, AgentConversationState> _agentStates = {};
@@ -215,15 +214,42 @@ class ConversationStateManager {
   final StreamController<void> _changeController =
       StreamController<void>.broadcast();
 
+  /// Per-agent stream controllers for targeted subscriptions.
+  final Map<String, StreamController<AgentConversationState>>
+      _agentControllers = {};
+
+  /// Authoritative event history for this session.
+  final List<VideEvent> _eventHistory = [];
+
   /// Stream that emits whenever state changes.
   Stream<void> get onStateChanged => _changeController.stream;
 
   /// Get all agent IDs with state.
   Iterable<String> get agentIds => _agentStates.keys;
 
+  /// The authoritative list of all events processed by this manager.
+  List<VideEvent> get eventHistory => List.unmodifiable(_eventHistory);
+
   /// Get state for a specific agent.
   AgentConversationState? getAgentState(String agentId) =>
       _agentStates[agentId];
+
+  /// Stream of state changes for a specific agent.
+  ///
+  /// Emits the current [AgentConversationState] whenever that agent's
+  /// conversation state changes (new message, tool use, status update, etc.).
+  Stream<AgentConversationState> agentStream(String agentId) {
+    return _getOrCreateAgentController(agentId).stream;
+  }
+
+  StreamController<AgentConversationState> _getOrCreateAgentController(
+    String agentId,
+  ) {
+    return _agentControllers.putIfAbsent(
+      agentId,
+      () => StreamController<AgentConversationState>.broadcast(),
+    );
+  }
 
   /// Get or create state for an agent.
   AgentConversationState _getOrCreateAgentState(VideEvent event) {
@@ -239,7 +265,11 @@ class ConversationStateManager {
   }
 
   /// Handle an event and update state.
+  ///
+  /// Every event is appended to [eventHistory] before processing.
   void handleEvent(VideEvent event) {
+    _eventHistory.add(event);
+
     switch (event) {
       case MessageEvent e:
         _handleMessage(e);
@@ -268,6 +298,15 @@ class ConversationStateManager {
       case CommandResultEvent _:
       case UnknownEvent _:
         break;
+    }
+  }
+
+  /// Notify both global and per-agent listeners of a state change.
+  void _notifyChange(String agentId) {
+    _changeController.add(null);
+    final state = _agentStates[agentId];
+    if (state != null) {
+      _getOrCreateAgentController(agentId).add(state);
     }
   }
 
@@ -317,7 +356,7 @@ class ConversationStateManager {
       );
     }
 
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleToolUse(ToolUseEvent event) {
@@ -357,7 +396,7 @@ class ConversationStateManager {
       content: contentList,
     );
 
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleToolResult(ToolResultEvent event) {
@@ -387,14 +426,14 @@ class ConversationStateManager {
 
     state.messages[messageIndex] = message.copyWith(content: contentList);
 
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleStatus(StatusEvent event) {
     final state = _getOrCreateAgentState(event);
     state.status = event.status;
     state.taskName = event.taskName;
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleTurnComplete(TurnCompleteEvent event) {
@@ -435,27 +474,37 @@ class ConversationStateManager {
       }
     }
 
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleAgentSpawned(AgentSpawnedEvent event) {
     _getOrCreateAgentState(event);
-    _changeController.add(null);
+    _notifyChange(event.agentId);
   }
 
   void _handleAgentTerminated(AgentTerminatedEvent event) {
     _agentStates.remove(event.agentId);
+    _agentControllers.remove(event.agentId)?.close();
     _changeController.add(null);
   }
 
   /// Clear all state.
   void clear() {
     _agentStates.clear();
+    _eventHistory.clear();
+    for (final controller in _agentControllers.values) {
+      controller.close();
+    }
+    _agentControllers.clear();
     _changeController.add(null);
   }
 
   /// Dispose resources.
   void dispose() {
+    for (final controller in _agentControllers.values) {
+      controller.close();
+    }
+    _agentControllers.clear();
     _changeController.close();
   }
 }

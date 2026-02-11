@@ -26,8 +26,19 @@ class SessionBroadcaster {
   bool _disposed = false;
 
   SessionBroadcaster(this.session) {
+    // Seed from the session's authoritative event history so late-joining
+    // subscribers (like this broadcaster) don't miss events that were
+    // emitted before the subscription was established.
+    for (final event in session.eventHistory) {
+      final json = event.toJson();
+      json['seq'] = _nextSeq++;
+      json['event-id'] ??= _uuid.v4();
+      _storedEvents.add(json);
+    }
     _subscription = session.events.listen(_handleEvent);
-    _log.info('[${session.id}] Started broadcasting');
+    _log.info(
+      '[${session.id}] Started broadcasting (seeded ${_storedEvents.length} events from history)',
+    );
   }
 
   /// Get stored events for history replay.
