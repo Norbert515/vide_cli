@@ -10,7 +10,9 @@ import '../../features/chat/widgets/tool_card.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
 import '../../features/sessions/sessions_list_screen.dart';
+import '../../features/settings/admin_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/title/title_screen.dart';
 
 part 'app_router.g.dart';
 
@@ -21,6 +23,8 @@ abstract class AppRoutes {
   static const newSession = '/session/new';
   static const session = '/session/:id';
   static const settings = '/settings';
+  static const admin = '/admin';
+  static const title = '/title';
   static const toolDetail = '/session/:id/tool';
 
   static String sessionPath(String id) => '/session/$id';
@@ -63,6 +67,16 @@ GoRouter appRouter(Ref ref) {
           final tool = state.extra! as ToolContent;
           return ToolDetailScreen(tool: tool);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.title,
+        name: 'title',
+        builder: (context, state) => const TitleScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.admin,
+        name: 'admin',
+        builder: (context, state) => const AdminScreen(),
       ),
       GoRoute(
         path: AppRoutes.settings,

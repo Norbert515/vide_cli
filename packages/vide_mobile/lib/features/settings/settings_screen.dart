@@ -7,6 +7,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
 import '../../data/repositories/connection_repository.dart';
+import 'widgets/settings_tile.dart';
 
 /// Settings screen for the app.
 class SettingsScreen extends ConsumerWidget {
@@ -34,8 +35,8 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           const SizedBox(height: 8),
           // Connection section
-          const _SectionHeader(title: 'Connection'),
-          _SettingsTile(
+          const SectionHeader(title: 'Connection'),
+          SettingsTile(
             icon: Icons.dns_outlined,
             title: 'Current Server',
             subtitle: serverSubtitle,
@@ -45,7 +46,7 @@ class SettingsScreen extends ConsumerWidget {
             },
           ),
           if (connectionState.isConnected)
-            _SettingsTile(
+            SettingsTile(
               icon: Icons.link_off,
               title: 'Disconnect',
               subtitle: 'Disconnect and return to setup',
@@ -58,8 +59,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
           const Divider(height: 32),
           // Appearance section
-          const _SectionHeader(title: 'Appearance'),
-          _SettingsTile(
+          const SectionHeader(title: 'Appearance'),
+          SettingsTile(
             icon: Icons.dark_mode_outlined,
             title: 'Theme',
             subtitle: switch (ref.watch(themeModeNotifierProvider)) {
@@ -74,8 +75,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
           // Data section
-          const _SectionHeader(title: 'Data'),
-          _SettingsTile(
+          const SectionHeader(title: 'Data'),
+          SettingsTile(
             icon: Icons.delete_outline,
             title: 'Clear Data',
             subtitle: 'Clear all local data and settings',
@@ -86,8 +87,8 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 32),
           // About section
-          const _SectionHeader(title: 'About'),
-          _SettingsTile(
+          const SectionHeader(title: 'About'),
+          SettingsTile(
             icon: Icons.info_outline,
             title: 'About Vide Mobile',
             subtitle: 'Version 1.0.0',
@@ -95,7 +96,7 @@ class SettingsScreen extends ConsumerWidget {
               _showAboutDialog(context);
             },
           ),
-          _SettingsTile(
+          SettingsTile(
             icon: Icons.code,
             title: 'Source Code',
             subtitle: 'View on GitHub',
@@ -103,12 +104,24 @@ class SettingsScreen extends ConsumerWidget {
               // TODO: Open GitHub URL
             },
           ),
-          _SettingsTile(
+          SettingsTile(
             icon: Icons.bug_report_outlined,
             title: 'Report an Issue',
             subtitle: 'Help us improve',
             onTap: () {
               // TODO: Open issue tracker
+            },
+          ),
+          const Divider(height: 32),
+          // Developer section
+          const SectionHeader(title: 'Developer'),
+          SettingsTile(
+            icon: Icons.build_outlined,
+            title: 'Admin Panel',
+            subtitle: 'Visual previews and developer tools',
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              context.push(AppRoutes.admin);
             },
           ),
           const SizedBox(height: 32),
@@ -174,70 +187,6 @@ class SettingsScreen extends ConsumerWidget {
           'A mobile client for connecting to Vide servers and managing AI-powered development sessions.',
         ),
       ],
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-
-  const _SectionHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: videColors.accent,
-              fontWeight: FontWeight.w600,
-            ),
-      ),
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Widget? trailing;
-  final Color? iconColor;
-  final VoidCallback? onTap;
-
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.trailing,
-    this.iconColor,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: (iconColor ?? videColors.accent).withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: iconColor ?? videColors.accent,
-        ),
-      ),
-      title: Text(title),
-      subtitle: Text(subtitle),
-      trailing: trailing,
-      onTap: onTap,
     );
   }
 }
