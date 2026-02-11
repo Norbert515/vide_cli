@@ -75,12 +75,17 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
           return false;
         }
 
-        // Plan content scrolling
-        if (key == LogicalKey.arrowUp) {
-          _scrollController.scrollUp();
-          return true;
-        } else if (key == LogicalKey.arrowDown) {
+        // Option navigation with arrow keys
+        if (key == LogicalKey.arrowDown) {
+          if (_selectedOptionIndex == 0) {
+            setState(() => _selectedOptionIndex = 1);
+            return true;
+          }
+          // Already on reject, scroll plan content
           _scrollController.scrollDown();
+          return true;
+        } else if (key == LogicalKey.arrowUp) {
+          _scrollController.scrollUp();
           return true;
         } else if (key == LogicalKey.pageUp) {
           _scrollController.pageUp();
@@ -169,7 +174,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
 
             // Help text
             Text(
-              'Enter to select \u00b7 Tab to switch \u00b7 \u2191\u2193 to scroll \u00b7 Esc to reject',
+              'Enter to select \u00b7 Tab/\u2191\u2193 to switch \u00b7 PgUp/PgDn to scroll \u00b7 Esc to reject',
               style: TextStyle(color: Colors.grey),
             ),
           ],
@@ -229,6 +234,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
               child: TextField(
                 controller: _textController,
                 focused: true,
+                maxLines: null,
                 placeholder: 'Feedback (optional)',
                 onSubmitted: (_) => _reject(),
               ),
