@@ -71,11 +71,11 @@ void main() {
           fireImmediately: false,
         );
 
-        // Initial status is 'working', so setting to 'working' is a no-op (no rebuild)
+        // Initial status is 'idle', so setting to 'working' IS a change (rebuild)
         container
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.working);
-        // These two actually change the value
+        // These two also change the value
         container
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.waitingForAgent);
@@ -83,7 +83,7 @@ void main() {
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.idle);
 
-        expect(rebuildCount, 2);
+        expect(rebuildCount, 3);
       });
     });
 

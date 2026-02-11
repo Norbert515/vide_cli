@@ -164,7 +164,14 @@ Future<void> main(
           final persistenceManager = ref.read(
             agentNetworkPersistenceManagerProvider,
           );
-          manager = RemoteVideSessionManager(notifier, persistenceManager);
+          final configManager = ref.read(videConfigManagerProvider);
+          final workingDir = ref.read(workingDirProvider);
+          manager = RemoteVideSessionManager(
+            notifier,
+            persistenceManager,
+            configManager,
+            workingDir,
+          );
         } else {
           manager = LocalVideSessionManager(container, _tuiPermissionHandler);
         }

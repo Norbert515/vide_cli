@@ -5,7 +5,9 @@ import '../models/agent_status.dart';
 /// Provider for managing agent status.
 ///
 /// Each agent has its own status that can be set via the `setAgentStatus` MCP tool.
-/// Default status is `working` since agents start processing immediately.
+/// Default status is `idle` since agents may be created during session resume
+/// without an active turn. The status sync service will set `working` when
+/// a turn begins.
 final agentStatusProvider =
     StateNotifierProvider.family<AgentStatusNotifier, AgentStatus, AgentId>(
       (ref, agentId) => AgentStatusNotifier(),
@@ -13,7 +15,7 @@ final agentStatusProvider =
 
 /// Notifier for a single agent's status.
 class AgentStatusNotifier extends StateNotifier<AgentStatus> {
-  AgentStatusNotifier() : super(AgentStatus.working);
+  AgentStatusNotifier() : super(AgentStatus.idle);
 
   /// Set the agent's status.
   void setStatus(AgentStatus status) {

@@ -308,8 +308,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       }
     }
 
-    // Note: Agent status is purely runtime state. On resume, all agents start
-    // as idle (the default) since nothing is running yet.
+    // Agent status is purely runtime state. On resume, all agents start as idle
+    // (the AgentStatusNotifier default) since no turns are running yet.
+    // The status sync service will set them to working when a turn begins.
   }
 
   /// Add a new agent to the current network

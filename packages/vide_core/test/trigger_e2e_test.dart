@@ -47,9 +47,9 @@ void main() {
         agentStatusProvider(agentId).notifier,
       );
 
-      // Initial status should be working (default)
+      // Initial status should be idle (default)
       var status = container.read(agentStatusProvider(agentId));
-      expect(status, equals(AgentStatus.working));
+      expect(status, equals(AgentStatus.idle));
       print('Initial status: $status');
 
       // Now let's manually set up the status sync like AgentNetworkManager does
@@ -134,7 +134,7 @@ void main() {
 
       // Check initial status
       var status = container.read(agentStatusProvider(agentId));
-      expect(status, equals(AgentStatus.working));
+      expect(status, equals(AgentStatus.idle));
 
       // Set to idle
       notifier.setStatus(AgentStatus.idle);

@@ -10,7 +10,8 @@ import 'dart:async';
 import 'package:vide_client/vide_client.dart'
     show VideAttachment, VideSession, VideSessionInfo, VideSessionManager,
          VideAgent, VideAgentStatus;
-import 'package:vide_core/vide_core.dart' show AgentNetworkPersistenceManager;
+import 'package:vide_core/vide_core.dart'
+    show AgentNetworkPersistenceManager, VideConfigManager;
 import 'package:vide_daemon/vide_daemon.dart' show SessionSummary;
 
 import 'daemon_connection_service.dart';
@@ -27,11 +28,18 @@ import 'daemon_connection_service.dart';
 class RemoteVideSessionManager implements VideSessionManager {
   final DaemonConnectionNotifier _notifier;
   final AgentNetworkPersistenceManager _persistenceManager;
+  final VideConfigManager _configManager;
+  final String _defaultWorkingDirectory;
   final StreamController<List<VideSessionInfo>> _sessionsController =
       StreamController<List<VideSessionInfo>>.broadcast();
   StreamSubscription<dynamic>? _eventSubscription;
 
-  RemoteVideSessionManager(this._notifier, this._persistenceManager) {
+  RemoteVideSessionManager(
+    this._notifier,
+    this._persistenceManager,
+    this._configManager,
+    this._defaultWorkingDirectory,
+  ) {
     // Listen to daemon events for reactive session list updates.
     final events = _notifier.connectEvents();
     if (events != null) {
@@ -65,6 +73,23 @@ class RemoteVideSessionManager implements VideSessionManager {
     return session;
   }
 
+  /// Get a persistence manager scoped to the given working directory.
+  ///
+  /// When [workingDirectory] is provided, creates a persistence manager
+  /// scoped to that project. Otherwise uses the default persistence manager
+  /// (scoped to the TUI's startup directory).
+  AgentNetworkPersistenceManager _persistenceManagerFor(
+    String? workingDirectory,
+  ) {
+    if (workingDirectory == null) {
+      return _persistenceManager;
+    }
+    return AgentNetworkPersistenceManager(
+      configManager: _configManager,
+      projectPath: workingDirectory,
+    );
+  }
+
   @override
   Future<VideSession> resumeSession(
     String sessionId, {
@@ -73,7 +98,9 @@ class RemoteVideSessionManager implements VideSessionManager {
     // Look up working directory from persistence if not provided.
     var effectiveWorkingDir = workingDirectory;
     if (effectiveWorkingDir == null) {
-      final networks = await _persistenceManager.loadNetworks();
+      final persistenceManager =
+          _persistenceManagerFor(_defaultWorkingDirectory);
+      final networks = await persistenceManager.loadNetworks();
       final network = networks.where((n) => n.id == sessionId).firstOrNull;
       effectiveWorkingDir = network?.worktreePath;
     }
@@ -92,15 +119,19 @@ class RemoteVideSessionManager implements VideSessionManager {
   Future<List<VideSessionInfo>> listSessions({
     String? workingDirectory,
   }) async {
-    // Get running sessions from the daemon.
+    final effectiveWorkingDir = workingDirectory ?? _defaultWorkingDirectory;
+
+    // Get running sessions from the daemon, filtered by working directory.
     final summaries = await _notifier.listSessions();
     final runningSessions = summaries
+        .where((summary) => summary.workingDirectory == effectiveWorkingDir)
         .map((summary) => _summaryToSessionInfo(summary))
         .toList();
     final runningIds = runningSessions.map((s) => s.id).toSet();
 
-    // Get persisted historical sessions from disk.
-    final networks = await _persistenceManager.loadNetworks();
+    // Get persisted historical sessions from project-scoped storage.
+    final persistenceManager = _persistenceManagerFor(effectiveWorkingDir);
+    final networks = await persistenceManager.loadNetworks();
     final historicalSessions = networks
         .where((n) => !runningIds.contains(n.id))
         .map((network) {
@@ -167,7 +198,7 @@ class RemoteVideSessionManager implements VideSessionManager {
 
   void _emitSessionList() {
     if (_sessionsController.isClosed) return;
-    listSessions().then((sessions) {
+    listSessions(workingDirectory: _defaultWorkingDirectory).then((sessions) {
       if (!_sessionsController.isClosed) {
         _sessionsController.add(sessions);
       }
