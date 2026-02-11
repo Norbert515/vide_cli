@@ -3,7 +3,7 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/settings/settings_category.dart';
 
-/// Sidebar showing settings categories with left accent bar.
+/// Sidebar with box border and diamond marker for selected category.
 class SettingsSidebar extends StatelessComponent {
   final SettingsCategory selectedCategory;
   final int selectedIndex;
@@ -24,59 +24,71 @@ class SettingsSidebar extends StatelessComponent {
     final categories = SettingsCategory.values;
 
     return SizedBox(
-      width: 22,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(height: 2),
-          for (int i = 0; i < categories.length; i++)
-            GestureDetector(
-              onTap: () => onCategorySelected(categories[i], i),
-              child: Container(
-                padding: EdgeInsets.only(left: 1, right: 1),
-                decoration: BoxDecoration(
-                  color: i == selectedIndex && focused
-                      ? theme.base.primary.withOpacity(0.2)
-                      : i == selectedIndex
-                      ? theme.base.outline.withOpacity(0.1)
-                      : null,
-                ),
-                child: Row(
-                  children: [
-                    // Left accent bar for selected item
-                    Text(
-                      i == selectedIndex ? '| ' : '  ',
-                      style: TextStyle(
-                        color: focused && i == selectedIndex
-                            ? theme.base.primary
-                            : theme.base.outline.withOpacity(
-                                TextOpacity.separator,
-                              ),
-                      ),
+      width: 24,
+      child: Container(
+        decoration: BoxDecoration(
+          border: BoxBorder.all(
+            color: theme.base.outline.withOpacity(TextOpacity.separator),
+            style: BoxBorderStyle.rounded,
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 1),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (int i = 0; i < categories.length; i++) ...[
+                GestureDetector(
+                  onTap: () => onCategorySelected(categories[i], i),
+                  child: Container(
+                    padding: EdgeInsets.only(left: 1, right: 1),
+                    decoration: BoxDecoration(
+                      color: i == selectedIndex && focused
+                          ? theme.base.primary.withOpacity(0.2)
+                          : i == selectedIndex
+                          ? theme.base.outline.withOpacity(0.1)
+                          : null,
                     ),
-                    Expanded(
-                      child: Text(
-                        categories[i].label,
-                        style: TextStyle(
-                          color: i == selectedIndex
-                              ? (focused
-                                    ? theme.base.primary
-                                    : theme.base.onSurface)
-                              : theme.base.onSurface.withOpacity(
-                                  TextOpacity.secondary,
-                                ),
-                          fontWeight: i == selectedIndex
-                              ? FontWeight.bold
-                              : null,
+                    child: Row(
+                      children: [
+                        Text(
+                          i == selectedIndex ? '\u25c6 ' : '  ',
+                          style: TextStyle(
+                            color: i == selectedIndex && focused
+                                ? theme.base.primary
+                                : theme.base.outline.withOpacity(
+                                    TextOpacity.tertiary,
+                                  ),
+                          ),
                         ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                        Expanded(
+                          child: Text(
+                            categories[i].label,
+                            style: TextStyle(
+                              color: i == selectedIndex
+                                  ? (focused
+                                        ? theme.base.primary
+                                        : theme.base.onSurface)
+                                  : theme.base.onSurface.withOpacity(
+                                      TextOpacity.secondary,
+                                    ),
+                              fontWeight: i == selectedIndex
+                                  ? FontWeight.bold
+                                  : null,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-        ],
+                // Spacing between items (except after last)
+                if (i < categories.length - 1) SizedBox(height: 1),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

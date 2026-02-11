@@ -6,11 +6,11 @@ import 'package:vide_cli/main.dart'
         ideModeEnabledProvider,
         gitSidebarEnabledProvider,
         daemonModeEnabledProvider;
-import 'package:vide_cli/modules/settings/components/section_header.dart';
+import 'package:vide_cli/modules/settings/components/settings_card.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 import 'package:vide_cli/modules/settings/components/settings_text_input.dart';
 
-/// General settings content (IDE mode, git sidebar, streaming).
+/// General settings content split into Interface and Daemon cards.
 class GeneralSettingsSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -29,8 +29,8 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
   int _selectedIndex = 0;
 
   // Settings items:
-  // [0] = IDE mode, [1] = Git sidebar, [2] = Daemon mode,
-  // [3] = Daemon host, [4] = Daemon port, [5] = Streaming
+  // [0] = IDE mode, [1] = Git sidebar, [2] = Streaming
+  // [3] = Daemon mode, [4] = Daemon host, [5] = Daemon port
   static const int _totalItems = 6;
 
   // Editing state for text inputs
@@ -45,16 +45,17 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
     super.dispose();
   }
 
-  void _handleKeyEvent(KeyboardEvent event) {
-    if (!component.focused) return;
+  bool _handleKeyEvent(KeyboardEvent event) {
+    if (!component.focused) return false;
 
     // If editing a text field, let the TextField handle input
     if (_editingIndex != null) {
       if (event.logicalKey == LogicalKey.escape) {
         setState(() => _editingIndex = null);
+        return true;
       }
       // Let TextField handle other keys including Enter
-      return;
+      return false;
     }
 
     if (event.logicalKey == LogicalKey.arrowUp ||
@@ -62,34 +63,40 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalItems - 1) {
         setState(() => _selectedIndex++);
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowLeft ||
         event.logicalKey == LogicalKey.escape) {
       component.onExit();
+      return true;
     } else if (event.logicalKey == LogicalKey.enter ||
         event.logicalKey == LogicalKey.space) {
       _activateCurrentItem();
+      return true;
     }
+
+    return false;
   }
 
   void _activateCurrentItem() {
     // For text input items, start editing mode
-    if (_selectedIndex == 3) {
+    if (_selectedIndex == 4) {
       // Daemon host
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _hostController.text = settings.daemonHost;
-      setState(() => _editingIndex = 3);
-    } else if (_selectedIndex == 4) {
+      setState(() => _editingIndex = 4);
+    } else if (_selectedIndex == 5) {
       // Daemon port
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _portController.text = settings.daemonPort.toString();
-      setState(() => _editingIndex = 4);
+      setState(() => _editingIndex = 5);
     } else {
       _toggleCurrentItem();
     }
@@ -107,7 +114,7 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
         settings.copyWith(ideModeEnabled: newValue),
       );
       container.read(ideModeEnabledProvider.notifier).state = newValue;
-      setState(() {}); // Rebuild to show new state
+      setState(() {});
     } else if (_selectedIndex == 1) {
       // Toggle Git sidebar
       final newValue = !settings.gitSidebarEnabled;
@@ -115,21 +122,21 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
         settings.copyWith(gitSidebarEnabled: newValue),
       );
       container.read(gitSidebarEnabledProvider.notifier).state = newValue;
-      setState(() {}); // Rebuild to show new state
+      setState(() {});
     } else if (_selectedIndex == 2) {
+      // Toggle streaming
+      configManager.writeGlobalSettings(
+        settings.copyWith(enableStreaming: !settings.enableStreaming),
+      );
+      setState(() {});
+    } else if (_selectedIndex == 3) {
       // Toggle Daemon mode
       final newValue = !settings.daemonModeEnabled;
       configManager.writeGlobalSettings(
         settings.copyWith(daemonModeEnabled: newValue),
       );
       container.read(daemonModeEnabledProvider.notifier).state = newValue;
-      setState(() {}); // Rebuild to show new state
-    } else if (_selectedIndex == 5) {
-      // Toggle streaming (index 5 now)
-      configManager.writeGlobalSettings(
-        settings.copyWith(enableStreaming: !settings.enableStreaming),
-      );
-      setState(() {}); // Rebuild to show new state
+      setState(() {});
     }
   }
 
@@ -163,106 +170,110 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
 
     return Focusable(
       focused: component.focused,
-      onKeyEvent: (event) {
-        _handleKeyEvent(event);
-        return true;
-      },
+      onKeyEvent: _handleKeyEvent,
       child: Padding(
-        padding: EdgeInsets.all(3),
+        padding: EdgeInsets.only(top: 1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeader(title: 'General Settings'),
-            SizedBox(height: 2),
-
-            // IDE Mode toggle
-            SettingsToggleItem(
-              label: 'IDE Mode',
-              description: 'Show agent sidebar',
-              value: ideModeEnabled,
-              isSelected: component.focused && _selectedIndex == 0,
-              onTap: () {
-                setState(() => _selectedIndex = 0);
-                _toggleCurrentItem();
-              },
+            // Interface card: IDE Mode, Git Sidebar, Streaming
+            SettingsCard(
+              title: 'Interface',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SettingsToggleItem(
+                    label: 'IDE Mode',
+                    description: 'Show agent sidebar',
+                    value: ideModeEnabled,
+                    isSelected: component.focused && _selectedIndex == 0,
+                    onTap: () {
+                      setState(() => _selectedIndex = 0);
+                      _toggleCurrentItem();
+                    },
+                  ),
+                  SettingsToggleItem(
+                    label: 'Git Sidebar',
+                    description: 'Show git status',
+                    value: gitSidebarEnabled,
+                    isSelected: component.focused && _selectedIndex == 1,
+                    onTap: () {
+                      setState(() => _selectedIndex = 1);
+                      _toggleCurrentItem();
+                    },
+                  ),
+                  SettingsToggleItem(
+                    label: 'Streaming',
+                    description: 'Stream responses in real-time',
+                    value: streamingEnabled,
+                    isSelected:
+                        component.focused &&
+                        _selectedIndex == 2 &&
+                        _editingIndex == null,
+                    onTap: () {
+                      setState(() => _selectedIndex = 2);
+                      _activateCurrentItem();
+                    },
+                  ),
+                ],
+              ),
             ),
 
-            // Git Sidebar toggle
-            SettingsToggleItem(
-              label: 'Git Sidebar',
-              description: 'Show git status (requires git repo)',
-              value: gitSidebarEnabled,
-              isSelected: component.focused && _selectedIndex == 1,
-              onTap: () {
-                setState(() => _selectedIndex = 1);
-                _toggleCurrentItem();
-              },
-            ),
+            SizedBox(height: 1),
 
-            // Daemon Mode toggle
-            SettingsToggleItem(
-              label: 'Daemon Mode',
-              description: 'Run sessions on a persistent daemon process',
-              value: daemonModeEnabled,
-              isSelected:
-                  component.focused &&
-                  _selectedIndex == 2 &&
-                  _editingIndex == null,
-              onTap: () {
-                setState(() => _selectedIndex = 2);
-                _activateCurrentItem();
-              },
-            ),
-
-            // Daemon Host input
-            SettingsTextInput(
-              label: 'Daemon Host',
-              description: 'Hostname or IP address of the daemon',
-              value: settings.daemonHost,
-              isSelected:
-                  component.focused &&
-                  _selectedIndex == 3 &&
-                  _editingIndex == null,
-              isEditing: _editingIndex == 3,
-              controller: _hostController,
-              onTap: () {
-                setState(() => _selectedIndex = 3);
-                _activateCurrentItem();
-              },
-              onSubmitted: _saveDaemonHost,
-            ),
-
-            // Daemon Port input
-            SettingsTextInput(
-              label: 'Daemon Port',
-              description: 'Port number of the daemon',
-              value: settings.daemonPort.toString(),
-              isSelected:
-                  component.focused &&
-                  _selectedIndex == 4 &&
-                  _editingIndex == null,
-              isEditing: _editingIndex == 4,
-              controller: _portController,
-              onTap: () {
-                setState(() => _selectedIndex = 4);
-                _activateCurrentItem();
-              },
-              onSubmitted: _saveDaemonPort,
-            ),
-
-            // Streaming toggle
-            SettingsToggleItem(
-              label: 'Streaming',
-              description: 'Stream responses in real-time',
-              value: streamingEnabled,
-              isSelected:
-                  component.focused &&
-                  _selectedIndex == 5 &&
-                  _editingIndex == null,
-              onTap: () {
-                setState(() => _selectedIndex = 5);
-                _activateCurrentItem();
-              },
+            // Daemon card: Daemon Mode, Host, Port
+            SettingsCard(
+              title: 'Daemon',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SettingsToggleItem(
+                    label: 'Daemon Mode',
+                    description: 'Run sessions on a persistent daemon process',
+                    value: daemonModeEnabled,
+                    isSelected:
+                        component.focused &&
+                        _selectedIndex == 3 &&
+                        _editingIndex == null,
+                    onTap: () {
+                      setState(() => _selectedIndex = 3);
+                      _activateCurrentItem();
+                    },
+                  ),
+                  SettingsTextInput(
+                    label: 'Host',
+                    description: 'Hostname or IP address of the daemon',
+                    value: settings.daemonHost,
+                    isSelected:
+                        component.focused &&
+                        _selectedIndex == 4 &&
+                        _editingIndex == null,
+                    isEditing: _editingIndex == 4,
+                    controller: _hostController,
+                    onTap: () {
+                      setState(() => _selectedIndex = 4);
+                      _activateCurrentItem();
+                    },
+                    onSubmitted: _saveDaemonHost,
+                  ),
+                  SettingsTextInput(
+                    label: 'Port',
+                    description: 'Port number of the daemon',
+                    value: settings.daemonPort.toString(),
+                    isSelected:
+                        component.focused &&
+                        _selectedIndex == 5 &&
+                        _editingIndex == null,
+                    isEditing: _editingIndex == 5,
+                    controller: _portController,
+                    onTap: () {
+                      setState(() => _selectedIndex = 5);
+                      _activateCurrentItem();
+                    },
+                    onSubmitted: _saveDaemonPort,
+                  ),
+                ],
+              ),
             ),
           ],
         ),

@@ -3,10 +3,10 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
-import 'package:vide_cli/modules/settings/components/section_header.dart';
+import 'package:vide_cli/modules/settings/components/settings_card.dart';
 import 'package:vide_cli/modules/setup/theme_selector.dart';
 
-/// Appearance settings content (theme selection).
+/// Appearance settings content (theme selection) wrapped in a Theme card.
 class AppearanceSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -43,8 +43,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
     }
   }
 
-  void _handleKeyEvent(KeyboardEvent event) {
-    if (!component.focused) return;
+  bool _handleKeyEvent(KeyboardEvent event) {
+    if (!component.focused) return false;
 
     if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {
@@ -52,19 +52,25 @@ class _AppearanceSectionState extends State<AppearanceSection> {
         setState(() => _selectedIndex--);
         _applyTheme();
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < _totalOptions - 1) {
         setState(() => _selectedIndex++);
         _applyTheme();
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowLeft ||
         event.logicalKey == LogicalKey.escape) {
       component.onExit();
+      return true;
     } else if (event.logicalKey == LogicalKey.enter ||
         event.logicalKey == LogicalKey.space) {
       _applyTheme();
+      return true;
     }
+
+    return false;
   }
 
   void _applyTheme() {
@@ -84,53 +90,47 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   @override
   Component build(BuildContext context) {
     final currentThemeId = context.watch(themeSettingProvider);
-    final theme = VideTheme.of(context);
 
     return Focusable(
       focused: component.focused,
-      onKeyEvent: (event) {
-        _handleKeyEvent(event);
-        return true;
-      },
+      onKeyEvent: _handleKeyEvent,
       child: Padding(
-        padding: EdgeInsets.all(3),
+        padding: EdgeInsets.only(top: 1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeader(title: 'Theme'),
-            SizedBox(height: 1),
-            Text(
-              'Select a color theme for the interface',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+            SettingsCard(
+              title: 'Theme',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Auto option
+                  _ThemeListItem(
+                    displayName: 'Auto',
+                    description: 'Match terminal',
+                    isSelected: component.focused && _selectedIndex == 0,
+                    isCurrent: currentThemeId == null,
+                    onTap: () {
+                      setState(() => _selectedIndex = 0);
+                      _applyTheme();
+                    },
+                  ),
+
+                  // Theme options
+                  for (int i = 0; i < ThemeOption.all.length; i++)
+                    _ThemeListItem(
+                      displayName: ThemeOption.all[i].displayName,
+                      description: ThemeOption.all[i].description,
+                      isSelected: component.focused && _selectedIndex == i + 1,
+                      isCurrent: currentThemeId == ThemeOption.all[i].id,
+                      onTap: () {
+                        setState(() => _selectedIndex = i + 1);
+                        _applyTheme();
+                      },
+                    ),
+                ],
               ),
             ),
-            SizedBox(height: 2),
-
-            // Auto option
-            _ThemeListItem(
-              displayName: 'Auto',
-              description: 'Match terminal',
-              isSelected: component.focused && _selectedIndex == 0,
-              isCurrent: currentThemeId == null,
-              onTap: () {
-                setState(() => _selectedIndex = 0);
-                _applyTheme();
-              },
-            ),
-
-            // Theme options
-            for (int i = 0; i < ThemeOption.all.length; i++)
-              _ThemeListItem(
-                displayName: ThemeOption.all[i].displayName,
-                description: ThemeOption.all[i].description,
-                isSelected: component.focused && _selectedIndex == i + 1,
-                isCurrent: currentThemeId == ThemeOption.all[i].id,
-                onTap: () {
-                  setState(() => _selectedIndex = i + 1);
-                  _applyTheme();
-                },
-              ),
           ],
         ),
       ),
@@ -168,7 +168,7 @@ class _ThemeListItem extends StatelessComponent {
         child: Row(
           children: [
             Text(
-              isCurrent ? '◉ ' : '○ ',
+              isCurrent ? '\u25c9 ' : '\u25cb ',
               style: TextStyle(
                 color: isCurrent
                     ? theme.base.primary

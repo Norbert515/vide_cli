@@ -1,11 +1,10 @@
 /// Settings category enum for navigation.
 enum SettingsCategory {
-  general('General', 'Basic settings'),
-  appearance('Appearance', 'Theme and colors'),
-  mcpServers('MCP Servers', 'Manage MCP server connections'),
-  about('About', 'Version and information');
+  general('General'),
+  appearance('Appearance'),
+  mcpServers('MCP Servers'),
+  about('About');
 
-  const SettingsCategory(this.label, this.description);
+  const SettingsCategory(this.label);
   final String label;
-  final String description;
 }

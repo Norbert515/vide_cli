@@ -6,10 +6,10 @@ import 'package:vide_core/vide_core.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/settings/components/section_header.dart';
+import 'package:vide_cli/modules/settings/components/settings_card.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 
-/// MCP Servers settings content.
+/// MCP Servers settings content wrapped in a Servers card.
 class McpServersSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -63,15 +63,16 @@ class _McpServersSectionState extends State<McpServersSection> {
     super.dispose();
   }
 
-  void _handleKeyEvent(KeyboardEvent event) {
-    if (!component.focused) return;
+  bool _handleKeyEvent(KeyboardEvent event) {
+    if (!component.focused) return false;
     final servers = _filteredServers;
     if (servers.isEmpty) {
       if (event.logicalKey == LogicalKey.arrowLeft ||
           event.logicalKey == LogicalKey.escape) {
         component.onExit();
+        return true;
       }
-      return;
+      return false;
     }
 
     if (event.logicalKey == LogicalKey.arrowUp ||
@@ -79,18 +80,24 @@ class _McpServersSectionState extends State<McpServersSection> {
       if (_selectedIndex > 0) {
         setState(() => _selectedIndex--);
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
       if (_selectedIndex < servers.length - 1) {
         setState(() => _selectedIndex++);
       }
+      return true;
     } else if (event.logicalKey == LogicalKey.arrowLeft ||
         event.logicalKey == LogicalKey.escape) {
       component.onExit();
+      return true;
     } else if (event.logicalKey == LogicalKey.enter ||
         event.logicalKey == LogicalKey.space) {
       _toggleServer(_selectedIndex);
+      return true;
     }
+
+    return false;
   }
 
   Future<void> _toggleServer(int index) async {
@@ -122,68 +129,70 @@ class _McpServersSectionState extends State<McpServersSection> {
 
     return Focusable(
       focused: component.focused,
-      onKeyEvent: (event) {
-        _handleKeyEvent(event);
-        return true;
-      },
+      onKeyEvent: _handleKeyEvent,
       child: Padding(
-        padding: EdgeInsets.all(3),
+        padding: EdgeInsets.only(top: 1),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SectionHeader(title: 'MCP Servers'),
-            SizedBox(height: 1),
-            Text(
-              'Enable or disable MCP server connections',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+            SettingsCard(
+              title: 'Servers',
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_mcpStatus == null)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 1),
+                      child: Text(
+                        'Loading MCP servers...',
+                        style: TextStyle(
+                          color: theme.base.onSurface.withOpacity(
+                            TextOpacity.tertiary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else if (servers.isEmpty)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 1),
+                      child: Text(
+                        'No MCP servers configured',
+                        style: TextStyle(
+                          color: theme.base.onSurface.withOpacity(
+                            TextOpacity.tertiary,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    for (int index = 0; index < servers.length; index++)
+                      _McpServerItem(
+                        server: servers[index],
+                        isEnabled:
+                            _settingsManager?.isMcpServerEnabled(
+                              servers[index].name,
+                            ) ??
+                            false,
+                        isSelected:
+                            component.focused && index == _selectedIndex,
+                        onTap: () {
+                          setState(() => _selectedIndex = index);
+                          _toggleServer(index);
+                        },
+                      ),
+                ],
               ),
             ),
-            SizedBox(height: 2),
 
-            // Server list
-            if (_mcpStatus == null)
-              Text(
-                'Loading MCP servers...',
+            SizedBox(height: 1),
+
+            Padding(
+              padding: EdgeInsets.only(left: 1),
+              child: Text(
+                'Changes take effect on next session',
                 style: TextStyle(
                   color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                 ),
-              )
-            else if (servers.isEmpty)
-              Text(
-                'No MCP servers configured',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: servers.length,
-                  itemBuilder: (context, index) {
-                    final server = servers[index];
-                    final isEnabled =
-                        _settingsManager?.isMcpServerEnabled(server.name) ??
-                        false;
-
-                    return _McpServerItem(
-                      server: server,
-                      isEnabled: isEnabled,
-                      isSelected: component.focused && index == _selectedIndex,
-                      onTap: () {
-                        setState(() => _selectedIndex = index);
-                        _toggleServer(index);
-                      },
-                    );
-                  },
-                ),
-              ),
-
-            SizedBox(height: 2),
-            Text(
-              'Changes take effect on next session',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
               ),
             ),
           ],
@@ -193,7 +202,7 @@ class _McpServersSectionState extends State<McpServersSection> {
   }
 }
 
-/// Individual MCP server item in the list.
+/// Individual MCP server item in the list - compact single-line format.
 class _McpServerItem extends StatelessComponent {
   final McpServerStatusInfo server;
   final bool isEnabled;
@@ -227,20 +236,18 @@ class _McpServerItem extends StatelessComponent {
 
     return GestureDetector(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 1),
-            decoration: BoxDecoration(
-              color: isSelected ? theme.base.primary.withOpacity(0.2) : null,
-            ),
-            child: Row(
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 1),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.base.primary.withOpacity(0.2) : null,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                // Enable/disable checkbox
                 SettingsToggle(value: isEnabled, focused: isSelected),
-                SizedBox(width: 2),
-                // Server name
+                SizedBox(width: 1),
                 Expanded(
                   child: Text(
                     server.name,
@@ -254,24 +261,24 @@ class _McpServerItem extends StatelessComponent {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Status text on the right
                 Text(statusText, style: TextStyle(color: statusColor)),
               ],
             ),
-          ),
-          // Error message
-          if (server.error != null)
-            Padding(
-              padding: EdgeInsets.only(left: 6),
-              child: Text(
-                server.error!,
-                style: TextStyle(
-                  color: theme.status.error.withOpacity(TextOpacity.secondary),
+            if (server.error != null)
+              Padding(
+                padding: EdgeInsets.only(left: 4),
+                child: Text(
+                  server.error!,
+                  style: TextStyle(
+                    color: theme.status.error.withOpacity(
+                      TextOpacity.secondary,
+                    ),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

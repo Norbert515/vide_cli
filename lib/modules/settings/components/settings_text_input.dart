@@ -2,7 +2,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
-/// A text input setting item with label, description, and editable value.
+/// A text input setting item with label and description on left, value on right.
 class SettingsTextInput extends StatelessComponent {
   final String label;
   final String description;
@@ -38,41 +38,16 @@ class SettingsTextInput extends StatelessComponent {
         ),
         child: Row(
           children: [
-            // Label indicator
-            Text(
-              isEditing ? '▸ ' : '  ',
-              style: TextStyle(color: theme.base.primary),
-            ),
-            SizedBox(width: 1),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          color: theme.base.onSurface,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(width: 2),
-                      if (isEditing && controller != null)
-                        Expanded(
-                          child: TextField(
-                            controller: controller,
-                            focused: true,
-                            onSubmitted: onSubmitted,
-                            style: TextStyle(color: theme.base.primary),
-                          ),
-                        )
-                      else
-                        Text(
-                          value,
-                          style: TextStyle(color: theme.base.primary),
-                        ),
-                    ],
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: theme.base.onSurface,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
                     description,
@@ -85,6 +60,18 @@ class SettingsTextInput extends StatelessComponent {
                 ],
               ),
             ),
+            if (isEditing && controller != null)
+              SizedBox(
+                width: 20,
+                child: TextField(
+                  controller: controller,
+                  focused: true,
+                  onSubmitted: onSubmitted,
+                  style: TextStyle(color: theme.base.primary),
+                ),
+              )
+            else
+              Text(value, style: TextStyle(color: theme.base.primary)),
           ],
         ),
       ),

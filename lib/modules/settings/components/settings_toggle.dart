@@ -26,7 +26,7 @@ class SettingsToggle extends StatelessComponent {
   }
 }
 
-/// A toggle setting item with label, description, and toggle switch.
+/// A toggle setting item with label and description on left, toggle on right.
 class SettingsToggleItem extends StatelessComponent {
   final String label;
   final String description;
@@ -56,8 +56,6 @@ class SettingsToggleItem extends StatelessComponent {
         ),
         child: Row(
           children: [
-            SettingsToggle(value: value, focused: isSelected),
-            SizedBox(width: 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,6 +78,7 @@ class SettingsToggleItem extends StatelessComponent {
                 ],
               ),
             ),
+            SettingsToggle(value: value, focused: isSelected),
           ],
         ),
       ),

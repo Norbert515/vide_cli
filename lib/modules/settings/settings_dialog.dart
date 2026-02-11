@@ -49,8 +49,8 @@ class SettingsPopup extends StatelessComponent {
                   style: BoxBorderStyle.rounded,
                 ),
                 title: BorderTitle(
-                  text: '⚙ Settings',
-                  alignment: TitleAlignment.center,
+                  text: ' \u2699 Settings ',
+                  alignment: TitleAlignment.left,
                   style: TextStyle(
                     color: theme.base.primary,
                     fontWeight: FontWeight.bold,
@@ -79,23 +79,23 @@ class _NavigationFooter extends StatelessComponent {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('↑↓ ', style: TextStyle(color: theme.base.primary)),
+          Text('\u2191\u2193 ', style: TextStyle(color: theme.base.primary)),
           Text(
             'navigate  ',
             style: TextStyle(
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),
-          Text('→ ', style: TextStyle(color: theme.base.primary)),
+          Text('\u2192 ', style: TextStyle(color: theme.base.primary)),
           Text(
             'enter section  ',
             style: TextStyle(
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),
-          Text('Tab ', style: TextStyle(color: theme.base.primary)),
+          Text('\u2190 ', style: TextStyle(color: theme.base.primary)),
           Text(
-            'switch  ',
+            'back  ',
             style: TextStyle(
               color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
@@ -113,7 +113,7 @@ class _NavigationFooter extends StatelessComponent {
   }
 }
 
-/// A comprehensive settings dialog with category navigation.
+/// A comprehensive settings dialog with sidebar category navigation and card-based content.
 class SettingsDialog extends StatefulComponent {
   final VoidCallback? onClose;
 
@@ -179,8 +179,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   @override
   Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
     return Focusable(
       focused: true,
       onKeyEvent: (event) {
@@ -190,35 +188,31 @@ class _SettingsDialogState extends State<SettingsDialog> {
         children: [
           // Main content: sidebar + content area
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Category sidebar
-                SettingsSidebar(
-                  selectedCategory: _selectedCategory,
-                  selectedIndex: _sidebarIndex,
-                  focused: _sidebarFocused,
-                  onCategorySelected: (category, index) {
-                    setState(() {
-                      _selectedCategory = category;
-                      _sidebarIndex = index;
-                    });
-                  },
-                ),
-
-                // Vertical divider
-                Container(
-                  width: 1,
-                  decoration: BoxDecoration(
-                    color: theme.base.outline.withOpacity(
-                      TextOpacity.separator,
-                    ),
+            child: Padding(
+              padding: EdgeInsets.all(1),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Category sidebar (boxed)
+                  SettingsSidebar(
+                    selectedCategory: _selectedCategory,
+                    selectedIndex: _sidebarIndex,
+                    focused: _sidebarFocused,
+                    onCategorySelected: (category, index) {
+                      setState(() {
+                        _selectedCategory = category;
+                        _sidebarIndex = index;
+                      });
+                    },
                   ),
-                ),
 
-                // Content area
-                Expanded(child: _buildContent()),
-              ],
+                  // Spacing between sidebar and content
+                  SizedBox(width: 1),
+
+                  // Content area
+                  Expanded(child: _buildContent()),
+                ],
+              ),
             ),
           ),
         ],
