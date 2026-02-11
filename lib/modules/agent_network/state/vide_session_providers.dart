@@ -4,6 +4,7 @@
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_client/src/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider for the unified session manager.
@@ -65,16 +66,14 @@ final sessionSelectionProvider =
 /// Provider that triggers rebuilds when the selected session connection changes.
 ///
 /// For local sessions this stream is empty. Transport-backed sessions emit
-/// connectivity changes.
+/// connectivity changes via their concrete type's connectionStateStream.
 final sessionConnectionProvider = StreamProvider<bool>((ref) {
   final session = ref.watch(sessionSelectionProvider.select((s) => s.session));
-  return session?.connectionStateStream ?? const Stream<bool>.empty();
+  if (session is RemoteVideSession) {
+    return session.connectionStateStream;
+  }
+  return const Stream<bool>.empty();
 });
-
-/// Backward-compatible alias while callsites migrate away from the remote-only
-/// name.
-@Deprecated('Use sessionConnectionProvider')
-final remoteSessionConnectionProvider = sessionConnectionProvider;
 
 /// Provider for the current VideSession based on the active session ID.
 ///
@@ -104,7 +103,7 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
 /// This is reactive - it will update when the goal changes via setTaskName MCP tool.
 final currentSessionGoalProvider = Provider<String>((ref) {
   final session = ref.watch(currentVideSessionProvider);
-  return session?.goal ?? 'Session';
+  return session?.state.goal ?? 'Session';
 });
 
 /// Stream provider that emits when the goal changes.
@@ -114,7 +113,7 @@ final sessionGoalStreamProvider = StreamProvider<String>((ref) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return Stream.value('Session');
 
-  return session.goalStream;
+  return session.stateStream.map((s) => s.goal).distinct();
 });
 
 /// Stream provider that emits when the session's working directory changes.
@@ -126,25 +125,25 @@ final sessionWorkingDirectoryStreamProvider = StreamProvider<String>((ref) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return const Stream.empty();
 
-  return session.workingDirectoryStream;
+  return session.stateStream.map((s) => s.workingDirectory).distinct();
 });
 
 /// Provider that emits the current agents list whenever it changes.
 ///
 /// This is a unified provider that works for both local and remote sessions.
-/// It watches the session's [agentsStream] to detect when agents are
+/// It watches the session's [stateStream] to detect when agents are
 /// spawned or terminated, triggering UI rebuilds.
 ///
 /// Usage:
 /// ```dart
 /// final agents = context.watch(videSessionAgentsProvider);
-/// final agentsList = agents.valueOrNull ?? session?.agents ?? [];
+/// final agentsList = agents.valueOrNull ?? session?.state.agents ?? [];
 /// ```
 final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
   final session = ref.watch(currentVideSessionProvider);
   if (session == null) return const Stream.empty();
 
-  return session.agentsStream;
+  return session.stateStream.map((s) => s.agents);
 });
 
 /// Provider for ConversationStateManager tied to the current session.

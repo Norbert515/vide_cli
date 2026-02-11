@@ -101,7 +101,7 @@ final currentRepoPathProvider = Provider<String>((ref) {
   final streamValue =
       ref.watch(sessionWorkingDirectoryStreamProvider).valueOrNull;
   final session = ref.watch(currentVideSessionProvider);
-  final sessionDir = streamValue ?? session?.workingDirectory;
+  final sessionDir = streamValue ?? session?.state.workingDirectory;
   // Guard against empty string (pending daemon sessions start with '')
   if (sessionDir != null && sessionDir.isNotEmpty) return sessionDir;
   return Directory.current.path;

@@ -38,7 +38,7 @@ class PermissionHandler {
   /// Must be called after the session is created, before permission
   /// callbacks for that session are invoked.
   void setSession(VideSession session) {
-    final sessionId = session.id;
+    final sessionId = session.state.id;
     final existingSession = _sessionsById[sessionId];
     if (existingSession != null && !identical(existingSession, session)) {
       _unregisterSession(sessionId);
@@ -49,7 +49,7 @@ class PermissionHandler {
       sessionId,
       () => <String>{},
     );
-    for (final agentId in session.agentIds) {
+    for (final agentId in session.state.agentIds) {
       _sessionIdByAgentId[agentId] = sessionId;
       trackedAgentIds.add(agentId);
     }

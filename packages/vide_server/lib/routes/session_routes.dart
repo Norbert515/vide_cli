@@ -125,7 +125,7 @@ Future<Response> createSession(
     attachments: attachments,
   );
 
-  _log.info('Session created: ${session.id}');
+  _log.info('Session created: ${session.state.id}');
 
   // Register with broadcaster BEFORE emitting the initial user message,
   // so the broadcaster captures it in history for replay to clients.
@@ -140,17 +140,17 @@ Future<Response> createSession(
   }
 
   // Cache for WebSocket access
-  sessionCache[session.id] = session;
+  sessionCache[session.state.id] = session;
 
-  final mainAgent = session.mainAgent!;
+  final mainAgent = session.state.mainAgent!;
   final response = CreateSessionResponse(
-    sessionId: session.id,
+    sessionId: session.state.id,
     mainAgentId: mainAgent.id,
     createdAt: mainAgent.createdAt,
   );
 
   _log.info(
-    'Response sent: sessionId=${session.id}, mainAgentId=${mainAgent.id}',
+    'Response sent: sessionId=${session.state.id}, mainAgentId=${mainAgent.id}',
   );
   return Response.ok(
     response.toJsonString(),
@@ -267,16 +267,17 @@ Future<Response> resumeSession(
     SessionBroadcasterRegistry.instance.getOrCreate(session);
 
     // Cache for WebSocket access
-    sessionCache[session.id] = session;
+    sessionCache[session.state.id] = session;
 
-    final mainAgent = session.mainAgent;
+    final sessionState = session.state;
+    final mainAgent = sessionState.mainAgent;
     final response = {
-      'session-id': session.id,
+      'session-id': sessionState.id,
       if (mainAgent != null) 'main-agent-id': mainAgent.id,
-      'working-directory': session.workingDirectory,
+      'working-directory': sessionState.workingDirectory,
     };
 
-    _log.info('Session resumed: ${session.id}');
+    _log.info('Session resumed: ${sessionState.id}');
     return Response.ok(
       jsonEncode(response),
       headers: {'Content-Type': 'application/json'},
@@ -309,25 +310,26 @@ class _SimplifiedStreamHandler {
     _broadcaster = SessionBroadcasterRegistry.instance.getOrCreate(session);
   }
 
-  String get sessionId => session.id;
+  String get sessionId => session.state.id;
 
   /// Set up the WebSocket stream
   Future<void> setup() async {
     _log.info('[Session $sessionId] Setting up stream');
 
     // Send connected event
-    final agents = session.agents;
+    final sessionState = session.state;
+    final agents = sessionState.agents;
     final connectedEvent = ConnectedEvent(
       sessionId: sessionId,
-      mainAgentId: session.mainAgent?.id ?? '',
+      mainAgentId: sessionState.mainAgent?.id ?? '',
       lastSeq: _broadcaster.history.length,
       agents: agents
           .map((a) => AgentInfo(id: a.id, type: a.type, name: a.name))
           .toList(),
       metadata: {
-        'working-directory': session.workingDirectory,
-        'goal': session.goal,
-        'team': session.team,
+        'working-directory': sessionState.workingDirectory,
+        'goal': sessionState.goal,
+        'team': sessionState.team,
       },
     );
     channel.sink.add(connectedEvent.toJsonString());
@@ -508,7 +510,7 @@ class _SimplifiedStreamHandler {
 
       case 'set-worktree-path':
         await session.setWorktreePath(data['path'] as String?);
-        return {'working-directory': session.workingDirectory};
+        return {'working-directory': session.state.workingDirectory};
 
       case 'terminate-agent':
         final agentId = data['agent-id'] as String?;

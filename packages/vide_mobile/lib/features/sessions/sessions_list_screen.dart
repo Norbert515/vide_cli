@@ -224,8 +224,8 @@ class _SessionCard extends ConsumerWidget {
     // Live data from RemoteVideSession
     final latestActivity = entry.latestActivity;
     final pendingPermission = entry.pendingPermission;
-    final agentCount = remoteSession?.agents.length ?? 1;
-    final anyAgentBusy = remoteSession?.isProcessing ?? false;
+    final agentCount = remoteSession?.state.agents.length ?? 1;
+    final anyAgentBusy = remoteSession?.state.isProcessing ?? false;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -254,7 +254,7 @@ class _SessionCard extends ConsumerWidget {
                   // Session title (goal or session ID)
                   Expanded(
                     child: Text(
-                      remoteSession?.goal ??
+                      remoteSession?.state.goal ??
                           'Session ${session.sessionId.substring(0, 8)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.w600,

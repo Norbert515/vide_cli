@@ -93,7 +93,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _subscribeToSession(RemoteVideSession session) {
     // Seed agents from current session state (events may have already been
     // delivered before we subscribed, e.g., when reusing an existing session).
-    final currentAgents = session.agents;
+    final currentAgents = session.state.agents;
     if (currentAgents.isNotEmpty) {
       _agents = currentAgents;
       for (final agent in currentAgents) {
@@ -109,7 +109,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _eventSubscription = session.events.listen(_handleEvent);
 
     // 2. Agents stream — updates agent tabs
-    _agentsSubscription = session.agentsStream.listen((agents) {
+    _agentsSubscription = session.stateStream.map((s) => s.agents).distinct().listen((agents) {
       if (!mounted) return;
       setState(() {
         _agents = agents;
@@ -192,8 +192,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       default:
         // All other events (messages, tools, agents, status, history, etc.)
         // are handled by RemoteVideSession internally and exposed via
-        // session.agents, session.agentsStream, session.conversationState,
-        // and session.isProcessing.
+        // session.state.agents, session.stateStream, session.conversationState,
+        // and session.state.isProcessing.
         break;
     }
   }
@@ -329,7 +329,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
-    final isProcessing = session?.isProcessing ?? false;
+    final isProcessing = session?.state.isProcessing ?? false;
     final inputEnabled = !isProcessing && !isDisconnected;
     final hasAgents = _agents.isNotEmpty;
 

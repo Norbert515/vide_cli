@@ -167,16 +167,17 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   Component build(BuildContext context) {
     // Get session (works for both local and remote modes)
     final session = context.watch(currentVideSessionProvider);
-    final workingDirectory = session?.workingDirectory ?? '';
+    final sessionState = session?.state;
+    final workingDirectory = sessionState?.workingDirectory ?? '';
 
     // Watch for agent changes - this is crucial for remote sessions where
     // agents are populated asynchronously from history/connected events
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final agents = agentsAsync.valueOrNull ?? session?.agents ?? [];
+    final agents = agentsAsync.valueOrNull ?? sessionState?.agents ?? [];
     final agentIds = agents.map((a) => a.id).toList();
 
     // Get goal text from session (works for both local and remote modes)
-    final goalText = session?.goal ?? 'Session';
+    final goalText = sessionState?.goal ?? 'Session';
 
     // Build the main content column
     final content = Container(
@@ -334,7 +335,7 @@ class _AgentChatState extends State<_AgentChat> {
     final session = context.read(currentVideSessionProvider);
     if (session == null)
       return true; // If no session, treat as last agent (safe default)
-    return session.agents.length <= 1;
+    return session.state.agents.length <= 1;
   }
 
   Future<void> _handleCommand(String commandInput) async {
@@ -342,7 +343,7 @@ class _AgentChatState extends State<_AgentChat> {
     final dispatcher = context.read(commandDispatcherProvider);
     final commandContext = CommandContext(
       agentId: component.agentId,
-      workingDirectory: session?.workingDirectory ?? '',
+      workingDirectory: session?.state.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
         session?.sendMessage(
@@ -1176,7 +1177,7 @@ class _AgentChatState extends State<_AgentChat> {
             ToolInvocationRouter(
               key: ValueKey(response.toolUseId ?? response.id),
               invocation: invocation,
-              workingDirectory: session?.workingDirectory ?? '',
+              workingDirectory: session?.state.workingDirectory ?? '',
               executionId: component.networkId,
               agentId: component.agentId,
             ),

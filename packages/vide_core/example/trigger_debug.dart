@@ -39,7 +39,7 @@ void main() async {
       team: 'enterprise',
     );
 
-    print('Session started: ${session.id}');
+    print('Session started: ${session.state.id}');
     print('Listening for events...');
     print('');
 

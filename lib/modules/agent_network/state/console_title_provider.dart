@@ -122,7 +122,7 @@ _AggregatedStatus _getAggregatedStatus(Ref ref) {
     return _AggregatedStatus.idle;
   }
 
-  final agents = session.agents;
+  final agents = session.state.agents;
   if (agents.isEmpty) {
     return _AggregatedStatus.idle;
   }

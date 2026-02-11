@@ -124,7 +124,7 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
       if (mounted) {
         // The initial message is already sent to the server via createSession.
         // RemoteVideSession tracks processing state internally — the chat
-        // screen reads session.isProcessing directly.
+        // screen reads session.state.isProcessing directly.
         notifier.setIsCreating(false);
         context.go(AppRoutes.sessionPath(session.id));
       }

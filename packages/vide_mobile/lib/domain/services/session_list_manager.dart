@@ -151,8 +151,8 @@ class SessionListManager extends _$SessionListManager {
           (event) => _handleEvent(id, event),
           onError: (_) {},
         ),
-        session.goalStream.listen((_) => _notify(id)),
-        session.agentsStream.listen((_) => _notify(id)),
+        session.stateStream.map((s) => s.goal).distinct().listen((_) => _notify(id)),
+        session.stateStream.map((s) => s.agents).distinct().listen((_) => _notify(id)),
       ];
     } catch (e) {
       _log('Failed to connect to session $id: $e');

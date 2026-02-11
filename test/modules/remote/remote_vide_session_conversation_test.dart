@@ -12,7 +12,7 @@ void main() {
 
     setUp(() {
       session = RemoteVideSession.pending();
-      agentId = session.mainAgent!.id;
+      agentId = session.state.mainAgent!.id;
       seq = 0;
     });
 
@@ -322,8 +322,8 @@ void main() {
     group('pending session', () {
       test('has placeholder main agent initially', () {
         expect(session.isPending, isTrue);
-        expect(session.mainAgent, isNotNull);
-        expect(session.mainAgent!.name, equals('Connecting...'));
+        expect(session.state.mainAgent, isNotNull);
+        expect(session.state.mainAgent!.name, equals('Connecting...'));
       });
 
       // Note: Tests that call completePending are skipped because they attempt
@@ -335,7 +335,7 @@ void main() {
 
         expect(session.isPending, isFalse);
         expect(session.creationError, equals('Connection refused'));
-        expect(session.mainAgent!.name, equals('Error'));
+        expect(session.state.mainAgent!.name, equals('Error'));
       });
 
       // completePending callback test removed - triggers WebSocket connection
@@ -525,8 +525,8 @@ void main() {
         () async {
           final callback = session.createPermissionCallback(
             agentId: agentId,
-            agentName: session.mainAgent?.name,
-            agentType: session.mainAgent?.type,
+            agentName: session.state.mainAgent?.name,
+            agentType: session.state.mainAgent?.type,
             cwd: '/tmp',
           );
 
@@ -543,7 +543,7 @@ void main() {
     group('agent spawning', () {
       test('agentsStream emits when agent is spawned', () async {
         final updates = <List<dynamic>>[];
-        final subscription = session.agentsStream.listen(updates.add);
+        final subscription = session.stateStream.map((s) => s.agents).listen(updates.add);
 
         // Allow subscription to be set up
         await Future.delayed(Duration.zero);
@@ -568,7 +568,7 @@ void main() {
 
       test('agents list includes spawned agents', () {
         // Initially has just the placeholder main agent
-        expect(session.agents.length, equals(1));
+        expect(session.state.agents.length, equals(1));
 
         _simulateAgentSpawned(
           session,
@@ -578,9 +578,9 @@ void main() {
           seq: ++seq,
         );
 
-        expect(session.agents.length, equals(2));
-        expect(session.agents.any((a) => a.id == 'sub-agent-1'), isTrue);
-        expect(session.agents.any((a) => a.name == 'Code Helper'), isTrue);
+        expect(session.state.agents.length, equals(2));
+        expect(session.state.agents.any((a) => a.id == 'sub-agent-1'), isTrue);
+        expect(session.state.agents.any((a) => a.name == 'Code Helper'), isTrue);
       });
 
       test('agentsStream emits when agent is terminated', () async {
@@ -594,7 +594,7 @@ void main() {
         );
 
         final updates = <List<dynamic>>[];
-        final subscription = session.agentsStream.listen(updates.add);
+        final subscription = session.stateStream.map((s) => s.agents).listen(updates.add);
 
         // Allow subscription to be set up
         await Future.delayed(Duration.zero);
@@ -620,12 +620,12 @@ void main() {
           seq: ++seq,
         );
 
-        expect(session.agents.length, equals(2));
+        expect(session.state.agents.length, equals(2));
 
         _simulateAgentTerminated(session, 'sub-agent-1', seq: ++seq);
 
-        expect(session.agents.length, equals(1));
-        expect(session.agents.any((a) => a.id == 'sub-agent-1'), isFalse);
+        expect(session.state.agents.length, equals(1));
+        expect(session.state.agents.any((a) => a.id == 'sub-agent-1'), isFalse);
       });
 
       test('multiple spawned agents appear in list', () {
@@ -651,10 +651,10 @@ void main() {
           seq: ++seq,
         );
 
-        expect(session.agents.length, equals(4)); // main + 3 spawned
-        expect(session.agents.any((a) => a.id == 'agent-1'), isTrue);
-        expect(session.agents.any((a) => a.id == 'agent-2'), isTrue);
-        expect(session.agents.any((a) => a.id == 'agent-3'), isTrue);
+        expect(session.state.agents.length, equals(4)); // main + 3 spawned
+        expect(session.state.agents.any((a) => a.id == 'agent-1'), isTrue);
+        expect(session.state.agents.any((a) => a.id == 'agent-2'), isTrue);
+        expect(session.state.agents.any((a) => a.id == 'agent-3'), isTrue);
       });
     });
 
@@ -681,16 +681,16 @@ void main() {
 
         session.handleWebSocketMessage(connectedJson);
 
-        expect(session.workingDirectory, equals('/tmp/test-project'));
-        expect(session.goal, equals('Fix flaky tests'));
-        expect(session.team, equals('enterprise'));
+        expect(session.state.workingDirectory, equals('/tmp/test-project'));
+        expect(session.state.goal, equals('Fix flaky tests'));
+        expect(session.state.team, equals('enterprise'));
       });
 
       test(
         'task-name-changed updates goal and emits goal stream event',
         () async {
           final emittedGoals = <String>[];
-          final goalSub = session.goalStream.listen(emittedGoals.add);
+          final goalSub = session.stateStream.map((s) => s.goal).distinct().listen(emittedGoals.add);
 
           final ts = DateTime.now().toIso8601String();
           session.handleWebSocketMessage(
@@ -707,7 +707,7 @@ void main() {
 
           await Future.delayed(Duration(milliseconds: 10));
 
-          expect(session.goal, equals('Ship API cleanup'));
+          expect(session.state.goal, equals('Ship API cleanup'));
           expect(emittedGoals, contains('Ship API cleanup'));
 
           await goalSub.cancel();
@@ -776,11 +776,11 @@ void main() {
         // Note: pending session placeholder + main from connected + spawned from history
         // But the pending placeholder should have different ID than main from connected
         expect(
-          session.agents.any((a) => a.id == mainAgentIdFromServer),
+          session.state.agents.any((a) => a.id == mainAgentIdFromServer),
           isTrue,
         );
-        expect(session.agents.any((a) => a.id == 'spawned-1'), isTrue);
-        expect(session.agents.any((a) => a.name == 'Implementer'), isTrue);
+        expect(session.state.agents.any((a) => a.id == 'spawned-1'), isTrue);
+        expect(session.state.agents.any((a) => a.name == 'Implementer'), isTrue);
       });
 
       test('connected event emits to agentsStream for UI reactivity', () async {
@@ -791,7 +791,7 @@ void main() {
 
         // Set up a listener for the stream BEFORE the connected event
         List<VideAgent>? emittedAgents;
-        final subscription = session.agentsStream.listen((agents) {
+        final subscription = session.stateStream.map((s) => s.agents).listen((agents) {
           emittedAgents = agents;
         });
 
@@ -866,7 +866,7 @@ void main() {
         session.handleWebSocketMessage(historyJson);
 
         // Agent from history should still be added (skipSeqCheck for history)
-        expect(session.agents.any((a) => a.id == 'history-agent'), isTrue);
+        expect(session.state.agents.any((a) => a.id == 'history-agent'), isTrue);
       });
 
       test('history streaming messages are consolidated to avoid duplication', () {

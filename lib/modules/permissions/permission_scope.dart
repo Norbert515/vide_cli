@@ -222,10 +222,10 @@ class _PermissionScopeState extends State<PermissionScope> {
   /// unifying local and remote/daemon modes.
   void _setupSessionEventHandling(BuildContext context, VideSession? session) {
     // If session changed, cancel old subscription
-    if (session?.id != _currentSessionId) {
+    if (session?.state.id != _currentSessionId) {
       _sessionEventSub?.cancel();
       _sessionEventSub = null;
-      _currentSessionId = session?.id;
+      _currentSessionId = session?.state.id;
     }
 
     // If no session or already subscribed, skip
@@ -237,7 +237,7 @@ class _PermissionScopeState extends State<PermissionScope> {
         case PermissionRequestEvent():
           final request = PermissionRequest.fromEvent(
             event,
-            session.workingDirectory,
+            session.state.workingDirectory,
           );
           context
               .read(permissionStateProvider.notifier)

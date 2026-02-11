@@ -81,7 +81,7 @@ class _AgentSidebarState extends State<AgentSidebar>
     // When sidebar gains focus, ensure selection is on a valid selectable item
     if (component.focused && !old.focused) {
       final session = context.read(currentVideSessionProvider);
-      final agents = session?.agents ?? [];
+      final agents = session?.state.agents ?? [];
       final teamDef = context.read(currentTeamDefinitionProvider).valueOrNull;
       final items = _buildItems(agents, teamDef);
 
@@ -192,11 +192,11 @@ class _AgentSidebarState extends State<AgentSidebar>
     final teamDef = teamDefAsync.valueOrNull;
 
     // Watch for agent changes - unified for both local and remote modes
-    // The videSessionAgentsProvider watches session.agentsStream which emits
+    // The videSessionAgentsProvider watches session.stateStream which emits
     // whenever agents are spawned or terminated.
     final session = context.watch(currentVideSessionProvider);
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final spawnedAgents = agentsAsync.valueOrNull ?? session?.agents ?? [];
+    final spawnedAgents = agentsAsync.valueOrNull ?? session?.state.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);
