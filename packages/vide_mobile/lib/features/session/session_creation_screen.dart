@@ -5,44 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
-import 'package:vide_client/vide_client.dart';
 
-import '../../data/repositories/connection_repository.dart';
 import '../../data/repositories/session_repository.dart';
 import 'session_creation_state.dart';
-
-final _fallbackTeams = [
-  TeamInfo(
-      name: 'vide',
-      description: 'Full-featured multi-agent team',
-      mainAgent: '',
-      agents: []),
-  TeamInfo(
-      name: 'startup',
-      description: 'Fast and lean, minimal agents',
-      mainAgent: '',
-      agents: []),
-  TeamInfo(
-    name: 'enterprise',
-    description: 'Comprehensive with QA and review',
-    mainAgent: '',
-    agents: [],
-  ),
-  TeamInfo(
-      name: 'research',
-      description: 'Deep exploration and analysis',
-      mainAgent: '',
-      agents: []),
-];
-
-final availableTeamsProvider = FutureProvider<List<TeamInfo>>((ref) async {
-  final connectionState = ref.watch(connectionRepositoryProvider);
-  final client = connectionState.client;
-  if (client == null) {
-    return _fallbackTeams;
-  }
-  return client.listTeams();
-});
 
 /// Screen for creating a new session.
 class SessionCreationScreen extends ConsumerStatefulWidget {
@@ -72,12 +37,8 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
 
   Future<void> _loadDefaults() async {
     final storage = ref.read(settingsStorageProvider.notifier);
-    final lastTeam = await storage.getLastTeam();
     final lastDir = await storage.getLastWorkingDirectory();
 
-    if (lastTeam != null) {
-      ref.read(sessionCreationNotifierProvider.notifier).setTeam(lastTeam);
-    }
     if (lastDir != null) {
       ref
           .read(sessionCreationNotifierProvider.notifier)
@@ -119,7 +80,6 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
       );
 
       await settingsStorage.addRecentWorkingDirectory(state.workingDirectory);
-      await settingsStorage.saveLastTeam(state.team);
 
       if (mounted) {
         // The initial message is already sent to the server via createSession.
@@ -219,24 +179,6 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                   },
                 ),
                 const SizedBox(height: 24),
-                // Team selection
-                Text(
-                  'Team',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(height: 8),
-                _TeamSelector(
-                  selectedTeam: state.team,
-                  enabled: !state.isCreating,
-                  onSelected: (team) {
-                    ref
-                        .read(sessionCreationNotifierProvider.notifier)
-                        .setTeam(team);
-                  },
-                ),
-                const SizedBox(height: 24),
                 // Permission mode
                 Text(
                   'Permission Mode',
@@ -259,103 +201,6 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TeamSelector extends ConsumerWidget {
-  final String selectedTeam;
-  final bool enabled;
-  final ValueChanged<String> onSelected;
-
-  const _TeamSelector({
-    required this.selectedTeam,
-    required this.enabled,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final teamsAsync = ref.watch(availableTeamsProvider);
-
-    return teamsAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (_, __) => _buildTeamList(
-        _fallbackTeams,
-        colorScheme,
-        videColors,
-      ),
-      data: (teams) => _buildTeamList(teams, colorScheme, videColors),
-    );
-  }
-
-  Widget _buildTeamList(
-    List<TeamInfo> teams,
-    ColorScheme colorScheme,
-    VideThemeColors videColors,
-  ) {
-    return Column(
-      children: teams.map((team) {
-        final isSelected = team.name == selectedTeam;
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: InkWell(
-            onTap: enabled ? () => onSelected(team.name) : null,
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: isSelected ? videColors.accentSubtle : null,
-                border: Border.all(
-                  color: isSelected
-                      ? videColors.accent
-                      : colorScheme.outlineVariant,
-                  width: isSelected ? 2 : 1,
-                ),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          team.name,
-                          style: TextStyle(
-                            color: isSelected
-                                ? videColors.accent
-                                : colorScheme.onSurface,
-                            fontWeight:
-                                isSelected ? FontWeight.w600 : FontWeight.w500,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          team.description,
-                          style: TextStyle(
-                            color: videColors.textSecondary,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (isSelected)
-                    Icon(Icons.check_circle,
-                        size: 20, color: videColors.accent),
-                ],
-              ),
-            ),
-          ),
-        );
-      }).toList(),
     );
   }
 }

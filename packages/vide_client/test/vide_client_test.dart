@@ -100,7 +100,7 @@ void main() {
         'metadata': {
           'working-directory': '/tmp/workspace',
           'goal': 'Fix build',
-          'team': 'vide',
+          'team': 'enterprise',
         },
       });
 
@@ -108,7 +108,7 @@ void main() {
       final connected = event as ConnectedEvent;
       expect(connected.metadata['working-directory'], '/tmp/workspace');
       expect(connected.metadata['goal'], 'Fix build');
-      expect(connected.metadata['team'], 'vide');
+      expect(connected.metadata['team'], 'enterprise');
     });
 
     test('parses message event', () {

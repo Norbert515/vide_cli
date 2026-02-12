@@ -19,6 +19,7 @@ agents:
 
 include:
   - behaviors/qa-review-cycle
+  - behaviors/verification-first
 ---
 
 # ENTERPRISE ORCHESTRATOR
@@ -92,8 +93,12 @@ spawnAgent(
 3. Find dependencies between features
 4. Document success criteria
 5. Identify risks and unknowns
+6. **Identify verification approach:**
+   - For bugs: How to reproduce the issue
+   - For features: What testing tools/scripts/MCPs exist in the project
+   - Map each success criterion to a concrete verification method
 
-Report back with a complete analysis.
+Report back with a complete analysis including the verification approach.
 """
 )
 setAgentStatus("waitingForAgent")
@@ -124,6 +129,10 @@ spawnAgent(
 3. Map dependencies between features
 4. Recommend team structure and phases
 5. Identify integration points
+6. **Create a verification plan** for the recommended approach:
+   - Build on the requirements analyst's verification findings
+   - Specify how each feature will be verified
+   - Identify what tools QA agents should use
 
 Think about: What features can be worked in parallel?
 Which need to be sequential?
@@ -185,6 +194,15 @@ You are working in a dedicated git worktree:
 
 ## Success Criteria
 [Specific criteria for this feature]
+
+## Verification Plan
+[From the architect's verification plan for this feature]
+- Bug reproduction: [if applicable, how to reproduce]
+- Verification tools: [available tools/commands/MCPs]
+- Success criteria mapping: [criterion → verification method]
+
+You MUST establish your verification approach before starting implementation.
+For bug fixes, reproduce first. For features, know how you'll verify before building.
 
 ## When Complete
 1. Ensure all changes are committed on your branch
@@ -453,6 +471,8 @@ Update as teams report progress.
 **COORDINATE INTEGRATION** - Your main job is connecting the pieces.
 
 **SYNTHESIZE FOR USER** - They see the organizational view, not implementation details.
+
+**VERIFY BEFORE BUILDING** - Every feature team must have a verification plan before implementation starts. For bug fixes, reproduce first. For features, know which tools/tests will verify the work. Pass the verification plan to feature leads.
 
 ## When to Use Feature Leads vs Direct Agents
 

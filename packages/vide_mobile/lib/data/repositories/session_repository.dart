@@ -147,8 +147,7 @@ class SessionRepository extends _$SessionRepository {
   /// to the same session. This ensures the caller receives ConnectedEvent +
   /// HistoryEvent through the streams (important when the chat screen
   /// subscribes after session creation).
-  Future<RemoteVideSession> connectToExistingSession(
-      String sessionId) async {
+  Future<RemoteVideSession> connectToExistingSession(String sessionId) async {
     _log('Connecting to existing session: $sessionId');
 
     final connectionState = ref.read(connectionRepositoryProvider);
@@ -297,21 +296,19 @@ class SessionRepository extends _$SessionRepository {
       port: connection.port,
     );
 
-    // Connect to existing session
-    final clientSession =
-        await videClient.connectToSession(currentSession.id);
+    // Connect to existing session via new WebSocket
+    final clientSession = await videClient.connectToSession(currentSession.id);
 
-    // Create fresh RemoteVideSession
-    final remoteSession =
-        RemoteVideSession.fromClientSession(clientSession);
+    // Reconnect the EXISTING RemoteVideSession with the new transport.
+    // This preserves all UI references, event subscriptions, and
+    // conversation state. The ConnectedEvent from the new transport will
+    // update agent statuses, and HistoryEvent will replay missed events.
+    currentSession.reconnect(clientSession);
 
-    // Set up event listening
-    _setupEventListening(remoteSession);
+    // Re-listen for connection state changes on the same session
+    _setupEventListening(currentSession);
 
-    state = state.copyWith(
-      session: remoteSession,
-      isActive: true,
-    );
+    state = state.copyWith(isActive: true);
 
     _log('Reconnected to session ${currentSession.id}');
   }

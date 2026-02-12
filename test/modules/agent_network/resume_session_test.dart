@@ -74,7 +74,7 @@ void main() {
         agents: agents,
         createdAt: DateTime.now(),
         lastActiveAt: DateTime.now(),
-        team: 'vide',
+        team: 'enterprise',
       );
 
       // Get the manager from the container (same container TUI uses)
@@ -150,7 +150,7 @@ void main() {
         ],
         createdAt: DateTime.now(),
         lastActiveAt: DateTime.now(),
-        team: 'vide',
+        team: 'enterprise',
       );
 
       final manager = container.read(agentNetworkManagerProvider.notifier);

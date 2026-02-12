@@ -8,11 +8,18 @@ class AgentInfo {
   final String name;
   final String? taskName;
 
+  /// Current agent status (e.g. 'working', 'idle').
+  ///
+  /// Only present in ConnectedEvent agent lists. Null when AgentInfo is used
+  /// as attribution on regular events.
+  final String? status;
+
   const AgentInfo({
     required this.id,
     required this.type,
     required this.name,
     this.taskName,
+    this.status,
   });
 
   factory AgentInfo.fromJson(Map<String, dynamic> json) => AgentInfo(
@@ -20,6 +27,7 @@ class AgentInfo {
     type: json['agent-type'] as String? ?? json['type'] as String? ?? '',
     name: json['agent-name'] as String? ?? json['name'] as String? ?? 'Agent',
     taskName: json['task-name'] as String?,
+    status: json['status'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -27,5 +35,6 @@ class AgentInfo {
     'agent-type': type,
     'agent-name': name,
     if (taskName != null) 'task-name': taskName,
+    if (status != null) 'status': status,
   };
 }

@@ -249,5 +249,114 @@ void main() {
       // Clean up
       registry.remove(session.id);
     });
+
+    // =========================================================================
+    // Bug: Client callback error during broadcast crashes all clients
+    //
+    // _handleEvent iterates _clients directly with a for-in loop. If a client
+    // callback throws (e.g. WebSocket write to a closed channel), the error
+    // propagates and prevents remaining clients from receiving the event.
+    // =========================================================================
+    test(
+      'throwing client callback should not prevent other clients from receiving events',
+      () {
+        final session = _StubSession();
+        final broadcaster = SessionBroadcaster(session);
+
+        final client1Events = <Map<String, dynamic>>[];
+        final client2Events = <Map<String, dynamic>>[];
+
+        // Client 1 throws on every event (simulates broken WebSocket)
+        broadcaster.addClient((event) {
+          throw Exception('WebSocket write failed');
+        });
+
+        // Client 2 is a well-behaved client
+        broadcaster.addClient((event) => client2Events.add(event));
+
+        // Client 3 is also well-behaved
+        broadcaster.addClient((event) => client1Events.add(event));
+
+        // Emit an event — before the fix, client 1's exception would
+        // prevent client 2 and 3 from receiving the event.
+        session.emitLive(
+          MessageEvent(
+            agentId: 'agent-1',
+            agentType: 'main',
+            eventId: 'msg-1',
+            role: 'assistant',
+            content: 'Hello',
+            isPartial: false,
+          ),
+        );
+
+        // Both well-behaved clients should receive the event
+        expect(
+          client2Events,
+          hasLength(1),
+          reason:
+              'Client 2 should receive event even if client 1 threw',
+        );
+        expect(
+          client1Events,
+          hasLength(1),
+          reason:
+              'Client 3 should receive event even if client 1 threw',
+        );
+
+        broadcaster.dispose();
+      },
+    );
+
+    // =========================================================================
+    // Bug: Client self-removing during broadcast causes ConcurrentModification
+    //
+    // If a client's callback calls the unregister function (returned by
+    // addClient) during iteration, this modifies _clients while iterating,
+    // causing a ConcurrentModificationError.
+    // =========================================================================
+    test(
+      'client unregistering during broadcast should not crash',
+      () {
+        final session = _StubSession();
+        final broadcaster = SessionBroadcaster(session);
+
+        final client2Events = <Map<String, dynamic>>[];
+        late void Function() unregister1;
+
+        // Client 1 unregisters itself on first event
+        unregister1 = broadcaster.addClient((event) {
+          unregister1(); // Modify _clients during iteration
+        });
+
+        // Client 2 is normal
+        broadcaster.addClient((event) => client2Events.add(event));
+
+        // Emit an event — before the fix, this would throw
+        // ConcurrentModificationError because client 1 removes itself
+        // from _clients while the for-in loop is iterating over _clients.
+        expect(
+          () => session.emitLive(
+            MessageEvent(
+              agentId: 'agent-1',
+              agentType: 'main',
+              eventId: 'msg-1',
+              role: 'assistant',
+              content: 'Hello',
+              isPartial: false,
+            ),
+          ),
+          returnsNormally,
+          reason:
+              'Should not throw ConcurrentModificationError when client '
+              'unregisters during broadcast',
+        );
+
+        // Client 2 should still receive the event
+        expect(client2Events, hasLength(1));
+
+        broadcaster.dispose();
+      },
+    );
   });
 }

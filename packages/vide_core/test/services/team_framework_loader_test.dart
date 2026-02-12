@@ -58,17 +58,6 @@ void main() {
     });
 
     group('Team Loading', () {
-      test('vide team has correct structure', () async {
-        final team = await loader.getTeam('vide');
-
-        expect(team, isNotNull);
-        expect(team!.name, 'vide');
-        expect(team.mainAgent, 'main');
-        expect(team.agents, contains('researcher'));
-        expect(team.agents, contains('implementer'));
-        expect(team.agents, contains('tester'));
-      });
-
       test('enterprise team has correct structure', () async {
         final team = await loader.getTeam('enterprise');
 
@@ -175,8 +164,8 @@ void main() {
 
       test('buildAgentConfiguration includes etiquette from team', () async {
         final config = await loader.buildAgentConfiguration(
-          'main',
-          teamName: 'vide',
+          'enterprise-lead',
+          teamName: 'enterprise',
         );
 
         expect(config, isNotNull);
@@ -233,8 +222,8 @@ void main() {
 
         expect(teams, isNotEmpty);
         expect(agents, isNotEmpty);
-        expect(teams.containsKey('vide'), isTrue);
-        expect(agents.containsKey('main'), isTrue);
+        expect(teams.containsKey('enterprise'), isTrue);
+        expect(agents.containsKey('enterprise-lead'), isTrue);
       });
     });
 
@@ -251,7 +240,7 @@ void main() {
         'system-reminder',
       ];
 
-      for (final teamName in ['vide', 'enterprise', 'flutter']) {
+      for (final teamName in ['enterprise']) {
         group('team: $teamName', () {
           test('team includes messaging etiquette', () async {
             final team = await loader.getTeam(teamName);
@@ -313,28 +302,6 @@ void main() {
           });
         });
       }
-
-      test('messaging etiquette appears before agent content', () async {
-        final config = await loader.buildAgentConfiguration(
-          'main',
-          teamName: 'vide',
-        );
-
-        expect(config, isNotNull);
-        final prompt = config!.systemPrompt;
-
-        final hallucinationIdx =
-            prompt.indexOf('NEVER Hallucinate Sub-Agent Responses');
-        final orchestratorIdx = prompt.indexOf('YOU ARE THE ORCHESTRATOR');
-
-        expect(
-          hallucinationIdx,
-          lessThan(orchestratorIdx),
-          reason:
-              'Anti-hallucination rules from messaging etiquette should '
-              'appear before the agent\'s own content',
-        );
-      });
 
       test(
           'messaging etiquette appears before agent content in enterprise',

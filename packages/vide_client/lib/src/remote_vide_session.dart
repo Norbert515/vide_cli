@@ -120,7 +120,8 @@ class RemoteVideSession implements VideSession {
   /// Direct event pipeline (replaces SessionEventHub).
   final StreamController<VideEvent> _eventController =
       StreamController<VideEvent>.broadcast(sync: true);
-  final ConversationStateManager _conversationState = ConversationStateManager();
+  final ConversationStateManager _conversationState =
+      ConversationStateManager();
   final StreamController<VideState> _stateController =
       StreamController<VideState>.broadcast();
   bool _disposed = false;
@@ -166,6 +167,18 @@ class RemoteVideSession implements VideSession {
 
   /// Current status per agent.
   final Map<String, VideAgentStatus> _agentStatuses = {};
+
+  /// Agents that have optimistic "working" status from a client-side sendMessage.
+  ///
+  /// When the client sends a message, it optimistically sets the agent to
+  /// "working" before the server confirms. During this window, stale
+  /// `StatusEvent(idle)` from the server (emitted before the server processed
+  /// the user's message) must be ignored to prevent a brief loading flicker.
+  ///
+  /// The flag is cleared when:
+  /// - A non-idle `StatusEvent` arrives (server confirmed processing)
+  /// - A `TurnCompleteEvent` arrives (turn genuinely completed)
+  final Set<String> _optimisticWorking = {};
 
   /// Last seq seen, for deduplication.
   int _lastSeq = 0;
@@ -357,6 +370,31 @@ class RemoteVideSession implements VideSession {
     );
   }
 
+  /// Reconnect this session with a new client transport.
+  ///
+  /// This swaps the underlying [Session] without creating a new
+  /// [RemoteVideSession] instance, so all UI references, event subscriptions,
+  /// and conversation state are preserved. The new transport's
+  /// ConnectedEvent + HistoryEvent will update agent list, statuses, and
+  /// replay any events that were missed during the disconnect.
+  void reconnect(Session newClientSession) {
+    if (_disposed) return;
+
+    // Tear down old transport
+    _eventSubscription?.cancel();
+    _eventSubscription = null;
+    _clientSession?.close();
+
+    // Swap transport
+    _clientSession = newClientSession;
+    _connected = false;
+
+    // Set up event listening on the new transport.
+    // ConnectedEvent will restore agent list/statuses, and HistoryEvent
+    // will replay any missed events.
+    _setupEventListening();
+  }
+
   /// Handle an event from the client session.
   ///
   /// If [skipSeqCheck] is true, deduplication is skipped (for history replay).
@@ -445,21 +483,25 @@ class RemoteVideSession implements VideSession {
     _lastSeq = event.lastSeq;
     _applyConnectedMetadata(event.metadata);
 
+    // Clear any optimistic working guards — history replay will reconstruct
+    // the correct status from authoritative server events.
+    _optimisticWorking.clear();
+
     // Remove stale placeholder agent (if any) before populating with real data.
     if (_pendingAgentIdToMigrate != null) {
       _agents.remove(_pendingAgentIdToMigrate);
     }
 
-    // Parse agents list from connected event
+    // Parse agents list from connected event.
+    // All agents start as idle; history replay will set the correct final
+    // status by replaying all StatusEvents/TurnCompleteEvents in order.
     for (final agent in event.agents) {
       _agents[agent.id] = _RemoteAgentInfo(
         id: agent.id,
         type: agent.type,
         name: agent.name,
       );
-      // If this session was created with an initial message, the main agent
-      // is already processing it server-side. Set it to "working" so the
-      // loading indicator appears immediately instead of briefly showing idle.
+
       final isMainWithInitialMessage =
           _hadInitialMessage && agent.id == event.mainAgentId;
       _agentStatuses[agent.id] = isMainWithInitialMessage
@@ -591,6 +633,17 @@ class RemoteVideSession implements VideSession {
   void _handleStatus(StatusEvent event) {
     final agentId = event.agentId;
 
+    // During the optimistic working window, ignore idle status events from the
+    // server — they are stale events from before the server processed the
+    // client's message. Any non-idle status clears the guard since it proves
+    // the server is actively processing.
+    if (_optimisticWorking.contains(agentId)) {
+      if (event.status == VideAgentStatus.idle) {
+        return;
+      }
+      _optimisticWorking.remove(agentId);
+    }
+
     _agentStatuses[agentId] = event.status;
     _refreshQueuedMessage(agentId);
     _refreshModel(agentId);
@@ -609,6 +662,10 @@ class RemoteVideSession implements VideSession {
 
   void _handleDone(TurnCompleteEvent event) {
     final agentId = event.agentId;
+
+    // Turn genuinely completed — clear optimistic guard if any.
+    _optimisticWorking.remove(agentId);
+
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
@@ -802,6 +859,10 @@ class RemoteVideSession implements VideSession {
 
   void _handleAborted(AbortedEvent event) {
     final agentId = event.agentId;
+
+    // Abort is authoritative — clear optimistic guard.
+    _optimisticWorking.remove(agentId);
+
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshQueuedMessage(agentId);
 
@@ -979,8 +1040,13 @@ class RemoteVideSession implements VideSession {
       attachments: message.attachments,
     );
 
-    // Optimistically add the user message for immediate display.
-    if (targetAgentId != null) {
+    if (targetAgentId == null) return;
+
+    final isIdle = _agentStatuses[targetAgentId] == VideAgentStatus.idle;
+
+    if (isIdle) {
+      // Agent is idle — message will be processed immediately.
+      // Optimistically show the user message and set status to working.
       _emit(
         MessageEvent(
           agentId: targetAgentId,
@@ -993,21 +1059,14 @@ class RemoteVideSession implements VideSession {
           attachments: message.attachments,
         ),
       );
-    }
-
-    // Optimistically set agent status to working so loading indicators
-    // appear immediately, before the server sends back a StatusEvent.
-    if (targetAgentId != null &&
-        _agentStatuses[targetAgentId] == VideAgentStatus.idle) {
       _agentStatuses[targetAgentId] = VideAgentStatus.working;
+      _optimisticWorking.add(targetAgentId);
       _emitState();
-    }
-
-    // Optimistically reflect queued message when agent is already busy.
-    if (targetAgentId != null &&
-        (_agentStatuses[targetAgentId] == VideAgentStatus.working ||
-            _agentStatuses[targetAgentId] == VideAgentStatus.waitingForAgent ||
-            _agentStatuses[targetAgentId] == VideAgentStatus.waitingForUser)) {
+    } else {
+      // Agent is busy — message will be queued server-side.
+      // Don't add it to the conversation yet; the server will emit the user
+      // message event when the queue is flushed and the message is processed.
+      // Only update the queued message indicator.
       _queuedMessages[targetAgentId] = message.text;
       _getOrCreateQueuedMessageController(targetAgentId).add(message.text);
     }

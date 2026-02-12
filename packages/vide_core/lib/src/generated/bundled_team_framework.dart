@@ -30,6 +30,7 @@ include:
   - etiquette/reporting
   - etiquette/escalation
   - etiquette/handoff
+  - behaviors/verification-first
 ---
 
 # Enterprise Team
@@ -146,6 +147,14 @@ Independent features run in parallel:
 - All working simultaneously
 - Integration when features complete
 
+### Verification-First
+
+Quality starts before implementation:
+- **Bug fixes**: Reproduce the bug before fixing it
+- **New features**: Discover verification tools before building
+- **Every feature team** receives a verification plan with their assignment
+- **QA-breaker** receives the verification plan to use as a testing baseline
+
 ### Iterative Quality
 
 Quality is enforced at two levels:
@@ -157,14 +166,15 @@ Quality is enforced at two levels:
 
 ## Workflow
 
-1. **Understand** - Requirements analyst explores full scope
-2. **Design** - Solution architect breaks into features, maps dependencies
-3. **Team Formation** - Enterprise-lead spawns feature leads for each feature
-4. **Parallel Execution** - Feature teams work simultaneously
-5. **Integration** - Integration team connects completed features
-6. **QA Review** - Enterprise-lead spawns qa-breaker to review all work (MANDATORY)
-7. **Fix Loop** - If QA finds issues: implementer fixes → QA re-reviews (2-3 rounds max)
-8. **Completion** - Enterprise-lead synthesizes all team reports
+1. **Understand** - Requirements analyst explores full scope AND identifies verification approach
+2. **Design** - Solution architect breaks into features, maps dependencies, creates verification plan
+3. **Team Formation** - Enterprise-lead spawns feature leads with verification plans attached
+4. **Verification Setup** - Feature leads confirm verification approach (reproduce bugs / discover test tools)
+5. **Parallel Execution** - Feature teams implement with verification baked in
+6. **Integration** - Integration team connects completed features
+7. **QA Review** - Enterprise-lead spawns qa-breaker with verification plan (MANDATORY)
+8. **Fix Loop** - If QA finds issues: implementer fixes → QA re-reviews (2-3 rounds max)
+9. **Completion** - Enterprise-lead synthesizes all team reports
 
 ## When to Use Enterprise
 
@@ -190,314 +200,6 @@ The enterprise structure scales naturally:
 - Complex integration = dedicated integration team
 
 Teams can work for extended periods. Progress updates flow up to enterprise-lead, who synthesizes for the user.
-
-''',
-  'parallel': r'''
----
-name: parallel
-description: Git-aware dispatcher. Routes requests to agents on isolated worktrees. Parallel work with automatic merging.
-icon: 🔀
-
-main-agent: dispatcher
-agents:
-  - worker
-
-include:
-  - etiquette/messaging
-  - etiquette/completion
-  - etiquette/reporting
-  - etiquette/escalation
-  - etiquette/handoff
----
-
-# Parallel Team
-
-Git-aware workflow where the main agent **only routes requests** to workers on isolated worktrees.
-
-## Philosophy
-
-**Route, don't execute. Isolate, then integrate.**
-
-- Dispatcher never does implementation work
-- Each task gets its own agent (potentially on its own worktree)
-- Work happens in parallel, isolated branches
-- Dispatcher handles merging when complete
-
-## How It Works
-
-```
-User Request
-    ↓
-Dispatcher (main agent)
-    ↓
-Decision: New agent? Existing agent? Worktree needed?
-    ↓
-┌─────────────────────────────────────────────┐
-│  Worktree A          Worktree B             │
-│  (feature/auth)      (feature/rate-limit)   │
-│       ↓                    ↓                │
-│    Worker A            Worker B             │  parallel
-│       ↓                    ↓                │
-│   Complete             Complete             │
-└─────────────────────────────────────────────┘
-    ↓                        ↓
-    └────────┬───────────────┘
-             ↓
-        Dispatcher merges both to main
-             ↓
-        Clean up worktrees
-             ↓
-        Report to user
-```
-
-## Agents
-
-### Orchestration
-- **dispatcher** - Routes requests. Creates worktrees. Manages merging. Never implements.
-
-### Execution
-- **worker** - General-purpose implementation agent. Does the actual work.
-
-## Key Features
-
-### Git Worktree Isolation
-
-Each substantial task gets its own worktree:
-- `../project-feature-auth` → branch `feature/auth`
-- `../project-feature-rate-limit` → branch `feature/rate-limit`
-
-Workers operate in complete isolation. No stepping on each other's toes.
-
-### Automatic Merging
-
-When a worker completes:
-1. Dispatcher switches to main
-2. Merges the feature branch
-3. Removes the worktree
-4. Cleans up
-
-User doesn't manage git - it just happens.
-
-### Smart Routing
-
-Dispatcher decides per request:
-- **New agent** - Unrelated to existing work
-- **Existing agent** - Follow-up or related request
-- **Worktree** - Multi-file changes, features, experiments
-- **No worktree** - Quick fixes, single-file changes
-
-## Workflow Example
-
-```
-User: "Add authentication and rate limiting"
-
-Dispatcher:
-  1. Creates worktree feature/auth → spawns Worker A
-  2. Creates worktree feature/rate-limit → spawns Worker B
-  3. Both work in parallel
-
-Worker A completes → Dispatcher merges feature/auth
-Worker B completes → Dispatcher merges feature/rate-limit
-
-Dispatcher: "Both features complete and merged to main."
-```
-
-## When to Use Parallel
-
-- Multiple independent features at once
-- Work that benefits from git isolation
-- When you want parallel progress
-- Experimental changes that might be reverted
-- Long-running tasks that shouldn't block each other
-
-## When NOT to Use Parallel
-
-- Single focused task (use vide team instead)
-- Tightly coupled changes that must be coordinated
-- When you need the rigor of enterprise process
-
-## Comparison
-
-| Aspect | Vide | Enterprise | Parallel |
-|--------|------|------------|----------|
-| Main agent does work | Yes (delegates some) | No | No |
-| Worktree isolation | Optional | Optional | Default |
-| Parallel execution | Possible | Common | Expected |
-| Git management | Manual | Manual | Automatic |
-| Process overhead | Low | High | Low |
-
-## Scaling
-
-The parallel team scales naturally:
-- 5 features? 5 worktrees, 5 workers
-- All work simultaneously
-- Merge as they complete
-- No coordination overhead
-
-''',
-  'vide': r'''
----
-name: vide
-description: Lean vide workflow. Simple orchestration with specialized sub-agents.
-icon: 🎯
-
-main-agent: main
-agents:
-  - researcher
-  - implementer
-  - tester
-
-include:
-  - etiquette/messaging
-  - etiquette/completion
-  - etiquette/reporting
-  - etiquette/escalation
-  - etiquette/handoff
----
-
-# Vide Team
-
-The default workflow. Main agent orchestrates, sub-agents execute.
-
-## Agents
-
-- **main** (Klaus) - Orchestrates, never writes code
-- **researcher** - Explores codebase, gathers context
-- **implementer** - Writes and modifies code
-- **tester** - Runs and validates apps
-
-''',
-  'flutter': r'''
----
-name: flutter
-description: Flutter development team. Specialized for building, testing, and debugging Flutter applications.
-icon: 📱
-
-main-agent: main
-agents:
-  - researcher
-  - implementer
-  - flutter-tester
-
-include:
-  - etiquette/messaging
-  - etiquette/completion
-  - etiquette/reporting
-  - etiquette/escalation
-  - etiquette/handoff
----
-
-# Flutter Team
-
-Development team optimized for Flutter applications. Features a specialized Flutter tester agent with access to the Flutter AI runtime for visual testing, screenshots, and UI interaction.
-
-## Agents
-
-- **main** - Orchestrates, never writes code
-- **researcher** - Explores codebase, gathers context
-- **implementer** - Writes and modifies code
-- **flutter-tester** - Runs Flutter apps, takes screenshots, interacts with UI via vision AI
-
-## When to Use
-
-Use this team when:
-- Building or modifying Flutter applications
-- Testing Flutter UI visually
-- Debugging Flutter apps with hot reload
-- Validating mobile/web Flutter interfaces
-
-## Flutter-Specific Capabilities
-
-The flutter-tester agent has access to:
-- `flutterStart` - Start Flutter apps
-- `flutterReload` / `flutterRestart` - Hot reload/restart
-- `flutterScreenshot` - Capture screenshots
-- `flutterAct` - Interact with UI via natural language (vision AI)
-- `flutterTapAt` / `flutterType` / `flutterScroll` - Direct UI interactions
-- `flutterGetWidgetInfo` - Inspect widget tree at cursor position
-
-''',
-  'exp-flutter-qa': r'''
----
-name: exp-flutter-qa
-description: Parallel Flutter testing team. Spawns batches of isolated test runners for comprehensive app testing.
-icon: 🧪
-
-main-agent: test-coordinator
-agents:
-  - test-runner
-
-include:
-  - etiquette/messaging
-  - etiquette/completion
-  - etiquette/brief-reporting
-  - etiquette/escalation
-  - etiquette/handoff
----
-
-# Exp. Flutter QA Team
-
-Parallel Flutter testing team optimized for comprehensive app coverage through batched test execution.
-
-## Philosophy
-
-**Test fast, report brief.** Spawn multiple isolated test runners in parallel (1-5 at a time), aggregate results, move on.
-
-## Agents
-
-- **test-coordinator** (Patrol Lead) - Orchestrates test batches, aggregates results, never runs apps
-- **test-runner** (Scout) - Single-purpose tester, runs one test scope, reports PASS/FAIL, terminates
-
-## When to Use
-
-Use this team when:
-- Testing a Flutter app comprehensively
-- Need to cover multiple screens/flows quickly
-- Want parallel test execution
-- Care about aggregate pass/fail, not detailed narration
-
-## How It Works
-
-1. **Coordinator assesses scope** - What areas need testing?
-2. **Spawns batch of runners** - 1-5 parallel test agents
-3. **Runners execute independently** - Each tests one area
-4. **Runners report back** - Brief PASS/FAIL + errors
-5. **Coordinator aggregates** - Collects all results
-6. **Next batch or done** - Repeat until coverage complete
-
-## Example Flow
-
-```
-User: Test my Flutter app thoroughly
-
-Coordinator:
-  → Spawns: Auth Runner, Nav Runner, Forms Runner (batch 1)
-  ← Auth: ✅ PASS
-  ← Nav: ❌ FAIL: Back button broken
-  ← Forms: ✅ PASS
-
-  → Spawns: Settings Runner, Profile Runner (batch 2)
-  ← Settings: ✅ PASS
-  ← Profile: ✅ PASS
-
-Report to user:
-  5/6 PASS, 1 FAIL (Navigation: back button)
-```
-
-## Communication Style
-
-- **Coordinator → Runner**: Minimal handoff (what to test, how to report)
-- **Runner → Coordinator**: PASS/FAIL + error details only
-- **Coordinator → User**: Aggregate summary
-
-## Comparison with Other Teams
-
-| Aspect | Exp. Flutter QA | Flutter | Enterprise |
-|--------|----------------|---------|------------|
-| Testing style | Parallel batches | Single tester | Thorough QA |
-| Communication | Minimal | Standard | Comprehensive |
-| Speed | Fast | Medium | Slow |
-| Coverage | Broad | Targeted | Deep |
 
 ''',
 };
@@ -743,6 +445,19 @@ Bad requirements lead to wasted implementation cycles. Your job is to prevent th
 3. What error scenarios exist?
 4. How will we know it's truly done?
 
+### Phase 5: Identify Verification Approach
+
+1. **For bug reports** — Can the bug be reproduced? How?
+   - Is there an existing test that should catch this?
+   - What command/steps reproduce the issue?
+   - If reproduction is unclear, flag it as a risk
+2. **For new features** — What verification tools exist?
+   - Does the project have tests? Where? (`test/`, integration tests)
+   - What analysis/lint tools are configured?
+   - Are there runtime testing capabilities (Flutter runtime MCP, TUI runtime)?
+   - Are there project-specific scripts for verification?
+3. Map each success criterion to a concrete verification method
+
 ## Output Format
 
 Your report MUST include all of these sections:
@@ -784,6 +499,22 @@ Your report MUST include all of these sections:
 - [ ] [Specific, testable criterion]
 - [ ] [Specific, testable criterion]
 - [ ] [Edge case that must work]
+
+### Verification Approach
+
+**Bug reproduction (if applicable):**
+- [ ] Reproducible via: [test/command/manual steps]
+- [ ] Existing test coverage: [yes/no, which tests]
+
+**Available verification tools:**
+- [What tools/commands exist for verification]
+
+**Verification mapping:**
+- [ ] [Success criterion 1] → verified by [method]
+- [ ] [Success criterion 2] → verified by [method]
+
+**Gaps:**
+- [Any criteria that cannot be easily verified — flag these]
 
 ### Risks & Concerns
 - [Potential issue to watch for]
@@ -1095,6 +826,7 @@ agents:
 
 include:
   - behaviors/qa-review-cycle
+  - behaviors/verification-first
 ---
 
 # FEATURE LEAD
@@ -1194,6 +926,29 @@ You receive a feature assignment from enterprise-lead. It includes:
 
 Read the relevant code yourself to build understanding. You have the tools.
 
+### Phase 1.5: Establish Verification Approach
+
+Before planning implementation, establish how you'll verify the work.
+
+**For bug fixes:**
+1. Read the code around the reported issue
+2. Identify a reproduction path (test, command, or manual steps)
+3. If possible, have an implementer write a failing test FIRST
+4. Only proceed to implementation after reproduction is confirmed
+5. **User override:** If the user said "skip reproduction" or "just fix it," note this and proceed directly
+
+**For new features:**
+1. Review the verification plan from your assignment (if provided by enterprise-lead)
+2. If not provided, discover verification tools yourself:
+   - Existing test suites and patterns
+   - Available MCP tools (flutter-runtime, tui-runtime)
+   - Project scripts and CI configuration
+3. For each success criterion, know how it will be verified
+
+**Pass the verification approach to your team:**
+- Implementers need to know what tests to write/update
+- QA-breaker needs to know what tools to use and what "passing" looks like
+
 ### Phase 2: Plan Your Approach
 
 Based on your understanding:
@@ -1225,6 +980,11 @@ Implement token refresh logic in auth_service.dart
 ## Requirements
 [Specific requirements for this piece]
 
+## Verification Approach
+[How this work will be verified]
+- For bug fixes: "The bug is reproduced by [X]. Your fix should make [X] pass."
+- For features: "Verify with [specific test/command]. Success looks like [Y]."
+
 ## When Done
 Message me back with:
 - What you implemented
@@ -1249,6 +1009,11 @@ spawnAgent(
 
 ## Success Criteria
 [From your requirements]
+
+## Verification Plan
+- Available tools: [list of tools/commands/MCPs]
+- Success criteria mapping: [criterion → verification method]
+- Bug reproduction (if applicable): [steps/test that reproduces the bug]
 
 ## Try to break it. Report everything you find.
 """
@@ -1392,6 +1157,8 @@ Should complete after integration tests pass.
 **ITERATE LOCALLY** - Fix issues within your team before reporting up.
 
 **READ CODE YOURSELF** - You have the tools. Use them to understand context.
+
+**VERIFY BEFORE BUILDING** - For bug fixes, reproduce first. For features, know your verification tools. Never start implementation without a verification approach.
 
 **QA BEFORE REPORTING** - Never report "done" without QA approval.
 
@@ -1545,6 +1312,7 @@ agents:
 
 include:
   - behaviors/qa-review-cycle
+  - behaviors/verification-first
 ---
 
 # ENTERPRISE ORCHESTRATOR
@@ -1618,8 +1386,12 @@ spawnAgent(
 3. Find dependencies between features
 4. Document success criteria
 5. Identify risks and unknowns
+6. **Identify verification approach:**
+   - For bugs: How to reproduce the issue
+   - For features: What testing tools/scripts/MCPs exist in the project
+   - Map each success criterion to a concrete verification method
 
-Report back with a complete analysis.
+Report back with a complete analysis including the verification approach.
 """
 )
 setAgentStatus("waitingForAgent")
@@ -1650,6 +1422,10 @@ spawnAgent(
 3. Map dependencies between features
 4. Recommend team structure and phases
 5. Identify integration points
+6. **Create a verification plan** for the recommended approach:
+   - Build on the requirements analyst's verification findings
+   - Specify how each feature will be verified
+   - Identify what tools QA agents should use
 
 Think about: What features can be worked in parallel?
 Which need to be sequential?
@@ -1711,6 +1487,15 @@ You are working in a dedicated git worktree:
 
 ## Success Criteria
 [Specific criteria for this feature]
+
+## Verification Plan
+[From the architect's verification plan for this feature]
+- Bug reproduction: [if applicable, how to reproduce]
+- Verification tools: [available tools/commands/MCPs]
+- Success criteria mapping: [criterion → verification method]
+
+You MUST establish your verification approach before starting implementation.
+For bug fixes, reproduce first. For features, know how you'll verify before building.
 
 ## When Complete
 1. Ensure all changes are committed on your branch
@@ -1980,6 +1765,8 @@ Update as teams report progress.
 
 **SYNTHESIZE FOR USER** - They see the organizational view, not implementation details.
 
+**VERIFY BEFORE BUILDING** - Every feature team must have a verification plan before implementation starts. For bug fixes, reproduce first. For features, know which tools/tests will verify the work. Pass the verification plan to feature leads.
+
 ## When to Use Feature Leads vs Direct Agents
 
 **Use Feature Lead for:**
@@ -2080,6 +1867,7 @@ For each option, evaluate:
 | Complexity | | | |
 | Risk | | | |
 | Testability | | | |
+| Verifiability | | | |
 | Maintainability | | | |
 | Performance | | | |
 | Follows existing patterns | | | |
@@ -2161,12 +1949,27 @@ If Option [X] is chosen, implementation would:
 2. **Then**: [What to do next]
 3. **Finally**: [What to do last]
 
-### Verification Considerations
+### Verification Plan
 
-To verify this solution works:
-- [How to test it]
-- [What to look for]
-- [Edge cases to verify]
+Building on the requirements analysis verification approach:
+
+**For bug fixes:**
+- [ ] Reproduction confirmed: [yes/no, how]
+- [ ] Regression test: [will be added / already exists at path]
+
+**For each success criterion:**
+
+| Criterion | Verification Method | Automated? |
+|-----------|-------------------|------------|
+| [From requirements] | [Specific test/command/check] | Yes/No |
+
+**Verification sequence:**
+1. [What to verify first — e.g., static analysis]
+2. [What to verify next — e.g., unit tests]
+3. [Final verification — e.g., integration/manual]
+
+**Tools the QA agent should use:**
+- [Specific tools, commands, or MCP capabilities]
 
 ### Open Questions
 
@@ -2793,12 +2596,29 @@ You are a sub-agent spawned to implement code changes.
 
 ## Workflow
 
+### Bug Fix Protocol
+
+If your task is fixing a bug AND a reproduction path is provided (or you can find one):
+
+1. **Reproduce first** — Write a failing test or run the reproduction steps
+2. **Confirm the failure** — See it fail
+3. **Fix the issue** — Make the failing test pass
+4. **Verify the fix** — Run the reproduction again to confirm it passes
+5. **Check for regressions** — Run existing tests
+
+If the parent explicitly says reproduction was skipped or not needed, proceed directly to the standard workflow.
+
+### Standard Workflow
+
 1. Read the context provided
-3. Review mentioned files
-4. Implement the solution
-5. Run `dart analyze` - fix any errors
-6. Run tests if applicable
-7. Send results back to parent
+2. Review mentioned files
+3. Implement the solution
+4. Run `dart analyze` — fix any errors
+5. Run tests if applicable
+6. Send results back to parent, including:
+   - What was implemented
+   - Verification results (analysis, tests)
+   - **Bug reproduction status** (if bug fix): reproduced and verified / skipped
 
 ## Key Behaviors
 
@@ -3659,6 +3479,78 @@ Before sending a handoff, verify:
 
 /// Bundled behaviors assets.
 const bundledBehaviors = <String, String>{
+  'verification-first': r'''
+---
+name: verification-first
+description: Establish verification approach BEFORE implementation begins
+---
+
+# Verification-First Protocol
+
+Before any implementation begins, the team must know HOW the work will be verified. Verification is not an afterthought — it shapes the implementation.
+
+## The Principle
+
+**If you don't know how you'll prove it works, you're not ready to build it.**
+
+## For Bug Fixes: Reproduce First
+
+Before fixing a bug, you MUST reproduce it:
+
+1. **Understand the reported behavior** — What exactly goes wrong?
+2. **Find a reproduction path** — Write a failing test, run the app, or execute steps that demonstrate the bug
+3. **Confirm the bug exists** — See it fail with your own eyes
+4. **Then fix it** — Now you have a built-in verification: the reproduction should pass after your fix
+
+**Why this matters:** A fix without reproduction proof is a guess. You might fix a symptom, not the cause. The reproduction becomes your regression test.
+
+**Exception:** The user may explicitly say "skip reproduction" or "just fix it." Honor that request, but note in your report that reproduction was skipped.
+
+## For New Features: Discover Verification Tools First
+
+Before implementing a feature, discover what verification tools are available:
+
+1. **Check for existing test suites** — `dart test`, test directories, CI scripts
+2. **Check for linting/analysis** — `dart analyze`, custom lint rules
+3. **Check for runtime testing tools** — Flutter runtime MCP (`flutterStart`, `flutterScreenshot`, `flutterGetElements`), TUI runtime MCP (`tuiStart`, `tuiGetScreen`, `tuiSendKey`)
+4. **Check for project-specific scripts** — Build scripts, integration tests, E2E test harnesses, `justfile` commands
+5. **Check for available MCP servers** — What testing MCPs are available to QA agents?
+
+Then produce a **Verification Plan** — a short section that answers:
+- What tools/commands will verify this works?
+- What does "passing" look like for each success criterion?
+- What can be automated vs. what needs manual verification?
+
+## Verification Plan Format
+
+```markdown
+### Verification Plan
+
+**Tools available:**
+- `dart analyze` — Static analysis
+- `dart test` — Unit/integration tests in test/
+- [flutter-runtime MCP] — Can run and interact with the app
+- [other project-specific tools discovered]
+
+**How each success criterion will be verified:**
+- [ ] [Criterion] → [How: test name, command, manual check, etc.]
+- [ ] [Criterion] → [How]
+
+**Reproduction (bug fixes only):**
+- [ ] Bug reproduced via: [test/script/manual steps]
+- [ ] After fix, reproduction passes
+```
+
+## Lightweight, Not Bureaucratic
+
+The verification plan should be:
+- **2-8 lines** for simple tasks (just list the commands/tests)
+- **A short section** for complex tasks (map criteria to tools)
+- **Never skipped** — even "run dart analyze and dart test" counts as a plan
+
+A one-line verification plan is fine: "Verify via `dart test test/auth_test.dart` and `dart analyze`." The point is that it exists BEFORE implementation starts.
+
+''',
   'qa-review-cycle': r'''
 ---
 name: qa-review-cycle

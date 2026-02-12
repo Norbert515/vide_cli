@@ -56,6 +56,19 @@ Bad requirements lead to wasted implementation cycles. Your job is to prevent th
 3. What error scenarios exist?
 4. How will we know it's truly done?
 
+### Phase 5: Identify Verification Approach
+
+1. **For bug reports** — Can the bug be reproduced? How?
+   - Is there an existing test that should catch this?
+   - What command/steps reproduce the issue?
+   - If reproduction is unclear, flag it as a risk
+2. **For new features** — What verification tools exist?
+   - Does the project have tests? Where? (`test/`, integration tests)
+   - What analysis/lint tools are configured?
+   - Are there runtime testing capabilities (Flutter runtime MCP, TUI runtime)?
+   - Are there project-specific scripts for verification?
+3. Map each success criterion to a concrete verification method
+
 ## Output Format
 
 Your report MUST include all of these sections:
@@ -97,6 +110,22 @@ Your report MUST include all of these sections:
 - [ ] [Specific, testable criterion]
 - [ ] [Specific, testable criterion]
 - [ ] [Edge case that must work]
+
+### Verification Approach
+
+**Bug reproduction (if applicable):**
+- [ ] Reproducible via: [test/command/manual steps]
+- [ ] Existing test coverage: [yes/no, which tests]
+
+**Available verification tools:**
+- [What tools/commands exist for verification]
+
+**Verification mapping:**
+- [ ] [Success criterion 1] → verified by [method]
+- [ ] [Success criterion 2] → verified by [method]
+
+**Gaps:**
+- [Any criteria that cannot be easily verified — flag these]
 
 ### Risks & Concerns
 - [Potential issue to watch for]

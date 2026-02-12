@@ -20,6 +20,7 @@ include:
   - etiquette/reporting
   - etiquette/escalation
   - etiquette/handoff
+  - behaviors/verification-first
 ---
 
 # Enterprise Team
@@ -136,6 +137,14 @@ Independent features run in parallel:
 - All working simultaneously
 - Integration when features complete
 
+### Verification-First
+
+Quality starts before implementation:
+- **Bug fixes**: Reproduce the bug before fixing it
+- **New features**: Discover verification tools before building
+- **Every feature team** receives a verification plan with their assignment
+- **QA-breaker** receives the verification plan to use as a testing baseline
+
 ### Iterative Quality
 
 Quality is enforced at two levels:
@@ -147,14 +156,15 @@ Quality is enforced at two levels:
 
 ## Workflow
 
-1. **Understand** - Requirements analyst explores full scope
-2. **Design** - Solution architect breaks into features, maps dependencies
-3. **Team Formation** - Enterprise-lead spawns feature leads for each feature
-4. **Parallel Execution** - Feature teams work simultaneously
-5. **Integration** - Integration team connects completed features
-6. **QA Review** - Enterprise-lead spawns qa-breaker to review all work (MANDATORY)
-7. **Fix Loop** - If QA finds issues: implementer fixes → QA re-reviews (2-3 rounds max)
-8. **Completion** - Enterprise-lead synthesizes all team reports
+1. **Understand** - Requirements analyst explores full scope AND identifies verification approach
+2. **Design** - Solution architect breaks into features, maps dependencies, creates verification plan
+3. **Team Formation** - Enterprise-lead spawns feature leads with verification plans attached
+4. **Verification Setup** - Feature leads confirm verification approach (reproduce bugs / discover test tools)
+5. **Parallel Execution** - Feature teams implement with verification baked in
+6. **Integration** - Integration team connects completed features
+7. **QA Review** - Enterprise-lead spawns qa-breaker with verification plan (MANDATORY)
+8. **Fix Loop** - If QA finds issues: implementer fixes → QA re-reviews (2-3 rounds max)
+9. **Completion** - Enterprise-lead synthesizes all team reports
 
 ## When to Use Enterprise
 
