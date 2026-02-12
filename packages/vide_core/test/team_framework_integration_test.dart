@@ -119,7 +119,7 @@ void main() {
       test('includes are resolved correctly in implementer', () async {
         final config = await loader.buildAgentConfiguration(
           'implementer',
-          teamName: 'vide',
+          teamName: 'enterprise',
         );
 
         expect(config, isNotNull);
@@ -131,14 +131,14 @@ void main() {
         );
       });
 
-      test('includes are resolved correctly in main', () async {
+      test('includes are resolved correctly in enterprise-lead', () async {
         final config = await loader.buildAgentConfiguration(
-          'main',
-          teamName: 'vide',
+          'enterprise-lead',
+          teamName: 'enterprise',
         );
 
         expect(config, isNotNull);
-        // Main agent content includes orchestrator guidance
+        // Enterprise lead content includes orchestrator guidance
         expect(
           config!.systemPrompt,
           contains('ORCHESTRATOR'),
@@ -194,7 +194,7 @@ void main() {
       test('system prompt contains complete guidance', () async {
         final config = await loader.buildAgentConfiguration(
           'implementer',
-          teamName: 'vide',
+          teamName: 'enterprise',
         );
 
         expect(config, isNotNull);
@@ -251,7 +251,7 @@ void main() {
 
     group('Include resolution', () {
       test('team includes are resolved into agent prompt', () async {
-        final team = await loader.getTeam('vide');
+        final team = await loader.getTeam('enterprise');
         expect(team, isNotNull);
         expect(team!.include.isNotEmpty, true);
 
@@ -331,20 +331,14 @@ void main() {
     });
 
     group('Team definitions', () {
-      test('vide team exists', () async {
-        final team = await loader.getTeam('vide');
+      test('enterprise team exists', () async {
+        final team = await loader.getTeam('enterprise');
         expect(team, isNotNull);
-        expect(team!.name, 'vide');
-      });
-
-      test('flutter team exists', () async {
-        final team = await loader.getTeam('flutter');
-        expect(team, isNotNull);
-        expect(team!.name, 'flutter');
+        expect(team!.name, 'enterprise');
       });
 
       test('team has agents defined', () async {
-        final team = await loader.getTeam('vide');
+        final team = await loader.getTeam('enterprise');
         expect(team, isNotNull);
         expect(team!.agents, isNotEmpty);
       });

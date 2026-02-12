@@ -64,6 +64,7 @@ For each option, evaluate:
 | Complexity | | | |
 | Risk | | | |
 | Testability | | | |
+| Verifiability | | | |
 | Maintainability | | | |
 | Performance | | | |
 | Follows existing patterns | | | |
@@ -145,12 +146,27 @@ If Option [X] is chosen, implementation would:
 2. **Then**: [What to do next]
 3. **Finally**: [What to do last]
 
-### Verification Considerations
+### Verification Plan
 
-To verify this solution works:
-- [How to test it]
-- [What to look for]
-- [Edge cases to verify]
+Building on the requirements analysis verification approach:
+
+**For bug fixes:**
+- [ ] Reproduction confirmed: [yes/no, how]
+- [ ] Regression test: [will be added / already exists at path]
+
+**For each success criterion:**
+
+| Criterion | Verification Method | Automated? |
+|-----------|-------------------|------------|
+| [From requirements] | [Specific test/command/check] | Yes/No |
+
+**Verification sequence:**
+1. [What to verify first — e.g., static analysis]
+2. [What to verify next — e.g., unit tests]
+3. [Final verification — e.g., integration/manual]
+
+**Tools the QA agent should use:**
+- [Specific tools, commands, or MCP capabilities]
 
 ### Open Questions
 

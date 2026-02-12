@@ -121,7 +121,7 @@ Future<Response> createSession(
     initialMessage: req.initialMessage,
     model: req.model,
     permissionMode: req.permissionMode,
-    team: req.team ?? 'vide',
+    team: req.team ?? 'enterprise',
     attachments: attachments,
   );
 

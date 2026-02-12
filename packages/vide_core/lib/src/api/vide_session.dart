@@ -37,7 +37,8 @@ class LocalVideSession implements VideSession {
   /// Direct event pipeline (replaces SessionEventHub).
   final StreamController<VideEvent> _eventController =
       StreamController<VideEvent>.broadcast(sync: true);
-  final ConversationStateManager _conversationState = ConversationStateManager();
+  final ConversationStateManager _conversationState =
+      ConversationStateManager();
   final StreamController<VideState> _stateController =
       StreamController<VideState>.broadcast();
   bool _disposed = false;
@@ -45,6 +46,11 @@ class LocalVideSession implements VideSession {
   /// Subscriptions to clean up on dispose.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
   final List<ProviderSubscription<dynamic>> _providerSubscriptions = [];
+
+  /// Per-agent subscriptions for targeted cleanup on agent termination.
+  final Map<String, List<StreamSubscription<dynamic>>> _agentSubscriptions = {};
+  final Map<String, List<ProviderSubscription<dynamic>>>
+  _agentProviderSubscriptions = {};
 
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
@@ -143,7 +149,7 @@ class LocalVideSession implements VideSession {
   /// Get the current team from the network.
   String _currentTeam() {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    return network?.team ?? 'vide';
+    return network?.team ?? 'enterprise';
   }
 
   /// Get the effective working directory.
@@ -224,11 +230,21 @@ class LocalVideSession implements VideSession {
     if (targetAgent == null) {
       throw StateError('No agents in session');
     }
-    _emitUserMessage(
-      message.text,
-      agentId: targetAgent,
-      attachments: message.attachments,
-    );
+
+    // Check if the agent is currently processing. If so, the message will be
+    // queued by ClaudeClient and should NOT appear in the chat yet. It will
+    // be emitted when the queue is flushed and the message is actually sent.
+    final client = _container.read(claudeProvider(targetAgent));
+    final willBeQueued = client?.currentConversation.isProcessing ?? false;
+
+    if (!willBeQueued) {
+      _emitUserMessage(
+        message.text,
+        agentId: targetAgent,
+        attachments: message.attachments,
+      );
+    }
+
     // Convert VideMessage to claude_sdk.Message
     final claudeAttachments = message.attachments?.map((a) {
       return claude.Attachment(
@@ -245,11 +261,14 @@ class LocalVideSession implements VideSession {
     manager.sendMessage(targetAgent, claudeMessage);
 
     // Set agent to working immediately so the UI shows loading without
-    // waiting for the Claude API round-trip.
-    final statusNotifier = _container.read(
-      agentStatusProvider(targetAgent).notifier,
-    );
-    statusNotifier.setStatus(internal.AgentStatus.working);
+    // waiting for the Claude API round-trip. Skip for queued messages since
+    // the agent is already working.
+    if (!willBeQueued) {
+      final statusNotifier = _container.read(
+        agentStatusProvider(targetAgent).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.working);
+    }
   }
 
   void _emitUserMessage(
@@ -450,12 +469,14 @@ class LocalVideSession implements VideSession {
 
   @override
   Future<String?> getQueuedMessage(String agentId) async {
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     return client?.currentQueuedMessage;
   }
 
   @override
   Stream<String?> queuedMessageStream(String agentId) {
+    _checkNotDisposed();
     final client = _container.read(claudeProvider(agentId));
     return client?.queuedMessage ?? const Stream.empty();
   }
@@ -792,6 +813,10 @@ class LocalVideSession implements VideSession {
     required Map<String, dynamic> toolInput,
   }) async {
     try {
+      if (_disposed) {
+        return const claude.PermissionResultDeny(message: 'Session disposed');
+      }
+
       // Parse questions from tool input
       final questionsJson = toolInput['questions'] as List<dynamic>?;
       if (questionsJson == null || questionsJson.isEmpty) {
@@ -1052,6 +1077,9 @@ class LocalVideSession implements VideSession {
       _handleConversation(agent, currentConversation);
     }
 
+    final agentStreamSubs = <StreamSubscription<dynamic>>[];
+    final agentProviderSubs = <ProviderSubscription<dynamic>>[];
+
     final conversationSub = client.conversation.listen(
       (conversation) => _handleConversation(agent, conversation),
       onError: (error) {
@@ -1066,6 +1094,7 @@ class LocalVideSession implements VideSession {
       },
     );
     _subscriptions.add(conversationSub);
+    agentStreamSubs.add(conversationSub);
 
     final turnCompleteSub = client.onTurnComplete.listen((_) {
       final state = _agentStates[agent.id];
@@ -1108,6 +1137,7 @@ class LocalVideSession implements VideSession {
       );
     });
     _subscriptions.add(turnCompleteSub);
+    agentStreamSubs.add(turnCompleteSub);
 
     final statusSub = _container.listen<internal.AgentStatus>(
       agentStatusProvider(agent.id),
@@ -1139,10 +1169,32 @@ class LocalVideSession implements VideSession {
       fireImmediately: false,
     );
     _providerSubscriptions.add(statusSub);
+    agentProviderSubs.add(statusSub);
+
+    _agentSubscriptions[agent.id] = agentStreamSubs;
+    _agentProviderSubscriptions[agent.id] = agentProviderSubs;
   }
 
   void _unsubscribeFromAgent(String agentId) {
     _agentStates.remove(agentId);
+
+    // Cancel stream subscriptions for this agent
+    final streamSubs = _agentSubscriptions.remove(agentId);
+    if (streamSubs != null) {
+      for (final sub in streamSubs) {
+        sub.cancel();
+        _subscriptions.remove(sub);
+      }
+    }
+
+    // Close provider subscriptions for this agent
+    final providerSubs = _agentProviderSubscriptions.remove(agentId);
+    if (providerSubs != null) {
+      for (final sub in providerSubs) {
+        sub.close();
+        _providerSubscriptions.remove(sub);
+      }
+    }
   }
 
   void _handleConversation(
@@ -1231,16 +1283,20 @@ class LocalVideSession implements VideSession {
       _emitToolEvents(agent, latestMessage, state);
     }
 
-    if (conversation.currentError != null) {
+    final currentError = conversation.currentError;
+    if (currentError != null && currentError != state.lastEmittedError) {
+      state.lastEmittedError = currentError;
       _emit(
         ErrorEvent(
           agentId: agent.id,
           agentType: agent.type,
           agentName: agent.name,
           taskName: state.taskName,
-          message: conversation.currentError!,
+          message: currentError,
         ),
       );
+    } else if (currentError == null) {
+      state.lastEmittedError = null;
     }
   }
 
@@ -1402,6 +1458,9 @@ class _AgentStreamState {
 
   String? currentMessageEventId;
   final Map<String, String> toolNamesByUseId = {};
+
+  /// Tracks the last error that was emitted to prevent duplicate ErrorEvents.
+  String? lastEmittedError;
 
   _AgentStreamState({
     required this.agentId,

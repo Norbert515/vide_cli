@@ -31,7 +31,7 @@ class VideState {
   /// Per-agent conversation state snapshots.
   final List<AgentConversationState> agentConversationStates;
 
-  /// The team name for this session (e.g., 'vide', 'enterprise').
+  /// The team name for this session (e.g., 'enterprise').
   final String team;
 
   /// The goal/task name for this session.
@@ -47,7 +47,7 @@ class VideState {
     required this.id,
     this.agents = const [],
     this.agentConversationStates = const [],
-    this.team = 'vide',
+    this.team = 'enterprise',
     this.goal = 'Session',
     this.workingDirectory = '',
     this.isProcessing = false,

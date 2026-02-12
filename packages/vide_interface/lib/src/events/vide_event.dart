@@ -998,7 +998,7 @@ final class ErrorEvent extends VideEvent {
   @override
   Map<String, dynamic> dataFields() => {
     'message': message,
-    'code': code ?? 'ERROR',
+    if (code != null) 'code': code,
   };
 
   @override

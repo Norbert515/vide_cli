@@ -74,6 +74,17 @@ class MockClaudeClient implements ClaudeClient {
   void sendMessage(Message message) {
     if (message.text.trim().isEmpty) return;
 
+    // Match real ClaudeClient behavior: queue if processing
+    if (_currentConversation.isProcessing) {
+      if (_queuedMessageText == null) {
+        _queuedMessageText = message.text;
+      } else {
+        _queuedMessageText = '$_queuedMessageText\n${message.text}';
+      }
+      _queuedMessageController.add(_queuedMessageText);
+      return;
+    }
+
     sentMessages.add(message);
 
     // Simulate adding the message to conversation
@@ -172,6 +183,162 @@ class MockClaudeClient implements ClaudeClient {
   void emitStatus(ClaudeStatus status) {
     _currentStatus = status;
     _statusController.add(status);
+  }
+
+  /// Set the conversation state (e.g. to simulate processing)
+  void setConversationState(ConversationState state) {
+    _currentConversation = _currentConversation.withState(state);
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Simulate an assistant message with tool use and result responses.
+  ///
+  /// This creates a complete assistant turn with text, tool call, and tool result
+  /// all in one message - matching how claude_sdk delivers tool interactions.
+  void simulateAssistantWithToolCall({
+    required String text,
+    required String toolName,
+    required Map<String, dynamic> toolInput,
+    required String toolResult,
+    String? toolUseId,
+    bool isError = false,
+  }) {
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final useId = toolUseId ?? 'tool-use-$id';
+    final now = DateTime.now();
+
+    final assistantMessage = ConversationMessage.assistant(
+      id: id,
+      responses: [
+        TextResponse(id: 'text-$id', timestamp: now, content: text),
+        ToolUseResponse(
+          id: 'tooluse-$id',
+          timestamp: now,
+          toolName: toolName,
+          parameters: toolInput,
+          toolUseId: useId,
+        ),
+        ToolResultResponse(
+          id: 'toolresult-$id',
+          timestamp: now,
+          toolUseId: useId,
+          content: toolResult,
+          isError: isError,
+        ),
+      ],
+      isComplete: true,
+    );
+    _currentConversation = _currentConversation.addMessage(assistantMessage);
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Simulate streaming text by updating the last assistant message's content.
+  ///
+  /// If there's no assistant message yet, creates one. Otherwise, appends text
+  /// to the last assistant message to simulate streaming deltas.
+  void simulateStreamingText(String text, {bool createNew = false}) {
+    if (_currentConversation.messages.isEmpty || createNew) {
+      final id = DateTime.now().microsecondsSinceEpoch.toString();
+      final assistantMessage = ConversationMessage.assistant(
+        id: id,
+        responses: [
+          TextResponse(
+            id: 'text-$id',
+            timestamp: DateTime.now(),
+            content: text,
+          ),
+        ],
+        isStreaming: true,
+      );
+      _currentConversation = _currentConversation
+          .addMessage(assistantMessage)
+          .withState(ConversationState.receivingResponse);
+      _conversationController.add(_currentConversation);
+      return;
+    }
+
+    final lastIndex = _currentConversation.messages.length - 1;
+    final lastMessage = _currentConversation.messages[lastIndex];
+
+    if (lastMessage.role != MessageRole.assistant) {
+      simulateStreamingText(text, createNew: true);
+      return;
+    }
+
+    // Append text to existing assistant message content
+    final newContent = lastMessage.content + text;
+    final updatedMessage = lastMessage.copyWith(
+      content: newContent,
+      responses: [
+        TextResponse(
+          id: 'text-${DateTime.now().microsecondsSinceEpoch}',
+          timestamp: DateTime.now(),
+          content: newContent,
+        ),
+      ],
+    );
+
+    final updatedMessages = [..._currentConversation.messages];
+    updatedMessages[lastIndex] = updatedMessage;
+    _currentConversation = _currentConversation.copyWith(
+      messages: updatedMessages,
+    );
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Simulate adding a tool use response to the last assistant message.
+  ///
+  /// Used to test tool event ordering when tools arrive after text.
+  void simulateToolUseOnLastMessage({
+    required String toolName,
+    required Map<String, dynamic> parameters,
+    String? toolUseId,
+  }) {
+    if (_currentConversation.messages.isEmpty) return;
+    final lastIndex = _currentConversation.messages.length - 1;
+    final lastMessage = _currentConversation.messages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant) return;
+
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final updatedMessage = lastMessage.copyWith(
+      responses: [
+        ...lastMessage.responses,
+        ToolUseResponse(
+          id: 'tooluse-$id',
+          timestamp: DateTime.now(),
+          toolName: toolName,
+          parameters: parameters,
+          toolUseId: toolUseId ?? 'tool-use-$id',
+        ),
+      ],
+    );
+
+    final updatedMessages = [..._currentConversation.messages];
+    updatedMessages[lastIndex] = updatedMessage;
+    _currentConversation = _currentConversation.copyWith(
+      messages: updatedMessages,
+    );
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Set the conversation error state
+  void simulateError(String error) {
+    _currentConversation = _currentConversation.withError(error);
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Simulate the conversation going idle after processing
+  void simulateIdle() {
+    _currentConversation = _currentConversation.withState(
+      ConversationState.idle,
+    );
+    _conversationController.add(_currentConversation);
+  }
+
+  /// Set the init data (for model testing)
+  void setInitData(MetaResponse data) {
+    _initData = data;
+    _initDataController.add(data);
   }
 
   /// Reset the mock for reuse

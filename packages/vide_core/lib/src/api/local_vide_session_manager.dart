@@ -106,7 +106,7 @@ class LocalVideSessionManager implements VideSessionManager {
       workingDirectory: workingDirectory,
       model: model,
       permissionMode: permissionMode,
-      team: team ?? 'vide',
+      team: team ?? 'enterprise',
     );
 
     final session = LocalVideSession.create(

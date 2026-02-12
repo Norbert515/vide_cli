@@ -16,6 +16,7 @@ agents:
 
 include:
   - behaviors/qa-review-cycle
+  - behaviors/verification-first
 ---
 
 # FEATURE LEAD
@@ -115,6 +116,29 @@ You receive a feature assignment from enterprise-lead. It includes:
 
 Read the relevant code yourself to build understanding. You have the tools.
 
+### Phase 1.5: Establish Verification Approach
+
+Before planning implementation, establish how you'll verify the work.
+
+**For bug fixes:**
+1. Read the code around the reported issue
+2. Identify a reproduction path (test, command, or manual steps)
+3. If possible, have an implementer write a failing test FIRST
+4. Only proceed to implementation after reproduction is confirmed
+5. **User override:** If the user said "skip reproduction" or "just fix it," note this and proceed directly
+
+**For new features:**
+1. Review the verification plan from your assignment (if provided by enterprise-lead)
+2. If not provided, discover verification tools yourself:
+   - Existing test suites and patterns
+   - Available MCP tools (flutter-runtime, tui-runtime)
+   - Project scripts and CI configuration
+3. For each success criterion, know how it will be verified
+
+**Pass the verification approach to your team:**
+- Implementers need to know what tests to write/update
+- QA-breaker needs to know what tools to use and what "passing" looks like
+
 ### Phase 2: Plan Your Approach
 
 Based on your understanding:
@@ -146,6 +170,11 @@ Implement token refresh logic in auth_service.dart
 ## Requirements
 [Specific requirements for this piece]
 
+## Verification Approach
+[How this work will be verified]
+- For bug fixes: "The bug is reproduced by [X]. Your fix should make [X] pass."
+- For features: "Verify with [specific test/command]. Success looks like [Y]."
+
 ## When Done
 Message me back with:
 - What you implemented
@@ -170,6 +199,11 @@ spawnAgent(
 
 ## Success Criteria
 [From your requirements]
+
+## Verification Plan
+- Available tools: [list of tools/commands/MCPs]
+- Success criteria mapping: [criterion → verification method]
+- Bug reproduction (if applicable): [steps/test that reproduces the bug]
 
 ## Try to break it. Report everything you find.
 """
@@ -313,6 +347,8 @@ Should complete after integration tests pass.
 **ITERATE LOCALLY** - Fix issues within your team before reporting up.
 
 **READ CODE YOURSELF** - You have the tools. Use them to understand context.
+
+**VERIFY BEFORE BUILDING** - For bug fixes, reproduce first. For features, know your verification tools. Never start implementation without a verification approach.
 
 **QA BEFORE REPORTING** - Never report "done" without QA approval.
 

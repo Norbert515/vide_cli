@@ -9,7 +9,6 @@ import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/home_logo_section.dart';
 import 'package:vide_cli/modules/agent_network/components/daemon_indicator.dart';
-import 'package:vide_cli/modules/agent_network/components/team_selector.dart';
 import 'package:vide_cli/modules/agent_network/components/network_list_section.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -22,7 +21,7 @@ import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
 import 'package:vide_cli/components/version_indicator.dart';
 
-enum _HomeSection { input, teamSelector, daemonIndicator, networksList }
+enum _HomeSection { input, daemonIndicator, networksList }
 
 class HomePage extends StatefulComponent {
   const HomePage({super.key});
@@ -39,28 +38,11 @@ class _HomePageState extends State<HomePage> {
 
   _HomeSection _focusSection = _HomeSection.input;
 
-  List<String> _availableTeams = [];
-
   @override
   void initState() {
     super.initState();
     _loadProjectInfo();
     _initializeClaude();
-    _loadTeams();
-  }
-
-  Future<void> _loadTeams() async {
-    final workingDir = Directory.current.path;
-    final loader = TeamFrameworkLoader(workingDirectory: workingDir);
-    final teams = await loader.loadTeams();
-
-    final teamList = teams.keys.toList()..sort();
-
-    if (mounted) {
-      setState(() {
-        _availableTeams = teamList;
-      });
-    }
   }
 
   void _initializeClaude() {
@@ -194,9 +176,9 @@ class _HomePageState extends State<HomePage> {
     }).toList();
   }
 
-  // Height of the main content section (logo + path + team hint + input + result)
-  // This is approximate: logo ~6 + spacing 1 + path 1 + spacing 1 + team hint 1 + spacing 1 + input 3 + padding 4 = ~18
-  static const double _mainContentHeight = 18;
+  // Height of the main content section (logo + path + input + result)
+  // This is approximate: logo ~6 + spacing 1 + path 1 + spacing 1 + input 3 + padding 4 = ~16
+  static const double _mainContentHeight = 16;
 
   @override
   Component build(BuildContext context) {
@@ -206,13 +188,11 @@ class _HomePageState extends State<HomePage> {
     final currentDir = context.watch(currentRepoPathProvider);
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final networks = context.watch(agentNetworksStateNotifierProvider).sessions;
-    final currentTeam = context.watch(currentTeamProvider);
 
     final daemonEnabled = context.watch(daemonModeEnabledProvider);
 
     final textFieldFocused =
         _focusSection == _HomeSection.input ||
-        _focusSection == _HomeSection.teamSelector ||
         _focusSection == _HomeSection.daemonIndicator;
 
     return Focusable(
@@ -258,42 +238,12 @@ class _HomePageState extends State<HomePage> {
                             focused:
                                 _focusSection == _HomeSection.daemonIndicator,
                             onDownEdge: () {
-                              if (_availableTeams.isNotEmpty) {
-                                setState(
-                                  () =>
-                                      _focusSection = _HomeSection.teamSelector,
-                                );
-                              } else {
-                                setState(
-                                  () => _focusSection = _HomeSection.input,
-                                );
-                              }
-                            },
-                            onEnter: () {
-                              DaemonSessionsDialog.show(context);
-                            },
-                          ),
-                          const SizedBox(height: 1),
-                          TeamSelector(
-                            teams: _availableTeams,
-                            currentTeam: currentTeam,
-                            focused: _focusSection == _HomeSection.teamSelector,
-                            onTeamSelected: (team) {
-                              context.read(currentTeamProvider.notifier).state =
-                                  team;
-                            },
-                            onUpEdge: daemonEnabled
-                                ? () {
-                                    setState(
-                                      () => _focusSection =
-                                          _HomeSection.daemonIndicator,
-                                    );
-                                  }
-                                : null,
-                            onDownEdge: () {
                               setState(
                                 () => _focusSection = _HomeSection.input,
                               );
+                            },
+                            onEnter: () {
+                              DaemonSessionsDialog.show(context);
                             },
                           ),
                           const SizedBox(height: 1),
@@ -323,10 +273,10 @@ class _HomePageState extends State<HomePage> {
                                               _HomeSection.networksList;
                                         })
                                       : null,
-                                  onUpEdge: _availableTeams.isNotEmpty
+                                  onUpEdge: daemonEnabled
                                       ? () => setState(() {
                                           _focusSection =
-                                              _HomeSection.teamSelector;
+                                              _HomeSection.daemonIndicator;
                                         })
                                       : null,
                                 );

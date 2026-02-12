@@ -68,9 +68,17 @@ class SessionBroadcaster {
     // Store for history
     _storedEvents.add(json);
 
-    // Broadcast to all connected clients
-    for (final client in _clients) {
-      client(json);
+    // Broadcast to all connected clients.
+    // Iterate a snapshot to guard against ConcurrentModificationError
+    // (a client callback may unregister itself or another client).
+    // Catch per-client errors so one broken WebSocket doesn't prevent
+    // other clients from receiving the event.
+    for (final client in List.of(_clients)) {
+      try {
+        client(json);
+      } catch (e) {
+        _log.warning('[${session.id}] Error broadcasting to client: $e');
+      }
     }
   }
 

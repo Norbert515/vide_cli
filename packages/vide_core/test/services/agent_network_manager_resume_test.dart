@@ -72,7 +72,7 @@ void main() {
           agents: agents,
           createdAt: DateTime.now(),
           lastActiveAt: DateTime.now(),
-          team: 'vide',
+          team: 'enterprise',
         );
 
         // Get the manager
@@ -169,7 +169,7 @@ void main() {
         ],
         createdAt: DateTime(2024, 1, 1, 9, 0),
         lastActiveAt: originalLastActive,
-        team: 'vide',
+        team: 'enterprise',
       );
 
       final manager = container.read(agentNetworkManagerProvider.notifier);
@@ -209,7 +209,7 @@ void main() {
         agents: [],
         createdAt: DateTime.now(),
         lastActiveAt: DateTime.now(),
-        team: 'vide',
+        team: 'enterprise',
       );
 
       final manager = container.read(agentNetworkManagerProvider.notifier);
@@ -242,7 +242,7 @@ void main() {
         createdAt: DateTime.now(),
         lastActiveAt: DateTime.now(),
         worktreePath: '/path/to/worktree',
-        team: 'vide',
+        team: 'enterprise',
       );
 
       final manager = container.read(agentNetworkManagerProvider.notifier);

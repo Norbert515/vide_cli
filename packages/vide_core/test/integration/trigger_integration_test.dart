@@ -115,15 +115,15 @@ void main() {
       });
     });
 
-    group('Vide Team (no triggers)', () {
-      test('vide team has no lifecycle triggers', () async {
-        final team = await loader.getTeam('vide');
+    group('Enterprise Team triggers', () {
+      test('enterprise team has no lifecycle triggers', () async {
+        final team = await loader.getTeam('enterprise');
 
         expect(team, isNotNull);
         expect(
           team!.lifecycleTriggers,
           isEmpty,
-          reason: 'vide team should not have lifecycle triggers',
+          reason: 'enterprise team should not have lifecycle triggers',
         );
       });
     });
@@ -202,7 +202,7 @@ void main() {
         final context = TriggerContext(
           triggerPoint: TriggerPoint.onSessionEnd,
           network: network,
-          teamName: 'vide',
+          teamName: 'enterprise',
           // No taskName or filesChanged
         );
 

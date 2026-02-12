@@ -17,7 +17,7 @@ class VideSessionConfig {
   /// Permission mode: 'accept-edits', 'plan', 'ask', or 'deny'.
   final String? permissionMode;
 
-  /// Team to use: 'vide', 'enterprise', 'startup', 'balanced', 'research', 'ideator'.
+  /// Team to use for the session.
   final String team;
 
   /// Whether to skip all permission checks.
@@ -28,7 +28,7 @@ class VideSessionConfig {
     required this.initialMessage,
     this.model,
     this.permissionMode,
-    this.team = 'vide',
+    this.team = 'enterprise',
     this.dangerouslySkipPermissions = false,
   });
 }

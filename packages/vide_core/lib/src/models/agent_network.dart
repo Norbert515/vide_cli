@@ -121,7 +121,7 @@ class AgentNetwork {
           ? DateTime.parse(json['lastActiveAt'] as String)
           : null,
       worktreePath: json['worktreePath'] as String?,
-      team: json['team'] as String? ?? 'vide',
+      team: json['team'] as String? ?? 'enterprise',
     );
   }
 }
