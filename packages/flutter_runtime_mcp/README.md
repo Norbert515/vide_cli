@@ -24,9 +24,49 @@ dependencies:
     path: ../packages/flutter_runtime_mcp
 ```
 
-## Usage
+## Standalone Usage
 
-### Starting the Server
+The easiest way to use the Flutter MCP independently is via vide:
+
+```bash
+vide --flutter-mcp
+```
+
+This starts the Flutter MCP server in stdio mode, ready for any MCP client.
+
+### Claude Code
+
+Add to `.claude/settings.local.json`:
+
+```json
+{
+  "mcpServers": {
+    "flutter-runtime": {
+      "command": "vide",
+      "args": ["--flutter-mcp"]
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
+```json
+{
+  "mcpServers": {
+    "flutter-runtime": {
+      "command": "vide",
+      "args": ["--flutter-mcp"]
+    }
+  }
+}
+```
+
+## Programmatic Usage
+
+### Starting the Server (HTTP)
 
 ```dart
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
@@ -36,6 +76,16 @@ void main() async {
   await server.start(8081);
 
   print('Server running at: ${server.toClaudeConfig()}');
+}
+```
+
+### Starting the Server (stdio)
+
+```dart
+import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
+
+void main() async {
+  await FlutterRuntimeServer().startStdio();
 }
 ```
 
