@@ -18,7 +18,6 @@ workspace:
   - packages/vide_core
   - packages/vide_server
   - packages/vide_daemon
-  - packages/vide_in_app_sdk
 
 dependencies:
   nocterm:
