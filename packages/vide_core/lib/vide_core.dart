@@ -37,13 +37,11 @@ export 'src/models/team_framework/team_framework.dart';
 // =============================================================================
 export 'src/services/vide_config_manager.dart';
 export 'src/services/bashboard_service.dart';
-export 'src/services/permission_provider.dart'
-    show PermissionHandler, permissionHandlerProvider;
+export 'src/services/permission_provider.dart' show PermissionHandler, permissionHandlerProvider;
 export 'src/services/agent_network_persistence_manager.dart';
 export 'src/services/team_framework_loader.dart';
 export 'src/services/auto_update_service.dart';
-export 'src/services/claude_manager.dart'
-    show claudeStatusProvider, claudeProvider;
+export 'src/services/claude_manager.dart' show claudeStatusProvider, claudeProvider;
 
 // Permissions (public utilities used by TUI)
 export 'src/services/permissions/permission_matcher.dart';
@@ -61,15 +59,13 @@ export 'src/services/settings/local_settings_manager.dart';
 // =============================================================================
 export 'src/mcp/git/git_client.dart';
 export 'src/mcp/git/git_models.dart';
-export 'src/mcp/git/git_providers.dart'
-    show gitStatusStreamProvider, isGitRepoProvider;
+export 'src/mcp/git/git_providers.dart' show gitStatusStreamProvider, isGitRepoProvider;
 export 'src/services/git_service.dart';
 
 // =============================================================================
 // Utilities
 // =============================================================================
 export 'src/state/agent_status_manager.dart';
-export 'src/utils/project_detector.dart';
 export 'src/utils/working_dir_provider.dart';
 export 'src/utils/dangerously_skip_permissions_provider.dart';
 

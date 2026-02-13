@@ -31,7 +31,6 @@ class HomePage extends StatefulComponent {
 }
 
 class _HomePageState extends State<HomePage> {
-  ProjectType? projectType;
   String? _commandResult;
   bool _commandResultIsError = false;
   bool _startupSessionConnectAttempted = false;
@@ -41,7 +40,6 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    _loadProjectInfo();
     _preCreateSession();
   }
 
@@ -58,17 +56,6 @@ class _HomePageState extends State<HomePage> {
       }
     } catch (e) {
       print('[HomePage] Pre-creation failed: $e');
-    }
-  }
-
-  Future<void> _loadProjectInfo() async {
-    final currentDir = Directory.current.path;
-    final detectedType = ProjectDetector.detectProjectType(currentDir);
-
-    if (mounted) {
-      setState(() {
-        projectType = detectedType;
-      });
     }
   }
 
