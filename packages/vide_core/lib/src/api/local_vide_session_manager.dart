@@ -76,7 +76,7 @@ class LocalVideSessionManager implements VideSessionManager {
 
   @override
   Future<VideSession> createSession({
-    required String initialMessage,
+    String? initialMessage,
     required String workingDirectory,
     String? model,
     String? permissionMode,
@@ -86,20 +86,23 @@ class LocalVideSessionManager implements VideSessionManager {
     final sessionContainer = _containerForSession(workingDirectory);
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
 
-    // Convert VideAttachment to claude_sdk Attachment.
-    final claudeAttachments = attachments?.map((a) {
-      return Attachment(
-        type: a.type,
-        path: a.filePath,
-        content: a.content,
-        mimeType: a.mimeType,
-      );
-    }).toList();
+    // Build claude message only if initialMessage provided.
+    Message? claudeMessage;
+    if (initialMessage != null) {
+      final claudeAttachments = attachments?.map((a) {
+        return Attachment(
+          type: a.type,
+          path: a.filePath,
+          content: a.content,
+          mimeType: a.mimeType,
+        );
+      }).toList();
 
-    final claudeMessage = Message(
-      text: initialMessage,
-      attachments: claudeAttachments,
-    );
+      claudeMessage = Message(
+        text: initialMessage,
+        attachments: claudeAttachments,
+      );
+    }
 
     final network = await manager.startNew(
       claudeMessage,
@@ -120,7 +123,12 @@ class LocalVideSessionManager implements VideSessionManager {
       _sessionContainers[session.id] = sessionContainer;
     }
 
-    _emitSessionList();
+    // Only emit to session list if there's an initial message (active session).
+    // Pre-created idle sessions shouldn't appear in the list yet.
+    if (initialMessage != null) {
+      _emitSessionList();
+    }
+
     return session;
   }
 

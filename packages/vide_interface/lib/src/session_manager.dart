@@ -42,8 +42,12 @@ abstract interface class VideSessionManager {
   /// implementations, the session may still be connecting in the background,
   /// but callers don't need to care — [VideSession.sendMessage] works
   /// optimistically.
+  ///
+  /// When [initialMessage] is null, the session is created idle but fully
+  /// initialized (CLI process started, MCP servers connected). The first
+  /// [VideSession.sendMessage] call activates it.
   Future<VideSession> createSession({
-    required String initialMessage,
+    String? initialMessage,
     required String workingDirectory,
     String? model,
     String? permissionMode,

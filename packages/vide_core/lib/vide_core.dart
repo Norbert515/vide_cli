@@ -42,9 +42,8 @@ export 'src/services/permission_provider.dart'
 export 'src/services/agent_network_persistence_manager.dart';
 export 'src/services/team_framework_loader.dart';
 export 'src/services/auto_update_service.dart';
-export 'src/services/claude_manager.dart' show claudeStatusProvider;
-export 'src/services/initial_claude_client.dart'
-    show InitialClaudeClient, initialClaudeClientProvider;
+export 'src/services/claude_manager.dart'
+    show claudeStatusProvider, claudeProvider;
 
 // Permissions (public utilities used by TUI)
 export 'src/services/permissions/permission_matcher.dart';

@@ -149,6 +149,16 @@ final currentTeamDefinitionProvider = FutureProvider<TeamDefinition?>((
   return await loader.getTeam(teamName);
 });
 
+/// Holds a pre-created idle session for instant first-message response.
+///
+/// When the TUI starts, a session is created without an initial message
+/// (CLI process starts, MCP servers connect). When the user submits their
+/// first message, this session is consumed and the message is sent to
+/// the already-running session, eliminating startup delay.
+///
+/// Set to null after the session is consumed or when team changes.
+final pendingSessionProvider = StateProvider<VideSession?>((ref) => null);
+
 /// Provider for the selected agent ID in the sidebar.
 ///
 /// When null, no agent is selected.

@@ -35,6 +35,7 @@ class _HomePageState extends State<HomePage> {
   String? _commandResult;
   bool _commandResultIsError = false;
   bool _startupSessionConnectAttempted = false;
+  String? _lastTeam;
 
   _HomeSection _focusSection = _HomeSection.input;
 
@@ -42,11 +43,24 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadProjectInfo();
-    _initializeClaude();
+    _preCreateSession();
   }
 
-  void _initializeClaude() {
-    final _ = context.read(initialClaudeClientProvider);
+  Future<void> _preCreateSession() async {
+    final sessionManager = context.read(videSessionManagerProvider);
+    final worktreePath = context.read(repoPathOverrideProvider);
+    final currentTeam = context.read(currentTeamProvider);
+    try {
+      final session = await sessionManager.createSession(
+        workingDirectory: worktreePath ?? Directory.current.path,
+        team: currentTeam,
+      );
+      if (mounted) {
+        context.read(pendingSessionProvider.notifier).state = session;
+      }
+    } catch (e) {
+      print('[HomePage] Pre-creation failed: $e');
+    }
   }
 
   Future<void> _loadProjectInfo() async {
@@ -94,12 +108,23 @@ class _HomePageState extends State<HomePage> {
       final currentTeam = context.read(currentTeamProvider);
       final sessionManager = context.read(videSessionManagerProvider);
 
-      final session = await sessionManager.createSession(
-        initialMessage: message.text,
-        workingDirectory: worktreePath ?? Directory.current.path,
-        team: currentTeam,
-        attachments: message.attachments,
-      );
+      // Try to use pre-created session
+      var session = context.read(pendingSessionProvider);
+
+      if (session != null) {
+        // Consume the pending session
+        context.read(pendingSessionProvider.notifier).state = null;
+        // Send the first message — this activates the session
+        session.sendMessage(message);
+      } else {
+        // Fallback: create with message (pre-creation failed or not ready)
+        session = await sessionManager.createSession(
+          initialMessage: message.text,
+          workingDirectory: worktreePath ?? Directory.current.path,
+          team: currentTeam,
+          attachments: message.attachments,
+        );
+      }
 
       await NetworkExecutionPage.push(context, session: session);
     } catch (e) {
@@ -184,6 +209,18 @@ class _HomePageState extends State<HomePage> {
   @override
   Component build(BuildContext context) {
     _tryAutoConnectConfiguredSession();
+
+    // Detect team changes and recreate the pending session
+    final currentTeam = context.watch(currentTeamProvider);
+    if (_lastTeam != null && _lastTeam != currentTeam) {
+      final old = context.read(pendingSessionProvider);
+      if (old != null) {
+        old.dispose(fireEndTrigger: false);
+        context.read(pendingSessionProvider.notifier).state = null;
+      }
+      _preCreateSession();
+    }
+    _lastTeam = currentTeam;
 
     final theme = VideTheme.of(context);
     final currentDir = context.watch(currentRepoPathProvider);

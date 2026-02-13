@@ -1,9 +1,9 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/settings/components/settings_card.dart';
@@ -27,7 +27,6 @@ class McpServersSection extends StatefulComponent {
 class _McpServersSectionState extends State<McpServersSection> {
   int _selectedIndex = 0;
   McpStatusResponse? _mcpStatus;
-  StreamSubscription<McpStatusResponse>? _subscription;
   ClaudeSettingsManager? _settingsManager;
 
   List<McpServerStatusInfo> get _filteredServers {
@@ -39,28 +38,29 @@ class _McpServersSectionState extends State<McpServersSection> {
   @override
   void initState() {
     super.initState();
-    _initMcpStatus();
-    _initSettingsManager();
+    _settingsManager = ClaudeSettingsManager(projectRoot: Directory.current.path);
+    _fetchMcpStatus();
   }
 
-  void _initMcpStatus() {
-    final initialClient = context.read(initialClaudeClientProvider);
-    _mcpStatus = initialClient.mcpStatus;
-    _subscription = initialClient.mcpStatusStream.listen((status) {
-      setState(() => _mcpStatus = status);
-    });
-  }
+  Future<void> _fetchMcpStatus() async {
+    final session = context.read(pendingSessionProvider);
+    if (session == null) return;
 
-  void _initSettingsManager() {
-    _settingsManager = ClaudeSettingsManager(
-      projectRoot: Directory.current.path,
-    );
-  }
+    final mainAgentId = session.state.mainAgent?.id;
+    if (mainAgentId == null) return;
 
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
+    final client = context.read(claudeProvider(mainAgentId));
+    if (client == null) return;
+
+    try {
+      await client.initialized;
+      final status = await client.getMcpStatus();
+      if (mounted) {
+        setState(() => _mcpStatus = status);
+      }
+    } catch (e) {
+      print('[McpServersSection] Failed to fetch MCP status: $e');
+    }
   }
 
   bool _handleKeyEvent(KeyboardEvent event) {

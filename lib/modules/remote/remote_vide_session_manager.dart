@@ -57,13 +57,19 @@ class RemoteVideSessionManager implements VideSessionManager {
 
   @override
   Future<VideSession> createSession({
-    required String initialMessage,
+    String? initialMessage,
     required String workingDirectory,
     String? model,
     String? permissionMode,
     String? team,
     List<VideAttachment>? attachments,
   }) async {
+    if (initialMessage == null) {
+      throw ArgumentError(
+        'initialMessage is required for remote sessions',
+      );
+    }
+
     // Use optimistic creation — returns immediately with a pending session.
     // The HTTP call and WebSocket connection happen in the background.
     final session = _notifier.createSessionOptimistic(

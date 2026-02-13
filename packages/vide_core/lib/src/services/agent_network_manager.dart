@@ -122,7 +122,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// Determines which agent personalities are used for each role.
   /// Defaults to 'enterprise'.
   Future<AgentNetwork> startNew(
-    Message initialMessage, {
+    Message? initialMessage, {
     String? workingDirectory,
     String? model,
     String? permissionMode,
@@ -233,7 +233,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     }();
 
     // Send the initial message - it will be queued until client is ready
-    mainAgentClaudeClient.sendMessage(initialMessage);
+    if (initialMessage != null) {
+      mainAgentClaudeClient.sendMessage(initialMessage);
+    }
 
     // Fire onSessionStart trigger in background (don't block startup)
     () async {
