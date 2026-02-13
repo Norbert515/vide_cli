@@ -43,9 +43,8 @@ class LocalVideSession implements VideSession {
       StreamController<VideState>.broadcast();
   bool _disposed = false;
 
-  /// Subscriptions to clean up on dispose.
-  final List<StreamSubscription<dynamic>> _subscriptions = [];
-  final List<ProviderSubscription<dynamic>> _providerSubscriptions = [];
+  /// Session-level subscriptions (not tied to a specific agent).
+  final List<ProviderSubscription<dynamic>> _sessionSubscriptions = [];
 
   /// Per-agent subscriptions for targeted cleanup on agent termination.
   final Map<String, List<StreamSubscription<dynamic>>> _agentSubscriptions = {};
@@ -55,15 +54,11 @@ class LocalVideSession implements VideSession {
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
 
-  /// Pending permission completers by request ID, with agent metadata for the resolution event.
-  final Map<String, _PendingPermission> _pendingPermissions = {};
-
-  /// Pending AskUserQuestion completers by request ID.
-  final Map<String, Completer<Map<String, String>>> _pendingAskUserQuestions =
-      {};
-
-  /// Pending plan approval completers by request ID.
-  final Map<String, _PendingPlanApproval> _pendingPlanApprovals = {};
+  /// All pending user-interaction requests (permissions, questions, plan
+  /// approvals) keyed by request ID.  On [dispose], each pending request's
+  /// [_PendingRequest.onDispose] callback is invoked to complete the
+  /// completer with a sensible fallback so that awaiting code never hangs.
+  final Map<String, _PendingRequest> _pendingRequests = {};
 
   /// Permission checker for business logic (allow lists, deny lists, etc.).
   late final PermissionChecker _permissionChecker;
@@ -302,8 +297,8 @@ class LocalVideSession implements VideSession {
     String? patternOverride,
   }) {
     _checkNotDisposed();
-    final pending = _pendingPermissions.remove(requestId);
-    if (pending != null) {
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingPermission) {
       if (remember && allow) {
         _rememberPermission(pending, patternOverride);
       }
@@ -513,8 +508,10 @@ class LocalVideSession implements VideSession {
     required Map<String, String> answers,
   }) {
     _checkNotDisposed();
-    final completer = _pendingAskUserQuestions.remove(requestId);
-    completer?.complete(answers);
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingAskUserQuestion) {
+      pending.completer.complete(answers);
+    }
   }
 
   @override
@@ -524,8 +521,8 @@ class LocalVideSession implements VideSession {
     String? feedback,
   }) {
     _checkNotDisposed();
-    final pending = _pendingPlanApprovals.remove(requestId);
-    if (pending != null) {
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingPlanApproval) {
       pending.completer.complete(
         _PlanApprovalResult(action: action, feedback: feedback),
       );
@@ -613,44 +610,32 @@ class LocalVideSession implements VideSession {
       }
     }
 
-    // Cancel all subscriptions
-    for (final sub in _subscriptions) {
-      await sub.cancel();
-    }
-    _subscriptions.clear();
-
-    for (final sub in _providerSubscriptions) {
+    // Cancel session-level subscriptions
+    for (final sub in _sessionSubscriptions) {
       sub.close();
     }
-    _providerSubscriptions.clear();
+    _sessionSubscriptions.clear();
 
-    // Complete any pending permissions with deny
-    for (final pending in _pendingPermissions.values) {
-      if (!pending.completer.isCompleted) {
-        pending.completer.complete(
-          const claude.PermissionResultDeny(message: 'Session disposed'),
-        );
+    // Cancel all per-agent subscriptions
+    for (final subs in _agentSubscriptions.values) {
+      for (final sub in subs) {
+        await sub.cancel();
       }
     }
-    _pendingPermissions.clear();
+    _agentSubscriptions.clear();
 
-    // Complete any pending AskUserQuestion with empty answers
-    for (final completer in _pendingAskUserQuestions.values) {
-      if (!completer.isCompleted) {
-        completer.completeError(StateError('Session disposed'));
+    for (final subs in _agentProviderSubscriptions.values) {
+      for (final sub in subs) {
+        sub.close();
       }
     }
-    _pendingAskUserQuestions.clear();
+    _agentProviderSubscriptions.clear();
 
-    // Complete any pending plan approvals with reject
-    for (final pending in _pendingPlanApprovals.values) {
-      if (!pending.completer.isCompleted) {
-        pending.completer.complete(
-          _PlanApprovalResult(action: 'reject', feedback: 'Session disposed'),
-        );
-      }
+    // Complete all pending user-interaction requests with their fallbacks
+    for (final pending in _pendingRequests.values) {
+      pending.onDispose();
     }
-    _pendingPlanApprovals.clear();
+    _pendingRequests.clear();
 
     // Clear agent states
     _agentStates.clear();
@@ -666,6 +651,14 @@ class LocalVideSession implements VideSession {
   // ===========================================================================
   // Internal methods
   // ===========================================================================
+
+  /// Looks up the current task name for an agent from the source of truth
+  /// ([AgentMetadata]), avoiding the need to eagerly copy it into
+  /// [_AgentStreamState] at multiple mutation sites.
+  String? _taskNameFor(String agentId) {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    return network?.agents.where((a) => a.id == agentId).firstOrNull?.taskName;
+  }
 
   /// Whether to skip all permission checks (auto-approve everything).
   bool get _dangerouslySkipPermissions {
@@ -690,27 +683,30 @@ class LocalVideSession implements VideSession {
       return const claude.PermissionResultAllow();
     }
 
-    // Get current task name
-    final state = _agentStates[agentId];
+    // NOTE: AskUserQuestion and ExitPlanMode are not permission checks, but
+    // they're handled here because the claude_sdk permission callback is the
+    // only hook available to intercept tool calls before execution. These tools
+    // require user interaction (answering questions / approving plans), so we
+    // "hijack" the permission callback to pause execution, emit a UI event,
+    // and resume once the user responds. The result is smuggled back via
+    // PermissionResultAllow(updatedInput: ...) for AskUserQuestion.
 
-    // Special handling for AskUserQuestion tool
     if (toolName == 'AskUserQuestion') {
       return _handleAskUserQuestion(
         agentId: agentId,
         agentName: agentName,
         agentType: agentType,
-        taskName: state?.taskName,
+        taskName: _taskNameFor(agentId),
         toolInput: input,
       );
     }
 
-    // Special handling for ExitPlanMode tool (plan approval)
     if (toolName == 'ExitPlanMode') {
       return _handleExitPlanMode(
         agentId: agentId,
         agentName: agentName,
         agentType: agentType,
-        taskName: state?.taskName,
+        taskName: _taskNameFor(agentId),
         toolInput: input,
       );
     }
@@ -744,12 +740,13 @@ class LocalVideSession implements VideSession {
         // Need to ask the user - emit event and wait
         final requestId = const Uuid().v4();
         final completer = Completer<claude.PermissionResult>();
-        _pendingPermissions[requestId] = _PendingPermission(
+        final taskName = _taskNameFor(agentId);
+        _pendingRequests[requestId] = _PendingPermission(
           completer: completer,
           agentId: agentId,
           agentType: agentType ?? 'unknown',
           agentName: agentName,
-          taskName: state?.taskName,
+          taskName: taskName,
           toolName: toolName,
           toolInput: input,
           inferredPattern: inferredPattern,
@@ -762,7 +759,7 @@ class LocalVideSession implements VideSession {
             agentId: agentId,
             agentType: agentType ?? 'unknown',
             agentName: agentName,
-            taskName: state?.taskName,
+            taskName: taskName,
             requestId: requestId,
             toolName: toolName,
             toolInput: input,
@@ -776,7 +773,7 @@ class LocalVideSession implements VideSession {
         } catch (e) {
           return claude.PermissionResultDeny(message: 'Error: $e');
         } finally {
-          _pendingPermissions.remove(requestId);
+          _pendingRequests.remove(requestId);
         }
     }
   }
@@ -848,7 +845,9 @@ class LocalVideSession implements VideSession {
       // Create completer and emit event
       final requestId = const Uuid().v4();
       final completer = Completer<Map<String, String>>();
-      _pendingAskUserQuestions[requestId] = completer;
+      _pendingRequests[requestId] = _PendingAskUserQuestion(
+        completer: completer,
+      );
 
       _emit(
         AskUserQuestionEvent(
@@ -898,7 +897,7 @@ class LocalVideSession implements VideSession {
       // Create completer and emit event
       final requestId = const Uuid().v4();
       final completer = Completer<_PlanApprovalResult>();
-      _pendingPlanApprovals[requestId] = _PendingPlanApproval(
+      _pendingRequests[requestId] = _PendingPlanApproval(
         completer: completer,
         agentId: agentId,
         agentType: agentType ?? 'unknown',
@@ -1050,7 +1049,7 @@ class LocalVideSession implements VideSession {
 
       _emitState();
     }, fireImmediately: false);
-    _providerSubscriptions.add(subscription);
+    _sessionSubscriptions.add(subscription);
   }
 
   void _subscribeToAgent(AgentMetadata agent) {
@@ -1097,18 +1096,18 @@ class LocalVideSession implements VideSession {
         );
       },
     );
-    _subscriptions.add(conversationSub);
     agentStreamSubs.add(conversationSub);
 
     final turnCompleteSub = client.onTurnComplete.listen((_) {
       final state = _agentStates[agent.id];
+      final taskName = _taskNameFor(agent.id);
       if (state != null && state.currentMessageEventId != null) {
         _emit(
           MessageEvent(
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
-            taskName: state.taskName,
+            taskName: taskName,
             eventId: state.currentMessageEventId!,
             role: 'assistant',
             content: '',
@@ -1124,7 +1123,7 @@ class LocalVideSession implements VideSession {
           agentId: agent.id,
           agentType: agent.type,
           agentName: agent.name,
-          taskName: state?.taskName,
+          taskName: taskName,
           reason: 'end_turn',
           totalInputTokens: conversation.totalInputTokens,
           totalOutputTokens: conversation.totalOutputTokens,
@@ -1140,30 +1139,18 @@ class LocalVideSession implements VideSession {
         ),
       );
     });
-    _subscriptions.add(turnCompleteSub);
     agentStreamSubs.add(turnCompleteSub);
 
     final statusSub = _container.listen<internal.AgentStatus>(
       agentStatusProvider(agent.id),
       (previous, next) {
         if (previous != null && previous != next) {
-          final network = _container
-              .read(agentNetworkManagerProvider)
-              .currentNetwork;
-          final agentMeta = network?.agents
-              .where((a) => a.id == agent.id)
-              .firstOrNull;
-          final state = _agentStates[agent.id];
-          if (state != null && agentMeta != null) {
-            state.taskName = agentMeta.taskName;
-          }
-
           _emit(
             StatusEvent(
               agentId: agent.id,
               agentType: agent.type,
               agentName: agent.name,
-              taskName: state?.taskName,
+              taskName: _taskNameFor(agent.id),
               status: _mapStatus(next),
             ),
           );
@@ -1172,7 +1159,6 @@ class LocalVideSession implements VideSession {
       },
       fireImmediately: false,
     );
-    _providerSubscriptions.add(statusSub);
     agentProviderSubs.add(statusSub);
 
     _agentSubscriptions[agent.id] = agentStreamSubs;
@@ -1182,21 +1168,17 @@ class LocalVideSession implements VideSession {
   void _unsubscribeFromAgent(String agentId) {
     _agentStates.remove(agentId);
 
-    // Cancel stream subscriptions for this agent
     final streamSubs = _agentSubscriptions.remove(agentId);
     if (streamSubs != null) {
       for (final sub in streamSubs) {
         sub.cancel();
-        _subscriptions.remove(sub);
       }
     }
 
-    // Close provider subscriptions for this agent
     final providerSubs = _agentProviderSubscriptions.remove(agentId);
     if (providerSubs != null) {
       for (final sub in providerSubs) {
         sub.close();
-        _providerSubscriptions.remove(sub);
       }
     }
   }
@@ -1210,14 +1192,7 @@ class LocalVideSession implements VideSession {
     final state = _agentStates[agent.id];
     if (state == null) return;
 
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    final agentMeta = network?.agents
-        .where((a) => a.id == agent.id)
-        .firstOrNull;
-    if (agentMeta != null) {
-      state.taskName = agentMeta.taskName;
-    }
-
+    final taskName = _taskNameFor(agent.id);
     final currentMessageCount = conversation.messages.length;
 
     if (currentMessageCount > state.lastMessageCount) {
@@ -1238,7 +1213,7 @@ class LocalVideSession implements VideSession {
               agentId: agent.id,
               agentType: agent.type,
               agentName: agent.name,
-              taskName: state.taskName,
+              taskName: taskName,
               eventId: eventId,
               role: message.role == claude.MessageRole.user
                   ? 'user'
@@ -1249,7 +1224,7 @@ class LocalVideSession implements VideSession {
           );
         }
 
-        _emitToolEvents(agent, message, state);
+        _emitToolEvents(agent, message, state, taskName: taskName);
       }
 
       state.lastMessageCount = currentMessageCount;
@@ -1271,7 +1246,7 @@ class LocalVideSession implements VideSession {
               agentId: agent.id,
               agentType: agent.type,
               agentName: agent.name,
-              taskName: state.taskName,
+              taskName: taskName,
               eventId: eventId,
               role: latestMessage.role == claude.MessageRole.user
                   ? 'user'
@@ -1284,7 +1259,7 @@ class LocalVideSession implements VideSession {
         state.lastContentLength = currentContentLength;
       }
 
-      _emitToolEvents(agent, latestMessage, state);
+      _emitToolEvents(agent, latestMessage, state, taskName: taskName);
     }
 
     final currentError = conversation.currentError;
@@ -1295,7 +1270,7 @@ class LocalVideSession implements VideSession {
           agentId: agent.id,
           agentType: agent.type,
           agentName: agent.name,
-          taskName: state.taskName,
+          taskName: taskName,
           message: currentError,
         ),
       );
@@ -1307,8 +1282,9 @@ class LocalVideSession implements VideSession {
   void _emitToolEvents(
     AgentMetadata agent,
     claude.ConversationMessage message,
-    _AgentStreamState state,
-  ) {
+    _AgentStreamState state, {
+    required String? taskName,
+  }) {
     final responses = message.responses;
     final startIndex = state.lastResponseCount;
 
@@ -1326,7 +1302,7 @@ class LocalVideSession implements VideSession {
               agentId: agent.id,
               agentType: agent.type,
               agentName: agent.name,
-              taskName: state.taskName,
+              taskName: taskName,
               eventId: state.currentMessageEventId!,
               role: 'assistant',
               content: '',
@@ -1344,7 +1320,7 @@ class LocalVideSession implements VideSession {
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
-            taskName: state.taskName,
+            taskName: taskName,
             toolUseId: toolUseId,
             toolName: response.toolName,
             toolInput: response.parameters,
@@ -1358,7 +1334,7 @@ class LocalVideSession implements VideSession {
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
-            taskName: state.taskName,
+            taskName: taskName,
             toolUseId: response.toolUseId,
             toolName: toolName,
             result: response.content,
@@ -1399,8 +1375,17 @@ class LocalVideSession implements VideSession {
   }
 }
 
-/// Holds a pending permission request with its completer and agent metadata.
-class _PendingPermission {
+/// Base class for any pending user-interaction request.
+///
+/// Subclasses carry type-specific data (e.g. tool name for permissions,
+/// agent metadata for plan approvals).  [onDispose] is called during
+/// session disposal to unblock any awaiting code.
+sealed class _PendingRequest {
+  void onDispose();
+}
+
+/// A pending permission request with its completer and agent metadata.
+class _PendingPermission extends _PendingRequest {
   final Completer<claude.PermissionResult> completer;
   final String agentId;
   final String agentType;
@@ -1422,10 +1407,33 @@ class _PendingPermission {
     this.inferredPattern,
     required this.cwd,
   });
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.complete(
+        const claude.PermissionResultDeny(message: 'Session disposed'),
+      );
+    }
+  }
 }
 
-/// Pending plan approval with agent metadata for the resolution event.
-class _PendingPlanApproval {
+/// A pending AskUserQuestion request.
+class _PendingAskUserQuestion extends _PendingRequest {
+  final Completer<Map<String, String>> completer;
+
+  _PendingAskUserQuestion({required this.completer});
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.completeError(StateError('Session disposed'));
+    }
+  }
+}
+
+/// A pending plan approval request with agent metadata for the resolution event.
+class _PendingPlanApproval extends _PendingRequest {
   final Completer<_PlanApprovalResult> completer;
   final String agentId;
   final String agentType;
@@ -1439,6 +1447,15 @@ class _PendingPlanApproval {
     this.agentName,
     this.taskName,
   });
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.complete(
+        _PlanApprovalResult(action: 'reject', feedback: 'Session disposed'),
+      );
+    }
+  }
 }
 
 /// Result of a plan approval decision.
@@ -1454,7 +1471,6 @@ class _AgentStreamState {
   final String agentId;
   final String agentType;
   final String? agentName;
-  String? taskName;
 
   int lastMessageCount = 0;
   int lastContentLength = 0;
