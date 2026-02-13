@@ -3,7 +3,6 @@ library;
 
 import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
@@ -144,9 +143,10 @@ void main() {
     });
 
     test('state.isProcessing is true when agent is processing', () {
-      h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
-      );
+      // _isProcessing() checks agentStatusProvider, not conversation state
+      container(h)
+          .read(agentStatusProvider(h.agentId).notifier)
+          .setStatus(AgentStatus.working);
       expect(h.session.state.isProcessing, isTrue);
     });
 
