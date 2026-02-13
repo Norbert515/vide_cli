@@ -2,31 +2,26 @@ import 'dart:async';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:claude_sdk/claude_sdk.dart' hide MessageRole;
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/components/typing_text.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
-import 'package:vide_cli/modules/settings/settings_dialog.dart';
-import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
+import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
+import 'package:vide_cli/modules/agent_network/components/message_bubble.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
-import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog.dart';
-import 'package:vide_cli/modules/permissions/components/permission_dialog.dart';
 import 'package:vide_cli/modules/permissions/components/plan_approval_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
+import 'package:vide_cli/modules/settings/settings_dialog.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/components/vide_scaffold.dart';
 
 class NetworkExecutionPage extends StatefulComponent {
@@ -565,89 +560,6 @@ class _AgentChatState extends State<_AgentChat> {
     return false;
   }
 
-  /// Formats a full model ID to a short display name.
-  /// e.g., "claude-sonnet-4-5-20250929" -> "sonnet"
-  ///       "claude-opus-4-5-20251101" -> "opus"
-  String _formatModelName(String model) {
-    final lower = model.toLowerCase();
-    if (lower.contains('opus')) return 'opus';
-    if (lower.contains('sonnet')) return 'sonnet';
-    if (lower.contains('haiku')) return 'haiku';
-    // Fallback: return last part before date suffix, or full name if short
-    if (model.length <= 10) return model;
-    // Try to extract meaningful part
-    final parts = model.split('-');
-    if (parts.length >= 2) return parts[1];
-    return model;
-  }
-
-  Component _buildContextUsageSection(VideThemeData theme) {
-    final conv = _conversation;
-    // Use currentContextWindowTokens for context window percentage.
-    // This is the CURRENT context size (from latest turn), which includes:
-    // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
-    // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens = conv != null
-        ? conv.currentContextInputTokens +
-              conv.currentContextCacheReadTokens +
-              conv.currentContextCacheCreationTokens
-        : 0;
-    final percentage = kClaudeContextWindowSize > 0
-        ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
-        : 0.0;
-    final isWarningZone = percentage >= kContextWarningThreshold;
-    final isCautionZone = percentage >= kContextCautionThreshold;
-
-    // Only show context usage when it's getting full (>= 60%)
-    final showContextUsage = isCautionZone;
-
-    // If nothing to show (no model, no context warning, no cost), return empty
-    if (_model == null &&
-        !showContextUsage &&
-        (conv == null || conv.totalCostUsd <= 0)) {
-      return SizedBox();
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Row(
-        children: [
-          // Show model name
-          if (_model != null) ...[
-            Text(
-              _formatModelName(_model!),
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-          ],
-
-          // Context usage indicator (only when >= caution threshold)
-          if (showContextUsage) ...[
-            if (_model != null) SizedBox(width: 1),
-            ContextUsageIndicator(usedTokens: usedTokens),
-            SizedBox(width: 1),
-            Text(
-              'context',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-          ],
-
-          // Show /compact hint when in warning zone
-          if (isWarningZone) ...[
-            SizedBox(width: 1),
-            Text(
-              '(/compact)',
-              style: TextStyle(color: theme.base.error.withOpacity(0.7)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   /// Builds the filtered list of messages (excluding slash commands)
   List<ConversationEntry> _getFilteredMessages() {
     final conv = _conversation;
@@ -697,7 +609,15 @@ class _AgentChatState extends State<_AgentChat> {
           // Adjust index for messages (subtract 1 if todos exist)
           final messageIndex = hasTodos ? index - 1 : index;
           final message = filteredMessages[messageIndex];
-          return _buildMessage(context, message);
+          final session = context.read(currentVideSessionProvider);
+          return MessageBubble(
+            key: ValueKey(message.hashCode),
+            entry: message,
+            networkId: component.networkId,
+            agentId: component.agentId,
+            workingDirectory: session?.state.workingDirectory ?? '',
+            sentAttachments: _sentAttachments,
+          );
         },
       ),
     );
@@ -705,18 +625,6 @@ class _AgentChatState extends State<_AgentChat> {
 
   @override
   Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
-    // Get the current permission queue state from the provider
-    final permissionQueueState = context.watch(permissionStateProvider);
-    final currentPermissionRequest = permissionQueueState.current;
-
-    // Get the current AskUserQuestion queue state from the provider
-    final askUserQuestionQueueState = context.watch(
-      askUserQuestionStateProvider,
-    );
-    final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
-
     // Get the current plan approval queue state from the provider
     final planApprovalQueueState = context.watch(planApprovalStateProvider);
     final currentPlanApproval = planApprovalQueueState.current;
@@ -746,364 +654,41 @@ class _AgentChatState extends State<_AgentChat> {
                 ),
               ),
 
-            // Input area - conditionally show permission dialog or text field
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Show queued message indicator above the generating indicator
-                if (_queuedMessage != null)
-                  QueueIndicator(
-                    queuedText: _queuedMessage!,
-                    onClear: () {
-                      final session = context.read(currentVideSessionProvider);
-                      if (session != null) {
-                        unawaited(
-                          session.clearQueuedMessage(component.agentId),
-                        );
-                      }
-                    },
-                  ),
-
-                // Loading indicator row - always 1 cell height to prevent layout jumps
-                // Agent status comes from VideAgent delivered via videSessionAgentsProvider
-                // (a StreamProvider on session.stateStream), which triggers nocterm rebuilds.
-                if (_isAgentWorking(context) &&
-                    currentPlanApproval == null &&
-                    currentAskUserQuestionRequest == null &&
-                    currentPermissionRequest == null)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      EnhancedLoadingIndicator(agentId: component.agentId),
-                      SizedBox(width: 2),
-                      Text(
-                        '(Press ESC to stop)',
-                        style: TextStyle(
-                          color: theme.base.onSurface.withOpacity(
-                            TextOpacity.tertiary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(' '), // Reserve 1 line when loading indicator is hidden
-                // Show quit warning if active
-                if (component.showQuitWarning)
-                  Text(
-                    '(Press Ctrl+C again to exit)',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-
-                // Show AskUserQuestion dialog above text field (if active)
-                if (currentPlanApproval == null &&
-                    currentAskUserQuestionRequest != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Show queue length if there are more questions waiting
-                      if (askUserQuestionQueueState.queueLength > 1)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 1,
-                            vertical: 0,
-                          ),
-                          child: Text(
-                            'Question 1 of ${askUserQuestionQueueState.queueLength} (${askUserQuestionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(
-                              color: theme.base.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      AskUserQuestionDialog(
-                        request: currentAskUserQuestionRequest,
-                        onSubmit: (answers) => _handleAskUserQuestionResponse(
-                          currentAskUserQuestionRequest,
-                          answers,
-                        ),
-                        key: Key(
-                          'ask_user_question_${currentAskUserQuestionRequest.requestId}',
-                        ),
-                      ),
-                    ],
-                  )
-                // Show permission dialog above text field (if active)
-                else if (currentPermissionRequest != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Show queue length if there are more requests waiting
-                      if (permissionQueueState.queueLength > 1)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 1,
-                            vertical: 0,
-                          ),
-                          child: Text(
-                            'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(
-                              color: theme.base.warning,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      PermissionDialog.fromRequest(
-                        request: currentPermissionRequest,
-                        onResponse:
-                            (
-                              granted,
-                              remember, {
-                              String? patternOverride,
-                              String? denyReason,
-                            }) => _handlePermissionResponse(
-                              currentPermissionRequest,
-                              granted,
-                              remember,
-                              patternOverride: patternOverride,
-                              denyReason: denyReason,
-                            ),
-                        key: Key(
-                          'permission_${currentPermissionRequest.requestId}',
-                        ),
-                      ),
-                    ],
-                  ),
-
-                // Text field - rendered when no dialogs are active
-                // Text persists through pendingInputTextProvider when dialogs appear
-                if (currentPlanApproval == null &&
-                    currentAskUserQuestionRequest == null &&
-                    currentPermissionRequest == null)
-                  Builder(
-                    builder: (context) {
-                      final promptHistory = context.watch(
-                        promptHistoryProvider,
-                      );
-                      final pendingText = context.watch(
-                        pendingInputTextProvider,
-                      );
-                      // Text field is focused when neither sidebar has focus
-                      final leftSidebarFocused = context.watch(
-                        sidebarFocusProvider,
-                      );
-                      final rightSidebarFocused = context.watch(
-                        gitSidebarFocusProvider,
-                      );
-                      final textFieldFocused =
-                          !leftSidebarFocused && !rightSidebarFocused;
-
-                      return AttachmentTextField(
-                        focused: textFieldFocused,
-                        enabled:
-                            true, // Always enabled - messages queue during processing
-                        placeholder: 'Type a message...',
-                        initialText: pendingText,
-                        onTextChanged: (text) =>
-                            context
-                                    .read(pendingInputTextProvider.notifier)
-                                    .state =
-                                text,
-                        onSubmit: (message) {
-                          // Clear pending text on submit
-                          context
-                                  .read(pendingInputTextProvider.notifier)
-                                  .state =
-                              '';
-                          _sendMessage(message);
-                        },
-                        onCommand: (cmd) {
-                          // Clear pending text on command
-                          context
-                                  .read(pendingInputTextProvider.notifier)
-                                  .state =
-                              '';
-                          _handleCommand(cmd);
-                        },
-                        commandSuggestions: _getCommandSuggestions,
-                        promptHistory: promptHistory,
-                        onPromptSubmitted: (prompt) => context
-                            .read(promptHistoryProvider.notifier)
-                            .addPrompt(prompt),
-                        onLeftEdge: () =>
-                            context.read(sidebarFocusProvider.notifier).state =
-                                true,
-                        onRightEdge: () =>
-                            context
-                                    .read(gitSidebarFocusProvider.notifier)
-                                    .state =
-                                true,
-                        onEscape: () {
-                          final session = context.read(
-                            currentVideSessionProvider,
-                          );
-                          if (session == null) return;
-                          // If there's a queued message, clear it first
-                          if (_queuedMessage != null) {
-                            unawaited(
-                              session.clearQueuedMessage(component.agentId),
-                            );
-                          } else {
-                            // Otherwise abort the current processing
-                            session.abortAgent(component.agentId);
-                          }
-                        },
-                      );
-                    },
-                  ),
-
-                // Command result feedback
-                if (_commandResult != null)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 1),
-                    child: Text(
-                      _commandResult!,
-                      style: TextStyle(
-                        color: _commandResultIsError
-                            ? theme.base.error
-                            : theme.base.onSurface.withOpacity(
-                                TextOpacity.secondary,
-                              ),
-                      ),
-                    ),
-                  ),
-
-                // Context usage bar with compact button
-                _buildContextUsageSection(theme),
-              ],
+            // Input area
+            ChatInputArea(
+              agentId: component.agentId,
+              queuedMessage: _queuedMessage,
+              isAgentWorking: _isAgentWorking(context),
+              showQuitWarning: component.showQuitWarning,
+              hasPlanApproval: currentPlanApproval != null,
+              commandResult: _commandResult,
+              commandResultIsError: _commandResultIsError,
+              conversation: _conversation,
+              model: _model,
+              onClearQueue: () {
+                final session = context.read(currentVideSessionProvider);
+                if (session != null) {
+                  unawaited(session.clearQueuedMessage(component.agentId));
+                }
+              },
+              onSendMessage: _sendMessage,
+              onCommand: _handleCommand,
+              onPermissionResponse: _handlePermissionResponse,
+              onAskUserQuestionResponse: _handleAskUserQuestionResponse,
+              onEscape: () {
+                final session = context.read(currentVideSessionProvider);
+                if (session == null) return;
+                if (_queuedMessage != null) {
+                  unawaited(session.clearQueuedMessage(component.agentId));
+                } else {
+                  session.abortAgent(component.agentId);
+                }
+              },
+              commandSuggestions: _getCommandSuggestions,
             ),
           ],
         ),
       ),
     );
-  }
-
-  Component _buildMessage(BuildContext context, ConversationEntry entry) {
-    final theme = VideTheme.of(context);
-
-    if (entry.role == 'user') {
-      // Resolve attachments from entry content or locally tracked
-      List<VideAttachment>? attachments;
-      for (final c in entry.content) {
-        if (c is AttachmentContent) {
-          attachments = c.attachments;
-          break;
-        }
-      }
-      attachments ??= _sentAttachments[entry.text];
-
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '> ${entry.text}',
-              style: TextStyle(color: theme.base.onSurface),
-            ),
-            if (attachments != null && attachments.isNotEmpty)
-              for (final attachment in attachments)
-                Text(
-                  '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-          ],
-        ),
-      );
-    } else {
-      // Assistant message — iterate content blocks
-      final widgets = <Component>[];
-
-      for (final content in entry.content) {
-        if (content is TextContent) {
-          if (content.text.isNotEmpty) {
-            // Check for context-full errors and add helpful hint
-            final isContextFullError =
-                content.text.toLowerCase().contains('prompt is too long') ||
-                content.text.toLowerCase().contains('context window') ||
-                content.text.toLowerCase().contains('token limit');
-
-            widgets.add(MarkdownText(content.text));
-
-            if (isContextFullError) {
-              widgets.add(
-                Container(
-                  padding: EdgeInsets.only(top: 1),
-                  child: Text(
-                    '💡 Tip: Type /compact to free up context space',
-                    style: TextStyle(color: theme.base.primary),
-                  ),
-                ),
-              );
-            }
-          }
-        } else if (content is ToolContent) {
-          // Bridge to claude_sdk ToolInvocation for rendering
-          final toolCall = ToolUseResponse(
-            id: content.toolUseId,
-            timestamp: DateTime.now(),
-            toolName: content.toolName,
-            parameters: content.toolInput,
-            toolUseId: content.toolUseId,
-          );
-          final toolResult = content.result != null
-              ? ToolResultResponse(
-                  id: content.toolUseId,
-                  timestamp: DateTime.now(),
-                  toolUseId: content.toolUseId,
-                  content: content.result!,
-                  isError: content.isError,
-                )
-              : null;
-
-          // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(
-            toolCall,
-            toolResult,
-          );
-
-          final session = context.read(currentVideSessionProvider);
-          widgets.add(
-            ToolInvocationRouter(
-              key: ValueKey(content.toolUseId),
-              invocation: invocation,
-              workingDirectory: session?.state.workingDirectory ?? '',
-              executionId: component.networkId,
-              agentId: component.agentId,
-            ),
-          );
-        }
-      }
-
-      // Show loading indicator if streaming with no content yet
-      if (widgets.isEmpty && entry.isStreaming) {
-        widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
-      }
-
-      return Container(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...widgets,
-
-            // If no content yet but streaming, show loading
-            if (entry.content.isEmpty && entry.isStreaming)
-              EnhancedLoadingIndicator(agentId: component.agentId),
-          ],
-        ),
-      );
-    }
   }
 }
