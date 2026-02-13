@@ -212,7 +212,16 @@ class LocalVideSession implements VideSession {
   VideState get state => _buildState();
 
   @override
-  Stream<VideState> get stateStream => _stateController.stream;
+  Stream<VideState> get stateStream {
+    // Prepend the current state snapshot so new subscribers immediately
+    // receive the latest state (like a BehaviorSubject). Without this,
+    // status changes emitted on the broadcast stream before subscription
+    // are lost, causing stale UI (e.g. missing loading indicators).
+    final controller = StreamController<VideState>();
+    controller.add(_buildState());
+    controller.addStream(_stateController.stream).whenComplete(controller.close);
+    return controller.stream;
+  }
 
   @override
   Stream<VideEvent> get events => _eventController.stream;

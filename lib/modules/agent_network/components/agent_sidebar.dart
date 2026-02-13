@@ -31,9 +31,8 @@ class AgentSidebar extends StatefulComponent {
   State<AgentSidebar> createState() => _AgentSidebarState();
 }
 
-class _AgentSidebarState extends State<AgentSidebar>
-    with SingleTickerProviderStateMixin {
-  int _selectedIndex = 0;
+class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderStateMixin {
+  int _selectedIndex = 1;
   int? _hoveredIndex;
   final _scrollController = ScrollController();
 
@@ -48,15 +47,10 @@ class _AgentSidebarState extends State<AgentSidebar>
   @override
   void initState() {
     super.initState();
-    _currentWidth = component.expanded
-        ? component.width.toDouble()
-        : _collapsedWidth;
+    _currentWidth = component.expanded ? component.width.toDouble() : _collapsedWidth;
 
     // Initialize animation controller
-    _animationController = AnimationController(
-      duration: _animationDuration,
-      vsync: this,
-    );
+    _animationController = AnimationController(duration: _animationDuration, vsync: this);
     _widthAnimation = Tween<double>(
       begin: _currentWidth,
       end: _currentWidth,
@@ -73,27 +67,7 @@ class _AgentSidebarState extends State<AgentSidebar>
     super.didUpdateComponent(old);
     // Animate based on expanded state
     if (component.expanded != old.expanded) {
-      _animateToWidth(
-        component.expanded ? component.width.toDouble() : _collapsedWidth,
-      );
-    }
-
-    // When sidebar gains focus, ensure selection is on a valid selectable item
-    if (component.focused && !old.focused) {
-      final session = context.read(currentVideSessionProvider);
-      final agents = session?.state.agents ?? [];
-      final teamDef = context.read(currentTeamDefinitionProvider).valueOrNull;
-      final items = _buildItems(agents, teamDef);
-
-      // If current selection is on a header, move to first selectable item
-      if (items.isNotEmpty &&
-          _selectedIndex < items.length &&
-          items[_selectedIndex].isHeader) {
-        final firstSelectableIndex = items.indexWhere((item) => !item.isHeader);
-        if (firstSelectableIndex != -1) {
-          setState(() => _selectedIndex = firstSelectableIndex);
-        }
-      }
+      _animateToWidth(component.expanded ? component.width.toDouble() : _collapsedWidth);
     }
   }
 
@@ -112,10 +86,7 @@ class _AgentSidebarState extends State<AgentSidebar>
   }
 
   /// Build the list of sidebar items from current state
-  List<_SidebarItem> _buildItems(
-    List<VideAgent> spawnedAgents,
-    TeamDefinition? teamDef,
-  ) {
+  List<_SidebarItem> _buildItems(List<VideAgent> spawnedAgents) {
     final items = <_SidebarItem>[];
 
     // Active Agents (always show all spawned agents)
@@ -142,36 +113,25 @@ class _AgentSidebarState extends State<AgentSidebar>
 
     // Find current position in selectable items
     final currentSelectableIndex = selectableIndices.indexOf(_selectedIndex);
-    final effectiveIndex = currentSelectableIndex == -1
-        ? 0
-        : currentSelectableIndex;
+    final effectiveIndex = currentSelectableIndex == -1 ? 0 : currentSelectableIndex;
 
     if (event.logicalKey == LogicalKey.escape) {
       component.onExitRight?.call();
     } else if (event.logicalKey == LogicalKey.arrowRight) {
       component.onExitRight?.call();
-    } else if (event.logicalKey == LogicalKey.arrowUp ||
-        event.logicalKey == LogicalKey.keyK) {
+    } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        final newIndex = (effectiveIndex - 1).clamp(
-          0,
-          selectableIndices.length - 1,
-        );
+        final newIndex = (effectiveIndex - 1).clamp(0, selectableIndices.length - 1);
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
-    } else if (event.logicalKey == LogicalKey.arrowDown ||
-        event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
       setState(() {
-        final newIndex = (effectiveIndex + 1).clamp(
-          0,
-          selectableIndices.length - 1,
-        );
+        final newIndex = (effectiveIndex + 1).clamp(0, selectableIndices.length - 1);
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
-    } else if (event.logicalKey == LogicalKey.enter ||
-        event.logicalKey == LogicalKey.space) {
+    } else if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
       if (_selectedIndex < items.length) {
         final item = items[_selectedIndex];
         if (item.agent != null) {
@@ -187,30 +147,25 @@ class _AgentSidebarState extends State<AgentSidebar>
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final isCollapsed = _currentWidth < component.width / 2;
-    final currentTeam = context.watch(currentTeamProvider);
-    final teamDefAsync = context.watch(currentTeamDefinitionProvider);
-    final teamDef = teamDefAsync.valueOrNull;
 
     // Watch for agent changes - unified for both local and remote modes
     // The videSessionAgentsProvider watches session.stateStream which emits
     // whenever agents are spawned or terminated.
     final session = context.watch(currentVideSessionProvider);
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final spawnedAgents =
-        agentsAsync.valueOrNull ?? session?.state.agents ?? [];
+    final spawnedAgents = agentsAsync.valueOrNull ?? session?.state.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);
     if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
       // Schedule the state update for after build
       Future.microtask(() {
-        context.read(selectedAgentIdProvider.notifier).state =
-            spawnedAgents.first.id;
+        context.read(selectedAgentIdProvider.notifier).state = spawnedAgents.first.id;
       });
     }
 
     // Build items once with current state
-    final items = _buildItems(spawnedAgents, teamDef);
+    final items = _buildItems(spawnedAgents);
 
     return Focusable(
       focused: component.focused,
@@ -229,13 +184,7 @@ class _AgentSidebarState extends State<AgentSidebar>
                     alignment: Alignment.topLeft,
                     minWidth: component.width.toDouble(),
                     maxWidth: component.width.toDouble(),
-                    child: _buildExpandedContent(
-                      context,
-                      theme,
-                      currentTeam,
-                      teamDef,
-                      spawnedAgents,
-                    ),
+                    child: _buildExpandedContent(context, theme, spawnedAgents),
                   ),
           ),
         ),
@@ -254,10 +203,7 @@ class _AgentSidebarState extends State<AgentSidebar>
           child: Center(
             child: Text(
               '≡',
-              style: TextStyle(
-                color: theme.base.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
             ),
           ),
         ),
@@ -266,17 +212,11 @@ class _AgentSidebarState extends State<AgentSidebar>
     );
   }
 
-  Component _buildExpandedContent(
-    BuildContext context,
-    VideThemeData theme,
-    String currentTeam,
-    TeamDefinition? teamDef,
-    List<VideAgent> spawnedAgents,
-  ) {
+  Component _buildExpandedContent(BuildContext context, VideThemeData theme, List<VideAgent> spawnedAgents) {
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
     // Build items
-    final items = _buildItems(spawnedAgents, teamDef);
+    final items = _buildItems(spawnedAgents);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -285,52 +225,6 @@ class _AgentSidebarState extends State<AgentSidebar>
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Team header with border
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                border: BoxBorder(
-                  bottom: BorderSide(
-                    color: theme.base.outline.withOpacity(
-                      TextOpacity.separator,
-                    ),
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    '┌ ',
-                    style: TextStyle(
-                      color: theme.base.outline.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                  if (teamDef?.icon != null) ...[
-                    Text(
-                      '${teamDef!.icon} ',
-                      style: TextStyle(color: theme.base.primary),
-                    ),
-                  ],
-                  Text(
-                    currentTeam,
-                    style: TextStyle(
-                      color: theme.base.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    ' ┐',
-                    style: TextStyle(
-                      color: theme.base.outline.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
             // Items list
             Expanded(
               child: Padding(
@@ -366,66 +260,18 @@ class _AgentSidebarState extends State<AgentSidebar>
             Container(
               padding: EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
-                border: BoxBorder(
-                  top: BorderSide(
-                    color: theme.base.outline.withOpacity(
-                      TextOpacity.separator,
-                    ),
-                  ),
-                ),
+                border: BoxBorder(top: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
               ),
               child: Row(
                 children: [
                   if (component.focused) ...[
-                    Text(
-                      '↑↓',
-                      style: TextStyle(
-                        color: theme.base.primary.withOpacity(
-                          TextOpacity.secondary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      ' nav ',
-                      style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(
-                          TextOpacity.disabled,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '→',
-                      style: TextStyle(
-                        color: theme.base.primary.withOpacity(
-                          TextOpacity.secondary,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      ' exit',
-                      style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(
-                          TextOpacity.disabled,
-                        ),
-                      ),
-                    ),
+                    Text('↑↓', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary))),
+                    Text(' nav ', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
+                    Text('→', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary))),
+                    Text(' exit', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
                   ] else ...[
-                    Text(
-                      '←',
-                      style: TextStyle(
-                        color: theme.base.outline.withOpacity(
-                          TextOpacity.disabled,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      ' focus',
-                      style: TextStyle(
-                        color: theme.base.onSurface.withOpacity(
-                          TextOpacity.disabled,
-                        ),
-                      ),
-                    ),
+                    Text('←', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled))),
+                    Text(' focus', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
                   ],
                 ],
               ),
@@ -442,10 +288,7 @@ class _AgentSidebarState extends State<AgentSidebar>
       padding: EdgeInsets.only(top: 1),
       child: Text(
         title,
-        style: TextStyle(
-          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary), fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -505,35 +348,19 @@ class _AgentRowItem extends StatefulComponent {
   State<_AgentRowItem> createState() => _AgentRowItemState();
 }
 
-class _AgentRowItemState extends State<_AgentRowItem>
-    with SingleTickerProviderStateMixin {
-  static const _spinnerFrames = [
-    '⠋',
-    '⠙',
-    '⠹',
-    '⠸',
-    '⠼',
-    '⠴',
-    '⠦',
-    '⠧',
-    '⠇',
-    '⠏',
-  ];
+class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderStateMixin {
+  static const _spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
   late AnimationController _spinnerController;
   VideAgentStatus? _lastStatus;
 
-  int get _spinnerIndex =>
-      (_spinnerController.value * _spinnerFrames.length).floor() %
-      _spinnerFrames.length;
+  int get _spinnerIndex => (_spinnerController.value * _spinnerFrames.length).floor() % _spinnerFrames.length;
 
   @override
   void initState() {
     super.initState();
-    _spinnerController = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )..addListener(() => setState(() {}));
+    _spinnerController = AnimationController(duration: const Duration(seconds: 1), vsync: this)
+      ..addListener(() => setState(() {}));
   }
 
   @override
@@ -601,8 +428,7 @@ class _AgentRowItemState extends State<_AgentRowItem>
 
     // Build agent name with optional task
     String displayName = component.agent.name;
-    if (component.agent.taskName != null &&
-        component.agent.taskName!.isNotEmpty) {
+    if (component.agent.taskName != null && component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
     displayName = _truncateText(displayName, component.availableWidth - 6);
@@ -631,31 +457,18 @@ class _AgentRowItemState extends State<_AgentRowItem>
           child: Row(
             children: [
               // Status indicator with color
-              Text(
-                '  $statusIndicator ',
-                style: TextStyle(color: actualStatusColor),
-              ),
+              Text('  $statusIndicator ', style: TextStyle(color: actualStatusColor)),
               // Agent name
               Expanded(
                 child: Text(
                   displayName,
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: component.isSelectedById
-                        ? FontWeight.bold
-                        : null,
-                  ),
+                  style: TextStyle(color: textColor, fontWeight: component.isSelectedById ? FontWeight.bold : null),
                   maxLines: 1,
                 ),
               ),
               // View indicator for currently viewed agent
               if (component.isSelectedById)
-                Text(
-                  '◀',
-                  style: TextStyle(
-                    color: theme.base.primary.withOpacity(TextOpacity.tertiary),
-                  ),
-                ),
+                Text('◀', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.tertiary))),
             ],
           ),
         ),

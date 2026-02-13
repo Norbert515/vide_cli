@@ -5,15 +5,12 @@ import 'package:vide_core/vide_core.dart';
 
 import 'vide_session_providers.dart';
 
-final agentNetworksStateNotifierProvider =
-    StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((
-      ref,
-    ) {
-      final sessionManager = ref.watch(videSessionManagerProvider);
-      final notifier = AgentNetworksStateNotifier(sessionManager);
-      ref.onDispose(notifier.dispose);
-      return notifier;
-    });
+final agentNetworksStateNotifierProvider = StateNotifierProvider<AgentNetworksStateNotifier, AgentNetworksState>((ref) {
+  final sessionManager = ref.watch(videSessionManagerProvider);
+  final notifier = AgentNetworksStateNotifier(sessionManager);
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
 
 class AgentNetworksState {
   AgentNetworksState({required this.sessions});
@@ -23,15 +20,10 @@ class AgentNetworksState {
   AgentNetworksState copyWith({List<VideSessionInfo>? sessions}) {
     return AgentNetworksState(sessions: sessions ?? this.sessions);
   }
-
-  /// Backward-compatible alias for session count.
-  @Deprecated('Use sessions')
-  List<VideSessionInfo> get networks => sessions;
 }
 
 class AgentNetworksStateNotifier extends StateNotifier<AgentNetworksState> {
-  AgentNetworksStateNotifier(this._sessionManager)
-    : super(AgentNetworksState(sessions: [])) {
+  AgentNetworksStateNotifier(this._sessionManager) : super(AgentNetworksState(sessions: [])) {
     _subscription = _sessionManager.sessionsStream.listen((sessions) {
       if (mounted) {
         state = state.copyWith(sessions: sessions);

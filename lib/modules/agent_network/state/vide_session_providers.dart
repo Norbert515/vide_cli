@@ -14,9 +14,7 @@ final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
   // Import is deferred to avoid circular dependency — the provider watches
   // daemonConnectionProvider which lives in the remote module.
   // This provider is overridden with the concrete implementation in main.dart.
-  throw UnimplementedError(
-    'videSessionManagerProvider must be overridden in main.dart',
-  );
+  throw UnimplementedError('videSessionManagerProvider must be overridden in main.dart');
 });
 
 /// Unified TUI session selection state.
@@ -49,10 +47,9 @@ class SessionSelectionNotifier extends StateNotifier<SessionSelectionState> {
 }
 
 /// Single source of truth for TUI session selection.
-final sessionSelectionProvider =
-    StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
-      (ref) => SessionSelectionNotifier(),
-    );
+final sessionSelectionProvider = StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
+  (ref) => SessionSelectionNotifier(),
+);
 
 /// Provider that triggers rebuilds when the selected session connection changes.
 ///
@@ -127,26 +124,6 @@ final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
   if (session == null) return const Stream.empty();
 
   return session.stateStream.map((s) => s.agents);
-});
-
-/// Provider for the current team name.
-///
-/// Defaults to 'enterprise' if not set.
-/// This should be persisted to settings when changed.
-final currentTeamProvider = StateProvider<String>((ref) {
-  return 'enterprise';
-});
-
-/// Provider for the current team definition.
-///
-/// Loads the full TeamDefinition for the currently selected team.
-/// Returns null if the team is not found.
-final currentTeamDefinitionProvider = FutureProvider<TeamDefinition?>((
-  ref,
-) async {
-  final teamName = ref.watch(currentTeamProvider);
-  final loader = ref.watch(teamFrameworkLoaderProvider);
-  return await loader.getTeam(teamName);
 });
 
 /// Holds a pre-created idle session for instant first-message response.

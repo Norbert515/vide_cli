@@ -569,18 +569,13 @@ class _AgentChatState extends State<_AgentChat> {
         .toList();
   }
 
-  /// Whether the current agent is working, based on VideAgent.status from the
-  /// data layer (delivered via videSessionAgentsProvider StreamProvider).
-  bool _isAgentWorking(BuildContext context) {
-    final agents = context.watch(videSessionAgentsProvider).valueOrNull;
-    if (agents == null) return false;
-    for (final agent in agents) {
-      if (agent.id == component.agentId) {
-        return agent.status == VideAgentStatus.working;
-      }
-    }
-    return false;
-  }
+  /// Whether the current agent is working.
+  ///
+  /// Uses [AgentConversationState.isProcessing] which is updated synchronously
+  /// via the sync broadcast event stream, so it's correct immediately after
+  /// [sendMessage] — unlike [videSessionAgentsProvider] which is stream-based
+  /// and can miss the initial status event on broadcast streams.
+  bool get _isAgentWorking => _conversation?.isProcessing ?? false;
 
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
@@ -658,7 +653,7 @@ class _AgentChatState extends State<_AgentChat> {
             ChatInputArea(
               agentId: component.agentId,
               queuedMessage: _queuedMessage,
-              isAgentWorking: _isAgentWorking(context),
+              isAgentWorking: _isAgentWorking,
               showQuitWarning: component.showQuitWarning,
               hasPlanApproval: currentPlanApproval != null,
               commandResult: _commandResult,
