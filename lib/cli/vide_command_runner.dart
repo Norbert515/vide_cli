@@ -48,6 +48,7 @@ EXAMPLES:
     vide serve --port 9000                 Start daemon on port 9000
     vide serve --generate-token            Start with auto-generated auth token
     vide serve --bind-all --generate-token Allow remote connections (with auth)
+    vide serve --host 100.x.x.x           Bind to specific IP (e.g., Tailscale)
     vide connect 8080                      Connect to localhost:8080
     vide connect 192.168.1.10:8080         Connect to remote daemon
     vide connect 8080 --session abc123     Connect to specific session

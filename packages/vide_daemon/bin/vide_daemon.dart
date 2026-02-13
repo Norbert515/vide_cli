@@ -39,6 +39,11 @@ void main(List<String> arguments) async {
       'token',
       help: 'Auth token to require (implies --generate-token behavior)',
     )
+    ..addOption(
+      'host',
+      defaultsTo: '127.0.0.1',
+      help: 'IP address to bind to (e.g., 100.x.x.x for Tailscale)',
+    )
     ..addFlag(
       'verbose',
       abbr: 'v',
@@ -91,6 +96,7 @@ void main(List<String> arguments) async {
     authToken: argResults['token'] as String?,
     generateToken: argResults['generate-token'] as bool,
     verbose: argResults['verbose'] as bool,
+    bindAddress: argResults['host'] as String,
   );
 
   // Start the daemon

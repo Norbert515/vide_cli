@@ -31,9 +31,11 @@ class DaemonConfig {
   /// Enable verbose logging.
   final bool verbose;
 
-  /// Bind to all network interfaces (0.0.0.0) instead of localhost only.
-  /// WARNING: Only use this with authentication enabled.
-  final bool bindAllInterfaces;
+  /// IP address to bind to.
+  /// Defaults to '127.0.0.1' (localhost only).
+  /// Use '0.0.0.0' for all interfaces, or a specific IP (e.g., Tailscale).
+  /// WARNING: When binding to non-localhost, use authentication.
+  final String bindAddress;
 
   /// Callback invoked when server is ready.
   /// Receives the server URL and optional auth token.
@@ -46,7 +48,7 @@ class DaemonConfig {
     this.authToken,
     this.generateToken = false,
     this.verbose = false,
-    this.bindAllInterfaces = false,
+    this.bindAddress = '127.0.0.1',
     this.onReady,
   });
 }
@@ -160,7 +162,7 @@ class DaemonStarter {
       registry: registry,
       port: config.port,
       authToken: authToken,
-      bindAllInterfaces: config.bindAllInterfaces,
+      bindAddress: config.bindAddress,
     );
 
     await server.start();
@@ -174,12 +176,14 @@ class DaemonStarter {
       stateDir: stateDir,
       authToken: authToken,
       sessionCount: registry.sessionCount,
-      bindAllInterfaces: config.bindAllInterfaces,
+      bindAddress: config.bindAddress,
     );
 
     // Invoke ready callback if provided
-    final host = config.bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
-    config.onReady?.call('http://$host:${config.port}', authToken);
+    config.onReady?.call(
+      'http://${config.bindAddress}:${config.port}',
+      authToken,
+    );
 
     _server = server;
     _registry = registry;
@@ -270,10 +274,9 @@ class DaemonStarter {
     required String stateDir,
     required String? authToken,
     required int sessionCount,
-    required bool bindAllInterfaces,
+    required String bindAddress,
   }) {
-    final host = bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
-    final url = 'http://$host:$port';
+    final url = 'http://$bindAddress:$port';
     print('');
     print('╔══════════════════════════════════════════════════════════════╗');
     print('║                        Vide Daemon                           ║');

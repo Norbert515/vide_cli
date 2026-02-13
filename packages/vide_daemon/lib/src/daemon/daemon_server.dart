@@ -18,7 +18,7 @@ class DaemonServer {
   final SessionRegistry registry;
   final int port;
   final String? authToken;
-  final bool bindAllInterfaces;
+  final String bindAddress;
   final DateTime startedAt = DateTime.now();
 
   HttpServer? _server;
@@ -31,7 +31,7 @@ class DaemonServer {
     required this.registry,
     required this.port,
     this.authToken,
-    this.bindAllInterfaces = false,
+    this.bindAddress = '127.0.0.1',
   });
 
   /// Start the daemon server.
@@ -43,13 +43,10 @@ class DaemonServer {
 
     final handler = _createHandler();
 
-    final address = bindAllInterfaces
-        ? InternetAddress.anyIPv4
-        : InternetAddress.loopbackIPv4;
+    final address = InternetAddress(bindAddress);
     _server = await shelf_io.serve(handler, address, port);
 
-    final host = bindAllInterfaces ? '0.0.0.0' : '127.0.0.1';
-    _log.info('Daemon server listening on http://$host:$port');
+    _log.info('Daemon server listening on http://$bindAddress:$port');
   }
 
   /// Stop the daemon server.
