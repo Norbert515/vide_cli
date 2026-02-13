@@ -328,6 +328,49 @@ nocterm logs --pid 12345
 
 **Note:** Remove debug `print()` statements before committing, as per the testing guidelines.
 
+### Debugging with File Logging
+
+For investigating rendering issues, timing problems, or situations where `nocterm logs` isn't practical (e.g., race conditions, rapid state changes), write timestamped logs to a file using `dart:io`:
+
+```dart
+import 'dart:io';
+
+// Write a timestamped debug line to a file
+void debugLog(String message) {
+  final file = File('/tmp/vide_debug.log');
+  final timestamp = DateTime.now().toIso8601String();
+  file.writeAsStringSync('$timestamp  $message\n', mode: FileMode.append);
+}
+```
+
+**Usage in code:**
+
+```dart
+debugLog('build() called for AgentSidebar');
+debugLog('setState: agentCount=${agents.length}');
+debugLog('render start');
+// ... rendering logic ...
+debugLog('render end');
+```
+
+**Monitoring the log in a separate terminal:**
+
+```bash
+tail -f /tmp/vide_debug.log
+```
+
+**When to use file logging over nocterm logs:**
+- **Rendering order issues** - timestamps reveal the exact sequence of build/layout/paint calls
+- **Timing-sensitive bugs** - see exactly when events fire relative to each other
+- **High-frequency events** - nocterm's WebSocket log viewer may not keep up with rapid-fire logs; a file captures everything
+- **Comparing before/after** - diff two log files to see what changed
+
+**Tips:**
+- Clear the log before each run: `echo > /tmp/vide_debug.log`
+- Use a consistent prefix to filter logs from a specific area: `debugLog('[SIDEBAR] rebuilt')`
+- For measuring durations, log start/end and diff the ISO timestamps
+- Remove all `debugLog` calls and the helper function before committing
+
 ## Session Completion Workflow
 
 **When ending a work session**, complete the following steps:

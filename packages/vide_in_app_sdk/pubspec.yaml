@@ -1,0 +1,17 @@
+name: vide_in_app_sdk
+description: Embed Vide AI assistant directly into any Flutter app. Wiredash-style overlay with chat, screenshot annotations, and voice input.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  vide_client: any
+  vide_interface: any
+  speech_to_text: ^7.0.0
+  shared_preferences: ^2.2.0

@@ -23,5 +23,11 @@ packages/vide_experiments/
 # Build artifacts
 build/
 
+# Generated Flutter files
+.flutter-plugins-dependencies
+
+# vide_in_app_sdk example apps (Flutter boilerplate)
+packages/vide_in_app_sdk/example/
+
 # Specs (local design docs)
 specs/
