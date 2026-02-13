@@ -235,8 +235,9 @@ class TeamFrameworkLoader {
       ...?team?.disallowedTools,
       ...agent.disallowedTools,
     }.toList();
-    final disallowedTools =
-        mergedDisallowedTools.isNotEmpty ? mergedDisallowedTools : null;
+    final disallowedTools = mergedDisallowedTools.isNotEmpty
+        ? mergedDisallowedTools
+        : null;
 
     // Build the AgentConfiguration
     return AgentConfiguration(

@@ -23,12 +23,14 @@ void main() {
         if (agentId != null) 'agent-id': agentId,
         if (attachments != null && attachments.isNotEmpty)
           'attachments': attachments
-              .map((a) => {
-                    'type': a.type,
-                    if (a.filePath != null) 'file-path': a.filePath,
-                    if (a.content != null) 'content': a.content,
-                    if (a.mimeType != null) 'mime-type': a.mimeType,
-                  })
+              .map(
+                (a) => {
+                  'type': a.type,
+                  if (a.filePath != null) 'file-path': a.filePath,
+                  if (a.content != null) 'content': a.content,
+                  if (a.mimeType != null) 'mime-type': a.mimeType,
+                },
+              )
               .toList(),
       };
     }
@@ -56,9 +58,7 @@ void main() {
     test('image file attachment uses kebab-case keys', () {
       final json = buildUserMessageJson(
         'Check this',
-        attachments: [
-          VideAttachment.image('/path/to/screenshot.png'),
-        ],
+        attachments: [VideAttachment.image('/path/to/screenshot.png')],
       );
 
       expect(json['attachments'], hasLength(1));
@@ -110,9 +110,7 @@ void main() {
     test('minimal attachment only has type', () {
       final json = buildUserMessageJson(
         'Minimal',
-        attachments: [
-          VideAttachment(type: 'file'),
-        ],
+        attachments: [VideAttachment(type: 'file')],
       );
 
       final att = json['attachments'][0] as Map<String, dynamic>;
@@ -124,9 +122,7 @@ void main() {
       final json = buildUserMessageJson(
         'Hello',
         agentId: 'agent-2',
-        attachments: [
-          VideAttachment.image('/a.png'),
-        ],
+        attachments: [VideAttachment.image('/a.png')],
       );
 
       expect(json['agent-id'], 'agent-2');
@@ -147,8 +143,7 @@ void main() {
       );
 
       // Simulate network: encode → decode
-      final decoded =
-          jsonDecode(jsonEncode(original)) as Map<String, dynamic>;
+      final decoded = jsonDecode(jsonEncode(original)) as Map<String, dynamic>;
 
       expect(decoded['type'], 'user-message');
       expect(decoded['content'], 'Round trip');

@@ -20,10 +20,7 @@ import 'package:nocterm/nocterm.dart';
 class VortexBackground extends StatefulComponent {
   final Component child;
 
-  const VortexBackground({
-    required this.child,
-    super.key,
-  });
+  const VortexBackground({required this.child, super.key});
 
   @override
   State<VortexBackground> createState() => _VortexBackgroundState();
@@ -89,7 +86,8 @@ class _VortexLayer extends StatelessComponent {
         final centerX = cols / 2.0;
         final centerY = rows / 2.0;
         final maxDist =
-            max(centerX, rows / 2.0) * 1.2; // Match shader: max(centerX, totalRows/2) * 1.2
+            max(centerX, rows / 2.0) *
+            1.2; // Match shader: max(centerX, totalRows/2) * 1.2
 
         final lineComponents = <Component>[];
 
@@ -112,10 +110,9 @@ class _VortexLayer extends StatelessComponent {
             final spiralAngle =
                 angle + dist * spiralTightness - time * rotationSpeed;
             final spiralValue = sin(spiralAngle * 2.0) * 0.5 + 0.5;
-            final radialWave =
-                sin(dist * waveFreq - time * 0.6) * 0.5 + 0.5;
-            final intensity = spiralValue * (1.0 - radialWeight) +
-                radialWave * radialWeight;
+            final radialWave = sin(dist * waveFreq - time * 0.6) * 0.5 + 0.5;
+            final intensity =
+                spiralValue * (1.0 - radialWeight) + radialWave * radialWeight;
 
             // Distance fade — match shader
             final normalizedDist = (dist / maxDist).clamp(0.0, 1.0);
@@ -147,17 +144,18 @@ class _VortexLayer extends StatelessComponent {
             final fade = finalIntensity * (1.0 - normalizedDist * 0.4);
             final colorShift = sin(time * 0.5 + dist * 0.05) * 10.0;
 
-            final cr = (fade * 30 + (normalizedDist < 0.25
-                    ? (0.25 - normalizedDist) / 0.25 * 50
-                    : 0))
-                .toInt()
-                .clamp(0, 255);
-            final cg = (fade * 120 + 15 + colorShift)
-                .toInt()
-                .clamp(8, 160);
-            final cb = (fade * 160 + 25 + colorShift * 0.5)
-                .toInt()
-                .clamp(12, 220);
+            final cr =
+                (fade * 30 +
+                        (normalizedDist < 0.25
+                            ? (0.25 - normalizedDist) / 0.25 * 50
+                            : 0))
+                    .toInt()
+                    .clamp(0, 255);
+            final cg = (fade * 120 + 15 + colorShift).toInt().clamp(8, 160);
+            final cb = (fade * 160 + 25 + colorShift * 0.5).toInt().clamp(
+              12,
+              220,
+            );
 
             buffer.write(char);
             colors.add(_CharColor(cr, cg, cb, bgR, bgG, bgB));
@@ -190,17 +188,17 @@ class _VortexLayer extends StatelessComponent {
                   ),
                 );
               } else {
-                spans.add(Text(
-                  spanText,
-                  style: TextStyle(backgroundColor: bgColor),
-                ));
+                spans.add(
+                  Text(spanText, style: TextStyle(backgroundColor: bgColor)),
+                );
               }
               spanStart = i;
             }
           }
 
-          lineComponents
-              .add(Row(mainAxisSize: MainAxisSize.min, children: spans));
+          lineComponents.add(
+            Row(mainAxisSize: MainAxisSize.min, children: spans),
+          );
         }
 
         return Column(

@@ -8,8 +8,13 @@ library;
 import 'dart:async';
 
 import 'package:vide_client/vide_client.dart'
-    show VideAttachment, VideSession, VideSessionInfo, VideSessionManager,
-         VideAgent, VideAgentStatus;
+    show
+        VideAttachment,
+        VideSession,
+        VideSessionInfo,
+        VideSessionManager,
+        VideAgent,
+        VideAgentStatus;
 import 'package:vide_core/vide_core.dart'
     show AgentNetworkPersistenceManager, VideConfigManager;
 import 'package:vide_daemon/vide_daemon.dart' show SessionSummary;
@@ -98,8 +103,9 @@ class RemoteVideSessionManager implements VideSessionManager {
     // Look up working directory from persistence if not provided.
     var effectiveWorkingDir = workingDirectory;
     if (effectiveWorkingDir == null) {
-      final persistenceManager =
-          _persistenceManagerFor(_defaultWorkingDirectory);
+      final persistenceManager = _persistenceManagerFor(
+        _defaultWorkingDirectory,
+      );
       final networks = await persistenceManager.loadNetworks();
       final network = networks.where((n) => n.id == sessionId).firstOrNull;
       effectiveWorkingDir = network?.worktreePath;
@@ -116,9 +122,7 @@ class RemoteVideSessionManager implements VideSessionManager {
   }
 
   @override
-  Future<List<VideSessionInfo>> listSessions({
-    String? workingDirectory,
-  }) async {
+  Future<List<VideSessionInfo>> listSessions({String? workingDirectory}) async {
     final effectiveWorkingDir = workingDirectory ?? _defaultWorkingDirectory;
 
     // Get running sessions from the daemon, filtered by working directory.
@@ -188,7 +192,8 @@ class RemoteVideSessionManager implements VideSessionManager {
   }
 
   @override
-  Stream<List<VideSessionInfo>> get sessionsStream => _sessionsController.stream;
+  Stream<List<VideSessionInfo>> get sessionsStream =>
+      _sessionsController.stream;
 
   @override
   void dispose() {

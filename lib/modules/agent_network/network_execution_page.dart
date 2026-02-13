@@ -319,7 +319,10 @@ class _AgentChatState extends State<_AgentChat> {
     unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
-  void _syncTokenStats(AgentConversationState conversation, VideSession session) {
+  void _syncTokenStats(
+    AgentConversationState conversation,
+    VideSession session,
+  ) {
     session.updateAgentTokenStats(
       component.agentId,
       totalInputTokens: conversation.totalInputTokens,
@@ -650,10 +653,7 @@ class _AgentChatState extends State<_AgentChat> {
     final conv = _conversation;
     if (conv == null) return [];
     return conv.messages.reversed
-        .where(
-          (entry) =>
-              !(entry.role == 'user' && entry.text.startsWith('/')),
-        )
+        .where((entry) => !(entry.role == 'user' && entry.text.startsWith('/')))
         .toList();
   }
 
@@ -737,12 +737,11 @@ class _AgentChatState extends State<_AgentChat> {
               Expanded(
                 child: PlanApprovalDialog(
                   request: currentPlanApproval,
-                  onResponse: (action, feedback) =>
-                      _handlePlanApprovalResponse(
-                        currentPlanApproval,
-                        action,
-                        feedback,
-                      ),
+                  onResponse: (action, feedback) => _handlePlanApprovalResponse(
+                    currentPlanApproval,
+                    action,
+                    feedback,
+                  ),
                   key: Key('plan_approval_${currentPlanApproval.requestId}'),
                 ),
               ),
@@ -987,10 +986,7 @@ class _AgentChatState extends State<_AgentChat> {
     );
   }
 
-  Component _buildMessage(
-    BuildContext context,
-    ConversationEntry entry,
-  ) {
+  Component _buildMessage(BuildContext context, ConversationEntry entry) {
     final theme = VideTheme.of(context);
 
     if (entry.role == 'user') {

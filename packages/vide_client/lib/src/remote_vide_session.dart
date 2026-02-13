@@ -39,9 +39,7 @@ class PendingRemoteVideSession {
     required String sessionId,
     required WebSocketChannel channel,
   }) {
-    _session.completePending(
-      TransportSession(id: sessionId, channel: channel),
-    );
+    _session.completePending(TransportSession(id: sessionId, channel: channel));
   }
 
   /// Mark the pending session as failed.

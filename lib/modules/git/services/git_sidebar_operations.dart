@@ -1,5 +1,4 @@
-import 'package:path/path.dart' as p;
-import 'package:vide_core/vide_core.dart' show GitClient, GitBranch;
+import 'package:vide_core/vide_core.dart' show GitService, GitBranch;
 
 /// Callback signatures for git operations.
 typedef LoadingCallback = void Function(String? action);
@@ -13,7 +12,7 @@ typedef SwitchWorktreeCallback = void Function(String worktreePath);
 ///
 /// Extracted from GitSidebar to reduce file size and improve separation
 /// of concerns. All operations use callbacks for state management and
-/// toast notifications.
+/// toast notifications. Delegates to [GitService] for the actual git work.
 class GitSidebarOperations {
   final LoadingCallback onLoadingChanged;
   final SuccessCallback onSuccess;
@@ -43,12 +42,10 @@ class GitSidebarOperations {
 
   /// Checkout a branch.
   Future<void> checkoutBranch(String branchName, String repoPath) async {
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      await client.checkout(branchName);
-
-      // Refresh branches/worktrees to reflect the change
+      await git.checkout(branchName);
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       // TODO: Show error to user (e.g., uncommitted changes)
@@ -60,18 +57,11 @@ class GitSidebarOperations {
     String branchName,
     String repoPath,
   ) async {
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      // Create worktree path: ../reponame-branchname
-      final repoName = p.basename(repoPath);
-      final worktreePath =
-          p.join(p.dirname(repoPath), '$repoName-$branchName');
-
-      // Create worktree with existing branch (don't create new branch)
-      await client.worktreeAdd(
-        worktreePath,
-        branch: branchName,
+      final worktreePath = await git.createWorktree(
+        branchName,
         createBranch: false,
       );
 
@@ -80,7 +70,6 @@ class GitSidebarOperations {
         onSwitchWorktree?.call(worktreePath);
       }
 
-      // Refresh branches/worktrees to reflect the change
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       // TODO: Show error to user
@@ -96,30 +85,14 @@ class GitSidebarOperations {
   ) async {
     onLoadingChanged('merge');
 
-    final client = GitClient(workingDirectory: repoPath);
-
-    // Determine the main branch name (main or master)
-    final mainBranch = branches?.any((b) => b.name == 'main') == true
-        ? 'main'
-        : 'master';
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      // 1. Checkout main
-      await client.checkout(mainBranch);
-
-      // 2. Merge the feature branch
-      await client.merge(featureBranch);
-
+      await git.mergeToMain(featureBranch, knownBranches: branches);
       onSuccess('Merged to main successfully');
-
-      // Refresh branches/worktrees to reflect the change
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       onError('Merge failed: ${e.toString()}');
-      // Try to go back to the feature branch on failure
-      try {
-        await client.checkout(featureBranch);
-      } catch (_) {}
     } finally {
       onLoadingChanged(null);
     }
@@ -129,18 +102,11 @@ class GitSidebarOperations {
   Future<void> sync(String repoPath) async {
     onLoadingChanged('sync');
 
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      // Pull with rebase first (IntelliJ style)
-      await client.pull(rebase: true);
-
-      // Then push local commits
-      await client.push();
-
+      await git.sync();
       onSuccess('Synced successfully');
-
-      // Refresh to reflect the updated state
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       onError('Sync failed: ${e.toString()}');
@@ -153,13 +119,11 @@ class GitSidebarOperations {
   Future<void> pull(String repoPath) async {
     onLoadingChanged('pull');
 
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      await client.pull();
+      await git.pull();
       onSuccess('Pulled successfully');
-
-      // Refresh to reflect the updated state
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       onError('Pull failed: ${e.toString()}');
@@ -172,13 +136,11 @@ class GitSidebarOperations {
   Future<void> push(String repoPath) async {
     onLoadingChanged('push');
 
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      await client.push();
+      await git.push();
       onSuccess('Pushed successfully');
-
-      // Refresh to reflect the updated state
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       onError('Push failed: ${e.toString()}');
@@ -191,13 +153,11 @@ class GitSidebarOperations {
   Future<void> fetch(String repoPath) async {
     onLoadingChanged('fetch');
 
-    final client = GitClient(workingDirectory: repoPath);
+    final git = GitService(workingDirectory: repoPath);
 
     try {
-      await client.fetch();
+      await git.fetch();
       onSuccess('Fetched successfully');
-
-      // Refresh to reflect the updated state
       await _refreshAfterOperation(repoPath);
     } catch (e) {
       onError('Fetch failed: ${e.toString()}');
@@ -210,13 +170,11 @@ class GitSidebarOperations {
   Future<void> removeWorktree(String worktreePath, String mainRepoPath) async {
     onLoadingChanged('remove');
 
-    final client = GitClient(workingDirectory: mainRepoPath);
+    final git = GitService(workingDirectory: mainRepoPath);
 
     try {
-      await client.worktreeRemove(worktreePath);
+      await git.removeWorktree(worktreePath);
       onSuccess('Worktree removed');
-
-      // Refresh to reflect the updated state
       await onRefreshSingleRepo();
     } catch (e) {
       onError('Failed to remove worktree: ${e.toString()}');

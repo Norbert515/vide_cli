@@ -6,12 +6,7 @@ import 'package:vide_client/vide_client.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Connection state for the SDK.
-enum VideSdkConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+enum VideSdkConnectionState { disconnected, connecting, connected, error }
 
 const _kServerUrlKey = 'vide_sdk_server_url';
 const _kWorkingDirKey = 'vide_sdk_working_directory';
@@ -26,14 +21,13 @@ class VideSdkState extends ChangeNotifier {
 
   VideClient? _client;
   RemoteVideSession? _session;
-  VideSdkConnectionState _connectionState =
-      VideSdkConnectionState.disconnected;
+  VideSdkConnectionState _connectionState = VideSdkConnectionState.disconnected;
   String? _errorMessage;
   StreamSubscription<VideEvent>? _eventSubscription;
 
   VideSdkState({String? serverUrl, String? workingDirectory})
-      : _serverUrl = serverUrl,
-        _workingDirectory = workingDirectory;
+    : _serverUrl = serverUrl,
+      _workingDirectory = workingDirectory;
 
   String? get serverUrl => _serverUrl;
   String? get workingDirectory => _workingDirectory;
@@ -48,8 +42,7 @@ class VideSdkState extends ChangeNotifier {
   RemoteVideSession? get session => _session;
   VideState? get videState => _session?.state;
   bool get hasActiveSession =>
-      _session != null &&
-      _connectionState == VideSdkConnectionState.connected;
+      _session != null && _connectionState == VideSdkConnectionState.connected;
 
   /// Load persisted configuration from shared preferences.
   Future<void> loadConfig() async {
@@ -158,9 +151,7 @@ class VideSdkState extends ChangeNotifier {
 
   /// Send a message to the main agent.
   void sendMessage(String text, {List<VideAttachment>? attachments}) {
-    _session?.sendMessage(
-      VideMessage(text: text, attachments: attachments),
-    );
+    _session?.sendMessage(VideMessage(text: text, attachments: attachments));
     notifyListeners();
   }
 

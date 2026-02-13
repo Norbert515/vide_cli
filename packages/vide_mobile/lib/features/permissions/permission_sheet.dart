@@ -60,10 +60,7 @@ class _PermissionSheetState extends State<PermissionSheet> {
                   // Header
                   Text(
                     'Permission Request',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
                   ),

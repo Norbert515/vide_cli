@@ -337,10 +337,7 @@ class _HomePageState extends State<HomePage> {
                           videSessionManagerProvider,
                         );
                         sessionManager.resumeSession(sessionId).then((session) {
-                          NetworkExecutionPage.push(
-                            context,
-                            session: session,
-                          );
+                          NetworkExecutionPage.push(context, session: session);
                         });
                       },
                       onSessionDeleted: (index) {

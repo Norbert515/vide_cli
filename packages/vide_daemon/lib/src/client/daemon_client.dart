@@ -102,9 +102,7 @@ class DaemonClient {
     required String sessionId,
     required String workingDirectory,
   }) async {
-    final request = ResumeSessionRequest(
-      workingDirectory: workingDirectory,
-    );
+    final request = ResumeSessionRequest(workingDirectory: workingDirectory);
 
     final response = await _httpClient.post(
       Uri.parse('$_baseUrl/sessions/$sessionId/resume'),

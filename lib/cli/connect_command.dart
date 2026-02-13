@@ -28,9 +28,7 @@ class ConnectCommand extends Command<void> {
   Future<void> run() async {
     final rest = argResults!.rest;
     if (rest.length != 1) {
-      usageException(
-        'Expected exactly one argument: <host:port> or <port>',
-      );
+      usageException('Expected exactly one argument: <host:port> or <port>');
     }
 
     final connectArg = rest.first;

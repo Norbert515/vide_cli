@@ -23,7 +23,7 @@ class VideConfigManager {
   /// If [configRoot] is not specified, defaults to `~/.vide`.
   /// Only override this for testing or custom deployments.
   VideConfigManager({String? configRoot})
-      : _configRoot = configRoot ?? _defaultConfigRoot() {
+    : _configRoot = configRoot ?? _defaultConfigRoot() {
     // Migrate from legacy parott config if needed
     _migrateFromLegacyConfig();
   }
@@ -172,7 +172,6 @@ class VideConfigManager {
     final settings = readGlobalSettings();
     writeGlobalSettings(settings.copyWith(telemetryEnabled: enabled));
   }
-
 }
 
 /// Riverpod provider for VideConfigManager.

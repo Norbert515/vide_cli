@@ -232,17 +232,26 @@ void main() {
 
         // First message: text + tool use + tool result
         expect(conversation.messages[0].content[0], isA<TextContent>());
-        expect((conversation.messages[0].content[0] as TextContent).text, equals('Checking...'));
+        expect(
+          (conversation.messages[0].content[0] as TextContent).text,
+          equals('Checking...'),
+        );
         expect(conversation.messages[0].content[1], isA<ToolContent>()); // Bash
 
         // Second message: text + tool use + tool result
         expect(conversation.messages[1].content[0], isA<TextContent>());
-        expect((conversation.messages[1].content[0] as TextContent).text, equals('Found file.txt. '));
+        expect(
+          (conversation.messages[1].content[0] as TextContent).text,
+          equals('Found file.txt. '),
+        );
         expect(conversation.messages[1].content[1], isA<ToolContent>()); // Read
 
         // Third message: just text
         expect(conversation.messages[2].content[0], isA<TextContent>());
-        expect((conversation.messages[2].content[0] as TextContent).text, equals('Done!'));
+        expect(
+          (conversation.messages[2].content[0] as TextContent).text,
+          equals('Done!'),
+        );
 
         // Verify the last message is complete
         expect(conversation.messages[2].isStreaming, isFalse);
@@ -546,7 +555,9 @@ void main() {
     group('agent spawning', () {
       test('agentsStream emits when agent is spawned', () async {
         final updates = <List<dynamic>>[];
-        final subscription = session.stateStream.map((s) => s.agents).listen(updates.add);
+        final subscription = session.stateStream
+            .map((s) => s.agents)
+            .listen(updates.add);
 
         // Allow subscription to be set up
         await Future.delayed(Duration.zero);
@@ -583,7 +594,10 @@ void main() {
 
         expect(session.state.agents.length, equals(2));
         expect(session.state.agents.any((a) => a.id == 'sub-agent-1'), isTrue);
-        expect(session.state.agents.any((a) => a.name == 'Code Helper'), isTrue);
+        expect(
+          session.state.agents.any((a) => a.name == 'Code Helper'),
+          isTrue,
+        );
       });
 
       test('agentsStream emits when agent is terminated', () async {
@@ -597,7 +611,9 @@ void main() {
         );
 
         final updates = <List<dynamic>>[];
-        final subscription = session.stateStream.map((s) => s.agents).listen(updates.add);
+        final subscription = session.stateStream
+            .map((s) => s.agents)
+            .listen(updates.add);
 
         // Allow subscription to be set up
         await Future.delayed(Duration.zero);
@@ -693,7 +709,10 @@ void main() {
         'task-name-changed updates goal and emits goal stream event',
         () async {
           final emittedGoals = <String>[];
-          final goalSub = session.stateStream.map((s) => s.goal).distinct().listen(emittedGoals.add);
+          final goalSub = session.stateStream
+              .map((s) => s.goal)
+              .distinct()
+              .listen(emittedGoals.add);
 
           final ts = DateTime.now().toIso8601String();
           session.handleWebSocketMessage(
@@ -783,7 +802,10 @@ void main() {
           isTrue,
         );
         expect(session.state.agents.any((a) => a.id == 'spawned-1'), isTrue);
-        expect(session.state.agents.any((a) => a.name == 'Implementer'), isTrue);
+        expect(
+          session.state.agents.any((a) => a.name == 'Implementer'),
+          isTrue,
+        );
       });
 
       test('connected event emits to agentsStream for UI reactivity', () async {
@@ -794,7 +816,9 @@ void main() {
 
         // Set up a listener for the stream BEFORE the connected event
         List<VideAgent>? emittedAgents;
-        final subscription = session.stateStream.map((s) => s.agents).listen((agents) {
+        final subscription = session.stateStream.map((s) => s.agents).listen((
+          agents,
+        ) {
           emittedAgents = agents;
         });
 
@@ -869,7 +893,10 @@ void main() {
         session.handleWebSocketMessage(historyJson);
 
         // Agent from history should still be added (skipSeqCheck for history)
-        expect(session.state.agents.any((a) => a.id == 'history-agent'), isTrue);
+        expect(
+          session.state.agents.any((a) => a.id == 'history-agent'),
+          isTrue,
+        );
       });
 
       test('history streaming messages are consolidated to avoid duplication', () {
@@ -965,10 +992,7 @@ void main() {
 
         // Assistant message should be consolidated (not "Hello! Hello! How can How can I help?I help?")
         expect(conversation.messages[1].role, equals('assistant'));
-        expect(
-          conversation.messages[1].text,
-          equals('Hello! How can I help?'),
-        );
+        expect(conversation.messages[1].text, equals('Hello! How can I help?'));
       });
     });
 

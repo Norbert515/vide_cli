@@ -58,12 +58,13 @@ export 'src/services/permissions/permissions.dart';
 export 'src/services/settings/local_settings_manager.dart';
 
 // =============================================================================
-// Git (public models + client)
+// Git (public models + client + service)
 // =============================================================================
 export 'src/mcp/git/git_client.dart';
 export 'src/mcp/git/git_models.dart';
 export 'src/mcp/git/git_providers.dart'
     show gitStatusStreamProvider, isGitRepoProvider;
+export 'src/services/git_service.dart';
 
 // =============================================================================
 // Utilities

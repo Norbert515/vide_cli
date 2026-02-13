@@ -101,7 +101,10 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
     };
   }
 
-  Color _getIndicatorColor(VideAgentStatus status, VideStatusColors statusColors) {
+  Color _getIndicatorColor(
+    VideAgentStatus status,
+    VideStatusColors statusColors,
+  ) {
     return switch (status) {
       VideAgentStatus.working => statusColors.working,
       VideAgentStatus.waitingForAgent => statusColors.waitingForAgent,

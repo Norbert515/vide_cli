@@ -92,10 +92,7 @@ class VideState {
           workingDirectory == other.workingDirectory &&
           isProcessing == other.isProcessing &&
           _listEquals(agents, other.agents) &&
-          _listEquals(
-            agentConversationStates,
-            other.agentConversationStates,
-          );
+          _listEquals(agentConversationStates, other.agentConversationStates);
 
   @override
   int get hashCode => Object.hash(
@@ -195,20 +192,30 @@ abstract class VideSession {
   });
 
   /// Respond to an AskUserQuestion request.
-  void respondToAskUserQuestion(String requestId, {required Map<String, String> answers});
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  });
 
   /// Respond to a plan approval request (ExitPlanMode).
   ///
   /// [action] must be 'accept' or 'reject'.
   /// When rejecting, [feedback] is sent back to Claude as a deny message
   /// so it can revise the plan.
-  void respondToPlanApproval(String requestId, {required String action, String? feedback});
+  void respondToPlanApproval(
+    String requestId, {
+    required String action,
+    String? feedback,
+  });
 
   /// Add a pattern to the session permission cache.
   Future<void> addSessionPermissionPattern(String pattern);
 
   /// Check if a tool is allowed by the session cache.
-  Future<bool> isAllowedBySessionCache(String toolName, Map<String, dynamic> input);
+  Future<bool> isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> input,
+  );
 
   /// Clear the session permission cache.
   Future<void> clearSessionPermissionCache();
@@ -224,7 +231,11 @@ abstract class VideSession {
   Future<void> abortAgent(String agentId);
 
   /// Terminate an agent and remove it from the network.
-  Future<void> terminateAgent(String agentId, {required String terminatedBy, String? reason});
+  Future<void> terminateAgent(
+    String agentId, {
+    required String terminatedBy,
+    String? reason,
+  });
 
   /// Spawn a new agent by agent type.
   Future<String> spawnAgent({

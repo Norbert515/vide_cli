@@ -73,7 +73,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Only open a new connection when navigating to a different session.
       final existing = sessionRepo.session;
       final RemoteVideSession session;
-      if (existing != null && existing.id == widget.sessionId && sessionRepo.isActive) {
+      if (existing != null &&
+          existing.id == widget.sessionId &&
+          sessionRepo.isActive) {
         session = existing;
       } else {
         session = await sessionRepo.connectToExistingSession(widget.sessionId);
@@ -85,7 +87,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to connect: $e'), behavior: SnackBarBehavior.fixed));
+        ).showSnackBar(SnackBar(
+            content: Text('Failed to connect: $e'),
+            behavior: SnackBarBehavior.fixed));
       }
     }
   }
@@ -109,7 +113,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _eventSubscription = session.events.listen(_handleEvent);
 
     // 2. Agents stream — updates agent tabs
-    _agentsSubscription = session.stateStream.map((s) => s.agents).distinct().listen((agents) {
+    _agentsSubscription =
+        session.stateStream.map((s) => s.agents).distinct().listen((agents) {
       if (!mounted) return;
       setState(() {
         _agents = agents;
@@ -120,7 +125,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         }
         // Clean up controllers for removed agents
         final agentIds = agents.map((a) => a.id).toSet();
-        final removedIds = _scrollControllers.keys.where((id) => !agentIds.contains(id)).toList();
+        final removedIds = _scrollControllers.keys
+            .where((id) => !agentIds.contains(id))
+            .toList();
         for (final id in removedIds) {
           _scrollControllers[id]?.dispose();
           _scrollControllers.remove(id);
@@ -133,14 +140,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
 
     // 3. Conversation state changes — triggers rebuild for new messages/tools
-    _conversationSubscription = session.conversationState.onStateChanged.listen((_) {
+    _conversationSubscription =
+        session.conversationState.onStateChanged.listen((_) {
       if (mounted) setState(() {});
     });
 
     // 4. Sync pending permission from session (may have arrived before we subscribed)
     final pendingPerm = session.pendingPermissionRequest;
     if (pendingPerm != null) {
-      ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(pendingPerm);
+      ref
+          .read(chatNotifierProvider(widget.sessionId).notifier)
+          .setPendingPermission(pendingPerm);
     }
   }
 
@@ -164,7 +174,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         notifier.setPendingPermission(event);
 
       case PermissionResolvedEvent(:final requestId):
-        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
+        final pending =
+            ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
         if (pending?.requestId == requestId) {
           notifier.setPendingPermission(null);
           if (_isPermissionSheetShowing && mounted) {
@@ -177,7 +188,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         notifier.setPendingPlanApproval(event);
 
       case PlanApprovalResolvedEvent(:final requestId):
-        final pending = ref.read(chatNotifierProvider(widget.sessionId)).pendingPlanApproval;
+        final pending = ref
+            .read(chatNotifierProvider(widget.sessionId))
+            .pendingPlanApproval;
         if (pending?.requestId == requestId) {
           notifier.setPendingPlanApproval(null);
           if (_isPlanApprovalSheetShowing && mounted) {
@@ -210,7 +223,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Scroll to bottom (offset 0 in a reversed list).
     final controller = _activeScrollController;
     if (controller.hasClients && controller.offset != 0.0) {
-      controller.animateTo(0, duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
+      controller.animateTo(0,
+          duration: const Duration(milliseconds: 200), curve: Curves.easeOut);
     }
   }
 
@@ -234,9 +248,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (pendingPermission == null) return;
 
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
-    sessionRepo.respondToPermission(pendingPermission.requestId, allow, remember: remember);
+    sessionRepo.respondToPermission(pendingPermission.requestId, allow,
+        remember: remember);
 
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPermission(null);
+    ref
+        .read(chatNotifierProvider(widget.sessionId).notifier)
+        .setPendingPermission(null);
     if (_isPermissionSheetShowing) {
       _isPermissionSheetShowing = false;
       Navigator.of(context).pop();
@@ -253,7 +270,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       enableDrag: false,
       builder: (context) => PermissionSheet(
         request: request,
-        onAllow: ({required bool remember}) => _handlePermission(true, remember: remember),
+        onAllow: ({required bool remember}) =>
+            _handlePermission(true, remember: remember),
         onDeny: () => _handlePermission(false),
       ),
     ).whenComplete(() {
@@ -267,9 +285,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (pending == null) return;
 
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
-    sessionRepo.respondToPlanApproval(pending.requestId, action, feedback: feedback);
+    sessionRepo.respondToPlanApproval(pending.requestId, action,
+        feedback: feedback);
 
-    ref.read(chatNotifierProvider(widget.sessionId).notifier).setPendingPlanApproval(null);
+    ref
+        .read(chatNotifierProvider(widget.sessionId).notifier)
+        .setPendingPlanApproval(null);
     if (_isPlanApprovalSheetShowing) {
       _isPlanApprovalSheetShowing = false;
       Navigator.of(context).pop();
@@ -328,14 +349,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     }
 
-    final isDisconnected = connectionState.status != WebSocketConnectionStatus.connected;
+    final isDisconnected =
+        connectionState.status != WebSocketConnectionStatus.connected;
     final isProcessing = session?.state.isProcessing ?? false;
     final inputEnabled = !isProcessing && !isDisconnected;
     final hasAgents = _agents.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.go(AppRoutes.sessions)),
+        leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go(AppRoutes.sessions)),
         title: const Text('Session'),
         actions: const [
           Padding(
@@ -354,7 +378,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    ref.read(chatNotifierProvider(widget.sessionId).notifier).setError(null);
+                    ref
+                        .read(chatNotifierProvider(widget.sessionId).notifier)
+                        .setError(null);
                   },
                   child: const Text('Dismiss'),
                 ),
@@ -431,7 +457,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return _EmptyState();
     }
 
-    return IndexedStack(index: _selectedTabIndex.clamp(0, tabViews.length - 1), children: tabViews);
+    return IndexedStack(
+        index: _selectedTabIndex.clamp(0, tabViews.length - 1),
+        children: tabViews);
   }
 }
 
@@ -444,18 +472,24 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 64, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+          Icon(Icons.chat_bubble_outline,
+              size: 64,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
           const SizedBox(height: 16),
           Text(
             'Start a conversation',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(color: colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
             'Send a message to begin',
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
+            ).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -486,7 +520,9 @@ class _MessageList extends StatelessWidget {
     this.onToolTap,
   });
 
-  bool get _isAgentBusy => agentStatus == VideAgentStatus.working || agentStatus == VideAgentStatus.waitingForAgent;
+  bool get _isAgentBusy =>
+      agentStatus == VideAgentStatus.working ||
+      agentStatus == VideAgentStatus.waitingForAgent;
 
   @override
   Widget build(BuildContext context) {
@@ -494,7 +530,8 @@ class _MessageList extends StatelessWidget {
 
     if (messages.isEmpty) {
       return const Center(
-        child: Text('No messages from this agent yet', style: TextStyle(color: Colors.grey)),
+        child: Text('No messages from this agent yet',
+            style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -519,10 +556,12 @@ class _MessageList extends StatelessWidget {
 
     if (items.isEmpty) {
       if (_isAgentBusy) {
-        return const Align(alignment: Alignment.bottomLeft, child: TypingIndicator());
+        return const Align(
+            alignment: Alignment.bottomLeft, child: TypingIndicator());
       }
       return const Center(
-        child: Text('No messages from this agent yet', style: TextStyle(color: Colors.grey)),
+        child: Text('No messages from this agent yet',
+            style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -546,14 +585,17 @@ class _MessageList extends StatelessWidget {
             if (showTypingIndicator && reverseIndex == 0) {
               return const TypingIndicator();
             }
-            final itemIndex = items.length - 1 - (showTypingIndicator ? reverseIndex - 1 : reverseIndex);
+            final itemIndex = items.length -
+                1 -
+                (showTypingIndicator ? reverseIndex - 1 : reverseIndex);
             final item = items[itemIndex];
             switch (item) {
               case _TextRenderItem(:final entry):
                 return MessageBubble(entry: entry);
               case _ToolRenderItem(:final tool):
                 if (_isSpawnAgentTool(tool)) {
-                  return _SpawnAgentCard(tool: tool, agents: agents, onTap: onAgentTap);
+                  return _SpawnAgentCard(
+                      tool: tool, agents: agents, onTap: onAgentTap);
                 }
                 if (tool.toolName == 'ExitPlanMode') {
                   return _PlanResultIndicator(tool: tool);
@@ -654,22 +696,28 @@ class _SpawnAgentCard extends StatelessWidget {
     final agentName = tool.toolInput['name'] as String? ?? 'Agent';
     final agentType = tool.toolInput['agentType'] as String? ?? '';
 
-    final matchingAgent = agents.cast<VideAgent?>().firstWhere((a) => a!.name == agentName, orElse: () => null);
+    final matchingAgent = agents
+        .cast<VideAgent?>()
+        .firstWhere((a) => a!.name == agentName, orElse: () => null);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: VideSpacing.sm, vertical: VideSpacing.xs),
+      padding: const EdgeInsets.symmetric(
+          horizontal: VideSpacing.sm, vertical: VideSpacing.xs),
       child: GestureDetector(
-        onTap: matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
+        onTap:
+            matchingAgent != null ? () => onTap?.call(matchingAgent.id) : null,
         child: Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
             borderRadius: VideRadius.smAll,
             border: Border.all(color: videColors.glassBorder, width: 1),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: VideSpacing.md, vertical: 12),
+          padding: const EdgeInsets.symmetric(
+              horizontal: VideSpacing.md, vertical: 12),
           child: Row(
             children: [
-              Icon(Icons.arrow_forward_rounded, size: 18, color: videColors.accent),
+              Icon(Icons.arrow_forward_rounded,
+                  size: 18, color: videColors.accent),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -677,14 +725,21 @@ class _SpawnAgentCard extends StatelessWidget {
                   children: [
                     Text(
                       agentName,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: videColors.accent),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: videColors.accent),
                     ),
                     if (agentType.isNotEmpty)
-                      Text(agentType, style: TextStyle(fontSize: 12, color: videColors.textSecondary)),
+                      Text(agentType,
+                          style: TextStyle(
+                              fontSize: 12, color: videColors.textSecondary)),
                   ],
                 ),
               ),
-              if (matchingAgent != null) Icon(Icons.chevron_right, size: 18, color: videColors.textTertiary),
+              if (matchingAgent != null)
+                Icon(Icons.chevron_right,
+                    size: 18, color: videColors.textTertiary),
             ],
           ),
         ),
@@ -695,8 +750,10 @@ class _SpawnAgentCard extends StatelessWidget {
 
 /// A flattened render item from ConversationEntry content blocks.
 sealed class _RenderItem {
-  factory _RenderItem.text(ConversationEntry entry, TextContent content) = _TextRenderItem;
-  factory _RenderItem.tool(ConversationEntry entry, ToolContent tool) = _ToolRenderItem;
+  factory _RenderItem.text(ConversationEntry entry, TextContent content) =
+      _TextRenderItem;
+  factory _RenderItem.tool(ConversationEntry entry, ToolContent tool) =
+      _ToolRenderItem;
 }
 
 class _TextRenderItem implements _RenderItem {

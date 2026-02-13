@@ -255,8 +255,7 @@ void main() {
             );
           });
 
-          test('main agent prompt contains anti-hallucination rules',
-              () async {
+          test('main agent prompt contains anti-hallucination rules', () async {
             final team = await loader.getTeam(teamName);
             final config = await loader.buildAgentConfiguration(
               team!.mainAgent,
@@ -275,8 +274,7 @@ void main() {
             }
           });
 
-          test('all team agents receive anti-hallucination rules',
-              () async {
+          test('all team agents receive anti-hallucination rules', () async {
             final team = await loader.getTeam(teamName);
 
             for (final agentName in team!.agents) {
@@ -304,29 +302,30 @@ void main() {
       }
 
       test(
-          'messaging etiquette appears before agent content in enterprise',
-          () async {
-        final config = await loader.buildAgentConfiguration(
-          'enterprise-lead',
-          teamName: 'enterprise',
-        );
+        'messaging etiquette appears before agent content in enterprise',
+        () async {
+          final config = await loader.buildAgentConfiguration(
+            'enterprise-lead',
+            teamName: 'enterprise',
+          );
 
-        expect(config, isNotNull);
-        final prompt = config!.systemPrompt;
+          expect(config, isNotNull);
+          final prompt = config!.systemPrompt;
 
-        final hallucinationIdx =
-            prompt.indexOf('NEVER Hallucinate Sub-Agent Responses');
-        final orchestratorIdx =
-            prompt.indexOf('ENTERPRISE ORCHESTRATOR');
+          final hallucinationIdx = prompt.indexOf(
+            'NEVER Hallucinate Sub-Agent Responses',
+          );
+          final orchestratorIdx = prompt.indexOf('ENTERPRISE ORCHESTRATOR');
 
-        expect(
-          hallucinationIdx,
-          lessThan(orchestratorIdx),
-          reason:
-              'Anti-hallucination rules from messaging etiquette should '
-              'appear before the agent\'s own content',
-        );
-      });
+          expect(
+            hallucinationIdx,
+            lessThan(orchestratorIdx),
+            reason:
+                'Anti-hallucination rules from messaging etiquette should '
+                'appear before the agent\'s own content',
+          );
+        },
+      );
     });
   });
 }

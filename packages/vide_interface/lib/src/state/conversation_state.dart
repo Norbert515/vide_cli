@@ -216,7 +216,7 @@ class ConversationStateManager {
 
   /// Per-agent stream controllers for targeted subscriptions.
   final Map<String, StreamController<AgentConversationState>>
-      _agentControllers = {};
+  _agentControllers = {};
 
   /// Authoritative event history for this session.
   final List<VideEvent> _eventHistory = [];

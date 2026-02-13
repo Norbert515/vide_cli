@@ -12,7 +12,9 @@ void main() {
     late VideConfigManager configManager;
 
     setUp(() {
-      tempDir = Directory.systemTemp.createTempSync('vide_session_manager_test_');
+      tempDir = Directory.systemTemp.createTempSync(
+        'vide_session_manager_test_',
+      );
       configManager = VideConfigManager(configRoot: tempDir.path);
     });
 
@@ -48,30 +50,32 @@ void main() {
         expect(networksFromB, isEmpty);
       });
 
-      test('same project path shares storage across manager instances',
-          () async {
-        final manager1 = AgentNetworkPersistenceManager(
-          configManager: configManager,
-          projectPath: '/projects/shared',
-        );
-        final manager2 = AgentNetworkPersistenceManager(
-          configManager: configManager,
-          projectPath: '/projects/shared',
-        );
+      test(
+        'same project path shares storage across manager instances',
+        () async {
+          final manager1 = AgentNetworkPersistenceManager(
+            configManager: configManager,
+            projectPath: '/projects/shared',
+          );
+          final manager2 = AgentNetworkPersistenceManager(
+            configManager: configManager,
+            projectPath: '/projects/shared',
+          );
 
-        final network = AgentNetwork(
-          id: 'net-shared',
-          goal: 'Shared session',
-          agents: [],
-          createdAt: DateTime(2025, 2, 1),
-        );
+          final network = AgentNetwork(
+            id: 'net-shared',
+            goal: 'Shared session',
+            agents: [],
+            createdAt: DateTime(2025, 2, 1),
+          );
 
-        await manager1.saveNetwork(network);
+          await manager1.saveNetwork(network);
 
-        final networksFrom2 = await manager2.loadNetworks();
-        expect(networksFrom2, hasLength(1));
-        expect(networksFrom2.first.id, equals('net-shared'));
-      });
+          final networksFrom2 = await manager2.loadNetworks();
+          expect(networksFrom2, hasLength(1));
+          expect(networksFrom2.first.id, equals('net-shared'));
+        },
+      );
 
       test('networks are isolated between projects', () async {
         final managerA = AgentNetworkPersistenceManager(
@@ -179,18 +183,13 @@ void main() {
 
         final effectiveWorkingDir = '/projects/alpha';
         final filtered = summaries
-            .where(
-              (summary) => summary.workingDirectory == effectiveWorkingDir,
-            )
+            .where((summary) => summary.workingDirectory == effectiveWorkingDir)
             .toList();
 
         expect(filtered, hasLength(2));
         expect(filtered.map((s) => s.sessionId), contains('session-1'));
         expect(filtered.map((s) => s.sessionId), contains('session-3'));
-        expect(
-          filtered.map((s) => s.sessionId),
-          isNot(contains('session-2')),
-        );
+        expect(filtered.map((s) => s.sessionId), isNot(contains('session-2')));
       });
 
       test('returns empty when no sessions match directory', () {
@@ -207,8 +206,7 @@ void main() {
 
         final filtered = summaries
             .where(
-              (summary) =>
-                  summary.workingDirectory == '/projects/nonexistent',
+              (summary) => summary.workingDirectory == '/projects/nonexistent',
             )
             .toList();
 
@@ -236,9 +234,7 @@ void main() {
         ];
 
         final filtered = summaries
-            .where(
-              (summary) => summary.workingDirectory == '/projects/alpha',
-            )
+            .where((summary) => summary.workingDirectory == '/projects/alpha')
             .toList();
 
         expect(filtered, hasLength(1));
@@ -275,13 +271,13 @@ void main() {
           ),
         ];
 
-        final runningIds =
-            runningSessions.map((s) => s.sessionId).toSet();
+        final runningIds = runningSessions.map((s) => s.sessionId).toSet();
 
         // Load historical and filter out running ones.
         final networks = await manager.loadNetworks();
-        final historicalOnly =
-            networks.where((n) => !runningIds.contains(n.id)).toList();
+        final historicalOnly = networks
+            .where((n) => !runningIds.contains(n.id))
+            .toList();
 
         expect(historicalOnly, isEmpty);
       });
@@ -304,8 +300,9 @@ void main() {
         final runningIds = <String>{'session-running-other'};
 
         final networks = await manager.loadNetworks();
-        final historicalOnly =
-            networks.where((n) => !runningIds.contains(n.id)).toList();
+        final historicalOnly = networks
+            .where((n) => !runningIds.contains(n.id))
+            .toList();
 
         expect(historicalOnly, hasLength(1));
         expect(historicalOnly.first.id, equals('session-historical'));
@@ -383,8 +380,9 @@ void main() {
       });
 
       test('project storage directories are created on disk', () {
-        final storageDir =
-            configManager.getProjectStorageDir('/projects/gamma');
+        final storageDir = configManager.getProjectStorageDir(
+          '/projects/gamma',
+        );
         expect(Directory(storageDir).existsSync(), isTrue);
       });
     });

@@ -156,7 +156,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
               Expanded(child: _buildMessageList(context)),
 
               // Pending screenshot preview
-              if (widget.pendingScreenshot != null) _buildScreenshotPreview(context),
+              if (widget.pendingScreenshot != null)
+                _buildScreenshotPreview(context),
 
               // Permission banner
               _buildPermissionBanner(context),
@@ -268,21 +269,25 @@ class _VideChatPanelState extends State<VideChatPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade400),
+              Icon(
+                Icons.chat_bubble_outline,
+                size: 48,
+                color: Colors.grey.shade400,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Start a conversation',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.grey.shade600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(color: Colors.grey.shade600),
               ),
               const SizedBox(height: 8),
               Text(
                 'Describe what you want to build or fix.\nAttach a screenshot for visual context.',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade500,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
               ),
             ],
           ),
@@ -323,16 +328,13 @@ class _VideChatPanelState extends State<VideChatPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Configuration',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('Configuration', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             'Configure the Vide server connection.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey.shade500,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
           ),
           const SizedBox(height: 20),
           Text('Server URL', style: Theme.of(context).textTheme.labelMedium),
@@ -384,7 +386,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
     );
   }
 
-  Widget _buildConversationEntry(BuildContext context, ConversationEntry entry) {
+  Widget _buildConversationEntry(
+    BuildContext context,
+    ConversationEntry entry,
+  ) {
     final isUser = entry.role == 'user';
     final widgets = <Widget>[];
 
@@ -400,7 +405,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
                   maxWidth: MediaQuery.of(context).size.width * 0.8,
                 ),
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isUser
                       ? Theme.of(context).colorScheme.primary
@@ -477,7 +485,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.attach_file, size: 14, color: Colors.grey.shade500),
+                  Icon(
+                    Icons.attach_file,
+                    size: 14,
+                    color: Colors.grey.shade500,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     '${content.attachments.length} attachment(s)',
@@ -492,7 +504,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
 
     if (widgets.isEmpty) return const SizedBox.shrink();
     return Column(
-      crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isUser
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: widgets,
     );
   }
@@ -658,7 +672,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
                     borderSide: BorderSide.none,
                   ),
                   filled: true,
-                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  fillColor: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerHighest,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
@@ -675,10 +691,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
             const SizedBox(width: 4),
 
             // Send button
-            _InputBarButton(
-              icon: Icons.send,
-              onTap: _sendMessage,
-            ),
+            _InputBarButton(icon: Icons.send, onTap: _sendMessage),
           ],
         ),
       ),
@@ -693,11 +706,7 @@ class _InputBarButton extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? color;
 
-  const _InputBarButton({
-    required this.icon,
-    this.onTap,
-    this.color,
-  });
+  const _InputBarButton({required this.icon, this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {

@@ -30,8 +30,7 @@ class _VortexBackgroundState extends State<VortexBackground>
   }
 
   Future<void> _loadShader() async {
-    final program =
-        await ui.FragmentProgram.fromAsset('shaders/vortex.frag');
+    final program = await ui.FragmentProgram.fromAsset('shaders/vortex.frag');
     if (!mounted) return;
     setState(() => _shader = program.fragmentShader());
     _startIfNeeded();

@@ -114,12 +114,15 @@ class SessionListManager extends _$SessionListManager {
 
       if (existing != null) {
         // Update summary (state/connectedClients may change)
-        state = {...state, id: SessionListEntry(
-          summary: summary,
-          session: existing.session,
-          lastEventAt: existing.lastEventAt,
-          latestActivity: existing.latestActivity,
-        )};
+        state = {
+          ...state,
+          id: SessionListEntry(
+            summary: summary,
+            session: existing.session,
+            lastEventAt: existing.lastEventAt,
+            latestActivity: existing.latestActivity,
+          )
+        };
       } else {
         // New session
         state = {...state, id: SessionListEntry(summary: summary)};
@@ -151,12 +154,15 @@ class SessionListManager extends _$SessionListManager {
         return;
       }
 
-      state = {...state, id: SessionListEntry(
-        summary: entry.summary,
-        session: session,
-        lastEventAt: entry.lastEventAt,
-        latestActivity: entry.latestActivity,
-      )};
+      state = {
+        ...state,
+        id: SessionListEntry(
+          summary: entry.summary,
+          session: session,
+          lastEventAt: entry.lastEventAt,
+          latestActivity: entry.latestActivity,
+        )
+      };
 
       // Single event listener for activity tracking + state rebuilds
       _subscriptions[id] = [
@@ -164,9 +170,18 @@ class SessionListManager extends _$SessionListManager {
           (event) => _handleEvent(id, event),
           onError: (_) {},
         ),
-        session.stateStream.map((s) => s.goal).distinct().listen((_) => _notify(id)),
-        session.stateStream.map((s) => s.agents).distinct().listen((_) => _notify(id)),
-        session.stateStream.map((s) => s.isProcessing).distinct().listen((_) => _notify(id)),
+        session.stateStream
+            .map((s) => s.goal)
+            .distinct()
+            .listen((_) => _notify(id)),
+        session.stateStream
+            .map((s) => s.agents)
+            .distinct()
+            .listen((_) => _notify(id)),
+        session.stateStream
+            .map((s) => s.isProcessing)
+            .distinct()
+            .listen((_) => _notify(id)),
       ];
     } catch (e) {
       _log('Failed to connect to session $id: $e');
@@ -202,12 +217,15 @@ class SessionListManager extends _$SessionListManager {
         break;
     }
 
-    state = {...state, id: SessionListEntry(
-      summary: entry.summary,
-      session: entry.session,
-      lastEventAt: DateTime.now(),
-      latestActivity: activity,
-    )};
+    state = {
+      ...state,
+      id: SessionListEntry(
+        summary: entry.summary,
+        session: entry.session,
+        lastEventAt: DateTime.now(),
+        latestActivity: activity,
+      )
+    };
   }
 
   /// Force a rebuild for a session without changing its data.

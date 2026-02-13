@@ -205,9 +205,7 @@ class GitSidebarItemBuilder {
     final items = <NavigableItem>[];
 
     // Get current branch for base options
-    final gitStatusAsync = context.watch(
-      gitStatusStreamProvider(repoPath),
-    );
+    final gitStatusAsync = context.watch(gitStatusStreamProvider(repoPath));
     final currentBranch = gitStatusAsync.valueOrNull?.branch ?? 'main';
 
     // New branch action with optional branch selection
@@ -256,8 +254,7 @@ class GitSidebarItemBuilder {
 
     // Always include current worktree first (even if no worktrees cached yet)
     // Resolve the actual worktree path - CWD might be a subdirectory
-    final resolvedCurrentPath =
-        findCurrentWorktreePath() ?? repoPath;
+    final resolvedCurrentPath = findCurrentWorktreePath() ?? repoPath;
     final gitStatus = gitStatusAsync.valueOrNull;
 
     // Check if resolved path is a worktree

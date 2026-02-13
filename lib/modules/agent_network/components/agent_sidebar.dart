@@ -196,7 +196,8 @@ class _AgentSidebarState extends State<AgentSidebar>
     // whenever agents are spawned or terminated.
     final session = context.watch(currentVideSessionProvider);
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final spawnedAgents = agentsAsync.valueOrNull ?? session?.state.agents ?? [];
+    final spawnedAgents =
+        agentsAsync.valueOrNull ?? session?.state.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);

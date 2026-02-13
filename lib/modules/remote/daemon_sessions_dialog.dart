@@ -159,10 +159,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
       Navigator.of(context).pop(true);
 
       // Navigate to execution page
-      await NetworkExecutionPage.push(
-        context,
-        session: connectedSession,
-      );
+      await NetworkExecutionPage.push(context, session: connectedSession);
     } catch (e) {
       setState(() {
         _error = 'Failed to connect: $e';

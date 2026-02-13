@@ -150,10 +150,7 @@ class ToolInvocationRouter extends StatelessComponent {
           Text('◆ ', style: TextStyle(color: Colors.green)),
           Text(
             'Plan accepted',
-            style: TextStyle(
-              color: Colors.green,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
           ),
         ],
       ),

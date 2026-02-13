@@ -16,15 +16,17 @@ class ScreenshotService {
 
   /// Capture a screenshot and return it as a [ui.Image].
   Future<ui.Image> capture({double pixelRatio = 2.0}) async {
-    final boundary = repaintBoundaryKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
+    final boundary =
+        repaintBoundaryKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
 
     if (boundary != null) {
       return await boundary.toImage(pixelRatio: pixelRatio);
     }
 
     // Fallback: traverse from root
-    final renderObject = WidgetsBinding.instance.rootElement?.findRenderObject();
+    final renderObject = WidgetsBinding.instance.rootElement
+        ?.findRenderObject();
     if (renderObject == null) {
       throw StateError('No render object found for screenshot');
     }

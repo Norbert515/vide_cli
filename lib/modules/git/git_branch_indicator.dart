@@ -9,8 +9,8 @@ final isWorktreeProvider = FutureProvider.family.autoDispose<bool, String>((
   ref,
   repoPath,
 ) async {
-  final client = GitClient(workingDirectory: repoPath);
-  return await client.isWorktree();
+  final git = GitService(workingDirectory: repoPath);
+  return await git.isWorktree();
 });
 
 /// Provider to get the main repository path for a given repo path.
@@ -19,8 +19,8 @@ final mainRepoPathProvider = FutureProvider.family.autoDispose<String, String>((
   ref,
   repoPath,
 ) async {
-  final client = GitClient(workingDirectory: repoPath);
-  return await client.getMainRepoPath();
+  final git = GitService(workingDirectory: repoPath);
+  return await git.mainRepoPath();
 });
 
 class GitBranchIndicator extends StatelessComponent {

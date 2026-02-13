@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart' show videVersion, githubOwner, githubRepo;
+import 'package:vide_core/vide_core.dart'
+    show videVersion, githubOwner, githubRepo;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/settings/components/settings_card.dart';
@@ -11,11 +12,7 @@ class AboutSection extends StatelessComponent {
   final bool focused;
   final VoidCallback onExit;
 
-  const AboutSection({
-    required this.focused,
-    required this.onExit,
-    super.key,
-  });
+  const AboutSection({required this.focused, required this.onExit, super.key});
 
   @override
   Component build(BuildContext context) {

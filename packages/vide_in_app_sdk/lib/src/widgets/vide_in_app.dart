@@ -124,14 +124,14 @@ class _VideInAppState extends State<VideInApp>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    ));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _slideController,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+        );
   }
 
   @override
@@ -205,7 +205,8 @@ class _VideInAppState extends State<VideInApp>
 
   @override
   Widget build(BuildContext context) {
-    final showFab = (widget.trigger == VideTrigger.fab ||
+    final showFab =
+        (widget.trigger == VideTrigger.fab ||
             widget.trigger == VideTrigger.both) &&
         !_screenshotMode;
 
@@ -214,10 +215,7 @@ class _VideInAppState extends State<VideInApp>
       child: Stack(
         children: [
           // The user's app, wrapped in a repaint boundary for screenshots
-          RepaintBoundary(
-            key: _repaintBoundaryKey,
-            child: widget.child,
-          ),
+          RepaintBoundary(key: _repaintBoundaryKey, child: widget.child),
 
           // Screenshot annotation canvas (full screen)
           if (_screenshotMode && _capturedScreenshot != null)
@@ -274,8 +272,7 @@ class _VideInAppState extends State<VideInApp>
           if (showFab && !_panelVisible)
             Positioned(
               right: 16,
-              bottom:
-                  (MediaQuery.maybeOf(context)?.padding.bottom ?? 0) + 16,
+              bottom: (MediaQuery.maybeOf(context)?.padding.bottom ?? 0) + 16,
               child: _VideFab(onTap: _togglePanel),
             ),
         ],
@@ -342,10 +339,7 @@ class _VideFabState extends State<_VideFab>
         animation: _pulseController,
         builder: (context, child) {
           final scale = 1.0 + 0.05 * _pulseController.value;
-          return Transform.scale(
-            scale: scale,
-            child: child,
-          );
+          return Transform.scale(scale: scale, child: child);
         },
         child: Container(
           width: 56,
@@ -365,11 +359,7 @@ class _VideFabState extends State<_VideFab>
               ),
             ],
           ),
-          child: const Icon(
-            Icons.auto_awesome,
-            color: Colors.white,
-            size: 28,
-          ),
+          child: const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
         ),
       ),
     );

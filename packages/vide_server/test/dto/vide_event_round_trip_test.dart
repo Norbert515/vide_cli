@@ -82,7 +82,11 @@ void main() {
         final json = original.toJson();
         final restored = VideEvent.fromJson(json) as StatusEvent;
 
-        expect(restored.status, status, reason: 'Status $status should round-trip');
+        expect(
+          restored.status,
+          status,
+          reason: 'Status $status should round-trip',
+        );
         expect(restored.agentId, original.agentId);
         expect(restored.agentType, original.agentType);
       }
@@ -162,7 +166,10 @@ void main() {
       expect(restored.reason, original.reason);
       expect(restored.totalInputTokens, original.totalInputTokens);
       expect(restored.totalOutputTokens, original.totalOutputTokens);
-      expect(restored.totalCacheReadInputTokens, original.totalCacheReadInputTokens);
+      expect(
+        restored.totalCacheReadInputTokens,
+        original.totalCacheReadInputTokens,
+      );
       expect(
         restored.totalCacheCreationInputTokens,
         original.totalCacheCreationInputTokens,
@@ -392,10 +399,7 @@ void main() {
     });
 
     test('AbortedEvent round-trips correctly', () {
-      final original = AbortedEvent(
-        agentId: 'agent-1',
-        agentType: 'main',
-      );
+      final original = AbortedEvent(agentId: 'agent-1', agentType: 'main');
 
       final json = original.toJson();
       final restored = VideEvent.fromJson(json);

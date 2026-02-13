@@ -107,10 +107,9 @@ class _PlanApprovalSheetState extends State<PlanApprovalSheet> {
                     const SizedBox(height: 4),
                     Text(
                       'by ${widget.request.agentName}',
-                      style:
-                          Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: videColors.textSecondary,
-                              ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: videColors.textSecondary,
+                          ),
                     ),
                   ],
                 ],

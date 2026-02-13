@@ -199,12 +199,14 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
 
     // Serialize attachments to raw JSON maps for the daemon protocol.
     final rawAttachments = attachments
-        ?.map((a) => <String, dynamic>{
-              'type': a.type,
-              if (a.filePath != null) 'file-path': a.filePath,
-              if (a.content != null) 'content': a.content,
-              if (a.mimeType != null) 'mime-type': a.mimeType,
-            })
+        ?.map(
+          (a) => <String, dynamic>{
+            'type': a.type,
+            if (a.filePath != null) 'file-path': a.filePath,
+            if (a.content != null) 'content': a.content,
+            if (a.mimeType != null) 'mime-type': a.mimeType,
+          },
+        )
         .toList();
 
     // Do the HTTP call in background

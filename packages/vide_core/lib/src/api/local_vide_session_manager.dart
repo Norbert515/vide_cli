@@ -185,9 +185,7 @@ class LocalVideSessionManager implements VideSessionManager {
   }
 
   @override
-  Future<List<VideSessionInfo>> listSessions({
-    String? workingDirectory,
-  }) async {
+  Future<List<VideSessionInfo>> listSessions({String? workingDirectory}) async {
     final persistenceManager = _persistenceManagerFor(workingDirectory);
     final networks = await persistenceManager.loadNetworks();
 
@@ -272,12 +270,15 @@ class LocalVideSessionManager implements VideSessionManager {
 
   void _emitSessionList() {
     if (_sessionsController.isClosed) return;
-    listSessions().then((sessions) {
-      if (!_sessionsController.isClosed) {
-        _sessionsController.add(sessions);
-      }
-    }, onError: (Object e) {
-      print('[LocalVideSessionManager] Error listing sessions: $e');
-    });
+    listSessions().then(
+      (sessions) {
+        if (!_sessionsController.isClosed) {
+          _sessionsController.add(sessions);
+        }
+      },
+      onError: (Object e) {
+        print('[LocalVideSessionManager] Error listing sessions: $e');
+      },
+    );
   }
 }

@@ -216,21 +216,23 @@ void main() {
       final events = <VideEvent>[];
       session.events.listen(events.add);
 
-      session.handleWebSocketMessage(jsonEncode({
-        'type': 'plan-approval-request',
-        'seq': 1,
-        'agent-id': 'agent-1',
-        'agent-type': 'main',
-        'agent-name': 'Elena',
-        'timestamp': '2024-01-01T00:00:00Z',
-        'data': {
-          'request-id': 'plan-1',
-          'plan-content': '# My Plan\n\nStep 1: Do things',
-          'allowed-prompts': [
-            {'tool': 'Bash', 'prompt': 'run tests'},
-          ],
-        },
-      }));
+      session.handleWebSocketMessage(
+        jsonEncode({
+          'type': 'plan-approval-request',
+          'seq': 1,
+          'agent-id': 'agent-1',
+          'agent-type': 'main',
+          'agent-name': 'Elena',
+          'timestamp': '2024-01-01T00:00:00Z',
+          'data': {
+            'request-id': 'plan-1',
+            'plan-content': '# My Plan\n\nStep 1: Do things',
+            'allowed-prompts': [
+              {'tool': 'Bash', 'prompt': 'run tests'},
+            ],
+          },
+        }),
+      );
 
       // Allow the stream event to be delivered.
       await Future<void>.delayed(Duration.zero);
@@ -251,17 +253,16 @@ void main() {
       final events = <VideEvent>[];
       session.events.listen(events.add);
 
-      session.handleWebSocketMessage(jsonEncode({
-        'type': 'plan-approval-resolved',
-        'seq': 2,
-        'agent-id': 'agent-1',
-        'agent-type': 'main',
-        'timestamp': '2024-01-01T00:00:00Z',
-        'data': {
-          'request-id': 'plan-1',
-          'action': 'accept',
-        },
-      }));
+      session.handleWebSocketMessage(
+        jsonEncode({
+          'type': 'plan-approval-resolved',
+          'seq': 2,
+          'agent-id': 'agent-1',
+          'agent-type': 'main',
+          'timestamp': '2024-01-01T00:00:00Z',
+          'data': {'request-id': 'plan-1', 'action': 'accept'},
+        }),
+      );
 
       await Future<void>.delayed(Duration.zero);
 

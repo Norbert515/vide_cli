@@ -169,7 +169,8 @@ class AgentLifecycleService {
     BashboardService.agentSpawned(agentType);
 
     // Wrap in <system-reminder> to distinguish from regular user messages
-    final contextualPrompt = '''<system-reminder>
+    final contextualPrompt =
+        '''<system-reminder>
 SPAWNED BY AGENT: $spawnedBy — Extract this agent ID and save it. You will need it to send messages back to your parent agent.
 </system-reminder>
 
@@ -310,13 +311,18 @@ $initialPrompt''';
     _statusSyncService.setupStatusSync(newAgentId, client);
 
     // Listen for MetaResponse to capture the actual session ID from Claude
-    client.initDataStream.first.then((metaResponse) {
-      if (metaResponse.sessionId != null) {
-        _updateAgentSessionId(newAgentId, metaResponse.sessionId!);
-      }
-    }, onError: (Object e) {
-      print('[AgentLifecycleService] Error capturing session ID for $newAgentId: $e');
-    });
+    client.initDataStream.first.then(
+      (metaResponse) {
+        if (metaResponse.sessionId != null) {
+          _updateAgentSessionId(newAgentId, metaResponse.sessionId!);
+        }
+      },
+      onError: (Object e) {
+        print(
+          '[AgentLifecycleService] Error capturing session ID for $newAgentId: $e',
+        );
+      },
+    );
 
     // Update network with new agent metadata
     final updatedNetwork = network.copyWith(

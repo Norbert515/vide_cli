@@ -18,6 +18,7 @@ import 'package:vide_core/vide_core.dart';
 
 import 'middleware/cors_middleware.dart';
 import 'routes/filesystem_routes.dart';
+import 'routes/git_routes.dart';
 import 'routes/session_routes.dart';
 import 'routes/team_routes.dart';
 import 'services/server_config.dart';
@@ -152,6 +153,75 @@ Handler _createHandler(
 
   router.post('/api/v1/filesystem', (Request request) {
     return createDirectory(request, serverConfig);
+  });
+
+  // Git API
+  router.get('/api/v1/git/status', (Request request) {
+    return gitStatus(request, serverConfig);
+  });
+
+  router.get('/api/v1/git/branches', (Request request) {
+    return gitBranches(request, serverConfig);
+  });
+
+  router.get('/api/v1/git/log', (Request request) {
+    return gitLog(request, serverConfig);
+  });
+
+  router.get('/api/v1/git/diff', (Request request) {
+    return gitDiff(request, serverConfig);
+  });
+
+  router.get('/api/v1/git/worktrees', (Request request) {
+    return gitWorktrees(request, serverConfig);
+  });
+
+  router.get('/api/v1/git/stash/list', (Request request) {
+    return gitStashList(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/commit', (Request request) {
+    return gitCommit(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/stage', (Request request) {
+    return gitStage(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/checkout', (Request request) {
+    return gitCheckout(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/push', (Request request) {
+    return gitPush(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/pull', (Request request) {
+    return gitPull(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/fetch', (Request request) {
+    return gitFetch(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/sync', (Request request) {
+    return gitSync(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/merge', (Request request) {
+    return gitMerge(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/stash', (Request request) {
+    return gitStash(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/worktree/add', (Request request) {
+    return gitWorktreeAdd(request, serverConfig);
+  });
+
+  router.post('/api/v1/git/worktree/remove', (Request request) {
+    return gitWorktreeRemove(request, serverConfig);
   });
 
   // Health check endpoint

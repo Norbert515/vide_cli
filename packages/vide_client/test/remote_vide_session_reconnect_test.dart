@@ -399,90 +399,97 @@ void main() {
       return session;
     }
 
-    test('stale StatusEvent(idle) is ignored after optimistic working', () async {
-      final session = _connectedSession();
-      addTearDown(session.dispose);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'stale StatusEvent(idle) is ignored after optimistic working',
+      () async {
+        final session = _connectedSession();
+        addTearDown(session.dispose);
+        await Future<void>.delayed(Duration.zero);
 
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.idle));
+        expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.idle));
 
-      // User sends a message → optimistic working
-      session.sendMessage(VideMessage(text: 'Hello'));
-      await Future<void>.delayed(Duration.zero);
+        // User sends a message → optimistic working
+        session.sendMessage(VideMessage(text: 'Hello'));
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        _agent(session, 'agent-1').status,
-        equals(VideAgentStatus.working),
-      );
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+        );
 
-      // Server sends a stale StatusEvent(idle) — from before it processed
-      // the user's message. This should be ignored.
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'status',
-          'seq': 1,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'status': 'idle'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
+        // Server sends a stale StatusEvent(idle) — from before it processed
+        // the user's message. This should be ignored.
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'status',
+            'seq': 1,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'status': 'idle'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        _agent(session, 'agent-1').status,
-        equals(VideAgentStatus.working),
-        reason: 'Stale idle status should be ignored during optimistic window',
-      );
-    });
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+          reason:
+              'Stale idle status should be ignored during optimistic window',
+        );
+      },
+    );
 
-    test('StatusEvent(working) from server clears the optimistic guard',
-        () async {
-      final session = _connectedSession();
-      addTearDown(session.dispose);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'StatusEvent(working) from server clears the optimistic guard',
+      () async {
+        final session = _connectedSession();
+        addTearDown(session.dispose);
+        await Future<void>.delayed(Duration.zero);
 
-      // Send message → optimistic working
-      session.sendMessage(VideMessage(text: 'Hello'));
-      await Future<void>.delayed(Duration.zero);
+        // Send message → optimistic working
+        session.sendMessage(VideMessage(text: 'Hello'));
+        await Future<void>.delayed(Duration.zero);
 
-      // Server confirms working
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'status',
-          'seq': 1,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'status': 'working'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
+        // Server confirms working
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'status',
+            'seq': 1,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'status': 'working'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        _agent(session, 'agent-1').status,
-        equals(VideAgentStatus.working),
-      );
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+        );
 
-      // Now a subsequent idle status should NOT be ignored (guard was cleared)
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'status',
-          'seq': 2,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'status': 'idle'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
+        // Now a subsequent idle status should NOT be ignored (guard was cleared)
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'status',
+            'seq': 2,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'status': 'idle'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
 
-      expect(
-        _agent(session, 'agent-1').status,
-        equals(VideAgentStatus.idle),
-        reason: 'After server confirms working, idle status should be accepted',
-      );
-    });
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.idle),
+          reason:
+              'After server confirms working, idle status should be accepted',
+        );
+      },
+    );
 
     test('TurnCompleteEvent clears optimistic guard and sets idle', () async {
       final session = _connectedSession();
@@ -518,76 +525,90 @@ void main() {
       );
     });
 
-    test('full realistic sequence: optimistic → stale idle → server working → done',
-        () async {
-      final session = _connectedSession();
-      addTearDown(session.dispose);
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'full realistic sequence: optimistic → stale idle → server working → done',
+      () async {
+        final session = _connectedSession();
+        addTearDown(session.dispose);
+        await Future<void>.delayed(Duration.zero);
 
-      // 1. User sends message → optimistic working
-      session.sendMessage(VideMessage(text: 'Hello'));
-      await Future<void>.delayed(Duration.zero);
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.working));
+        // 1. User sends message → optimistic working
+        session.sendMessage(VideMessage(text: 'Hello'));
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+        );
 
-      // 2. Stale StatusEvent(idle) arrives → ignored
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'status',
-          'seq': 1,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'status': 'idle'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.working),
-          reason: 'Stale idle ignored');
+        // 2. Stale StatusEvent(idle) arrives → ignored
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'status',
+            'seq': 1,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'status': 'idle'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+          reason: 'Stale idle ignored',
+        );
 
-      // 3. Server confirms working → guard cleared
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'status',
-          'seq': 2,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'status': 'working'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.working));
+        // 3. Server confirms working → guard cleared
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'status',
+            'seq': 2,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'status': 'working'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+        );
 
-      // 4. Streaming message from assistant
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'message',
-          'seq': 3,
-          'event-id': 'msg-1',
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'is-partial': false,
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'role': 'assistant', 'content': 'Here is my response'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.working));
+        // 4. Streaming message from assistant
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'message',
+            'seq': 3,
+            'event-id': 'msg-1',
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'is-partial': false,
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'role': 'assistant', 'content': 'Here is my response'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(
+          _agent(session, 'agent-1').status,
+          equals(VideAgentStatus.working),
+        );
 
-      // 5. Turn completes → idle
-      session.handleWebSocketMessage(
-        jsonEncode({
-          'type': 'done',
-          'seq': 4,
-          'agent-id': 'agent-1',
-          'agent-type': 'main',
-          'timestamp': DateTime.now().toIso8601String(),
-          'data': {'reason': 'end_turn'},
-        }),
-      );
-      await Future<void>.delayed(Duration.zero);
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.idle));
-    });
+        // 5. Turn completes → idle
+        session.handleWebSocketMessage(
+          jsonEncode({
+            'type': 'done',
+            'seq': 4,
+            'agent-id': 'agent-1',
+            'agent-type': 'main',
+            'timestamp': DateTime.now().toIso8601String(),
+            'data': {'reason': 'end_turn'},
+          }),
+        );
+        await Future<void>.delayed(Duration.zero);
+        expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.idle));
+      },
+    );
 
     test('multiple stale idle events are all ignored during guard', () async {
       final session = _connectedSession();
@@ -751,8 +772,14 @@ void main() {
       session.sendMessage(VideMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
-      expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.working));
-      expect(_agent(session, 'agent-2').status, equals(VideAgentStatus.working));
+      expect(
+        _agent(session, 'agent-1').status,
+        equals(VideAgentStatus.working),
+      );
+      expect(
+        _agent(session, 'agent-2').status,
+        equals(VideAgentStatus.working),
+      );
 
       // StatusEvent(idle) for agent-2 should NOT be blocked by agent-1's guard
       session.handleWebSocketMessage(

@@ -294,14 +294,12 @@ void main() {
         expect(
           client2Events,
           hasLength(1),
-          reason:
-              'Client 2 should receive event even if client 1 threw',
+          reason: 'Client 2 should receive event even if client 1 threw',
         );
         expect(
           client1Events,
           hasLength(1),
-          reason:
-              'Client 3 should receive event even if client 1 threw',
+          reason: 'Client 3 should receive event even if client 1 threw',
         );
 
         broadcaster.dispose();
@@ -315,48 +313,45 @@ void main() {
     // addClient) during iteration, this modifies _clients while iterating,
     // causing a ConcurrentModificationError.
     // =========================================================================
-    test(
-      'client unregistering during broadcast should not crash',
-      () {
-        final session = _StubSession();
-        final broadcaster = SessionBroadcaster(session);
+    test('client unregistering during broadcast should not crash', () {
+      final session = _StubSession();
+      final broadcaster = SessionBroadcaster(session);
 
-        final client2Events = <Map<String, dynamic>>[];
-        late void Function() unregister1;
+      final client2Events = <Map<String, dynamic>>[];
+      late void Function() unregister1;
 
-        // Client 1 unregisters itself on first event
-        unregister1 = broadcaster.addClient((event) {
-          unregister1(); // Modify _clients during iteration
-        });
+      // Client 1 unregisters itself on first event
+      unregister1 = broadcaster.addClient((event) {
+        unregister1(); // Modify _clients during iteration
+      });
 
-        // Client 2 is normal
-        broadcaster.addClient((event) => client2Events.add(event));
+      // Client 2 is normal
+      broadcaster.addClient((event) => client2Events.add(event));
 
-        // Emit an event — before the fix, this would throw
-        // ConcurrentModificationError because client 1 removes itself
-        // from _clients while the for-in loop is iterating over _clients.
-        expect(
-          () => session.emitLive(
-            MessageEvent(
-              agentId: 'agent-1',
-              agentType: 'main',
-              eventId: 'msg-1',
-              role: 'assistant',
-              content: 'Hello',
-              isPartial: false,
-            ),
+      // Emit an event — before the fix, this would throw
+      // ConcurrentModificationError because client 1 removes itself
+      // from _clients while the for-in loop is iterating over _clients.
+      expect(
+        () => session.emitLive(
+          MessageEvent(
+            agentId: 'agent-1',
+            agentType: 'main',
+            eventId: 'msg-1',
+            role: 'assistant',
+            content: 'Hello',
+            isPartial: false,
           ),
-          returnsNormally,
-          reason:
-              'Should not throw ConcurrentModificationError when client '
-              'unregisters during broadcast',
-        );
+        ),
+        returnsNormally,
+        reason:
+            'Should not throw ConcurrentModificationError when client '
+            'unregisters during broadcast',
+      );
 
-        // Client 2 should still receive the event
-        expect(client2Events, hasLength(1));
+      // Client 2 should still receive the event
+      expect(client2Events, hasLength(1));
 
-        broadcaster.dispose();
-      },
-    );
+      broadcaster.dispose();
+    });
   });
 }

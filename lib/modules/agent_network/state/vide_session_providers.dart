@@ -129,7 +129,6 @@ final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
   return session.stateStream.map((s) => s.agents);
 });
 
-
 /// Provider for the current team name.
 ///
 /// Defaults to 'enterprise' if not set.

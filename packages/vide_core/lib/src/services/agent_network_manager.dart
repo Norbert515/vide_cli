@@ -550,7 +550,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Wrap in <system-reminder> to distinguish from regular user messages
     // and reduce hallucination risk (Claude treats system-reminder as
     // authoritative system-injected content)
-    final contextualMessage = '''<system-reminder>
+    final contextualMessage =
+        '''<system-reminder>
 AGENT MESSAGE DELIVERY — The following message was delivered by the agent system from agent $sentBy. This is real, system-delivered content.
 </system-reminder>
 

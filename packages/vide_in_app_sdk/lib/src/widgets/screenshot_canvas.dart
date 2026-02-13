@@ -91,10 +91,7 @@ class _ScreenshotCanvasState extends State<ScreenshotCanvas> {
         );
       } else {
         final path = Path();
-        path.moveTo(
-          stroke.points[0].dx * scaleX,
-          stroke.points[0].dy * scaleY,
-        );
+        path.moveTo(stroke.points[0].dx * scaleX, stroke.points[0].dy * scaleY);
         for (int i = 1; i < stroke.points.length; i++) {
           path.lineTo(
             stroke.points[i].dx * scaleX,
@@ -143,11 +140,13 @@ class _ScreenshotCanvasState extends State<ScreenshotCanvas> {
             },
             onPanEnd: (_) {
               setState(() {
-                _strokes.add(_Stroke(
-                  points: List.of(_currentPoints),
-                  color: _currentColor,
-                  width: _strokeWidth,
-                ));
+                _strokes.add(
+                  _Stroke(
+                    points: List.of(_currentPoints),
+                    color: _currentColor,
+                    width: _strokeWidth,
+                  ),
+                );
                 _currentPoints = [];
               });
             },
@@ -170,10 +169,7 @@ class _ScreenshotCanvasState extends State<ScreenshotCanvas> {
             child: Row(
               children: [
                 // Cancel
-                _ToolbarButton(
-                  icon: Icons.close,
-                  onTap: widget.onCancel,
-                ),
+                _ToolbarButton(icon: Icons.close, onTap: widget.onCancel),
                 const Spacer(),
                 // Undo
                 _ToolbarButton(
@@ -198,7 +194,10 @@ class _ScreenshotCanvasState extends State<ScreenshotCanvas> {
             right: 0,
             child: Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(24),
@@ -249,12 +248,16 @@ class _ToolbarButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: (color ?? Colors.white).withValues(alpha: onTap != null ? 0.2 : 0.05),
+          color: (color ?? Colors.white).withValues(
+            alpha: onTap != null ? 0.2 : 0.05,
+          ),
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: (color ?? Colors.white).withValues(alpha: onTap != null ? 1.0 : 0.3),
+          color: (color ?? Colors.white).withValues(
+            alpha: onTap != null ? 1.0 : 0.3,
+          ),
           size: 20,
         ),
       ),
@@ -314,7 +317,11 @@ class _AnnotationPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     if (points.length == 1) {
-      canvas.drawCircle(points[0], width / 2, paint..style = PaintingStyle.fill);
+      canvas.drawCircle(
+        points[0],
+        width / 2,
+        paint..style = PaintingStyle.fill,
+      );
       return;
     }
 

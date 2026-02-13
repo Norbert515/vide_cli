@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart' show GitClient;
+import 'package:vide_core/vide_core.dart' show GitService;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/syntax_highlighter.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -93,14 +93,14 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         dir = dir.parent;
       }
 
-      final client = GitClient(workingDirectory: dir.path);
+      final git = GitService(workingDirectory: dir.path);
 
       // Get the relative path from repo root
       final relativePath = component.filePath.substring(dir.path.length + 1);
 
       // Get diff for this specific file (both staged and unstaged)
-      final unstagedDiff = await client.diff(files: [relativePath]);
-      final stagedDiff = await client.diff(staged: true, files: [relativePath]);
+      final unstagedDiff = await git.diff(files: [relativePath]);
+      final stagedDiff = await git.diff(staged: true, files: [relativePath]);
 
       final changes = <int, _LineChangeType>{};
 

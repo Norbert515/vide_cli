@@ -153,9 +153,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
                 child: ListView(
                   lazy: false,
                   controller: _scrollController,
-                  children: [
-                    MarkdownText(component.request.planContent),
-                  ],
+                  children: [MarkdownText(component.request.planContent)],
                 ),
               ),
             ),
@@ -163,11 +161,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
             Divider(color: Colors.grey),
 
             // Options
-            _buildListItem(
-              index: 0,
-              label: 'Accept plan',
-              isAccept: true,
-            ),
+            _buildListItem(index: 0, label: 'Accept plan', isAccept: true),
             _buildRejectItem(),
 
             SizedBox(height: 1),
@@ -225,10 +219,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
           if (isSelected) ...[
             Text(
               'Reject: ',
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
             Expanded(
               child: TextField(
@@ -240,10 +231,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
               ),
             ),
           ] else
-            Text(
-              'Reject with feedback',
-              style: TextStyle(color: Colors.grey),
-            ),
+            Text('Reject with feedback', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );

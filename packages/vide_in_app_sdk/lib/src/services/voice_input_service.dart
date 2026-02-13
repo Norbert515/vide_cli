@@ -68,9 +68,7 @@ class VoiceInputService extends ChangeNotifier {
         }
       },
       localeId: localeId,
-      listenOptions: SpeechListenOptions(
-        listenMode: ListenMode.dictation,
-      ),
+      listenOptions: SpeechListenOptions(listenMode: ListenMode.dictation),
     );
   }
 

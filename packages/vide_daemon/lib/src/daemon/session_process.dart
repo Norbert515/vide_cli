@@ -305,9 +305,7 @@ class SessionProcess {
     final resumeUrl = Uri.parse(
       'http://127.0.0.1:$port/api/v1/sessions/$sessionId/resume',
     );
-    final resumeBody = jsonEncode({
-      'working-directory': workingDirectory,
-    });
+    final resumeBody = jsonEncode({'working-directory': workingDirectory});
 
     log.info('Resuming session via POST $resumeUrl');
     final resumeResponse = await client.post(
@@ -318,8 +316,7 @@ class SessionProcess {
 
     client.close();
 
-    if (resumeResponse.statusCode != 200 &&
-        resumeResponse.statusCode != 201) {
+    if (resumeResponse.statusCode != 200 && resumeResponse.statusCode != 201) {
       process.kill();
       throw StateError(
         'Failed to resume session: ${resumeResponse.statusCode} ${resumeResponse.body}',

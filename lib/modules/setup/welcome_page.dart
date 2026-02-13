@@ -35,7 +35,7 @@ enum _AgentStatus {
   verifying,
   verified,
   notFound,
-  error
+  error,
 }
 
 class _WelcomePageState extends State<WelcomePage>
@@ -65,7 +65,7 @@ class _WelcomePageState extends State<WelcomePage>
     '⠦',
     '⠧',
     '⠇',
-    '⠏'
+    '⠏',
   ];
 
   // Completing
@@ -104,7 +104,7 @@ class _WelcomePageState extends State<WelcomePage>
       setState(() {
         _spinnerFrame =
             (_spinnerController.value * _brailleFrames.length).floor() %
-                _brailleFrames.length;
+            _brailleFrames.length;
       });
     });
   }
@@ -286,9 +286,7 @@ class _WelcomePageState extends State<WelcomePage>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final availableHeight = constraints.maxHeight.toInt();
-          return Center(
-            child: _buildCard(theme, availableHeight),
-          );
+          return Center(child: _buildCard(theme, availableHeight));
         },
       ),
     );
@@ -430,10 +428,7 @@ class _WelcomePageState extends State<WelcomePage>
           SizedBox(height: 1),
 
           // Step content — fixed height so card doesn't resize between steps
-          SizedBox(
-            height: _contentHeight.toDouble(),
-            child: stepContent,
-          ),
+          SizedBox(height: _contentHeight.toDouble(), child: stepContent),
         ],
       ),
     );
@@ -531,10 +526,7 @@ class _WelcomePageState extends State<WelcomePage>
             children: [
               Text('Press ', style: TextStyle(color: theme.base.outline)),
               Text('Enter', style: TextStyle(color: theme.base.success)),
-              Text(
-                ' to continue',
-                style: TextStyle(color: theme.base.outline),
-              ),
+              Text(' to continue', style: TextStyle(color: theme.base.outline)),
             ],
           ),
         ],
@@ -548,8 +540,7 @@ class _WelcomePageState extends State<WelcomePage>
     return KeyboardListener(
       autofocus: true,
       onKeyEvent: (key) {
-        if (_claudeStatus == _AgentStatus.verified &&
-            key == LogicalKey.enter) {
+        if (_claudeStatus == _AgentStatus.verified && key == LogicalKey.enter) {
           setState(() {
             _completing = true;
           });
@@ -589,10 +580,7 @@ class _WelcomePageState extends State<WelcomePage>
               _claudeStatus == _AgentStatus.notFound) ...[
             SizedBox(height: 1),
             if (_errorMessage != null)
-              Text(
-                _errorMessage!,
-                style: TextStyle(color: theme.base.error),
-              ),
+              Text(_errorMessage!, style: TextStyle(color: theme.base.error)),
             SizedBox(height: 1),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -694,8 +682,8 @@ class _WelcomePageState extends State<WelcomePage>
                 color: status == _AgentStatus.verified
                     ? theme.base.onSurface
                     : isLoading
-                        ? theme.base.onSurface
-                        : theme.base.outline,
+                    ? theme.base.onSurface
+                    : theme.base.outline,
                 fontWeight: FontWeight.bold,
               ),
             ),

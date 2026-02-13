@@ -98,8 +98,9 @@ final currentRepoPathProvider = Provider<String>((ref) {
     return override;
   }
   // Watch the stream for reactive updates when working directory changes
-  final streamValue =
-      ref.watch(sessionWorkingDirectoryStreamProvider).valueOrNull;
+  final streamValue = ref
+      .watch(sessionWorkingDirectoryStreamProvider)
+      .valueOrNull;
   final session = ref.watch(currentVideSessionProvider);
   final sessionDir = streamValue ?? session?.state.workingDirectory;
   // Guard against empty string (pending daemon sessions start with '')

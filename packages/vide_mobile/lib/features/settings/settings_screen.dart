@@ -53,7 +53,9 @@ class SettingsScreen extends ConsumerWidget {
               onTap: () {
                 ref.read(connectionRepositoryProvider.notifier).disconnect();
                 ref.read(settingsStorageProvider.notifier).clear();
-                ref.read(themeModeNotifierProvider.notifier).setThemeMode(ThemeMode.system);
+                ref
+                    .read(themeModeNotifierProvider.notifier)
+                    .setThemeMode(ThemeMode.system);
                 context.go(AppRoutes.connection);
               },
             ),
@@ -156,7 +158,9 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(connectionRepositoryProvider.notifier).disconnect();
               ref.read(settingsStorageProvider.notifier).clear();
-              ref.read(themeModeNotifierProvider.notifier).setThemeMode(ThemeMode.system);
+              ref
+                  .read(themeModeNotifierProvider.notifier)
+                  .setThemeMode(ThemeMode.system);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Data cleared')),

@@ -5,7 +5,7 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:vide_core/vide_core.dart'
     show
-        GitClient,
+        GitService,
         GitStatus,
         GitBranch,
         GitWorktree,
@@ -159,11 +159,11 @@ class _GitSidebarState extends State<GitSidebar>
 
   /// Loads branches and worktrees for a specific repository in multi-repo mode.
   Future<void> _loadRepoBranchesAndWorktrees(String repoPath) async {
-    final client = GitClient(workingDirectory: repoPath);
+    final client = GitService(workingDirectory: repoPath);
 
     try {
       final branches = await client.branches();
-      final worktrees = await client.worktreeList();
+      final worktrees = await client.worktrees();
 
       // Get commits ahead of main for merge action visibility
       int commitsAhead = 0;
@@ -173,7 +173,7 @@ class _GitSidebarState extends State<GitSidebar>
           final mainBranch = branches.any((b) => b.name == 'main')
               ? 'main'
               : 'master';
-          commitsAhead = await client.getCommitsAheadOf(mainBranch);
+          commitsAhead = await client.commitsAheadOf(mainBranch);
         } catch (_) {}
       }
 
@@ -512,29 +512,19 @@ class _GitSidebarState extends State<GitSidebar>
         ? _repoActiveInputType[repoPath]
         : _activeInputType;
 
-    final client = GitClient(workingDirectory: targetRepoPath);
+    final client = GitService(workingDirectory: targetRepoPath);
 
     try {
       if (activeType == NavigableItemType.newBranchAction) {
         // Create and checkout new branch from base
-        // First checkout base branch if different from current
-        if (baseBranch != null) {
-          await client.checkout(baseBranch);
-        }
-        await client.checkout(newBranchName, create: true);
+        await client.createAndCheckoutBranch(
+          newBranchName,
+          fromBranch: baseBranch,
+        );
       } else if (activeType == NavigableItemType.newWorktreeAction) {
         // Create worktree with new branch from base
-        // Path: ../reponame-branchname
-        final repoName = p.basename(targetRepoPath);
-        final worktreePath = p.join(
-          p.dirname(targetRepoPath),
-          '$repoName-$newBranchName',
-        );
-        // Use base branch as the starting point
-        await client.worktreeAdd(
-          worktreePath,
-          branch: newBranchName,
-          createBranch: true,
+        final worktreePath = await client.createWorktree(
+          newBranchName,
           baseBranch: baseBranch,
         );
 
@@ -839,15 +829,15 @@ class _GitSidebarState extends State<GitSidebar>
     });
 
     try {
-      final client = GitClient(workingDirectory: component.repoPath);
+      final client = GitService(workingDirectory: component.repoPath);
       final branches = await client.branches();
-      final worktrees = await client.worktreeList();
+      final worktrees = await client.worktrees();
 
       // Check commits ahead of main (try 'main' first, then 'master')
-      int commitsAhead = await client.getCommitsAheadOf('main');
+      int commitsAhead = await client.commitsAheadOf('main');
       if (commitsAhead == 0) {
         // Try master if main didn't work or has 0 commits
-        commitsAhead = await client.getCommitsAheadOf('master');
+        commitsAhead = await client.commitsAheadOf('master');
       }
 
       // Sort branches: current first, then alphabetically
