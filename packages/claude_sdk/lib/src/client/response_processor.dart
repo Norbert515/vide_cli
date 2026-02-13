@@ -175,29 +175,37 @@ class ResponseProcessor {
       updatedConversation = currentConversation.addMessage(message);
     }
 
-    // Always set to idle for completion and update token counts
-    updatedConversation = updatedConversation
-        .withState(ConversationState.idle)
-        .copyWith(
-          totalInputTokens:
-              currentConversation.totalInputTokens +
-              (response.inputTokens ?? 0),
-          totalOutputTokens:
-              currentConversation.totalOutputTokens +
-              (response.outputTokens ?? 0),
-          totalCacheReadInputTokens:
-              currentConversation.totalCacheReadInputTokens +
-              (response.cacheReadInputTokens ?? 0),
-          totalCacheCreationInputTokens:
-              currentConversation.totalCacheCreationInputTokens +
-              (response.cacheCreationInputTokens ?? 0),
-          totalCostUsd:
-              currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
-        );
+    final isCompaction = response.stopReason == 'compaction';
+
+    // Don't set idle or mark turn complete for compaction completions —
+    // compaction is followed by a compact summary and a new assistant turn,
+    // so the conversation is still actively processing.
+    if (!isCompaction) {
+      updatedConversation = updatedConversation.withState(
+        ConversationState.idle,
+      );
+    }
+
+    updatedConversation = updatedConversation.copyWith(
+      totalInputTokens:
+          currentConversation.totalInputTokens +
+          (response.inputTokens ?? 0),
+      totalOutputTokens:
+          currentConversation.totalOutputTokens +
+          (response.outputTokens ?? 0),
+      totalCacheReadInputTokens:
+          currentConversation.totalCacheReadInputTokens +
+          (response.cacheReadInputTokens ?? 0),
+      totalCacheCreationInputTokens:
+          currentConversation.totalCacheCreationInputTokens +
+          (response.cacheCreationInputTokens ?? 0),
+      totalCostUsd:
+          currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
+    );
 
     return ProcessResult(
       updatedConversation: updatedConversation,
-      turnComplete: true,
+      turnComplete: !isCompaction,
     );
   }
 
