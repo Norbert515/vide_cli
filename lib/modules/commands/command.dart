@@ -32,6 +32,7 @@ class CommandContext {
     this.sendMessage,
     this.clearConversation,
     this.exitApp,
+    this.detachApp,
     this.toggleIdeMode,
     this.forkAgent,
     this.killAgent,
@@ -54,9 +55,13 @@ class CommandContext {
   /// Used by /clear command.
   final Future<void> Function()? clearConversation;
 
-  /// Callback to exit the application.
+  /// Callback to exit the application (stops daemon session first).
   /// Used by /exit command.
-  final void Function()? exitApp;
+  final Future<void> Function()? exitApp;
+
+  /// Callback to detach from the session (exits TUI, leaves daemon running).
+  /// Used by /detach command.
+  final void Function()? detachApp;
 
   /// Callback to toggle IDE mode (show/hide git sidebar).
   /// Used by /ide command.

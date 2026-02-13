@@ -21,32 +21,25 @@ final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
 
 /// Unified TUI session selection state.
 ///
-/// [sessionId] is the selected network/session ID.
-/// [session] is an optional already-instantiated session object (local or remote).
+/// The session ID is always derived from the live [session] object via
+/// [VideSession.id]. This avoids stale-ID bugs where a pending remote session
+/// starts with a temporary UUID that later changes when the daemon responds.
 class SessionSelectionState {
-  final String? sessionId;
   final VideSession? session;
 
-  const SessionSelectionState({this.sessionId, this.session});
+  const SessionSelectionState({this.session});
+
+  /// The current session ID, derived from the live session object.
+  String? get sessionId => session?.id;
 }
 
 /// Controls the current session selection for the TUI.
 class SessionSelectionNotifier extends StateNotifier<SessionSelectionState> {
   SessionSelectionNotifier() : super(const SessionSelectionState());
 
-  /// Select a session by ID, optionally supplying a live session instance.
-  void selectSession(String sessionId, {VideSession? session}) {
-    final retainedSession =
-        session ?? (state.session?.id == sessionId ? state.session : null);
-    state = SessionSelectionState(
-      sessionId: sessionId,
-      session: retainedSession,
-    );
-  }
-
-  /// Set the current session object and select its ID.
-  void setSession(VideSession session) {
-    state = SessionSelectionState(sessionId: session.id, session: session);
+  /// Select a session.
+  void selectSession(VideSession session) {
+    state = SessionSelectionState(session: session);
   }
 
   /// Clear selected session state.
@@ -73,27 +66,19 @@ final sessionConnectionProvider = StreamProvider<bool>((ref) {
   return const Stream<bool>.empty();
 });
 
-/// Provider for the current VideSession based on the active session ID.
+/// Provider for the current VideSession.
 ///
 /// Returns null if no session is currently active.
 ///
 /// This is the unified session accessor - use this to get the current session
 /// regardless of whether it's local or remote.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
-  final selection = ref.watch(sessionSelectionProvider);
-  final sessionId = selection.sessionId;
-  final activeSession = selection.session;
-
-  // Active session override works for both local and remote sessions.
-  // Only prefer it when it matches the requested session ID (if any).
-  if (activeSession != null &&
-      (sessionId == null || activeSession.id == sessionId)) {
-    // Rebuild when transport connectivity changes (if any).
+  final session = ref.watch(sessionSelectionProvider).session;
+  if (session != null) {
+    // Rebuild when transport connectivity changes (remote sessions).
     ref.watch(sessionConnectionProvider);
-    return activeSession;
   }
-
-  return activeSession;
+  return session;
 });
 
 /// Provider for the current session's goal/task name.

@@ -77,7 +77,7 @@ class _HomePageState extends State<HomePage> {
         final sessionManager = context.read(videSessionManagerProvider);
         final session = await sessionManager.resumeSession(sessionId);
         if (!mounted) return;
-        await NetworkExecutionPage.push(context, sessionId, session: session);
+        await NetworkExecutionPage.push(context, session: session);
       } catch (e) {
         if (!mounted) return;
         setState(() {
@@ -101,7 +101,7 @@ class _HomePageState extends State<HomePage> {
         attachments: message.attachments,
       );
 
-      await NetworkExecutionPage.push(context, session.id, session: session);
+      await NetworkExecutionPage.push(context, session: session);
     } catch (e) {
       setState(() {
         _commandResult = 'Failed to create session: $e';
@@ -126,7 +126,8 @@ class _HomePageState extends State<HomePage> {
       workingDirectory: Directory.current.path,
       sendMessage: null,
       clearConversation: null,
-      exitApp: shutdownApp,
+      exitApp: () async => shutdownApp(),
+      detachApp: shutdownApp,
       toggleIdeMode: () {
         final container = ProviderScope.containerOf(context);
         final current = container.read(ideModeEnabledProvider);
@@ -338,7 +339,6 @@ class _HomePageState extends State<HomePage> {
                         sessionManager.resumeSession(sessionId).then((session) {
                           NetworkExecutionPage.push(
                             context,
-                            sessionId,
                             session: session,
                           );
                         });

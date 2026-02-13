@@ -161,7 +161,6 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
       // Navigate to execution page
       await NetworkExecutionPage.push(
         context,
-        session.sessionId,
         session: connectedSession,
       );
     } catch (e) {

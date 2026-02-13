@@ -4,6 +4,7 @@ import 'command_registry.dart';
 import 'command_dispatcher.dart';
 import 'commands/compact_command.dart';
 import 'commands/clear_command.dart';
+import 'commands/detach_command.dart';
 import 'commands/exit_command.dart';
 import 'commands/fork_command.dart';
 import 'commands/git_command.dart';
@@ -19,6 +20,7 @@ final commandRegistryProvider = Provider<CommandRegistry>((ref) {
   registry.registerAll([
     ClearCommand(),
     CompactCommand(),
+    DetachCommand(),
     ExitCommand(),
     ForkCommand(),
     GitCommand(),

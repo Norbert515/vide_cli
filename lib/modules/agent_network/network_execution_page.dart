@@ -24,27 +24,23 @@ import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
+import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
 import 'package:vide_cli/components/vide_scaffold.dart';
 
 class NetworkExecutionPage extends StatefulComponent {
-  final AgentNetworkId networkId;
-
-  const NetworkExecutionPage({required this.networkId, super.key});
+  const NetworkExecutionPage({super.key});
 
   static Future<void> push(
-    BuildContext context,
-    String networkId, {
-    VideSession? session,
+    BuildContext context, {
+    required VideSession session,
   }) async {
-    context
-        .read(sessionSelectionProvider.notifier)
-        .selectSession(networkId, session: session);
+    context.read(sessionSelectionProvider.notifier).selectSession(session);
 
     return Navigator.of(context).push<void>(
       PageRoute(
-        builder: (context) => NetworkExecutionPage(networkId: networkId),
+        builder: (context) => const NetworkExecutionPage(),
         settings: RouteSettings(),
       ),
     );
@@ -131,10 +127,30 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: _AgentChat(
         key: ValueKey(agentId),
         agentId: agentId,
-        networkId: component.networkId,
+        networkId: session.id,
         showQuitWarning: _showQuitWarning,
+        onExit: _exitWithDaemonCleanup,
       ),
     );
+  }
+
+  Future<void> _exitWithDaemonCleanup() async {
+    final session = context.read(currentVideSessionProvider);
+    final sessionId = session?.id;
+    if (sessionId != null) {
+      final daemonState = context.read(daemonConnectionProvider);
+      if (daemonState.isConnected) {
+        try {
+          await context
+              .read(daemonConnectionProvider.notifier)
+              .stopSession(sessionId)
+              .timeout(const Duration(seconds: 3));
+        } catch (_) {
+          // Best-effort — don't block exit if stop fails or times out.
+        }
+      }
+    }
+    shutdownApp();
   }
 
   void _handleCtrlC() {
@@ -142,8 +158,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
     if (_lastCtrlCPress != null &&
         now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
-      // Second press within time window - quit app
-      shutdownApp();
+      // Second press within time window - stop daemon session and quit
+      _exitWithDaemonCleanup();
     } else {
       // First press - show warning
       setState(() {
@@ -230,10 +246,12 @@ class _AgentChat extends StatefulComponent {
   final String agentId;
   final String networkId;
   final bool showQuitWarning;
+  final Future<void> Function() onExit;
 
   const _AgentChat({
     required this.agentId,
     required this.networkId,
+    required this.onExit,
     this.showQuitWarning = false,
     super.key,
   });
@@ -354,7 +372,8 @@ class _AgentChatState extends State<_AgentChat> {
           _conversation = null;
         });
       },
-      exitApp: shutdownApp,
+      exitApp: component.onExit,
+      detachApp: shutdownApp,
       toggleIdeMode: () {
         final container = ProviderScope.containerOf(context);
         final current = container.read(ideModeEnabledProvider);
@@ -775,7 +794,7 @@ class _AgentChatState extends State<_AgentChat> {
                 // Show quit warning if active
                 if (component.showQuitWarning)
                   Text(
-                    '(Press Ctrl+C again to quit)',
+                    '(Press Ctrl+C again to exit)',
                     style: TextStyle(
                       color: theme.base.onSurface.withOpacity(
                         TextOpacity.tertiary,
