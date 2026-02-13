@@ -322,7 +322,11 @@ class RemoteVideSession implements VideSession {
 
     _hadInitialMessage = true;
 
-    // Emit optimistic status event so UI shows the agent as working
+    // Set optimistic working status so _buildState().isProcessing is true
+    // immediately (not just after the server's ConnectedEvent arrives).
+    _agentStatuses[agentId] = VideAgentStatus.working;
+
+    // Emit optimistic status event so ConversationStateManager also picks it up
     _emit(
       StatusEvent(
         agentId: agentId,
@@ -332,6 +336,8 @@ class RemoteVideSession implements VideSession {
         status: VideAgentStatus.working,
       ),
     );
+
+    _emitState();
   }
 
   void _initWithMainAgent(String? mainAgentId) {
