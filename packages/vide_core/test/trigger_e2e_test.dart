@@ -67,11 +67,17 @@ void main() {
             }
             break;
           case ClaudeStatus.ready:
-          case ClaudeStatus.completed:
+            // Only 'ready' signals a true turn completion.
+            // 'completed' is ignored because it also fires during
+            // compaction when the turn is not actually done.
             if (currentAgentStatus == AgentStatus.working) {
-              print('[Test] Claude completed, setting status to idle');
+              print('[Test] Claude ready, setting status to idle');
               statusNotifier.setStatus(AgentStatus.idle);
             }
+            break;
+          case ClaudeStatus.completed:
+            // Ignored — 'completed' fires for every response end,
+            // including compaction. Wait for 'ready' instead.
             break;
           case ClaudeStatus.error:
           case ClaudeStatus.unknown:
@@ -109,7 +115,7 @@ void main() {
       expect(status, equals(AgentStatus.working));
       print('Status after responding: $status');
 
-      // Simulate Claude completing
+      // Simulate Claude completing a response (not turn-complete)
       print('Emitting completed...');
       mockClient.emitStatus(ClaudeStatus.completed);
       await Future.delayed(Duration(milliseconds: 50));
@@ -117,10 +123,23 @@ void main() {
       status = container.read(agentStatusProvider(agentId));
       expect(
         status,
-        equals(AgentStatus.idle),
-        reason: 'Status should be idle after completed',
+        equals(AgentStatus.working),
+        reason: 'Status should still be working after completed (could be compaction)',
       );
       print('Status after completed: $status');
+
+      // Simulate Claude becoming ready (turn truly complete)
+      print('Emitting ready...');
+      mockClient.emitStatus(ClaudeStatus.ready);
+      await Future.delayed(Duration(milliseconds: 50));
+
+      status = container.read(agentStatusProvider(agentId));
+      expect(
+        status,
+        equals(AgentStatus.idle),
+        reason: 'Status should be idle after ready',
+      );
+      print('Status after ready: $status');
 
       // Clean up
       await subscription.cancel();

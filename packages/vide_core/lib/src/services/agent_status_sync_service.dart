@@ -48,15 +48,21 @@ class AgentStatusSyncService {
           }
           break;
         case ClaudeStatus.ready:
-        case ClaudeStatus.completed:
-          // Claude is done with this turn
-          // Only auto-set to idle if agent was in working state
-          // (don't override waitingForAgent/waitingForUser that agent set explicitly)
+          // Claude's turn is truly complete.
+          // Only react to 'ready' (not 'completed') because 'completed' is
+          // emitted by the CLI's StatusResponse for every response end,
+          // including compaction. 'ready' is only emitted by ClaudeClient
+          // when turnComplete is true, so it correctly skips compaction.
           if (currentAgentStatus == AgentStatus.working) {
             agentStatusNotifier.setStatus(AgentStatus.idle);
             // Check if all agents are now idle
             checkAllAgentsIdle();
           }
+          break;
+        case ClaudeStatus.completed:
+          // 'completed' means a response finished, but NOT necessarily
+          // the turn. During compaction, 'completed' fires but the turn
+          // continues. We ignore it here and wait for 'ready' instead.
           break;
         case ClaudeStatus.error:
         case ClaudeStatus.unknown:
