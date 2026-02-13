@@ -1,6 +1,4 @@
-/// Providers for VideSession and ConversationStateManager.
-///
-/// These providers bridge the public vide_core API with the TUI state management.
+/// Providers bridging the public vide_core API with TUI state management.
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -146,45 +144,6 @@ final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
   return session.stateStream.map((s) => s.agents);
 });
 
-/// Provider for ConversationStateManager tied to the current session.
-///
-/// The ConversationStateManager is owned by the VideSession and accumulates
-/// all events from the session's creation. This avoids missing events that
-/// would occur with late subscription to a broadcast stream.
-final conversationStateManagerProvider = Provider<ConversationStateManager?>((
-  ref,
-) {
-  final session = ref.watch(currentVideSessionProvider);
-  if (session == null) return null;
-
-  // Use the session's built-in conversation state manager
-  return session.conversationState;
-});
-
-/// Provider for a specific agent's conversation state.
-///
-/// Usage:
-/// ```dart
-/// final agentState = context.watch(agentConversationStateProvider(agentId));
-/// ```
-final agentConversationStateProvider =
-    Provider.family<AgentConversationState?, String>((ref, agentId) {
-      final manager = ref.watch(conversationStateManagerProvider);
-      if (manager == null) return null;
-
-      return manager.getAgentState(agentId);
-    });
-
-/// Provider that triggers rebuilds when conversation state changes.
-///
-/// This uses a stream to notify when the ConversationStateManager has updates.
-/// Widgets can watch this to rebuild when any agent's state changes.
-final conversationStateChangedProvider = StreamProvider<void>((ref) {
-  final manager = ref.watch(conversationStateManagerProvider);
-  if (manager == null) return const Stream.empty();
-
-  return manager.onStateChanged;
-});
 
 /// Provider for the current team name.
 ///

@@ -520,7 +520,7 @@ class _AgentRowItemState extends State<_AgentRowItem>
   ];
 
   late AnimationController _spinnerController;
-  AgentStatus? _lastStatus;
+  VideAgentStatus? _lastStatus;
 
   int get _spinnerIndex =>
       (_spinnerController.value * _spinnerFrames.length).floor() %
@@ -541,9 +541,9 @@ class _AgentRowItemState extends State<_AgentRowItem>
     super.dispose();
   }
 
-  void _updateSpinnerForStatus(AgentStatus status) {
-    final wasWorking = _lastStatus == AgentStatus.working;
-    final isWorking = status == AgentStatus.working;
+  void _updateSpinnerForStatus(VideAgentStatus status) {
+    final wasWorking = _lastStatus == VideAgentStatus.working;
+    final isWorking = status == VideAgentStatus.working;
 
     if (isWorking && !wasWorking) {
       _spinnerController.repeat();
@@ -559,21 +559,21 @@ class _AgentRowItemState extends State<_AgentRowItem>
     _lastStatus = status;
   }
 
-  String _getStatusIndicator(AgentStatus status) {
+  String _getStatusIndicator(VideAgentStatus status) {
     return switch (status) {
-      AgentStatus.working => _spinnerFrames[_spinnerIndex],
-      AgentStatus.waitingForAgent => '…',
-      AgentStatus.waitingForUser => '?',
-      AgentStatus.idle => '✓',
+      VideAgentStatus.working => _spinnerFrames[_spinnerIndex],
+      VideAgentStatus.waitingForAgent => '…',
+      VideAgentStatus.waitingForUser => '?',
+      VideAgentStatus.idle => '✓',
     };
   }
 
-  Color _getStatusColor(AgentStatus status, VideStatusColors statusColors) {
+  Color _getStatusColor(VideAgentStatus status, VideStatusColors statusColors) {
     return switch (status) {
-      AgentStatus.working => statusColors.working,
-      AgentStatus.waitingForAgent => statusColors.waitingForAgent,
-      AgentStatus.waitingForUser => statusColors.waitingForUser,
-      AgentStatus.idle => statusColors.idle,
+      VideAgentStatus.working => statusColors.working,
+      VideAgentStatus.waitingForAgent => statusColors.waitingForAgent,
+      VideAgentStatus.waitingForUser => statusColors.waitingForUser,
+      VideAgentStatus.idle => statusColors.idle,
     };
   }
 
@@ -587,23 +587,10 @@ class _AgentRowItemState extends State<_AgentRowItem>
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
 
-    // Get agent status from the provider
-    final status = context.watch(agentStatusProvider(component.agent.id));
-
-    // Get conversation state to check if processing
-    // Watch conversationStateChangedProvider to rebuild when conversation state changes
-    final session = context.watch(currentVideSessionProvider);
-    context.watch(conversationStateChangedProvider);
-    final conversation = session?.getConversation(component.agent.id);
-    final isProcessing = conversation?.isProcessing ?? false;
-
-    // Infer actual status based on conversation processing state
-    // This is more reliable than claudeStatusProvider which may have timing issues
-    final actualStatus = isProcessing
-        ? AgentStatus.working
-        : (status == AgentStatus.working && !isProcessing)
-        ? AgentStatus.idle
-        : status;
+    // Status comes from VideAgent which is rebuilt via videSessionAgentsProvider
+    // (a StreamProvider on session.stateStream). The data layer already derives
+    // the correct status from agentStatusProvider, so no override logic needed.
+    final actualStatus = component.agent.status;
 
     // Update spinner animation based on status
     _updateSpinnerForStatus(actualStatus);

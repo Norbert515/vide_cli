@@ -1,5 +1,4 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
@@ -53,7 +52,7 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
   ];
 
   late AnimationController _spinnerController;
-  AgentStatus? _lastInferredStatus;
+  VideAgentStatus? _lastInferredStatus;
 
   /// Derive spinner index from animation controller value (0.0-1.0)
   int get _spinnerIndex =>
@@ -69,9 +68,9 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
     )..addListener(() => setState(() {}));
   }
 
-  void _updateSpinnerForStatus(AgentStatus status) {
-    final wasWorking = _lastInferredStatus == AgentStatus.working;
-    final isWorking = status == AgentStatus.working;
+  void _updateSpinnerForStatus(VideAgentStatus status) {
+    final wasWorking = _lastInferredStatus == VideAgentStatus.working;
+    final isWorking = status == VideAgentStatus.working;
 
     if (isWorking && !wasWorking) {
       _spinnerController.repeat();
@@ -93,28 +92,28 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
     super.dispose();
   }
 
-  String _getStatusIndicator(AgentStatus status) {
+  String _getStatusIndicator(VideAgentStatus status) {
     return switch (status) {
-      AgentStatus.working => _spinnerFrames[_spinnerIndex],
-      AgentStatus.waitingForAgent => '…',
-      AgentStatus.waitingForUser => '?',
-      AgentStatus.idle => '✓',
+      VideAgentStatus.working => _spinnerFrames[_spinnerIndex],
+      VideAgentStatus.waitingForAgent => '…',
+      VideAgentStatus.waitingForUser => '?',
+      VideAgentStatus.idle => '✓',
     };
   }
 
-  Color _getIndicatorColor(AgentStatus status, VideStatusColors statusColors) {
+  Color _getIndicatorColor(VideAgentStatus status, VideStatusColors statusColors) {
     return switch (status) {
-      AgentStatus.working => statusColors.working,
-      AgentStatus.waitingForAgent => statusColors.waitingForAgent,
-      AgentStatus.waitingForUser => statusColors.waitingForUser,
-      AgentStatus.idle => statusColors.idle,
+      VideAgentStatus.working => statusColors.working,
+      VideAgentStatus.waitingForAgent => statusColors.waitingForAgent,
+      VideAgentStatus.waitingForUser => statusColors.waitingForUser,
+      VideAgentStatus.idle => statusColors.idle,
     };
   }
 
-  Color _getIndicatorTextColor(AgentStatus status, VideThemeData theme) {
+  Color _getIndicatorTextColor(VideAgentStatus status, VideThemeData theme) {
     // Use contrasting text color based on indicator background
     return switch (status) {
-      AgentStatus.waitingForAgent => Colors.black,
+      VideAgentStatus.waitingForAgent => Colors.black,
       _ => theme.base.onSurface,
     };
   }
@@ -126,46 +125,14 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
     return agent.name;
   }
 
-  /// Infer the actual status based on both explicit status and Claude's processing state.
-  /// This provides safeguards against agents forgetting to call setAgentStatus.
-  AgentStatus _inferActualStatus(
-    AgentStatus explicitStatus,
-    ClaudeStatus claudeStatus,
-  ) {
-    // If Claude is actively processing/thinking/responding, agent is definitely working
-    if (claudeStatus == ClaudeStatus.processing ||
-        claudeStatus == ClaudeStatus.thinking ||
-        claudeStatus == ClaudeStatus.responding) {
-      return AgentStatus.working;
-    }
-
-    // If Claude is ready/completed but agent claims to be working, override to idle
-    // This handles cases where agent forgot to call setAgentStatus("idle")
-    if ((claudeStatus == ClaudeStatus.ready ||
-            claudeStatus == ClaudeStatus.completed) &&
-        explicitStatus == AgentStatus.working) {
-      return AgentStatus.idle;
-    }
-
-    // Otherwise trust the explicit status
-    return explicitStatus;
-  }
-
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final explicitStatus = context.watch(
-      agentStatusProvider(component.agent.id),
-    );
 
-    // Get Claude's processing status from the stream
-    final claudeStatusAsync = context.watch(
-      claudeStatusProvider(component.agent.id),
-    );
-    final claudeStatus = claudeStatusAsync.valueOrNull ?? ClaudeStatus.ready;
-
-    // Infer actual status - use Claude's status to correct agent status if needed
-    final status = _inferActualStatus(explicitStatus, claudeStatus);
+    // Status comes from VideAgent which is rebuilt via videSessionAgentsProvider
+    // (a StreamProvider on session.stateStream). The data layer already derives
+    // the correct status from agentStatusProvider, so no override logic needed.
+    final status = component.agent.status;
 
     // Start/stop spinner based on status changes (only runs when status is 'working')
     _updateSpinnerForStatus(status);

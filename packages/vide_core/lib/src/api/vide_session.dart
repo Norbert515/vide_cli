@@ -159,10 +159,13 @@ class LocalVideSession implements VideSession {
   }
 
   /// Check if any agent is currently processing.
+  ///
+  /// Uses [agentStatusProvider] as the single source of truth.
+  /// Any status other than idle indicates the agent is busy.
   bool _isProcessing() {
     for (final agentId in _agentStates.keys) {
-      final client = _container.read(claudeProvider(agentId));
-      if (client?.currentConversation.isProcessing ?? false) {
+      final status = _container.read(agentStatusProvider(agentId));
+      if (status != internal.AgentStatus.idle) {
         return true;
       }
     }
@@ -260,9 +263,10 @@ class LocalVideSession implements VideSession {
     );
     manager.sendMessage(targetAgent, claudeMessage);
 
-    // Set agent to working immediately so the UI shows loading without
-    // waiting for the Claude API round-trip. Skip for queued messages since
-    // the agent is already working.
+    // Optimization: Set status to working immediately for instant UI feedback.
+    // AgentStatusSyncService will also set this when ClaudeClient emits
+    // ClaudeStatus.processing, but that has network latency. Skip for queued
+    // messages since the agent is already working.
     if (!willBeQueued) {
       final statusNotifier = _container.read(
         agentStatusProvider(targetAgent).notifier,

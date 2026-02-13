@@ -638,6 +638,19 @@ class _AgentChatState extends State<_AgentChat> {
         .toList();
   }
 
+  /// Whether the current agent is working, based on VideAgent.status from the
+  /// data layer (delivered via videSessionAgentsProvider StreamProvider).
+  bool _isAgentWorking(BuildContext context) {
+    final agents = context.watch(videSessionAgentsProvider).valueOrNull;
+    if (agents == null) return false;
+    for (final agent in agents) {
+      if (agent.id == component.agentId) {
+        return agent.status == VideAgentStatus.working;
+      }
+    }
+    return false;
+  }
+
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
@@ -735,7 +748,9 @@ class _AgentChatState extends State<_AgentChat> {
                   ),
 
                 // Loading indicator row - always 1 cell height to prevent layout jumps
-                if (_conversation?.isProcessing == true &&
+                // Agent status comes from VideAgent delivered via videSessionAgentsProvider
+                // (a StreamProvider on session.stateStream), which triggers nocterm rebuilds.
+                if (_isAgentWorking(context) &&
                     currentPlanApproval == null &&
                     currentAskUserQuestionRequest == null &&
                     currentPermissionRequest == null)

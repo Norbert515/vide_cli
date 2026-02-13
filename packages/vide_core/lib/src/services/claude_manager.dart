@@ -6,14 +6,15 @@ final claudeProvider = Provider.family<ClaudeClient?, AgentId>((ref, agentId) {
   return ref.watch(claudeManagerProvider)[agentId];
 });
 
-/// Provider for watching the current ClaudeStatus from an agent's client.
+/// Provider for watching the current [ClaudeStatus] from an agent's client.
 ///
-/// This provides real-time status updates (processing, thinking, responding, etc.)
-/// from the Claude API, useful for showing activity indicators in the UI.
+/// This is for **UI label text only** (e.g. showing "Processing" / "Thinking" /
+/// "Responding" in a loading indicator). It is NOT the source of truth for
+/// whether an agent is busy — use [agentStatusProvider] for that.
 ///
-/// Note: Agent status auto-sync is handled by AgentNetworkManager._setupStatusSync()
-/// which subscribes to status changes when agents are created. This provider is
-/// purely for UI observation.
+/// [AgentStatusSyncService] bridges ClaudeStatus → [agentStatusProvider]
+/// automatically, so consumers should never need to derive agent status from
+/// this stream.
 final claudeStatusProvider = StreamProvider.family<ClaudeStatus, AgentId>((
   ref,
   agentId,

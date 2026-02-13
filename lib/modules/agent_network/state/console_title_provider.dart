@@ -76,67 +76,33 @@ enum _AggregatedStatus {
   idle, // all idle
 }
 
-/// Infer actual status based on explicit status and conversation state.
-/// This provides safeguards against agents forgetting to call setAgentStatus.
-api.VideAgentStatus _inferActualStatus(
-  api.VideAgentStatus explicitStatus,
-  api.AgentConversationState? conversation,
-) {
-  if (conversation == null) {
-    return explicitStatus;
-  }
-
-  // If conversation is processing, agent is definitely working
-  if (conversation.isProcessing) {
-    return api.VideAgentStatus.working;
-  }
-
-  // If conversation is not processing but agent claims to be working, override to idle
-  // This handles cases where agent forgot to call setAgentStatus("idle")
-  if (!conversation.isProcessing &&
-      explicitStatus == api.VideAgentStatus.working) {
-    return api.VideAgentStatus.idle;
-  }
-
-  return explicitStatus;
-}
-
-/// Determines the aggregated status across all agents and permission state
+/// Determines the aggregated status across all agents and permission state.
+///
+/// Agent status comes from VideAgent.status, which is derived from
+/// agentStatusProvider in the data layer (VideSession). The
+/// videSessionAgentsProvider (a StreamProvider) triggers rebuilds when
+/// status changes.
 _AggregatedStatus _getAggregatedStatus(Ref ref) {
-  final session = ref.watch(currentVideSessionProvider);
   final permissionState = ref.watch(permissionStateProvider);
   final askUserQuestionState = ref.watch(askUserQuestionStateProvider);
 
-  // Watch conversation state changes to detect isProcessing updates
-  ref.watch(conversationStateChangedProvider);
-  // Watch agents stream to detect spawned/terminated agents
-  ref.watch(videSessionAgentsProvider);
+  // Watch agents stream — this triggers rebuilds when agent status changes
+  final agentsAsync = ref.watch(videSessionAgentsProvider);
 
   // Check if there's a pending permission request or askUserQuestion
   if (permissionState.current != null || askUserQuestionState.current != null) {
     return _AggregatedStatus.needsAttention;
   }
 
-  // No session or no agents = Idle
-  if (session == null) {
-    return _AggregatedStatus.idle;
-  }
-
-  final agents = session.state.agents;
-  if (agents.isEmpty) {
+  final agents = agentsAsync.valueOrNull;
+  if (agents == null || agents.isEmpty) {
     return _AggregatedStatus.idle;
   }
 
   bool hasWorking = false;
 
   for (final agent in agents) {
-    // Get conversation state for this agent
-    final conversation = session.getConversation(agent.id);
-
-    // Infer actual status
-    final status = _inferActualStatus(agent.status, conversation);
-
-    switch (status) {
+    switch (agent.status) {
       case api.VideAgentStatus.waitingForUser:
         return _AggregatedStatus.needsAttention;
       case api.VideAgentStatus.working:
@@ -144,7 +110,6 @@ _AggregatedStatus _getAggregatedStatus(Ref ref) {
         hasWorking = true;
         break;
       case api.VideAgentStatus.idle:
-        // Keep checking other agents
         break;
     }
   }
