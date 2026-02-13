@@ -42,6 +42,20 @@ class SessionListEntry {
       session?.pendingPermissionRequest;
 }
 
+/// A group of sessions sharing the same working directory (project).
+class SessionGroup {
+  final String workingDirectory;
+  final List<SessionListEntry> entries;
+
+  const SessionGroup({required this.workingDirectory, required this.entries});
+
+  /// Project display name — just the directory name, not the full path.
+  String get projectName {
+    final parts = workingDirectory.split('/');
+    return parts.isNotEmpty ? parts.last : workingDirectory;
+  }
+}
+
 /// Manages RemoteVideSession instances for all sessions on the list screen.
 ///
 /// Single source of truth for the session list: fetches from daemon,
@@ -145,7 +159,7 @@ class SessionListManager extends _$SessionListManager {
         latestActivity: entry.latestActivity,
       )};
 
-      // Single event listener for activity tracking + goal/agent rebuilds
+      // Single event listener for activity tracking + state rebuilds
       _subscriptions[id] = [
         session.events.listen(
           (event) => _handleEvent(id, event),
@@ -153,6 +167,7 @@ class SessionListManager extends _$SessionListManager {
         ),
         session.stateStream.map((s) => s.goal).distinct().listen((_) => _notify(id)),
         session.stateStream.map((s) => s.agents).distinct().listen((_) => _notify(id)),
+        session.stateStream.map((s) => s.isProcessing).distinct().listen((_) => _notify(id)),
       ];
     } catch (e) {
       _log('Failed to connect to session $id: $e');
@@ -213,10 +228,46 @@ class SessionListManager extends _$SessionListManager {
     _sessions[sessionId]?.respondToPermission(requestId, allow: allow);
   }
 
-  /// Sorted entries (most recently active first).
+  /// Entries grouped by project, each group sorted by creation time (stable).
+  ///
+  /// Groups are ordered by the most recently created session in each group.
+  /// Within each group, sessions are ordered newest first.
+  List<SessionGroup> get groupedEntries {
+    final entries = state.values.toList();
+
+    // Group by working directory
+    final groups = <String, List<SessionListEntry>>{};
+    for (final entry in entries) {
+      final dir = entry.summary.workingDirectory;
+      groups.putIfAbsent(dir, () => []).add(entry);
+    }
+
+    // Sort sessions within each group by creation time (newest first)
+    for (final group in groups.values) {
+      group.sort(
+        (a, b) => b.summary.createdAt.compareTo(a.summary.createdAt),
+      );
+    }
+
+    // Sort groups by the most recently created session in each group
+    final sortedGroups = groups.entries.toList()
+      ..sort((a, b) {
+        final aNewest = a.value.first.summary.createdAt;
+        final bNewest = b.value.first.summary.createdAt;
+        return bNewest.compareTo(aNewest);
+      });
+
+    return sortedGroups
+        .map((e) => SessionGroup(workingDirectory: e.key, entries: e.value))
+        .toList();
+  }
+
+  /// Flat sorted entries (most recently created first) — stable sort.
   List<SessionListEntry> get sortedEntries {
     final entries = state.values.toList();
-    entries.sort((a, b) => b.sortTime.compareTo(a.sortTime));
+    entries.sort(
+      (a, b) => b.summary.createdAt.compareTo(a.summary.createdAt),
+    );
     return entries;
   }
 

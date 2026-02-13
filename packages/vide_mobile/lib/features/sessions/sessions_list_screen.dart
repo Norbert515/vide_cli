@@ -74,11 +74,11 @@ class SessionsListScreen extends ConsumerWidget {
   Widget _buildList(
     BuildContext context,
     WidgetRef ref,
-    List<SessionListEntry> entries,
+    List<SessionGroup> groups,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (entries.isEmpty) {
+    if (groups.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -107,16 +107,24 @@ class SessionsListScreen extends ConsumerWidget {
       );
     }
 
+    final showHeaders = groups.length > 1;
+
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(sessionsListRefreshProvider);
         await ref.read(sessionsListRefreshProvider.future);
       },
       child: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: entries.length,
+        padding: const EdgeInsets.only(top: 8, bottom: 80),
+        itemCount: _countItems(groups, showHeaders),
         itemBuilder: (context, index) {
-          final entry = entries[index];
+          final item = _itemAt(groups, index, showHeaders);
+          if (item is SessionGroup) {
+            return _ProjectHeader(
+              projectName: item.projectName,
+            );
+          }
+          final entry = item as SessionListEntry;
           return _SessionCard(
             entry: entry,
             onStop: () => _stopSession(context, ref, entry.summary),
@@ -126,11 +134,36 @@ class SessionsListScreen extends ConsumerWidget {
     );
   }
 
+  /// Count total items (headers + cards) for the flat list.
+  int _countItems(List<SessionGroup> groups, bool showHeaders) {
+    if (!showHeaders) {
+      return groups.fold(0, (sum, g) => sum + g.entries.length);
+    }
+    // Each group contributes 1 header + N entries.
+    return groups.fold(0, (sum, g) => sum + 1 + g.entries.length);
+  }
+
+  /// Map a flat index to either a [SessionGroup] (header) or [SessionListEntry].
+  Object _itemAt(List<SessionGroup> groups, int index, bool showHeaders) {
+    var cursor = 0;
+    for (final group in groups) {
+      if (showHeaders) {
+        if (cursor == index) return group;
+        cursor++;
+      }
+      if (index < cursor + group.entries.length) {
+        return group.entries[index - cursor];
+      }
+      cursor += group.entries.length;
+    }
+    return groups.last.entries.last;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final refreshAsync = ref.watch(sessionsListRefreshProvider);
     final managerState = ref.watch(sessionListManagerProvider);
-    final entries = ref.read(sessionListManagerProvider.notifier).sortedEntries;
+    final groups = ref.read(sessionListManagerProvider.notifier).groupedEntries;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -152,9 +185,9 @@ class SessionsListScreen extends ConsumerWidget {
       body: refreshAsync.when(
         loading: () => managerState.isEmpty
             ? const Center(child: CircularProgressIndicator())
-            : _buildList(context, ref, entries),
+            : _buildList(context, ref, groups),
         error: (error, _) => managerState.isNotEmpty
-            ? _buildList(context, ref, entries)
+            ? _buildList(context, ref, groups)
             : Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -184,12 +217,50 @@ class SessionsListScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-        data: (_) => _buildList(context, ref, entries),
+        data: (_) => _buildList(context, ref, groups),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(AppRoutes.newSession),
         icon: const Icon(Icons.add),
         label: const Text('New Session'),
+      ),
+    );
+  }
+}
+
+class _ProjectHeader extends StatelessWidget {
+  final String projectName;
+
+  const _ProjectHeader({required this.projectName});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.folder_outlined,
+            size: 16,
+            color: colorScheme.outline,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            projectName,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: colorScheme.outline,
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Divider(
+              color: colorScheme.outlineVariant,
+              height: 1,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -213,10 +284,10 @@ class _SessionCard extends ConsumerWidget {
     final isReady = session.state == 'ready';
     final statusColor = isReady ? videColors.success : videColors.warning;
 
-    // Format the working directory to show just the last part
+    // Format the working directory to show just the project name
     final dirParts = session.workingDirectory.split('/');
     final shortDir =
-        dirParts.length > 1 ? '.../${dirParts.last}' : session.workingDirectory;
+        dirParts.isNotEmpty ? dirParts.last : session.workingDirectory;
 
     // Format time ago using last activity or creation time
     final timeAgo = _formatTimeAgo(entry.sortTime);
