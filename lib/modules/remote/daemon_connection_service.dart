@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_client/vide_client.dart' as vc;
 import 'package:vide_client/vide_client.dart'
     show
         createPendingRemoteVideSession,
-        createRemoteVideSessionFromClientSession;
+        createRemoteVideSession,
+        VideAttachment;
 import 'package:vide_core/vide_core.dart'
     show videConfigManagerProvider, VideSession;
 import 'package:vide_daemon/vide_daemon.dart';
@@ -182,7 +182,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     String? permissionMode,
     String? model,
     String? team,
-    List<vc.VideAttachment>? attachments,
+    List<VideAttachment>? attachments,
     void Function()? onReady,
   }) {
     final daemonClient = state.client;
@@ -219,13 +219,11 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
           team: team,
           attachments: rawAttachments,
         );
-        final clientSession = _createClientSession(
-          response.sessionId,
-          response.wsUrl,
+        // Complete the pending session with the transport connection
+        pendingSession.completeWithConnection(
+          sessionId: response.sessionId,
+          channel: _createChannel(response.wsUrl),
         );
-
-        // Complete the pending session with the client session
-        pendingSession.completeWithClientSession(clientSession);
       } catch (e) {
         pendingSession.fail('Failed to create session: $e');
       }
@@ -256,13 +254,10 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
     );
-    final clientSession = _createClientSession(
-      response.sessionId,
-      response.wsUrl,
+    return createRemoteVideSession(
+      sessionId: response.sessionId,
+      channel: _createChannel(response.wsUrl),
     );
-
-    // Wrap with unified VideSession implementation
-    return createRemoteVideSessionFromClientSession(clientSession);
   }
 
   /// Connect to an existing daemon session and return a [VideSession]
@@ -309,8 +304,10 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
           wsUrl = response.wsUrl;
         }
 
-        final clientSession = _createClientSession(sessionId, wsUrl);
-        pendingSession.completeWithClientSession(clientSession);
+        pendingSession.completeWithConnection(
+          sessionId: sessionId,
+          channel: _createChannel(wsUrl),
+        );
       } catch (e) {
         pendingSession.fail('Failed to connect to session: $e');
       }
@@ -319,11 +316,11 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     return pendingSession.session;
   }
 
-  vc.Session _createClientSession(String sessionId, String wsUrl) {
+  /// Build an authorized WebSocket channel for the given session URL.
+  WebSocketChannel _createChannel(String wsUrl) {
     final rewrittenUri = Uri.parse(_rewriteWsUrlForDaemonHost(wsUrl));
     final authorizedUri = _applySessionStreamAuth(rewrittenUri);
-    final channel = WebSocketChannel.connect(authorizedUri);
-    return vc.Session(id: sessionId, channel: channel);
+    return WebSocketChannel.connect(authorizedUri);
   }
 
   String _rewriteWsUrlForDaemonHost(String wsUrl) {

@@ -16,10 +16,12 @@ enum SessionStatus {
   error,
 }
 
-/// An active session with the vide_server.
+/// Low-level transport session wrapping a WebSocket connection.
 ///
-/// Provides a stream of typed [VideEvent]s and methods to send messages.
-class Session {
+/// This is an internal implementation detail of `vide_client`. External
+/// consumers should use [RemoteVideSession] (via [VideClient]) instead,
+/// which adds conversation state management and proper message accumulation.
+class TransportSession {
   final String id;
   final WebSocketChannel _channel;
   final StreamController<VideEvent> _eventController;
@@ -28,7 +30,7 @@ class Session {
   SessionStatus _status = SessionStatus.open;
   Object? _error;
 
-  Session({required this.id, required WebSocketChannel channel})
+  TransportSession({required this.id, required WebSocketChannel channel})
     : _channel = channel,
       _eventController = StreamController<VideEvent>.broadcast() {
     _channel.stream.listen(

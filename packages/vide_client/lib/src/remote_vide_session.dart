@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:meta/meta.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vide_interface/vide_interface.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'session.dart';
 
@@ -33,9 +34,14 @@ class PendingRemoteVideSession {
     _session.onPendingComplete = callback;
   }
 
-  /// Resolve the pending session with a connected transport session.
-  void completeWithClientSession(Session clientSession) {
-    _session.completePending(clientSession);
+  /// Resolve the pending session with a connected WebSocket transport.
+  void completeWithConnection({
+    required String sessionId,
+    required WebSocketChannel channel,
+  }) {
+    _session.completePending(
+      TransportSession(id: sessionId, channel: channel),
+    );
   }
 
   /// Mark the pending session as failed.
@@ -58,45 +64,40 @@ PendingRemoteVideSession createPendingRemoteVideSession({
   return PendingRemoteVideSession._(session);
 }
 
-/// Adapt a transport-level [Session] into the unified [VideSession] API.
-VideSession createRemoteVideSessionFromClientSession(
-  Session clientSession, {
+/// Create a [VideSession] from a WebSocket connection.
+VideSession createRemoteVideSession({
+  required String sessionId,
+  required WebSocketChannel channel,
   String? mainAgentId,
 }) {
-  return RemoteVideSession.fromClientSession(
-    clientSession,
+  return RemoteVideSession.fromConnection(
+    sessionId: sessionId,
+    channel: channel,
     mainAgentId: mainAgentId,
   );
 }
 
 /// A VideSession that connects to a remote vide_server via WebSocket.
 ///
-/// This implementation composes with [Session] from vide_client,
-/// which handles the wire protocol. RemoteVideSession adds:
-/// - Conversation state management
+/// Wraps an internal transport layer and adds:
+/// - Conversation state management (accumulates streaming message deltas)
 /// - Agent tracking
 /// - Event adaptation from wire format to business events
-///
-/// ## Composability
-///
-/// The architecture provides two levels of access:
-///
-/// 1. **Session** - Thin wire protocol wrapper
-/// 2. **RemoteVideSession** - Full [VideSession] interface with state management
 ///
 /// ## Usage
 ///
 /// ```dart
-/// // Using VideClient to create session
 /// final client = VideClient(port: 8080);
-/// final clientSession = await client.createSession(...);
-/// final session = RemoteVideSession.fromClientSession(clientSession);
+/// final session = await client.createSession(
+///   initialMessage: 'Hello',
+///   workingDirectory: '/path/to/project',
+/// );
 ///
-/// // Listen to business events
-/// session.events.listen((event) {
-///   switch (event) {
-///     case MessageEvent(:final content): print(content);
-///     case ToolUseEvent(:final toolName): print('Using: $toolName');
+/// // Listen to accumulated conversation state
+/// final agentId = session.state.agents.first.id;
+/// session.conversationStream(agentId).listen((agentState) {
+///   for (final entry in agentState.messages) {
+///     print(entry.text); // Full accumulated text, not deltas
 ///   }
 /// });
 /// ```
@@ -110,11 +111,11 @@ VideSession createRemoteVideSessionFromClientSession(
 /// navigateToExecutionPage(pending.session); // Navigate immediately
 ///
 /// // Later, when server responds:
-/// pending.completeWithClientSession(clientSession);
+/// pending.completeWithConnection(sessionId: id, channel: channel);
 /// ```
 class RemoteVideSession implements VideSession {
   String _sessionId;
-  Session? _clientSession;
+  TransportSession? _clientSession;
   StreamSubscription<VideEvent>? _eventSubscription;
 
   /// Direct event pipeline (replaces SessionEventHub).
@@ -218,14 +219,13 @@ class RemoteVideSession implements VideSession {
   /// Completer for initial connection.
   final Completer<void> _connectCompleter = Completer<void>();
 
-  /// Create a RemoteVideSession from an existing Session.
-  ///
-  /// This is the preferred constructor when you already have a client session.
-  RemoteVideSession.fromClientSession(
-    Session clientSession, {
+  /// Create a RemoteVideSession from a WebSocket connection.
+  RemoteVideSession.fromConnection({
+    required String sessionId,
+    required WebSocketChannel channel,
     String? mainAgentId,
-  }) : _sessionId = clientSession.id,
-       _clientSession = clientSession {
+  }) : _sessionId = sessionId,
+       _clientSession = TransportSession(id: sessionId, channel: channel) {
     _eventController.stream.listen(_conversationState.handleEvent);
     _initWithMainAgent(mainAgentId);
     _setupEventListening();
@@ -249,8 +249,8 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  /// Complete a pending session with an actual client session.
-  void completePending(Session clientSession) {
+  /// Complete a pending session with an actual transport session.
+  void completePending(TransportSession clientSession) {
     if (!_isPending) return;
 
     // Save placeholder agent ID for conversation migration when ConnectedEvent arrives.
@@ -370,14 +370,17 @@ class RemoteVideSession implements VideSession {
     );
   }
 
-  /// Reconnect this session with a new client transport.
+  /// Reconnect this session with a new WebSocket transport.
   ///
-  /// This swaps the underlying [Session] without creating a new
+  /// This swaps the underlying transport without creating a new
   /// [RemoteVideSession] instance, so all UI references, event subscriptions,
   /// and conversation state are preserved. The new transport's
   /// ConnectedEvent + HistoryEvent will update agent list, statuses, and
   /// replay any events that were missed during the disconnect.
-  void reconnect(Session newClientSession) {
+  void reconnect({
+    required String sessionId,
+    required WebSocketChannel channel,
+  }) {
     if (_disposed) return;
 
     // Tear down old transport
@@ -386,7 +389,7 @@ class RemoteVideSession implements VideSession {
     _clientSession?.close();
 
     // Swap transport
-    _clientSession = newClientSession;
+    _clientSession = TransportSession(id: sessionId, channel: channel);
     _connected = false;
 
     // Set up event listening on the new transport.
@@ -900,7 +903,7 @@ class RemoteVideSession implements VideSession {
     required Map<String, T?> cache,
     required Set<String> inFlight,
     required StreamController<T?> Function(String) getController,
-    required Future<T?> Function(Session, String) fetch,
+    required Future<T?> Function(TransportSession, String) fetch,
   }) {
     final session = _clientSession;
     if (session == null) return;

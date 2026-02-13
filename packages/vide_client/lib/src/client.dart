@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'session.dart';
+import 'remote_vide_session.dart';
 
 /// Summary of a session from the daemon.
 class SessionSummary {
@@ -89,10 +89,11 @@ class SessionDetails {
 ///   workingDirectory: '/path/to/project',
 /// );
 ///
-/// session.events.listen((event) {
-///   switch (event) {
-///     case MessageEvent(:final content): print(content);
-///     case DoneEvent(): print('Done');
+/// // Listen to accumulated conversation state
+/// final agentId = session.state.agents.first.id;
+/// session.conversationStream(agentId).listen((agentState) {
+///   for (final entry in agentState.messages) {
+///     print(entry.text); // Full accumulated text
 ///   }
 /// });
 /// ```
@@ -192,9 +193,35 @@ class VideClient {
 
   /// Create a new session with an initial message.
   ///
-  /// Returns a [Session] that provides a stream of typed events and
-  /// methods to send messages and close the session.
-  Future<Session> createSession({
+  /// Returns a [RemoteVideSession] that provides conversation state management,
+  /// agent tracking, and a stream of typed events.
+  Future<RemoteVideSession> createSession({
+    required String initialMessage,
+    required String workingDirectory,
+    String? model,
+    String? permissionMode,
+    String? team,
+  }) async {
+    final info = await createSessionRaw(
+      initialMessage: initialMessage,
+      workingDirectory: workingDirectory,
+      model: model,
+      permissionMode: permissionMode,
+      team: team,
+    );
+
+    final channel = WebSocketChannel.connect(Uri.parse(info.wsUrl));
+    return RemoteVideSession.fromConnection(
+      sessionId: info.sessionId,
+      channel: channel,
+    );
+  }
+
+  /// Create a new session and return raw connection info.
+  ///
+  /// Use this with [PendingRemoteVideSession] for optimistic navigation
+  /// flows where you need to control the WebSocket connection yourself.
+  Future<SessionConnectionInfo> createSessionRaw({
     required String initialMessage,
     required String workingDirectory,
     String? model,
@@ -218,20 +245,31 @@ class VideClient {
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final sessionId = data['session-id'] as String;
-    final wsUrl = data['ws-url'] as String;
-
-    final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-    return Session(id: sessionId, channel: channel);
+    return SessionConnectionInfo(
+      sessionId: data['session-id'] as String,
+      wsUrl: data['ws-url'] as String,
+    );
   }
 
   /// Connect to an existing session by ID.
   ///
   /// Fetches session details and connects via WebSocket.
-  Future<Session> connectToSession(String sessionId) async {
+  Future<RemoteVideSession> connectToSession(String sessionId) async {
     final details = await getSession(sessionId);
     final channel = WebSocketChannel.connect(Uri.parse(details.wsUrl));
-    return Session(id: sessionId, channel: channel);
+    return RemoteVideSession.fromConnection(
+      sessionId: sessionId,
+      channel: channel,
+    );
+  }
+
+  /// Open a WebSocket channel to an existing session.
+  ///
+  /// Use this with [RemoteVideSession.reconnect] to swap the transport
+  /// on an existing session without losing UI state.
+  Future<WebSocketChannel> openChannel(String sessionId) async {
+    final details = await getSession(sessionId);
+    return WebSocketChannel.connect(Uri.parse(details.wsUrl));
   }
 
   /// Stop a session.
@@ -277,6 +315,14 @@ class TeamInfo {
       agents: (json['agents'] as List<dynamic>).cast<String>(),
     );
   }
+}
+
+/// Raw connection info returned by [VideClient.createSessionRaw].
+class SessionConnectionInfo {
+  final String sessionId;
+  final String wsUrl;
+
+  SessionConnectionInfo({required this.sessionId, required this.wsUrl});
 }
 
 /// Exception thrown by [VideClient] operations.

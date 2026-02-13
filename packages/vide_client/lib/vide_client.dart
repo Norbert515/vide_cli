@@ -11,14 +11,13 @@
 ///   workingDirectory: '/path/to/project',
 /// );
 ///
-/// await for (final event in session.events) {
-///   switch (event) {
-///     case MessageEvent(:final content, :final isPartial):
-///       if (!isPartial) print(content);
-///     case TurnCompleteEvent():
-///       break;
+/// // Listen to accumulated conversation state (recommended)
+/// final agentId = session.state.agents.first.id;
+/// session.conversationStream(agentId).listen((agentState) {
+///   for (final entry in agentState.messages) {
+///     print(entry.text); // Full accumulated text
 ///   }
-/// }
+/// });
 /// ```
 library;
 
@@ -26,4 +25,3 @@ export 'package:vide_interface/vide_interface.dart';
 
 export 'src/client.dart';
 export 'src/remote_vide_session.dart';
-export 'src/session.dart';

@@ -208,14 +208,6 @@ void main() {
     });
   });
 
-  group('SessionStatus', () {
-    test('has expected values', () {
-      expect(SessionStatus.values, contains(SessionStatus.open));
-      expect(SessionStatus.values, contains(SessionStatus.closed));
-      expect(SessionStatus.values, contains(SessionStatus.error));
-    });
-  });
-
   group('RemoteVideSession event forwarding', () {
     test('forwards PlanApprovalRequestEvent through event stream', () async {
       final session = RemoteVideSession.pending();

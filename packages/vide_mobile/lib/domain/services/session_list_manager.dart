@@ -142,8 +142,7 @@ class SessionListManager extends _$SessionListManager {
   Future<void> _connectToSession(VideClient client, String id) async {
     _log('Connecting to session $id');
     try {
-      final clientSession = await client.connectToSession(id);
-      final session = RemoteVideSession.fromClientSession(clientSession);
+      final session = await client.connectToSession(id);
       _sessions[id] = session;
 
       final entry = state[id];

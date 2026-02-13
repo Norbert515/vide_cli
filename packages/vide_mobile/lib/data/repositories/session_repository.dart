@@ -114,21 +114,18 @@ class SessionRepository extends _$SessionRepository {
     );
 
     // Create session via vide_client (handles both REST and WebSocket)
-    final clientSession = await videClient.createSession(
+    final remoteSession = await videClient.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       model: model,
       team: team,
     );
 
-    _log('Session created: ${clientSession.id}');
+    _log('Session created: ${remoteSession.id}');
 
     // Save working directory
     final settingsStorage = ref.read(settingsStorageProvider.notifier);
     await settingsStorage.saveWorkingDirectory(workingDirectory);
-
-    // Create RemoteVideSession — the single owner of all session state
-    final remoteSession = RemoteVideSession.fromClientSession(clientSession);
 
     // Set up event listening with disconnect handling
     _setupEventListening(remoteSession);
@@ -170,12 +167,9 @@ class SessionRepository extends _$SessionRepository {
     );
 
     // Connect to existing session via WebSocket
-    final clientSession = await videClient.connectToSession(sessionId);
+    final remoteSession = await videClient.connectToSession(sessionId);
 
     _log('Connected to session: $sessionId');
-
-    // Create RemoteVideSession — the single owner of all session state
-    final remoteSession = RemoteVideSession.fromClientSession(clientSession);
 
     // Set up event listening with disconnect handling
     _setupEventListening(remoteSession);
@@ -296,14 +290,17 @@ class SessionRepository extends _$SessionRepository {
       port: connection.port,
     );
 
-    // Connect to existing session via new WebSocket
-    final clientSession = await videClient.connectToSession(currentSession.id);
+    // Open a new WebSocket channel to the existing session.
+    final channel = await videClient.openChannel(currentSession.id);
 
     // Reconnect the EXISTING RemoteVideSession with the new transport.
     // This preserves all UI references, event subscriptions, and
     // conversation state. The ConnectedEvent from the new transport will
     // update agent statuses, and HistoryEvent will replay missed events.
-    currentSession.reconnect(clientSession);
+    currentSession.reconnect(
+      sessionId: currentSession.id,
+      channel: channel,
+    );
 
     // Re-listen for connection state changes on the same session
     _setupEventListening(currentSession);
