@@ -14,6 +14,8 @@ agents:
   - session-synthesizer
   - code-reviewer
 
+disallowedTools: Task
+
 include:
   - etiquette/messaging
   - etiquette/completion

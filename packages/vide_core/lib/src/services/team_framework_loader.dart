@@ -230,10 +230,13 @@ class TeamFrameworkLoader {
     // Use tools from the agent personality if available
     final allowedTools = agent.tools.isNotEmpty ? agent.tools : null;
 
-    // Use disallowedTools from the agent personality if available
-    final disallowedTools = agent.disallowedTools.isNotEmpty
-        ? agent.disallowedTools
-        : null;
+    // Merge disallowedTools from team and agent (team-level applies to all agents)
+    final mergedDisallowedTools = <String>{
+      ...?team?.disallowedTools,
+      ...agent.disallowedTools,
+    }.toList();
+    final disallowedTools =
+        mergedDisallowedTools.isNotEmpty ? mergedDisallowedTools : null;
 
     // Build the AgentConfiguration
     return AgentConfiguration(
