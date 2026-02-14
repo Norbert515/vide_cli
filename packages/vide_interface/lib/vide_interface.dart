@@ -26,11 +26,13 @@ export 'src/events/agent_info.dart';
 // =============================================================================
 // Models
 // =============================================================================
+export 'src/models/enums.dart';
+export 'src/models/filesystem.dart';
+export 'src/models/git_status.dart';
 export 'src/models/vide_agent.dart';
 export 'src/models/vide_config.dart';
 export 'src/models/vide_message.dart';
 export 'src/models/vide_permission.dart';
-export 'src/models/enums.dart';
 
 // =============================================================================
 // State Management

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:vide_interface/vide_interface.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'remote_vide_session.dart';
@@ -287,6 +288,83 @@ class VideClient {
     if (response.statusCode != 200) {
       throw VideClientException('Failed to stop session: ${response.body}');
     }
+  }
+
+  // ==========================================================================
+  // Filesystem API
+  // ==========================================================================
+
+  /// List directory contents.
+  ///
+  /// If [parent] is null, lists the server's configured filesystem root.
+  Future<List<FileEntry>> listDirectory({String? parent}) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/filesystem').replace(
+      queryParameters: {
+        if (parent != null) 'parent': parent,
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException(
+        'Failed to list directory: ${response.body}',
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final entries = data['entries'] as List<dynamic>;
+    return entries
+        .map((e) => FileEntry.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ==========================================================================
+  // Git API
+  // ==========================================================================
+
+  /// Get git status for a repository.
+  Future<GitStatusInfo> gitStatus(
+    String path, {
+    bool detailed = false,
+  }) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/git/status').replace(
+      queryParameters: {
+        'path': path,
+        if (detailed) 'detailed': 'true',
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to get git status: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return GitStatusInfo.fromJson(data);
+  }
+
+  /// Get git diff output.
+  Future<String> gitDiff(
+    String path, {
+    bool staged = false,
+  }) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/git/diff').replace(
+      queryParameters: {
+        'path': path,
+        if (staged) 'staged': 'true',
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to get git diff: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['diff'] as String;
   }
 }
 
