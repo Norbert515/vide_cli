@@ -1,6 +1,6 @@
-import '../../models/claude_settings.dart';
-import '../../models/permission_mode.dart';
-import '../settings/local_settings_manager.dart';
+import '../configuration/claude_settings.dart';
+import '../models/permission_mode.dart';
+import '../configuration/local_settings_manager.dart';
 import 'gitignore_matcher.dart';
 import 'pattern_inference.dart';
 import 'permission_matcher.dart';

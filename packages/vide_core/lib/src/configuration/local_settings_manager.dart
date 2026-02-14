@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
-import '../../models/claude_settings.dart';
+import 'claude_settings.dart';
 
 class LocalSettingsManager {
   final String projectRoot;

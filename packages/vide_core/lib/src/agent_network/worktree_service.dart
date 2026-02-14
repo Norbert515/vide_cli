@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import '../models/agent_network.dart';
-import 'agent_config_resolver.dart';
+import '../claude/agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
-import 'claude_client_factory.dart';
-import 'claude_manager.dart';
+import '../claude/claude_client_factory.dart';
+import '../claude/claude_manager.dart';
 
 /// Manages worktree path resolution and switching for agent networks.
 ///

@@ -1,9 +1,9 @@
 import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
-import '../models/team_framework/team_definition.dart';
-import '../vide_core_config.dart';
-import 'agent_network_manager.dart';
+import 'team_definition.dart';
+import '../configuration/vide_core_config.dart';
+import '../agent_network/agent_network_manager.dart';
 import 'team_framework_loader.dart';
 
 /// Lifecycle trigger points that can spawn agents.

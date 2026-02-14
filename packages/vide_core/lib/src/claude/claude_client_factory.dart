@@ -1,10 +1,10 @@
 import 'package:claude_sdk/claude_sdk.dart';
 
 import '../models/agent_id.dart';
-import '../agents/agent_configuration.dart';
+import 'agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
-import 'permission_provider.dart';
-import 'vide_config_manager.dart';
+import '../permissions/permission_provider.dart';
+import '../configuration/vide_config_manager.dart';
 
 /// Factory for creating ClaudeClient instances with proper configuration.
 ///

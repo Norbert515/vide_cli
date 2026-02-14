@@ -3,9 +3,9 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:sentry/sentry.dart';
 import '../../models/agent_id.dart';
 import '../../models/agent_status.dart';
-import '../../services/agent_network_manager.dart';
-import '../../services/trigger_service.dart';
-import '../../state/agent_status_manager.dart';
+import '../../agent_network/agent_network_manager.dart';
+import '../../team_framework/trigger_service.dart';
+import '../../agent_network/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
 final ProviderFamily<AgentMCPServer, AgentId> agentServerProvider =

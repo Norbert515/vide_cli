@@ -5,7 +5,7 @@ library;
 
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/services/agent_network_manager.dart';
+import 'package:vide_core/src/agent_network/agent_network_manager.dart';
 
 import '../helpers/session_test_helper.dart';
 

@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/services/agent_network_manager.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
+import 'package:vide_core/src/agent_network/agent_network_manager.dart';
+import 'package:vide_core/src/claude/claude_manager.dart';
 
 import 'mock_claude_client.dart';
 import 'mock_vide_config_manager.dart';

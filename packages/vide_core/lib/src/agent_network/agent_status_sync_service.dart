@@ -5,8 +5,8 @@ import 'package:claude_sdk/claude_sdk.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
 import '../models/agent_status.dart';
-import '../state/agent_status_manager.dart';
-import 'trigger_service.dart';
+import 'agent_status_manager.dart';
+import '../team_framework/trigger_service.dart';
 
 /// Manages synchronization between Claude client status streams and agent status.
 ///

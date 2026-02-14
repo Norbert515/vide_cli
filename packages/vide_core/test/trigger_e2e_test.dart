@@ -12,9 +12,9 @@ import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 
 import 'package:vide_core/src/models/agent_status.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
-import 'package:vide_core/src/state/agent_status_manager.dart';
-import 'package:vide_core/src/utils/working_dir_provider.dart';
+import 'package:vide_core/src/claude/claude_manager.dart';
+import 'package:vide_core/src/agent_network/agent_status_manager.dart';
+import 'package:vide_core/src/configuration/working_dir_provider.dart';
 
 import 'helpers/mock_claude_client.dart' as mock;
 

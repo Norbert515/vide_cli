@@ -2,11 +2,11 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
-import '../generated/bundled_team_framework.dart';
-import '../models/team_framework/team_framework.dart';
-import '../agents/agent_configuration.dart';
+import 'bundled_team_framework.dart';
+import 'team_framework.dart';
+import '../claude/agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
-import '../vide_core_config.dart';
+import '../configuration/vide_core_config.dart';
 
 /// Provider for TeamFrameworkLoader.
 ///

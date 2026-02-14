@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
-import '../models/vide_global_settings.dart';
-import '../vide_core_config.dart';
+import 'vide_global_settings.dart';
+import 'vide_core_config.dart';
 
 /// Manages global configuration directory for Vide CLI.
 ///

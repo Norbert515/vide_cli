@@ -2,7 +2,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../agents/agent_configuration.dart';
+import '../claude/agent_configuration.dart';
 import '../mcp/mcp_provider.dart';
 import '../mcp/mcp_server_type.dart';
 import '../models/agent_id.dart';
@@ -10,19 +10,19 @@ import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
 import '../models/agent_status.dart';
 import '../models/permission_mode.dart';
-import '../state/agent_status_manager.dart';
-import '../vide_core_config.dart';
-import 'agent_config_resolver.dart';
+import 'agent_status_manager.dart';
+import '../configuration/vide_core_config.dart';
+import '../claude/agent_config_resolver.dart';
 import 'agent_lifecycle_service.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
-import 'bashboard_service.dart';
-import 'claude_client_factory.dart';
-import 'claude_manager.dart';
-import 'permission_provider.dart';
-import 'team_framework_loader.dart';
-import 'trigger_service.dart';
-import 'vide_config_manager.dart';
+import '../analytics/bashboard_service.dart';
+import '../claude/claude_client_factory.dart';
+import '../claude/claude_manager.dart';
+import '../permissions/permission_provider.dart';
+import '../team_framework/team_framework_loader.dart';
+import '../team_framework/trigger_service.dart';
+import '../configuration/vide_config_manager.dart';
 import 'worktree_service.dart';
 
 /// The state of the agent network manager - just tracks the current network

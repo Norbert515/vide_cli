@@ -6,7 +6,7 @@ import 'package:vide_interface/vide_interface.dart';
 
 import '../api/vide_session.dart';
 import '../models/agent_id.dart';
-import '../vide_core_config.dart';
+import '../configuration/vide_core_config.dart';
 
 /// Handler that manages permission callbacks with late session binding.
 ///

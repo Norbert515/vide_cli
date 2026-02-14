@@ -1,6 +1,6 @@
-import '../agents/agent_configuration.dart';
+import 'agent_configuration.dart';
 import '../models/agent_metadata.dart';
-import 'team_framework_loader.dart';
+import '../team_framework/team_framework_loader.dart';
 
 /// Resolves agent configurations from the team framework.
 ///

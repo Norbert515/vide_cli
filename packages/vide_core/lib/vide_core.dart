@@ -23,56 +23,67 @@ export 'src/api/vide_session.dart' show LocalVideSession;
 export 'src/api/local_vide_session_manager.dart' show LocalVideSessionManager;
 
 // =============================================================================
-// Models
+// Models (shared across features)
 // =============================================================================
 export 'src/models/agent_network.dart';
 export 'src/models/agent_metadata.dart';
 export 'src/models/agent_id.dart';
 export 'src/models/agent_status.dart';
 export 'src/models/permission_mode.dart';
-export 'src/models/team_framework/team_framework.dart';
 
 // =============================================================================
-// Services
+// Agent Network
 // =============================================================================
-export 'src/services/vide_config_manager.dart';
-export 'src/services/bashboard_service.dart';
-export 'src/services/permission_provider.dart' show PermissionHandler, permissionHandlerProvider;
-export 'src/services/agent_network_persistence_manager.dart';
-export 'src/services/team_framework_loader.dart';
-export 'src/services/auto_update_service.dart';
-export 'src/services/claude_manager.dart' show claudeStatusProvider, claudeProvider;
+export 'src/agent_network/agent_status_manager.dart';
+export 'src/agent_network/agent_network_persistence_manager.dart';
 
-// Permissions (public utilities used by TUI)
-export 'src/services/permissions/permission_matcher.dart';
-export 'src/services/permissions/bash_command_parser.dart';
-export 'src/services/permissions/safe_commands.dart';
-export 'src/services/permissions/pattern_inference.dart';
-export 'src/services/permissions/tool_input.dart';
-export 'src/services/permissions/permissions.dart';
+// =============================================================================
+// Claude
+// =============================================================================
+export 'src/claude/claude_manager.dart'
+    show claudeStatusProvider, claudeProvider;
 
-// Settings
-export 'src/services/settings/local_settings_manager.dart';
+// =============================================================================
+// Permissions
+// =============================================================================
+export 'src/permissions/permission_provider.dart'
+    show PermissionHandler, permissionHandlerProvider;
+export 'src/permissions/permission_matcher.dart';
+export 'src/permissions/bash_command_parser.dart';
+export 'src/permissions/safe_commands.dart';
+export 'src/permissions/pattern_inference.dart';
+export 'src/permissions/tool_input.dart';
+export 'src/permissions/permissions.dart';
+
+// =============================================================================
+// Configuration
+// =============================================================================
+export 'src/configuration/vide_core_config.dart';
+export 'src/configuration/vide_config_manager.dart';
+export 'src/configuration/local_settings_manager.dart';
+export 'src/configuration/working_dir_provider.dart';
+export 'src/configuration/dangerously_skip_permissions_provider.dart';
+
+// =============================================================================
+// Team Framework
+// =============================================================================
+export 'src/team_framework/team_framework.dart';
+export 'src/team_framework/team_framework_loader.dart';
+
+// =============================================================================
+// Analytics
+// =============================================================================
+export 'src/analytics/bashboard_service.dart';
+export 'src/analytics/auto_update_service.dart';
 
 // =============================================================================
 // Git (public models + client + service)
 // =============================================================================
 export 'src/mcp/git/git_client.dart';
 export 'src/mcp/git/git_models.dart';
-export 'src/mcp/git/git_providers.dart' show gitStatusStreamProvider, isGitRepoProvider;
-export 'src/services/git_service.dart';
-
-// =============================================================================
-// Configuration
-// =============================================================================
-export 'src/vide_core_config.dart';
-
-// =============================================================================
-// Utilities
-// =============================================================================
-export 'src/state/agent_status_manager.dart';
-export 'src/utils/working_dir_provider.dart';
-export 'src/utils/dangerously_skip_permissions_provider.dart';
+export 'src/mcp/git/git_providers.dart'
+    show gitStatusStreamProvider, isGitRepoProvider;
+export 'src/git/git_service.dart';
 
 // =============================================================================
 // Claude SDK Re-exports (types needed by TUI for rendering/settings)

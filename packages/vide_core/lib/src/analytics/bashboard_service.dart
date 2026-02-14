@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:bashboard/bashboard.dart';
 import 'package:uuid/uuid.dart';
 import '../../version.dart';
-import 'vide_config_manager.dart';
+import '../configuration/vide_config_manager.dart';
 
 /// Bashboard analytics service for tracking product usage.
 ///

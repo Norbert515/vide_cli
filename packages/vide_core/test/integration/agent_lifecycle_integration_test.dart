@@ -2,7 +2,7 @@ import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:test/test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
+import 'package:vide_core/src/claude/claude_manager.dart';
 import '../helpers/mock_claude_client.dart';
 
 /// Integration tests for Agent lifecycle components working together.

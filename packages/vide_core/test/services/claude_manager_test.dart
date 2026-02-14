@@ -1,6 +1,6 @@
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
+import 'package:vide_core/src/claude/claude_manager.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 
 /// A minimal mock ClaudeClient for testing

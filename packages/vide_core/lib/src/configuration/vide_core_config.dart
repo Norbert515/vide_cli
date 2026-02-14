@@ -1,6 +1,6 @@
 import 'package:riverpod/riverpod.dart';
-import 'services/permission_provider.dart';
-import 'services/vide_config_manager.dart';
+import '../permissions/permission_provider.dart';
+import 'vide_config_manager.dart';
 
 /// Configuration values that must be provided by the UI layer.
 ///

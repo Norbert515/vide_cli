@@ -1,6 +1,6 @@
 import 'package:test/test.dart';
-import 'package:vide_core/src/models/team_framework/team_definition.dart';
-import 'package:vide_core/src/services/trigger_service.dart';
+import 'package:vide_core/src/team_framework/team_definition.dart';
+import 'package:vide_core/src/team_framework/trigger_service.dart';
 import 'package:vide_core/src/models/agent_network.dart';
 import 'package:vide_core/src/models/agent_metadata.dart';
 

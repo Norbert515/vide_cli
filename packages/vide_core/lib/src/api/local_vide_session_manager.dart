@@ -16,11 +16,11 @@ import 'package:claude_sdk/claude_sdk.dart' show Attachment, Message;
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_interface/vide_interface.dart';
 
-import '../services/agent_network_manager.dart';
-import '../services/agent_network_persistence_manager.dart';
-import '../services/permission_provider.dart' show PermissionHandler;
-import '../services/vide_config_manager.dart';
-import '../vide_core_config.dart';
+import '../agent_network/agent_network_manager.dart';
+import '../agent_network/agent_network_persistence_manager.dart';
+import '../permissions/permission_provider.dart' show PermissionHandler;
+import '../configuration/vide_config_manager.dart';
+import '../configuration/vide_core_config.dart';
 import 'vide_session.dart';
 
 /// Manages session lifecycle for local (in-process) sessions.

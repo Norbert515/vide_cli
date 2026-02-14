@@ -13,14 +13,14 @@ import 'package:vide_interface/vide_interface.dart';
 
 import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
-import '../services/agent_network_manager.dart';
-import '../services/claude_manager.dart';
-import '../services/permissions/pattern_inference.dart';
-import '../services/permissions/permission_checker.dart';
-import '../services/permissions/tool_input.dart';
-import '../services/settings/local_settings_manager.dart';
-import '../state/agent_status_manager.dart';
-import '../vide_core_config.dart';
+import '../agent_network/agent_network_manager.dart';
+import '../claude/claude_manager.dart';
+import '../permissions/pattern_inference.dart';
+import '../permissions/permission_checker.dart';
+import '../permissions/tool_input.dart';
+import '../configuration/local_settings_manager.dart';
+import '../agent_network/agent_status_manager.dart';
+import '../configuration/vide_core_config.dart';
 
 /// An active local (in-process) session with a network of agents.
 ///

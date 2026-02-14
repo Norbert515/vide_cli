@@ -1,5 +1,5 @@
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/models/claude_settings.dart';
+import 'package:vide_core/src/configuration/claude_settings.dart';
 
 /// Factory functions for creating test objects
 class TestFixtures {

@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:riverpod/riverpod.dart';
 import '../models/agent_network.dart';
-import '../vide_core_config.dart';
-import 'vide_config_manager.dart';
+import '../configuration/vide_core_config.dart';
+import '../configuration/vide_config_manager.dart';
 import 'package:path/path.dart' as path;
 
 final agentNetworkPersistenceManagerProvider =

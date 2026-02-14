@@ -1,17 +1,17 @@
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:uuid/uuid.dart';
 
-import '../agents/agent_configuration.dart';
+import '../claude/agent_configuration.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
-import 'agent_config_resolver.dart';
+import '../claude/agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
-import 'bashboard_service.dart';
-import 'claude_client_factory.dart';
-import 'claude_manager.dart';
-import 'team_framework_loader.dart';
+import '../analytics/bashboard_service.dart';
+import '../claude/claude_client_factory.dart';
+import '../claude/claude_manager.dart';
+import '../team_framework/team_framework_loader.dart';
 
 /// Manages the lifecycle of agents within a network.
 ///

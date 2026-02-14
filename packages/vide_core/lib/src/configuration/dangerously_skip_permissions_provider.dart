@@ -1,5 +1,5 @@
 import 'package:riverpod/riverpod.dart';
-import '../vide_core_config.dart';
+import 'vide_core_config.dart';
 
 /// Skip permissions flag. Reads from [videCoreConfigProvider].
 ///

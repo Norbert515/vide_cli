@@ -7,7 +7,7 @@ import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
 import '../../version.dart';
-import 'vide_config_manager.dart';
+import '../configuration/vide_config_manager.dart';
 
 /// Represents the current state of the auto-update system
 enum UpdateStatus {

@@ -4,8 +4,8 @@ import 'package:claude_sdk/claude_sdk.dart' as claude;
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/services/agent_network_manager.dart';
-import 'package:vide_core/src/services/claude_manager.dart';
+import 'package:vide_core/src/agent_network/agent_network_manager.dart';
+import 'package:vide_core/src/claude/claude_manager.dart';
 
 import '../helpers/mock_claude_client.dart';
 import '../helpers/mock_vide_config_manager.dart';
