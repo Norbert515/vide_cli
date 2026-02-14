@@ -386,48 +386,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ],
             ),
-          Expanded(
-            child: LiquidGlassLayer(
+          if (hasAgents)
+            LiquidGlassLayer(
               settings: const LiquidGlassSettings(
                 thickness: 02,
                 refractiveIndex: 1.2,
                 glassColor: Color(0x18FFFFFF),
                 lightAngle: 0.5,
               ),
-              child: Stack(
-                children: [
-                  // Message content fills the full area
-                  Positioned.fill(child: _buildTabContent()),
-                  // Glass tab bar floats on top
-                  if (hasAgents)
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      child: AgentTabBar(
-                        agents: _agents,
-                        selectedIndex: _selectedTabIndex,
-                        onTabSelected: (index) {
-                          setState(() => _selectedTabIndex = index);
-                        },
-                      ),
-                    ),
-                  // Input bar floats at the bottom
-                  Positioned(
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    child: InputBar(
-                      controller: _inputController,
-                      enabled: inputEnabled,
-                      isLoading: isProcessing,
-                      onSend: _sendMessage,
-                      onAbort: _abort,
-                    ),
-                  ),
-                ],
+              child: AgentTabBar(
+                agents: _agents,
+                selectedIndex: _selectedTabIndex,
+                onTabSelected: (index) {
+                  setState(() => _selectedTabIndex = index);
+                },
               ),
             ),
+          Expanded(child: _buildTabContent()),
+          InputBar(
+            controller: _inputController,
+            enabled: inputEnabled,
+            isLoading: isProcessing,
+            onSend: _sendMessage,
+            onAbort: _abort,
           ),
         ],
       ),
@@ -574,10 +555,7 @@ class _MessageList extends StatelessWidget {
         child: ListView.builder(
           reverse: true,
           controller: scrollController,
-          padding: EdgeInsets.only(
-            top: agentTabBarHeight + 8,
-            bottom: 120 + MediaQuery.of(context).padding.bottom,
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: totalCount,
           itemBuilder: (context, reverseIndex) {
             // In a reversed list, index 0 is the bottom (newest).

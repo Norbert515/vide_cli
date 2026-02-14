@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
 
-/// Floating message input bar with liquid glass effect.
+/// Message input bar with send/abort actions.
 class InputBar extends StatefulWidget {
   final TextEditingController controller;
   final bool enabled;
@@ -60,87 +59,81 @@ class _InputBarState extends State<InputBar> {
     final colorScheme = Theme.of(context).colorScheme;
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
-    return Padding(
-      padding: EdgeInsets.only(
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return Container(
+      margin: EdgeInsets.only(
         left: VideSpacing.sm,
         right: VideSpacing.sm,
         bottom: VideSpacing.sm + bottomPadding,
       ),
-      child: LiquidGlass.withOwnLayer(
-        settings: LiquidGlassSettings(
-          thickness: 12,
-          blur: 20,
-          glassColor: colorScheme.surface.withValues(alpha: 0.3),
-          refractiveIndex: 1.1,
-          lightIntensity: 0.3,
-        ),
-        shape: const LiquidRoundedSuperellipse(borderRadius: 24),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 8,
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 120),
-                  child: KeyboardListener(
-                    focusNode: FocusNode(),
-                    onKeyEvent: (event) {
-                      if (event is KeyDownEvent &&
-                          event.logicalKey == LogicalKeyboardKey.enter &&
-                          !HardwareKeyboard.instance.isShiftPressed) {
-                        if (_hasText && widget.enabled && !widget.isLoading) {
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            final text = widget.controller.text;
-                            if (text.endsWith('\n')) {
-                              widget.controller.text =
-                                  text.substring(0, text.length - 1);
-                            }
-                            _handleSend();
-                          });
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: videColors.glassBorder, width: 1),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 8,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 120),
+              child: KeyboardListener(
+                focusNode: FocusNode(),
+                onKeyEvent: (event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.enter &&
+                      !HardwareKeyboard.instance.isShiftPressed) {
+                    if (_hasText && widget.enabled && !widget.isLoading) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final text = widget.controller.text;
+                        if (text.endsWith('\n')) {
+                          widget.controller.text =
+                              text.substring(0, text.length - 1);
                         }
-                      }
-                    },
-                    child: TextField(
-                      controller: widget.controller,
-                      enabled: widget.enabled && !widget.isLoading,
-                      maxLines: null,
-                      textInputAction: TextInputAction.newline,
-                      keyboardType: TextInputType.multiline,
-                      style: TextStyle(color: colorScheme.onSurface),
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        hintStyle:
-                            TextStyle(color: colorScheme.onSurfaceVariant),
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        disabledBorder: InputBorder.none,
-                        filled: false,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 8,
-                        ),
-                      ),
+                        _handleSend();
+                      });
+                    }
+                  }
+                },
+                child: TextField(
+                  controller: widget.controller,
+                  enabled: widget.enabled && !widget.isLoading,
+                  maxLines: null,
+                  textInputAction: TextInputAction.newline,
+                  keyboardType: TextInputType.multiline,
+                  style: TextStyle(color: colorScheme.onSurface),
+                  decoration: InputDecoration(
+                    hintText: 'Type a message...',
+                    hintStyle:
+                        TextStyle(color: colorScheme.onSurfaceVariant),
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    filled: false,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              if (widget.isLoading)
-                _AbortButton(onAbort: widget.onAbort)
-              else
-                _SendButton(
-                  enabled: _hasText && widget.enabled,
-                  onSend: _handleSend,
-                ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          if (widget.isLoading)
+            _AbortButton(onAbort: widget.onAbort)
+          else
+            _SendButton(
+              enabled: _hasText && widget.enabled,
+              onSend: _handleSend,
+            ),
+        ],
       ),
     );
   }
@@ -188,13 +181,13 @@ class _AbortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       height: 36,
       width: 36,
       decoration: BoxDecoration(
-        color: videColors.errorContainer,
+        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.15),
         shape: BoxShape.circle,
       ),
       child: IconButton(
@@ -203,7 +196,7 @@ class _AbortButton extends StatelessWidget {
         onPressed: onAbort,
         icon: Icon(
           Icons.stop_rounded,
-          color: videColors.error,
+          color: colorScheme.onSurfaceVariant,
         ),
         tooltip: 'Stop',
       ),
