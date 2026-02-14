@@ -89,6 +89,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }) : _claudeManager = claudeManager,
        _persistenceManager = persistenceManager,
        _getTriggerService = getTriggerService,
+       _getStatusNotifier = getStatusNotifier,
        super(AgentNetworkState()) {
     _clientFactory = ClaudeClientFactoryImpl(
       getWorkingDirectory: () => effectiveWorkingDirectory,
@@ -138,6 +139,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final ClaudeManagerStateNotifier _claudeManager;
   final AgentNetworkPersistenceManager _persistenceManager;
   final TriggerService Function() _getTriggerService;
+  final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
   late final ClaudeClientFactory _clientFactory;
   late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;
@@ -285,6 +287,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Send the initial message - it will be queued until client is ready
     if (initialMessage != null) {
       mainAgentClaudeClient.sendMessage(initialMessage);
+      // Set status to working immediately so the UI shows activity
+      // during CLI startup (before ClaudeStatus.processing arrives)
+      _getStatusNotifier(mainAgentId).setStatus(AgentStatus.working);
     }
 
     // Fire onSessionStart trigger in background (don't block startup)
