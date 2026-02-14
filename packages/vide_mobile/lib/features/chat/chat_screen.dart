@@ -412,8 +412,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             icon: const Icon(Icons.arrow_back),
             onPressed: () => context.go(AppRoutes.sessions)),
         title: const Text('Session'),
-        actions: const [
-          Padding(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.folder_outlined),
+            onPressed: () {
+              final workingDir = _session?.state.workingDirectory ?? '';
+              context.push(
+                AppRoutes.filesPath(widget.sessionId),
+                extra: workingDir,
+              );
+            },
+            tooltip: 'Files',
+          ),
+          const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Center(child: ConnectionStatusChip()),
           ),
