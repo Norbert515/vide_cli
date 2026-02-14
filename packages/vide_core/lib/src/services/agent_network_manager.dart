@@ -3,11 +3,15 @@ import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../agents/agent_configuration.dart';
+import '../mcp/mcp_provider.dart';
+import '../mcp/mcp_server_type.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
+import '../models/agent_status.dart';
 import '../models/permission_mode.dart';
-import '../utils/working_dir_provider.dart';
+import '../state/agent_status_manager.dart';
+import '../vide_core_config.dart';
 import 'agent_config_resolver.dart';
 import 'agent_lifecycle_service.dart';
 import 'agent_network_persistence_manager.dart';
@@ -18,6 +22,7 @@ import 'claude_manager.dart';
 import 'permission_provider.dart';
 import 'team_framework_loader.dart';
 import 'trigger_service.dart';
+import 'vide_config_manager.dart';
 import 'worktree_service.dart';
 
 /// The state of the agent network manager - just tracks the current network
@@ -40,35 +45,72 @@ class AgentNetworkState {
   }
 }
 
-final agentNetworkManagerProvider =
+final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
+    agentNetworkManagerProvider =
     StateNotifierProvider<AgentNetworkManager, AgentNetworkState>((ref) {
+      final config = ref.watch(videCoreConfigProvider);
       return AgentNetworkManager(
-        workingDirectory: ref.watch(workingDirProvider),
-        ref: ref,
+        workingDirectory: config.workingDirectory,
+        claudeManager: ref.read(claudeManagerProvider.notifier),
+        persistenceManager: ref.read(agentNetworkPersistenceManagerProvider),
+        getTriggerService: () => ref.read(triggerServiceProvider),
+        createMcpServer: (agentId, type, projectPath) => ref.read(
+          genericMcpServerProvider(AgentIdAndMcpServerType(
+            agentId: agentId,
+            mcpServerType: type,
+            projectPath: projectPath,
+          )),
+        ),
+        getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
+        getStatus: (id) => ref.read(agentStatusProvider(id)),
+        permissionHandler: config.permissionHandler,
+        configManager: config.configManager,
+        getDangerouslySkipPermissions: () {
+          final c = ref.read(videCoreConfigProvider);
+          return c.dangerouslySkipPermissions ||
+              c.configManager.readGlobalSettings().dangerouslySkipPermissions;
+        },
       );
     });
 
 class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
-  AgentNetworkManager({required this.workingDirectory, required Ref ref})
-    : _ref = ref,
-      super(AgentNetworkState()) {
+  AgentNetworkManager({
+    required this.workingDirectory,
+    required ClaudeManagerStateNotifier claudeManager,
+    required AgentNetworkPersistenceManager persistenceManager,
+    required TriggerService Function() getTriggerService,
+    required McpServerBase Function(AgentId, McpServerType, String) createMcpServer,
+    required AgentStatusNotifier Function(AgentId) getStatusNotifier,
+    required AgentStatus Function(AgentId) getStatus,
+    required PermissionHandler permissionHandler,
+    required VideConfigManager configManager,
+    required bool Function() getDangerouslySkipPermissions,
+  }) : _claudeManager = claudeManager,
+       _persistenceManager = persistenceManager,
+       _getTriggerService = getTriggerService,
+       super(AgentNetworkState()) {
     _clientFactory = ClaudeClientFactoryImpl(
       getWorkingDirectory: () => effectiveWorkingDirectory,
-      ref: _ref,
-      permissionHandler: _ref.read(permissionHandlerProvider),
+      configManager: configManager,
+      getDangerouslySkipPermissions: getDangerouslySkipPermissions,
+      createMcpServer: createMcpServer,
+      permissionHandler: permissionHandler,
     );
     _teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,
     );
 
     _statusSyncService = AgentStatusSyncService(
-      _ref,
-      () => state.currentNetwork,
+      getStatusNotifier: getStatusNotifier,
+      getStatus: getStatus,
+      getTriggerService: getTriggerService,
+      getCurrentNetwork: () => state.currentNetwork,
     );
     _configResolver = AgentConfigResolver(_teamFrameworkLoader);
     _worktreeService = WorktreeService(
       baseWorkingDirectory: workingDirectory,
-      ref: _ref,
+      claudeManager: claudeManager,
+      persistenceManager: persistenceManager,
       getCurrentNetwork: () => state.currentNetwork,
       updateState: (network) =>
           state = AgentNetworkState(currentNetwork: network),
@@ -77,7 +119,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       configResolver: _configResolver,
     );
     _lifecycleService = AgentLifecycleService(
-      ref: _ref,
+      claudeManager: claudeManager,
+      persistenceManager: persistenceManager,
       getCurrentNetwork: () => state.currentNetwork,
       updateState: (network) =>
           state = AgentNetworkState(currentNetwork: network),
@@ -91,13 +134,21 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }
 
   final String workingDirectory;
-  final Ref _ref;
+  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentNetworkPersistenceManager _persistenceManager;
+  final TriggerService Function() _getTriggerService;
   late final ClaudeClientFactory _clientFactory;
   late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;
   late final AgentConfigResolver _configResolver;
   late final WorktreeService _worktreeService;
   late final AgentLifecycleService _lifecycleService;
+
+  /// Public read-only access to the current network state.
+  ///
+  /// Use this instead of the protected [state] getter when accessing
+  /// from outside the StateNotifier subclass.
+  AgentNetworkState get currentState => state;
 
   /// Get the effective working directory (worktree if set and exists, else original).
   String get effectiveWorkingDirectory =>
@@ -211,9 +262,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Set state IMMEDIATELY so UI can navigate right away
     state = AgentNetworkState(currentNetwork: network);
 
-    _ref
-        .read(claudeManagerProvider.notifier)
-        .addAgent(mainAgentId, mainAgentClaudeClient);
+    _claudeManager.addAgent(mainAgentId, mainAgentClaudeClient);
 
     // Set up status sync to auto-update agent status when turn completes
     _statusSyncService.setupStatusSync(mainAgentId, mainAgentClaudeClient);
@@ -224,9 +273,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Do persistence in background
     () async {
       try {
-        await _ref
-            .read(agentNetworkPersistenceManagerProvider)
-            .saveNetwork(network);
+        await _persistenceManager.saveNetwork(network);
       } catch (e) {
         print('[AgentNetworkManager] Error saving network: $e');
       }
@@ -240,7 +287,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Fire onSessionStart trigger in background (don't block startup)
     () async {
       try {
-        final triggerService = _ref.read(triggerServiceProvider);
+        final triggerService = _getTriggerService();
         final context = TriggerContext(
           triggerPoint: TriggerPoint.onSessionStart,
           network: network,
@@ -277,9 +324,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
     // Persist in background - UI already has the data
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     // Recreate ClaudeClients for each agent in the network
     for (final agentMetadata in updatedNetwork.agents) {
@@ -297,9 +342,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
           agentType: agentMetadata.type,
           workingDirectory: agentMetadata.workingDirectory,
         );
-        _ref
-            .read(claudeManagerProvider.notifier)
-            .addAgent(agentMetadata.id, client);
+        _claudeManager.addAgent(agentMetadata.id, client);
         // Set up status sync to auto-update agent status when turn completes
         _statusSyncService.setupStatusSync(agentMetadata.id, client);
       } catch (e) {
@@ -339,9 +382,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       goal: newGoal,
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -364,9 +405,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agents: updatedAgents,
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -389,9 +428,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agents: updatedAgents,
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -416,9 +453,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       agents: updatedAgents,
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     state = AgentNetworkState(currentNetwork: updatedNetwork);
   }
@@ -466,14 +501,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }
 
   void sendMessage(AgentId agentId, Message message) {
-    final claudeManager = _ref.read(claudeProvider(agentId));
-    if (claudeManager == null) {
+    final client = _claudeManager.clients[agentId];
+    if (client == null) {
       print(
         '[AgentNetworkManager] WARNING: No ClaudeClient found for agent: $agentId',
       );
       return;
     }
-    claudeManager.sendMessage(message);
+    client.sendMessage(message);
   }
 
   /// Spawn a new agent into the current network by agent type.
@@ -541,10 +576,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required String message,
     required AgentId sentBy,
   }) {
-    final claudeClients = _ref.read(claudeManagerProvider);
-
     // Check if target agent exists
-    final targetClient = claudeClients[targetAgentId];
+    final targetClient = _claudeManager.clients[targetAgentId];
     if (targetClient == null) {
       throw Exception('Agent not found: $targetAgentId');
     }
@@ -598,7 +631,7 @@ $message''';
     }
 
     try {
-      final triggerService = _ref.read(triggerServiceProvider);
+      final triggerService = _getTriggerService();
       final context = TriggerContext(
         triggerPoint: TriggerPoint.onSessionEnd,
         network: network,
@@ -628,7 +661,7 @@ $message''';
     }
 
     try {
-      final triggerService = _ref.read(triggerServiceProvider);
+      final triggerService = _getTriggerService();
       final context = TriggerContext(
         triggerPoint: TriggerPoint.onAllAgentsIdle,
         network: network,

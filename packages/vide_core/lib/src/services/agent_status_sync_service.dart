@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
@@ -15,9 +14,19 @@ import 'trigger_service.dart';
 /// (e.g., setting to idle when a turn completes). Also fires the
 /// onAllAgentsIdle trigger when all non-triggered agents become idle.
 class AgentStatusSyncService {
-  AgentStatusSyncService(this._ref, this._getCurrentNetwork);
+  AgentStatusSyncService({
+    required AgentStatusNotifier Function(AgentId) getStatusNotifier,
+    required AgentStatus Function(AgentId) getStatus,
+    required TriggerService Function() getTriggerService,
+    required AgentNetwork? Function() getCurrentNetwork,
+  }) : _getStatusNotifier = getStatusNotifier,
+       _getStatus = getStatus,
+       _getTriggerService = getTriggerService,
+       _getCurrentNetwork = getCurrentNetwork;
 
-  final Ref _ref;
+  final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
+  final AgentStatus Function(AgentId) _getStatus;
+  final TriggerService Function() _getTriggerService;
   final AgentNetwork? Function() _getCurrentNetwork;
   final Map<AgentId, StreamSubscription<ClaudeStatus>>
   _statusSyncSubscriptions = {};
@@ -33,10 +42,8 @@ class AgentStatusSyncService {
     _statusSyncSubscriptions[agentId] = client.statusStream.listen((
       claudeStatus,
     ) {
-      final agentStatusNotifier = _ref.read(
-        agentStatusProvider(agentId).notifier,
-      );
-      final currentAgentStatus = _ref.read(agentStatusProvider(agentId));
+      final agentStatusNotifier = _getStatusNotifier(agentId);
+      final currentAgentStatus = _getStatus(agentId);
 
       switch (claudeStatus) {
         case ClaudeStatus.processing:
@@ -105,7 +112,7 @@ class AgentStatusSyncService {
     // Check if all non-triggered agents are idle
     var allIdle = true;
     for (final agent in nonTriggeredAgents) {
-      final status = _ref.read(agentStatusProvider(agent.id));
+      final status = _getStatus(agent.id);
       if (status != AgentStatus.idle) {
         allIdle = false;
         break;
@@ -116,7 +123,7 @@ class AgentStatusSyncService {
       // Fire trigger in background
       () async {
         try {
-          final triggerService = _ref.read(triggerServiceProvider);
+          final triggerService = _getTriggerService();
           final context = TriggerContext(
             triggerPoint: TriggerPoint.onAllAgentsIdle,
             network: network,

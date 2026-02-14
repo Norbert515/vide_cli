@@ -63,6 +63,11 @@ export 'src/mcp/git/git_providers.dart' show gitStatusStreamProvider, isGitRepoP
 export 'src/services/git_service.dart';
 
 // =============================================================================
+// Configuration
+// =============================================================================
+export 'src/vide_core_config.dart';
+
+// =============================================================================
 // Utilities
 // =============================================================================
 export 'src/state/agent_status_manager.dart';

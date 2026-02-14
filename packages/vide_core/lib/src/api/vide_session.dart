@@ -19,9 +19,8 @@ import '../services/permissions/pattern_inference.dart';
 import '../services/permissions/permission_checker.dart';
 import '../services/permissions/tool_input.dart';
 import '../services/settings/local_settings_manager.dart';
-import '../services/vide_config_manager.dart';
 import '../state/agent_status_manager.dart';
-import '../utils/dangerously_skip_permissions_provider.dart';
+import '../vide_core_config.dart';
 
 /// An active local (in-process) session with a network of agents.
 ///
@@ -671,10 +670,9 @@ class LocalVideSession implements VideSession {
 
   /// Whether to skip all permission checks (auto-approve everything).
   bool get _dangerouslySkipPermissions {
-    final sessionOverride = _container.read(dangerouslySkipPermissionsProvider);
-    if (sessionOverride) return true;
-    final configManager = _container.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+    final config = _container.read(videCoreConfigProvider);
+    if (config.dangerouslySkipPermissions) return true;
+    return config.configManager.readGlobalSettings().dangerouslySkipPermissions;
   }
 
   /// Internal permission callback implementation using claude_sdk types.

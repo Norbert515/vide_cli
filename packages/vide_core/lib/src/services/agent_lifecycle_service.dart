@@ -1,5 +1,4 @@
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../agents/agent_configuration.dart';
@@ -21,7 +20,8 @@ import 'team_framework_loader.dart';
 /// and AgentConfigResolver for configuration loading.
 class AgentLifecycleService {
   AgentLifecycleService({
-    required Ref ref,
+    required ClaudeManagerStateNotifier claudeManager,
+    required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
     required ClaudeClientFactory clientFactory,
@@ -30,7 +30,8 @@ class AgentLifecycleService {
     required TeamFrameworkLoader teamFrameworkLoader,
     required void Function(AgentId, Message) sendMessage,
     required Future<void> Function(AgentId, String) updateAgentSessionId,
-  }) : _ref = ref,
+  }) : _claudeManager = claudeManager,
+       _persistenceManager = persistenceManager,
        _getCurrentNetwork = getCurrentNetwork,
        _updateState = updateState,
        _clientFactory = clientFactory,
@@ -40,7 +41,8 @@ class AgentLifecycleService {
        _sendMessage = sendMessage,
        _updateAgentSessionId = updateAgentSessionId;
 
-  final Ref _ref;
+  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
   final ClaudeClientFactory _clientFactory;
@@ -68,7 +70,7 @@ class AgentLifecycleService {
       agentType: metadata.type,
       workingDirectory: metadata.workingDirectory,
     );
-    _ref.read(claudeManagerProvider.notifier).addAgent(agentId, client);
+    _claudeManager.addAgent(agentId, client);
     // Set up status sync to auto-update agent status when turn completes
     _statusSyncService.setupStatusSync(agentId, client);
 
@@ -77,9 +79,7 @@ class AgentLifecycleService {
       agents: [...network.agents, metadata],
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     _updateState(updatedNetwork);
 
@@ -211,8 +211,7 @@ $initialPrompt''';
     }
 
     // Get and abort the ClaudeClient
-    final claudeClients = _ref.read(claudeManagerProvider);
-    final client = claudeClients[targetAgentId];
+    final client = _claudeManager.clients[targetAgentId];
     if (client != null) {
       await client.abort();
     }
@@ -221,7 +220,7 @@ $initialPrompt''';
     _statusSyncService.cleanupStatusSync(targetAgentId);
 
     // Remove from ClaudeManager
-    _ref.read(claudeManagerProvider.notifier).removeAgent(targetAgentId);
+    _claudeManager.removeAgent(targetAgentId);
 
     // Remove from network agents list
     final updatedAgents = network.agents
@@ -233,9 +232,7 @@ $initialPrompt''';
     );
 
     // Persist
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     // Update state
     _updateState(updatedNetwork);
@@ -272,7 +269,7 @@ $initialPrompt''';
     }
 
     // Get source agent's Claude client to get the session ID
-    final sourceClient = _ref.read(claudeManagerProvider)[sourceAgentId];
+    final sourceClient = _claudeManager.clients[sourceAgentId];
     if (sourceClient == null) {
       throw Exception('No Claude client found for agent: $sourceAgentId');
     }
@@ -306,7 +303,7 @@ $initialPrompt''';
       sourceConversation: sourceClient.currentConversation,
     );
 
-    _ref.read(claudeManagerProvider.notifier).addAgent(newAgentId, client);
+    _claudeManager.addAgent(newAgentId, client);
     // Set up status sync for the forked agent
     _statusSyncService.setupStatusSync(newAgentId, client);
 
@@ -329,9 +326,7 @@ $initialPrompt''';
       agents: [...network.agents, metadata],
       lastActiveAt: DateTime.now(),
     );
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updatedNetwork);
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     _updateState(updatedNetwork);
 

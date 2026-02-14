@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:riverpod/riverpod.dart';
-
 import '../models/agent_network.dart';
 import 'agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
@@ -18,13 +16,15 @@ import 'claude_manager.dart';
 class WorktreeService {
   WorktreeService({
     required this.baseWorkingDirectory,
-    required Ref ref,
+    required ClaudeManagerStateNotifier claudeManager,
+    required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
     required ClaudeClientFactory clientFactory,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
-  }) : _ref = ref,
+  }) : _claudeManager = claudeManager,
+       _persistenceManager = persistenceManager,
        _getCurrentNetwork = getCurrentNetwork,
        _updateState = updateState,
        _clientFactory = clientFactory,
@@ -32,7 +32,8 @@ class WorktreeService {
        _configResolver = configResolver;
 
   final String baseWorkingDirectory;
-  final Ref _ref;
+  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
   final ClaudeClientFactory _clientFactory;
@@ -67,9 +68,7 @@ class WorktreeService {
         clearWorktreePath: true,
       );
       _updateState(updated);
-      await _ref
-          .read(agentNetworkPersistenceManagerProvider)
-          .saveNetwork(updated);
+      await _persistenceManager.saveNetwork(updated);
     }
   }
 
@@ -83,16 +82,14 @@ class WorktreeService {
     if (network == null) return;
 
     // 1. Abort and remove all existing Claude clients
-    final claudeManagerNotifier = _ref.read(claudeManagerProvider.notifier);
-    final claudeClients = _ref.read(claudeManagerProvider);
     for (final agentId in network.agentIds) {
-      final client = claudeClients[agentId];
+      final client = _claudeManager.clients[agentId];
       if (client != null) {
         await client.abort();
       }
       // Clean up status sync subscription
       _statusSyncService.cleanupStatusSync(agentId);
-      claudeManagerNotifier.removeAgent(agentId);
+      _claudeManager.removeAgent(agentId);
     }
 
     // 2. Update network with new worktree path
@@ -124,7 +121,7 @@ class WorktreeService {
           agentType: agentMetadata.type,
           workingDirectory: agentMetadata.workingDirectory,
         );
-        claudeManagerNotifier.addAgent(agentMetadata.id, client);
+        _claudeManager.addAgent(agentMetadata.id, client);
         // Set up status sync for the recreated client
         _statusSyncService.setupStatusSync(agentMetadata.id, client);
       } catch (e) {
@@ -136,8 +133,6 @@ class WorktreeService {
     }
 
     // 5. Persist the updated network
-    await _ref
-        .read(agentNetworkPersistenceManagerProvider)
-        .saveNetwork(updated);
+    await _persistenceManager.saveNetwork(updated);
   }
 }

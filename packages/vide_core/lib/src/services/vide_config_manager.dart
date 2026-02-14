@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:riverpod/riverpod.dart';
 
 import '../models/vide_global_settings.dart';
+import '../vide_core_config.dart';
 
 /// Manages global configuration directory for Vide CLI.
 ///
@@ -174,10 +175,7 @@ class VideConfigManager {
   }
 }
 
-/// Riverpod provider for VideConfigManager.
-///
-/// Must be overridden by the UI layer. Use `VideConfigManager()` for the
-/// standard `~/.vide` default, or pass a custom [configRoot] for testing.
+/// Riverpod provider for VideConfigManager. Reads from [videCoreConfigProvider].
 final videConfigManagerProvider = Provider<VideConfigManager>((ref) {
-  throw UnimplementedError('VideConfigManager must be overridden by UI');
+  return ref.watch(videCoreConfigProvider).configManager;
 });

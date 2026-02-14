@@ -29,22 +29,22 @@ final gitSidebarFocusProvider = StateProvider<bool>((ref) => false);
 /// Provider for IDE mode state. When true, the team sidebar is shown.
 /// Initialized from global settings and can be toggled via /ide command.
 final ideModeEnabledProvider = StateProvider<bool>((ref) {
-  final configManager = ref.read(videConfigManagerProvider);
-  return configManager.readGlobalSettings().ideModeEnabled;
+  final config = ref.read(videCoreConfigProvider);
+  return config.configManager.readGlobalSettings().ideModeEnabled;
 });
 
 /// Provider for git sidebar setting. When true, the git sidebar will show
 /// (if the current directory is a git repo).
 final gitSidebarEnabledProvider = StateProvider<bool>((ref) {
-  final configManager = ref.read(videConfigManagerProvider);
-  return configManager.readGlobalSettings().gitSidebarEnabled;
+  final config = ref.read(videCoreConfigProvider);
+  return config.configManager.readGlobalSettings().gitSidebarEnabled;
 });
 
 /// Provider for daemon mode setting. When true, sessions run on a persistent daemon.
 /// Initialized from global settings and can be toggled in settings.
 final daemonModeEnabledProvider = StateProvider<bool>((ref) {
-  final configManager = ref.read(videConfigManagerProvider);
-  return configManager.readGlobalSettings().daemonModeEnabled;
+  final config = ref.read(videCoreConfigProvider);
+  return config.configManager.readGlobalSettings().daemonModeEnabled;
 });
 
 /// Provider that checks if the current repo path is a git repository.
@@ -140,9 +140,15 @@ Future<void> main(
   late final ProviderContainer container;
   container = ProviderContainer(
     overrides: [
-      // Permission handler for late session binding. TUI uses AgentNetworkManager directly,
-      // which reads this provider at construction time, so we must override it here.
-      permissionHandlerProvider.overrideWithValue(_tuiPermissionHandler),
+      // Core configuration for vide_core. This is the single override that
+      // replaces individual provider overrides for working directory, config
+      // manager, permission handler, and skip-permissions flag.
+      videCoreConfigProvider.overrideWithValue(VideCoreConfig(
+        workingDirectory: Directory.current.path,
+        configManager: VideConfigManager(),
+        permissionHandler: _tuiPermissionHandler,
+        dangerouslySkipPermissions: dangerouslySkipPermissions,
+      )),
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
@@ -152,9 +158,6 @@ Future<void> main(
         daemonModeEnabledProvider.overrideWith((ref) => false)
       else if (forceDaemon || remoteConfig != null)
         daemonModeEnabledProvider.overrideWith((ref) => true),
-      // Session-scoped skip permissions (CLI flag, not persisted)
-      if (dangerouslySkipPermissions)
-        dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
       // Unified session manager — switches between local and remote based on
       // daemon connection state.
       videSessionManagerProvider.overrideWith((ref) {

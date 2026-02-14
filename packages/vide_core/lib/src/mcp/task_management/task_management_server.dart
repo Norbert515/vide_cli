@@ -8,7 +8,11 @@ import '../../services/trigger_service.dart';
 
 final taskManagementServerProvider =
     Provider.family<TaskManagementServer, AgentId>((ref, agentId) {
-      return TaskManagementServer(callerAgentId: agentId, ref: ref);
+      return TaskManagementServer(
+        callerAgentId: agentId,
+        networkManager: ref.watch(agentNetworkManagerProvider.notifier),
+        getTriggerService: () => ref.read(triggerServiceProvider),
+      );
     });
 
 /// MCP server for task management operations
@@ -16,11 +20,16 @@ class TaskManagementServer extends McpServerBase {
   static const String serverName = 'vide-task-management';
 
   final AgentId callerAgentId;
-  final Ref _ref;
+  final AgentNetworkManager _networkManager;
+  final TriggerService Function() _getTriggerService;
 
-  TaskManagementServer({required this.callerAgentId, required Ref ref})
-    : _ref = ref,
-      super(name: serverName, version: '1.0.0');
+  TaskManagementServer({
+    required this.callerAgentId,
+    required AgentNetworkManager networkManager,
+    required TriggerService Function() getTriggerService,
+  }) : _networkManager = networkManager,
+       _getTriggerService = getTriggerService,
+       super(name: serverName, version: '1.0.0');
 
   @override
   List<String> get toolNames => [
@@ -61,9 +70,7 @@ class TaskManagementServer extends McpServerBase {
         final taskName = args['taskName'] as String;
 
         try {
-          await _ref
-              .read(agentNetworkManagerProvider.notifier)
-              .updateGoal(taskName);
+          await _networkManager.updateGoal(taskName);
 
           return CallToolResult.fromContent(
             content: [TextContent(text: 'Task name updated to: "$taskName"')],
@@ -110,9 +117,7 @@ class TaskManagementServer extends McpServerBase {
         final taskName = args['taskName'] as String;
 
         try {
-          await _ref
-              .read(agentNetworkManagerProvider.notifier)
-              .updateAgentTaskName(callerAgentId, taskName);
+          await _networkManager.updateAgentTaskName(callerAgentId, taskName);
 
           return CallToolResult.fromContent(
             content: [
@@ -168,7 +173,7 @@ class TaskManagementServer extends McpServerBase {
         final filesChanged = (args['filesChanged'] as List?)?.cast<String>();
 
         try {
-          final network = _ref.read(agentNetworkManagerProvider).currentNetwork;
+          final network = _networkManager.currentState.currentNetwork;
 
           if (network == null) {
             return CallToolResult.fromContent(
@@ -177,7 +182,7 @@ class TaskManagementServer extends McpServerBase {
           }
 
           // Fire the onTaskComplete trigger
-          final triggerService = _ref.read(triggerServiceProvider);
+          final triggerService = _getTriggerService();
           final context = TriggerContext(
             triggerPoint: TriggerPoint.onTaskComplete,
             network: network,

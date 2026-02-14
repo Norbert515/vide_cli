@@ -8,14 +8,17 @@ import '../../services/trigger_service.dart';
 import '../../state/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
-final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((
+final ProviderFamily<AgentMCPServer, AgentId> agentServerProvider =
+    Provider.family<AgentMCPServer, AgentId>((
   ref,
   agentId,
 ) {
   return AgentMCPServer(
     callerAgentId: agentId,
     networkManager: ref.watch(agentNetworkManagerProvider.notifier),
-    ref: ref,
+    getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
+    getStatus: (id) => ref.read(agentStatusProvider(id)),
+    getTriggerService: () => ref.read(triggerServiceProvider),
   );
 });
 
@@ -31,14 +34,20 @@ class AgentMCPServer extends McpServerBase {
 
   final AgentId callerAgentId;
   final AgentNetworkManager _networkManager;
-  final Ref _ref;
+  final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
+  final AgentStatus Function(AgentId) _getStatus;
+  final TriggerService Function() _getTriggerService;
 
   AgentMCPServer({
     required this.callerAgentId,
     required AgentNetworkManager networkManager,
-    required Ref ref,
+    required AgentStatusNotifier Function(AgentId) getStatusNotifier,
+    required AgentStatus Function(AgentId) getStatus,
+    required TriggerService Function() getTriggerService,
   }) : _networkManager = networkManager,
-       _ref = ref,
+       _getStatusNotifier = getStatusNotifier,
+       _getStatus = getStatus,
+       _getTriggerService = getTriggerService,
        super(name: serverName, version: '1.0.0');
 
   @override
@@ -259,9 +268,7 @@ Call this when:
         }
 
         try {
-          _ref
-              .read(agentStatusProvider(callerAgentId).notifier)
-              .setStatus(status);
+          _getStatusNotifier(callerAgentId).setStatus(status);
 
           // If agent became idle, check if all agents are now idle
           if (status == AgentStatus.idle) {
@@ -293,13 +300,13 @@ Call this when:
 
   /// Check if all agents in the network are idle, and fire trigger if so.
   void _checkAllAgentsIdle() {
-    final network = _ref.read(agentNetworkManagerProvider).currentNetwork;
+    final network = _networkManager.currentState.currentNetwork;
     if (network == null) return;
 
     // Check status of all agents
     var allIdle = true;
     for (final agent in network.agents) {
-      final status = _ref.read(agentStatusProvider(agent.id));
+      final status = _getStatus(agent.id);
       if (status != AgentStatus.idle) {
         allIdle = false;
         break;
@@ -313,7 +320,7 @@ Call this when:
       // Fire trigger in background (don't block the tool response)
       () async {
         try {
-          final triggerService = _ref.read(triggerServiceProvider);
+          final triggerService = _getTriggerService();
           final context = TriggerContext(
             triggerPoint: TriggerPoint.onAllAgentsIdle,
             network: network,

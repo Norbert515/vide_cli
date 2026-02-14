@@ -6,6 +6,7 @@ import 'package:vide_interface/vide_interface.dart';
 
 import '../api/vide_session.dart';
 import '../models/agent_id.dart';
+import '../vide_core_config.dart';
 
 /// Handler that manages permission callbacks with late session binding.
 ///
@@ -179,17 +180,7 @@ class PermissionCallbackContext {
   });
 }
 
-/// Provider for the permission handler.
-///
-/// This MUST be overridden with a PermissionHandler instance.
-/// After each session is created, call handler.setSession(session) to register
-/// the session's agents for permission routing.
-///
-/// Throws [StateError] if accessed without being overridden - this is a
-/// security requirement to ensure permissions are always checked.
+/// Provider for the permission handler. Reads from [videCoreConfigProvider].
 final permissionHandlerProvider = Provider<PermissionHandler>((ref) {
-  throw StateError(
-    'permissionHandlerProvider must be overridden with a PermissionHandler. '
-    'This is required for security - permissions cannot be auto-allowed.',
-  );
+  return ref.watch(videCoreConfigProvider).permissionHandler;
 });

@@ -18,11 +18,9 @@ import 'package:vide_interface/vide_interface.dart';
 
 import '../services/agent_network_manager.dart';
 import '../services/agent_network_persistence_manager.dart';
-import '../services/permission_provider.dart'
-    show PermissionHandler, permissionHandlerProvider;
+import '../services/permission_provider.dart' show PermissionHandler;
 import '../services/vide_config_manager.dart';
-import '../utils/dangerously_skip_permissions_provider.dart';
-import '../utils/working_dir_provider.dart';
+import '../vide_core_config.dart';
 import 'vide_session.dart';
 
 /// Manages session lifecycle for local (in-process) sessions.
@@ -60,16 +58,16 @@ class LocalVideSessionManager implements VideSessionManager {
   ProviderContainer _containerForSession(String workingDirectory) {
     if (!_isolateContainers) return _container;
 
-    final videConfigManager = _container.read(videConfigManagerProvider);
-    final skipPermissions = _container.read(dangerouslySkipPermissionsProvider);
+    final config = _container.read(videCoreConfigProvider);
 
     return ProviderContainer(
       overrides: [
-        videConfigManagerProvider.overrideWithValue(videConfigManager),
-        workingDirProvider.overrideWithValue(workingDirectory),
-        permissionHandlerProvider.overrideWithValue(_permissionHandler),
-        if (skipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+        videCoreConfigProvider.overrideWithValue(VideCoreConfig(
+          workingDirectory: workingDirectory,
+          configManager: config.configManager,
+          permissionHandler: _permissionHandler,
+          dangerouslySkipPermissions: config.dangerouslySkipPermissions,
+        )),
       ],
     );
   }

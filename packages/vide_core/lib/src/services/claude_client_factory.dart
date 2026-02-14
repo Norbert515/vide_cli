@@ -1,10 +1,8 @@
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
 import '../agents/agent_configuration.dart';
-import '../mcp/mcp_provider.dart';
-import '../utils/dangerously_skip_permissions_provider.dart';
+import '../mcp/mcp_server_type.dart';
 import 'permission_provider.dart';
 import 'vide_config_manager.dart';
 
@@ -69,21 +67,26 @@ abstract class ClaudeClientFactory {
 /// Default implementation of ClaudeClientFactory.
 class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   final String Function() _getWorkingDirectory;
-  final Ref _ref;
+  final VideConfigManager _configManager;
+  final bool Function() _getDangerouslySkipPermissions;
+  final McpServerBase Function(AgentId agentId, McpServerType type, String projectPath) _createMcpServer;
   final PermissionHandler? _permissionHandler;
 
   ClaudeClientFactoryImpl({
     required String Function() getWorkingDirectory,
-    required Ref ref,
+    required VideConfigManager configManager,
+    required bool Function() getDangerouslySkipPermissions,
+    required McpServerBase Function(AgentId agentId, McpServerType type, String projectPath) createMcpServer,
     PermissionHandler? permissionHandler,
   }) : _getWorkingDirectory = getWorkingDirectory,
-       _ref = ref,
+       _configManager = configManager,
+       _getDangerouslySkipPermissions = getDangerouslySkipPermissions,
+       _createMcpServer = createMcpServer,
        _permissionHandler = permissionHandler;
 
   /// Gets the enableStreaming setting from global settings.
   bool get _enableStreaming {
-    final configManager = _ref.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().enableStreaming;
+    return _configManager.readGlobalSettings().enableStreaming;
   }
 
   /// Gets the dangerouslySkipPermissions setting.
@@ -94,14 +97,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   ///
   /// DANGEROUS: Only true in sandboxed environments (Docker).
   bool get _dangerouslySkipPermissions {
-    // Check session-scoped override first (CLI flag)
-    final sessionOverride = _ref.read(dangerouslySkipPermissionsProvider);
-    if (sessionOverride) {
-      return true;
-    }
-    // Fall back to global setting (settings UI)
-    final configManager = _ref.read(videConfigManagerProvider);
-    return configManager.readGlobalSettings().dangerouslySkipPermissions;
+    return _getDangerouslySkipPermissions();
   }
 
   @override
@@ -123,15 +119,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     final mcpServers =
         config.mcpServers
             ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
+              (server) => _createMcpServer(agentId, server, cwd),
             )
             .toList() ??
         [];
@@ -172,15 +160,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     final mcpServers =
         config.mcpServers
             ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
+              (server) => _createMcpServer(agentId, server, cwd),
             )
             .toList() ??
         [];
@@ -231,15 +211,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     final mcpServers =
         config.mcpServers
             ?.map(
-              (server) => _ref.watch(
-                genericMcpServerProvider(
-                  AgentIdAndMcpServerType(
-                    agentId: agentId,
-                    mcpServerType: server,
-                    projectPath: cwd,
-                  ),
-                ),
-              ),
+              (server) => _createMcpServer(agentId, server, cwd),
             )
             .toList() ??
         [];

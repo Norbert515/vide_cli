@@ -30,12 +30,18 @@ void main() {
       final configDir = Directory('${testTempDir.path}/config');
       await configDir.create(recursive: true);
 
+      final configManager = VideConfigManager(configRoot: configDir.path);
       container = ProviderContainer(
         overrides: [
-          workingDirProvider.overrideWithValue(testTempDir.path),
-          videConfigManagerProvider.overrideWithValue(
-            VideConfigManager(configRoot: configDir.path),
+          videCoreConfigProvider.overrideWithValue(
+            VideCoreConfig(
+              workingDirectory: testTempDir.path,
+              configManager: configManager,
+              permissionHandler: PermissionHandler(),
+            ),
           ),
+          workingDirProvider.overrideWithValue(testTempDir.path),
+          videConfigManagerProvider.overrideWithValue(configManager),
           permissionHandlerProvider.overrideWithValue(PermissionHandler()),
         ],
       );

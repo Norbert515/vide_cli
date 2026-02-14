@@ -38,6 +38,12 @@ class ClaudeManagerStateNotifier
     extends StateNotifier<Map<String, ClaudeClient>> {
   ClaudeManagerStateNotifier() : super(Map<String, ClaudeClient>());
 
+  /// Public read-only access to the current client map.
+  ///
+  /// Use this instead of the protected [state] getter when accessing
+  /// from outside the StateNotifier subclass.
+  Map<String, ClaudeClient> get clients => state;
+
   void addAgent(String agentId, ClaudeClient client) {
     state = {...state, agentId: client};
   }

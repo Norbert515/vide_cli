@@ -2,6 +2,7 @@ import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
 import '../models/team_framework/team_definition.dart';
+import '../vide_core_config.dart';
 import 'agent_network_manager.dart';
 import 'team_framework_loader.dart';
 
@@ -80,8 +81,15 @@ class TriggerContext {
 }
 
 /// Provider for TriggerService.
-final triggerServiceProvider = Provider<TriggerService>((ref) {
-  return TriggerService(ref: ref);
+final Provider<TriggerService> triggerServiceProvider =
+    Provider<TriggerService>((ref) {
+  final config = ref.watch(videCoreConfigProvider);
+  return TriggerService(
+    teamFrameworkLoader: TeamFrameworkLoader(
+      workingDirectory: config.workingDirectory,
+    ),
+    getNetworkManager: () => ref.read(agentNetworkManagerProvider.notifier),
+  );
 });
 
 /// Service for firing lifecycle triggers that spawn agents.
@@ -90,9 +98,14 @@ final triggerServiceProvider = Provider<TriggerService>((ref) {
 /// this service checks if the current team has that trigger enabled,
 /// and if so, spawns the configured agent.
 class TriggerService {
-  TriggerService({required Ref ref}) : _ref = ref;
+  TriggerService({
+    required TeamFrameworkLoader teamFrameworkLoader,
+    required AgentNetworkManager Function() getNetworkManager,
+  }) : _teamFrameworkLoader = teamFrameworkLoader,
+       _getNetworkManager = getNetworkManager;
 
-  final Ref _ref;
+  final TeamFrameworkLoader _teamFrameworkLoader;
+  final AgentNetworkManager Function() _getNetworkManager;
 
   /// Track when each trigger point was last fired to prevent duplicate firing.
   /// Key is "${networkId}:${triggerPoint.name}", value is when it was fired.
@@ -130,8 +143,7 @@ class TriggerService {
       }
     }
 
-    final loader = _ref.read(teamFrameworkLoaderProvider);
-    final team = await loader.getTeam(context.teamName);
+    final team = await _teamFrameworkLoader.getTeam(context.teamName);
 
     if (team == null) {
       print(
@@ -159,7 +171,7 @@ class TriggerService {
     final prompt = _buildTriggerPrompt(context, team);
 
     // Spawn the agent
-    final networkManager = _ref.read(agentNetworkManagerProvider.notifier);
+    final networkManager = _getNetworkManager();
 
     try {
       // Mark as fired BEFORE spawning to prevent race conditions

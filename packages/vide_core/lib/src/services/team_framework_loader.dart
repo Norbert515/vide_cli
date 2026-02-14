@@ -6,15 +6,15 @@ import '../generated/bundled_team_framework.dart';
 import '../models/team_framework/team_framework.dart';
 import '../agents/agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
-import '../utils/working_dir_provider.dart';
+import '../vide_core_config.dart';
 
 /// Provider for TeamFrameworkLoader.
 ///
 /// This provides access to the team framework for loading team definitions,
 /// agent personalities, and building agent configurations.
 final teamFrameworkLoaderProvider = Provider<TeamFrameworkLoader>((ref) {
-  final workingDir = ref.watch(workingDirProvider);
-  return TeamFrameworkLoader(workingDirectory: workingDir);
+  final config = ref.watch(videCoreConfigProvider);
+  return TeamFrameworkLoader(workingDirectory: config.workingDirectory);
 });
 
 /// Service for loading team framework definitions from markdown files.
