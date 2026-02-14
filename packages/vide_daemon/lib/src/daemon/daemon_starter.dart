@@ -120,6 +120,9 @@ class DaemonStarter {
       }
     });
 
+    // Check bind address and warn if dangerous
+    await _checkBindAddress(config.bindAddress);
+
     // Determine state directory
     final stateDir = config.stateDir ?? _defaultStateDir();
     final stateFilePath = path.join(stateDir, 'state.json');
@@ -263,8 +266,108 @@ class DaemonStarter {
     print('║    DELETE /sessions/:id    - Stop a session                  ║');
     print('║    WS     /sessions/:id/stream - Session event stream        ║');
     print('║    WS     /daemon          - Real-time daemon events         ║');
+    print('╠══════════════════════════════════════════════════════════════╣');
+    _printSecurityNotice(bindAddress);
     print('╚══════════════════════════════════════════════════════════════╝');
     print('');
     print('Server ready. Press Ctrl+C to stop.');
+  }
+
+  /// Print security notice based on bind address.
+  void _printSecurityNotice(String bindAddress) {
+    if (bindAddress == '127.0.0.1' || bindAddress == 'localhost') {
+      print('║                                                              ║');
+      print('║  🔒 Security: Localhost only                                 ║');
+      print('║  Only this PC can access the daemon (no network access).    ║');
+      print('║                                                              ║');
+      print('║  💡 For Tailscale: Use --host <tailscale-ip>                ║');
+      print('║     Example: vide_daemon --host 100.64.1.5                  ║');
+    } else if (bindAddress == '0.0.0.0') {
+      print('║                                                              ║');
+      print('║  ⚠️  WARNING: EXPOSED TO ALL NETWORK INTERFACES              ║');
+      print('║  Anyone on your local network can access this daemon!       ║');
+      print('║                                                              ║');
+      print('║  🔐 Recommendation: Use Tailscale instead                    ║');
+      print('║     1. Install Tailscale: https://tailscale.com             ║');
+      print('║     2. Find your IP: tailscale ip -4                        ║');
+      print('║     3. Restart with: vide_daemon --host <tailscale-ip>      ║');
+    } else if (_isTailscaleIP(bindAddress)) {
+      print('║                                                              ║');
+      print('║  ✅ Security: Tailscale network                              ║');
+      print('║  Encrypted connection via WireGuard.                        ║');
+      print('║  Only devices in your tailnet can connect.                  ║');
+    } else {
+      print('║                                                              ║');
+      print('║  🔒 Security: Bound to $bindAddress${' ' * (33 - bindAddress.length)}║');
+      print('║  Accessible on this network interface only.                 ║');
+    }
+  }
+
+  /// Check bind address and show warnings/prompts.
+  Future<void> _checkBindAddress(String bindAddress) async {
+    if (bindAddress == '0.0.0.0') {
+      print('');
+      print('╔══════════════════════════════════════════════════════════════╗');
+      print('║                    ⚠️  SECURITY WARNING ⚠️                    ║');
+      print('╠══════════════════════════════════════════════════════════════╣');
+      print('║                                                              ║');
+      print('║  You are about to bind to 0.0.0.0 (ALL network interfaces)  ║');
+      print('║                                                              ║');
+      print('║  This means ANYONE on your local network can:               ║');
+      print('║    • Access your daemon                                      ║');
+      print('║    • Create sessions                                         ║');
+      print('║    • Execute commands on your machine                        ║');
+      print('║                                                              ║');
+      print('║  ❌ NO AUTHENTICATION - Traffic is NOT encrypted             ║');
+      print('║                                                              ║');
+      print('║  🔐 RECOMMENDED: Use Tailscale instead                       ║');
+      print('║     • Encrypted WireGuard connection                         ║');
+      print('║     • Only your devices can connect                          ║');
+      print('║     • Easy setup: https://tailscale.com                      ║');
+      print('║                                                              ║');
+      print('║  To use Tailscale:                                           ║');
+      print('║    1. Install Tailscale                                      ║');
+      print('║    2. Run: tailscale ip -4                                   ║');
+      print('║    3. Use: vide_daemon --host <tailscale-ip>                 ║');
+      print('║                                                              ║');
+      print('╚══════════════════════════════════════════════════════════════╝');
+      print('');
+      stdout.write('Type "yes" to confirm binding to 0.0.0.0: ');
+
+      final response = stdin.readLineSync()?.trim().toLowerCase();
+      if (response != 'yes') {
+        print('');
+        print('Daemon startup cancelled.');
+        print('');
+        print('Tip: For safe remote access, use:');
+        print('  vide_daemon --host <your-tailscale-ip>');
+        print('');
+        exit(1);
+      }
+
+      print('');
+      print('⚠️  Proceeding with 0.0.0.0 binding (DANGEROUS)');
+      print('');
+    }
+  }
+
+  /// Check if an IP address is a Tailscale IP (100.64.0.0/10 range).
+  static bool _isTailscaleIP(String ip) {
+    try {
+      final parts = ip.split('.');
+      if (parts.length != 4) return false;
+
+      final firstOctet = int.parse(parts[0]);
+      final secondOctet = int.parse(parts[1]);
+
+      // Tailscale uses 100.64.0.0/10 (100.64.0.0 - 100.127.255.255)
+      if (firstOctet == 100 && secondOctet >= 64 && secondOctet <= 127) {
+        return true;
+      }
+
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 }
