@@ -2,6 +2,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:uuid/uuid.dart';
 
 import '../claude/agent_configuration.dart';
+import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
@@ -179,8 +180,10 @@ $initialPrompt''';
     // Send initial message to the new agent
     _sendMessage(newAgentId, Message.text(contextualPrompt));
 
-    print(
-      '[AgentLifecycleService] Agent $spawnedBy spawned new "$agentType" agent "$uniqueName": $newAgentId',
+    VideLogger.instance.info(
+      'AgentLifecycleService',
+      'Agent $spawnedBy spawned new "$agentType" agent "$uniqueName": $newAgentId',
+      sessionId: _getCurrentNetwork()?.id,
     );
 
     return newAgentId;
@@ -239,13 +242,18 @@ $initialPrompt''';
 
     final reasonStr = reason != null ? ': $reason' : '';
     final selfTerminated = targetAgentId == terminatedBy;
+    final sessionId = _getCurrentNetwork()?.id;
     if (selfTerminated) {
-      print(
-        '[AgentLifecycleService] Agent $targetAgentId self-terminated$reasonStr',
+      VideLogger.instance.info(
+        'AgentLifecycleService',
+        'Agent $targetAgentId self-terminated$reasonStr',
+        sessionId: sessionId,
       );
     } else {
-      print(
-        '[AgentLifecycleService] Agent $terminatedBy terminated agent $targetAgentId$reasonStr',
+      VideLogger.instance.info(
+        'AgentLifecycleService',
+        'Agent $terminatedBy terminated agent $targetAgentId$reasonStr',
+        sessionId: sessionId,
       );
     }
   }
@@ -315,8 +323,10 @@ $initialPrompt''';
         }
       },
       onError: (Object e) {
-        print(
-          '[AgentLifecycleService] Error capturing session ID for $newAgentId: $e',
+        VideLogger.instance.error(
+          'AgentLifecycleService',
+          'Error capturing session ID for $newAgentId: $e',
+          sessionId: _getCurrentNetwork()?.id,
         );
       },
     );

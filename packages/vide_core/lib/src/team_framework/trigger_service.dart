@@ -1,6 +1,7 @@
 import 'package:riverpod/riverpod.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
+import '../logging/vide_logger.dart';
 import 'team_definition.dart';
 import '../configuration/vide_core_config.dart';
 import '../agent_network/agent_network_manager.dart';
@@ -136,8 +137,10 @@ class TriggerService {
     if (lastFiredAt != null) {
       final elapsed = DateTime.now().difference(lastFiredAt);
       if (elapsed < cooldown) {
-        print(
-          '[TriggerService] Skipping ${context.triggerPoint.name} - fired ${elapsed.inMilliseconds}ms ago (cooldown: ${cooldown.inMilliseconds}ms)',
+        VideLogger.instance.debug(
+          'TriggerService',
+          'Skipping ${context.triggerPoint.name} - fired ${elapsed.inMilliseconds}ms ago (cooldown: ${cooldown.inMilliseconds}ms)',
+          sessionId: context.network.id,
         );
         return null;
       }
@@ -146,23 +149,29 @@ class TriggerService {
     final team = await _teamFrameworkLoader.getTeam(context.teamName);
 
     if (team == null) {
-      print(
-        '[TriggerService] Team "${context.teamName}" not found, skipping trigger',
+      VideLogger.instance.warn(
+        'TriggerService',
+        'Team "${context.teamName}" not found, skipping trigger',
+        sessionId: context.network.id,
       );
       return null;
     }
 
     final triggerConfig = team.lifecycleTriggers[context.triggerPoint.name];
     if (triggerConfig == null || !triggerConfig.enabled) {
-      print(
-        '[TriggerService] Trigger ${context.triggerPoint.name} not enabled for team "${context.teamName}"',
+      VideLogger.instance.debug(
+        'TriggerService',
+        'Trigger ${context.triggerPoint.name} not enabled for team "${context.teamName}"',
+        sessionId: context.network.id,
       );
       return null;
     }
 
     if (triggerConfig.spawn.isEmpty) {
-      print(
-        '[TriggerService] Trigger ${context.triggerPoint.name} has no agent configured',
+      VideLogger.instance.debug(
+        'TriggerService',
+        'Trigger ${context.triggerPoint.name} has no agent configured',
+        sessionId: context.network.id,
       );
       return null;
     }
@@ -184,13 +193,17 @@ class TriggerService {
         spawnedBy: 'trigger:${context.triggerPoint.name}',
       );
 
-      print(
-        '[TriggerService] Fired ${context.triggerPoint.name} -> spawned ${triggerConfig.spawn}',
+      VideLogger.instance.info(
+        'TriggerService',
+        'Fired ${context.triggerPoint.name} -> spawned ${triggerConfig.spawn}',
+        sessionId: context.network.id,
       );
       return agentId;
     } catch (e) {
-      print(
-        '[TriggerService] Error spawning agent for trigger ${context.triggerPoint.name}: $e',
+      VideLogger.instance.error(
+        'TriggerService',
+        'Error spawning agent for trigger ${context.triggerPoint.name}: $e',
+        sessionId: context.network.id,
       );
       return null;
     }

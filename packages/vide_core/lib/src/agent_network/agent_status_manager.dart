@@ -1,4 +1,5 @@
 import 'package:riverpod/riverpod.dart';
+import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
 import '../models/agent_status.dart';
 
@@ -10,15 +11,23 @@ import '../models/agent_status.dart';
 /// a turn begins.
 final agentStatusProvider =
     StateNotifierProvider.family<AgentStatusNotifier, AgentStatus, AgentId>(
-      (ref, agentId) => AgentStatusNotifier(),
+      (ref, agentId) => AgentStatusNotifier(agentId: agentId),
     );
 
 /// Notifier for a single agent's status.
 class AgentStatusNotifier extends StateNotifier<AgentStatus> {
-  AgentStatusNotifier() : super(AgentStatus.idle);
+  AgentStatusNotifier({required this.agentId}) : super(AgentStatus.idle);
+
+  final AgentId agentId;
 
   /// Set the agent's status.
   void setStatus(AgentStatus status) {
+    final oldStatus = state;
+    if (oldStatus == status) return;
+    VideLogger.instance.debug(
+      'AgentStatusNotifier',
+      'Agent $agentId status: ${oldStatus.name} -> ${status.name}',
+    );
     state = status;
   }
 }

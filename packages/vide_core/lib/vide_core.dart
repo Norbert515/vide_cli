@@ -70,6 +70,11 @@ export 'src/team_framework/team_framework.dart';
 export 'src/team_framework/team_framework_loader.dart';
 
 // =============================================================================
+// Logging
+// =============================================================================
+export 'src/logging/vide_logger.dart';
+
+// =============================================================================
 // Analytics
 // =============================================================================
 export 'src/analytics/bashboard_service.dart';

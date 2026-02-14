@@ -1,6 +1,7 @@
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:sentry/sentry.dart';
+import '../../logging/vide_logger.dart';
 import '../../models/agent_id.dart';
 import '../../models/agent_status.dart';
 import '../../agent_network/agent_network_manager.dart';
@@ -267,6 +268,14 @@ Call this when:
           );
         }
 
+        final networkId =
+            _networkManager.currentState.currentNetwork?.id;
+        VideLogger.instance.info(
+          'AgentMCPServer',
+          'setAgentStatus called: agent=$callerAgentId requested=$statusStr',
+          sessionId: networkId,
+        );
+
         try {
           _getStatusNotifier(callerAgentId).setStatus(status);
 
@@ -313,9 +322,17 @@ Call this when:
       }
     }
 
+    VideLogger.instance.debug(
+      'AgentMCPServer',
+      '_checkAllAgentsIdle: allIdle=$allIdle agentCount=${network.agents.length}',
+      sessionId: network.id,
+    );
+
     if (allIdle && network.agents.isNotEmpty) {
-      print(
-        '[AgentMCPServer] All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger',
+      VideLogger.instance.info(
+        'AgentMCPServer',
+        'All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger',
+        sessionId: network.id,
       );
       // Fire trigger in background (don't block the tool response)
       () async {
@@ -328,7 +345,11 @@ Call this when:
           );
           await triggerService.fire(context);
         } catch (e) {
-          print('[AgentMCPServer] Error firing onAllAgentsIdle trigger: $e');
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'Error firing onAllAgentsIdle trigger: $e',
+            sessionId: network.id,
+          );
         }
       }();
     }

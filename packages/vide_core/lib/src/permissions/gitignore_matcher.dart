@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as path;
+import '../logging/vide_logger.dart';
 
 /// Gitignore pattern matcher for Read permissions
 /// Follows gitignore syntax to respect repository security boundaries
@@ -41,7 +42,7 @@ class GitignoreMatcher {
       }
     } catch (e) {
       // If we can't read gitignore, fail open (allow reads)
-      print('[GitignoreMatcher] Warning: Could not read .gitignore: $e');
+      VideLogger.instance.warn('GitignoreMatcher', 'Could not read .gitignore: $e');
     }
   }
 
@@ -138,8 +139,9 @@ class _GitignoreRule {
 
       return RegExp(regex);
     } catch (e) {
-      print(
-        '[GitignoreMatcher] Warning: Could not compile pattern "$pattern": $e',
+      VideLogger.instance.warn(
+        'GitignoreMatcher',
+        'Could not compile pattern "$pattern": $e',
       );
       return null;
     }

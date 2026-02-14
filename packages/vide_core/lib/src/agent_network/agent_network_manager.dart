@@ -13,6 +13,7 @@ import '../models/permission_mode.dart';
 import 'agent_status_manager.dart';
 import '../configuration/vide_core_config.dart';
 import '../claude/agent_config_resolver.dart';
+import '../logging/vide_logger.dart';
 import 'agent_lifecycle_service.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
@@ -180,6 +181,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     String team = 'enterprise',
   }) async {
     final networkId = const Uuid().v4();
+    VideLogger.instance.startSession(networkId);
+    VideLogger.instance.info('AgentNetworkManager', 'Starting new network', sessionId: networkId);
 
     // Increment task counter for "Task X" naming
     _taskCounter++;
@@ -275,7 +278,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       try {
         await _persistenceManager.saveNetwork(network);
       } catch (e) {
-        print('[AgentNetworkManager] Error saving network: $e');
+        VideLogger.instance.error('AgentNetworkManager', 'Error saving network: $e', sessionId: networkId);
       }
     }();
 
@@ -295,7 +298,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         );
         await triggerService.fire(context);
       } catch (e) {
-        print('[AgentNetworkManager] Error firing onSessionStart trigger: $e');
+        VideLogger.instance.error('AgentNetworkManager', 'Error firing onSessionStart trigger: $e', sessionId: networkId);
       }
     }();
 
@@ -304,12 +307,17 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
   /// Resume an existing agent network
   Future<void> resume(AgentNetwork network) async {
+    VideLogger.instance.startSession(network.id);
+    VideLogger.instance.info('AgentNetworkManager', 'Resuming network', sessionId: network.id);
+
     // Check if the saved team exists, fall back to 'enterprise' if not
     var effectiveTeam = network.team;
     final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
     if (team == null) {
-      print(
-        '[AgentNetworkManager] Team "$effectiveTeam" not found, falling back to "enterprise"',
+      VideLogger.instance.warn(
+        'AgentNetworkManager',
+        'Team "$effectiveTeam" not found, falling back to "enterprise"',
+        sessionId: network.id,
       );
       effectiveTeam = 'enterprise';
     }
@@ -346,8 +354,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         // Set up status sync to auto-update agent status when turn completes
         _statusSyncService.setupStatusSync(agentMetadata.id, client);
       } catch (e) {
-        print(
-          '[AgentNetworkManager] Error loading config for agent ${agentMetadata.type}: $e',
+        VideLogger.instance.error(
+          'AgentNetworkManager',
+          'Error loading config for agent ${agentMetadata.type}: $e',
+          sessionId: updatedNetwork.id,
         );
         rethrow;
       }
@@ -503,8 +513,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   void sendMessage(AgentId agentId, Message message) {
     final client = _claudeManager.clients[agentId];
     if (client == null) {
-      print(
-        '[AgentNetworkManager] WARNING: No ClaudeClient found for agent: $agentId',
+      VideLogger.instance.error(
+        'AgentNetworkManager',
+        'No ClaudeClient found for agent: $agentId',
+        sessionId: state.currentNetwork?.id,
       );
       return;
     }
@@ -595,8 +607,10 @@ $message''';
     // Send the message - fire and forget
     targetClient.sendMessage(Message.text(contextualMessage));
 
-    print(
-      '[AgentNetworkManager] Agent $sentBy sent message to agent $targetAgentId',
+    VideLogger.instance.debug(
+      'AgentNetworkManager',
+      'Agent $sentBy sent message to agent $targetAgentId',
+      sessionId: state.currentNetwork?.id,
     );
   }
 
@@ -626,7 +640,7 @@ $message''';
   Future<AgentId?> fireSessionEndTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      print('[AgentNetworkManager] No active network for onSessionEnd trigger');
+      VideLogger.instance.warn('AgentNetworkManager', 'No active network for onSessionEnd trigger');
       return null;
     }
 
@@ -639,7 +653,7 @@ $message''';
       );
       return await triggerService.fire(context);
     } catch (e) {
-      print('[AgentNetworkManager] Error firing onSessionEnd trigger: $e');
+      VideLogger.instance.error('AgentNetworkManager', 'Error firing onSessionEnd trigger: $e', sessionId: network.id);
       return null;
     }
   }
@@ -654,9 +668,7 @@ $message''';
   Future<AgentId?> fireAllAgentsIdleTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      print(
-        '[AgentNetworkManager] No active network for onAllAgentsIdle trigger',
-      );
+      VideLogger.instance.warn('AgentNetworkManager', 'No active network for onAllAgentsIdle trigger');
       return null;
     }
 
@@ -669,7 +681,7 @@ $message''';
       );
       return await triggerService.fire(context);
     } catch (e) {
-      print('[AgentNetworkManager] Error firing onAllAgentsIdle trigger: $e');
+      VideLogger.instance.error('AgentNetworkManager', 'Error firing onAllAgentsIdle trigger: $e', sessionId: network.id);
       return null;
     }
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import '../logging/vide_logger.dart';
 import '../models/agent_network.dart';
 import '../claude/agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
@@ -125,8 +126,9 @@ class WorktreeService {
         // Set up status sync for the recreated client
         _statusSyncService.setupStatusSync(agentMetadata.id, client);
       } catch (e) {
-        print(
-          '[WorktreeService] Error recreating client for ${agentMetadata.type}: $e',
+        VideLogger.instance.error(
+          'WorktreeService',
+          'Error recreating client for ${agentMetadata.type}: $e',
         );
         rethrow;
       }

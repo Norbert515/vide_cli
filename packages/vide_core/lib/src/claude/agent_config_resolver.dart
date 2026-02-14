@@ -1,4 +1,5 @@
 import 'agent_configuration.dart';
+import '../logging/vide_logger.dart';
 import '../models/agent_metadata.dart';
 import '../team_framework/team_framework_loader.dart';
 
@@ -26,8 +27,9 @@ class AgentConfigResolver {
 
     // If team not found, fall back to default 'enterprise' team
     if (team == null) {
-      print(
-        '[AgentConfigResolver] Team "$effectiveTeamName" not found, falling back to "enterprise"',
+      VideLogger.instance.warn(
+        'AgentConfigResolver',
+        'Team "$effectiveTeamName" not found, falling back to "enterprise"',
       );
       effectiveTeamName = 'enterprise';
       team = await _teamFrameworkLoader.getTeam(effectiveTeamName);

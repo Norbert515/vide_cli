@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:claude_sdk/claude_sdk.dart';
 
+import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
 import '../models/agent_network.dart';
 import '../models/agent_status.dart';
@@ -31,6 +32,8 @@ class AgentStatusSyncService {
   final Map<AgentId, StreamSubscription<ClaudeStatus>>
   _statusSyncSubscriptions = {};
 
+  String? get _networkId => _getCurrentNetwork()?.id;
+
   /// Set up status sync for an agent's Claude client.
   ///
   /// Listens to the Claude status stream and automatically updates
@@ -51,6 +54,11 @@ class AgentStatusSyncService {
         case ClaudeStatus.responding:
           // Claude is working, set agent status to working
           if (currentAgentStatus != AgentStatus.working) {
+            VideLogger.instance.debug(
+              'AgentStatusSyncService',
+              'Agent $agentId: ClaudeStatus.${claudeStatus.name} -> setting working (was ${currentAgentStatus.name})',
+              sessionId: _networkId,
+            );
             agentStatusNotifier.setStatus(AgentStatus.working);
           }
           break;
@@ -61,19 +69,40 @@ class AgentStatusSyncService {
           // including compaction. 'ready' is only emitted by ClaudeClient
           // when turnComplete is true, so it correctly skips compaction.
           if (currentAgentStatus == AgentStatus.working) {
+            VideLogger.instance.debug(
+              'AgentStatusSyncService',
+              'Agent $agentId: ClaudeStatus.ready -> setting idle (was working)',
+              sessionId: _networkId,
+            );
             agentStatusNotifier.setStatus(AgentStatus.idle);
             // Check if all agents are now idle
             checkAllAgentsIdle();
+          } else {
+            VideLogger.instance.debug(
+              'AgentStatusSyncService',
+              'Agent $agentId: ClaudeStatus.ready ignored (status is ${currentAgentStatus.name}, not working)',
+              sessionId: _networkId,
+            );
           }
           break;
         case ClaudeStatus.completed:
           // 'completed' means a response finished, but NOT necessarily
           // the turn. During compaction, 'completed' fires but the turn
           // continues. We ignore it here and wait for 'ready' instead.
+          VideLogger.instance.debug(
+            'AgentStatusSyncService',
+            'Agent $agentId: ClaudeStatus.completed ignored (waiting for ready)',
+            sessionId: _networkId,
+          );
           break;
         case ClaudeStatus.error:
         case ClaudeStatus.unknown:
           // On error, set to idle so triggers can fire
+          VideLogger.instance.debug(
+            'AgentStatusSyncService',
+            'Agent $agentId: ClaudeStatus.${claudeStatus.name} -> setting idle (was ${currentAgentStatus.name})',
+            sessionId: _networkId,
+          );
           if (currentAgentStatus == AgentStatus.working) {
             agentStatusNotifier.setStatus(AgentStatus.idle);
             checkAllAgentsIdle();
@@ -111,13 +140,20 @@ class AgentStatusSyncService {
 
     // Check if all non-triggered agents are idle
     var allIdle = true;
+    final statusDetails = <String>[];
     for (final agent in nonTriggeredAgents) {
       final status = _getStatus(agent.id);
+      statusDetails.add('${agent.id}=${status.name}');
       if (status != AgentStatus.idle) {
         allIdle = false;
-        break;
       }
     }
+
+    VideLogger.instance.debug(
+      'AgentStatusSyncService',
+      'checkAllAgentsIdle: allIdle=$allIdle agents=[${statusDetails.join(', ')}]',
+      sessionId: network.id,
+    );
 
     if (allIdle) {
       // Fire trigger in background
@@ -131,8 +167,10 @@ class AgentStatusSyncService {
           );
           await triggerService.fire(context);
         } catch (e) {
-          print(
-            '[AgentStatusSyncService] Error firing onAllAgentsIdle trigger: $e',
+          VideLogger.instance.error(
+            'AgentStatusSyncService',
+            'Error firing onAllAgentsIdle trigger: $e',
+            sessionId: network.id,
           );
         }
       }();

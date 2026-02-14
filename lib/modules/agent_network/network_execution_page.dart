@@ -196,7 +196,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Display the network goal with git branch indicator
+          // Display the network goal with session ID and git branch indicator
           Row(
             children: [
               Expanded(
@@ -205,6 +205,19 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
               ),
+              if (session != null) ...[
+                Text(
+                  session.id.length > 8
+                      ? session.id.substring(0, 8)
+                      : session.id,
+                  style: TextStyle(
+                    color: VideTheme.of(context).base.onSurface.withOpacity(
+                      TextOpacity.tertiary,
+                    ),
+                  ),
+                ),
+                SizedBox(width: 1),
+              ],
               GitBranchIndicator(repoPath: workingDirectory),
             ],
           ),

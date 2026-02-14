@@ -18,6 +18,7 @@ import 'package:vide_interface/vide_interface.dart';
 
 import '../agent_network/agent_network_manager.dart';
 import '../agent_network/agent_network_persistence_manager.dart';
+import '../logging/vide_logger.dart';
 import '../permissions/permission_provider.dart' show PermissionHandler;
 import '../configuration/vide_config_manager.dart';
 import '../configuration/vide_core_config.dart';
@@ -283,7 +284,7 @@ class LocalVideSessionManager implements VideSessionManager {
         }
       },
       onError: (Object e) {
-        print('[LocalVideSessionManager] Error listing sessions: $e');
+        VideLogger.instance.error('LocalVideSessionManager', 'Error listing sessions: $e');
       },
     );
   }

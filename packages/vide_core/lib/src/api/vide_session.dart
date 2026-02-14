@@ -21,6 +21,7 @@ import '../permissions/tool_input.dart';
 import '../configuration/local_settings_manager.dart';
 import '../agent_network/agent_status_manager.dart';
 import '../configuration/vide_core_config.dart';
+import '../logging/vide_logger.dart';
 
 /// An active local (in-process) session with a network of agents.
 ///
@@ -614,7 +615,7 @@ class LocalVideSession implements VideSession {
         await manager.fireSessionEndTrigger();
       } catch (e) {
         // Don't fail dispose if trigger fails
-        print('[LocalVideSession] Error firing onSessionEnd trigger: $e');
+        VideLogger.instance.error('LocalVideSession', 'Error firing onSessionEnd trigger: $e', sessionId: _networkId);
       }
     }
 
@@ -1152,6 +1153,11 @@ class LocalVideSession implements VideSession {
       agentStatusProvider(agent.id),
       (previous, next) {
         if (previous != null && previous != next) {
+          VideLogger.instance.debug(
+            'LocalVideSession',
+            'StatusEvent emitted: agent=${agent.id} status=${next.name}',
+            sessionId: _networkId,
+          );
           _emit(
             StatusEvent(
               agentId: agent.id,

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:path/path.dart' as p;
+import '../logging/vide_logger.dart';
 import 'claude_settings.dart';
 
 class LocalSettingsManager {
@@ -36,7 +37,7 @@ class LocalSettingsManager {
       final json = jsonDecode(content) as Map<String, dynamic>;
       return ClaudeSettings.fromJson(json);
     } catch (e) {
-      print('[LocalSettingsManager] Error reading settings: $e');
+      VideLogger.instance.error('LocalSettingsManager', 'Error reading settings: $e');
       return ClaudeSettings.defaults();
     }
   }

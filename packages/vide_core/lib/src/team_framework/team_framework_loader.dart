@@ -5,6 +5,7 @@ import 'package:riverpod/riverpod.dart';
 import 'bundled_team_framework.dart';
 import 'team_framework.dart';
 import '../claude/agent_configuration.dart';
+import '../logging/vide_logger.dart';
 import '../mcp/mcp_server_type.dart';
 import '../configuration/vide_core_config.dart';
 
@@ -190,7 +191,7 @@ class TeamFrameworkLoader {
   }) async {
     final agent = await getAgent(agentName);
     if (agent == null) {
-      print('Warning: Agent "$agentName" not found in team framework');
+      VideLogger.instance.warn('TeamFrameworkLoader', 'Agent "$agentName" not found in team framework');
       return null;
     }
 
@@ -273,10 +274,10 @@ class TeamFrameworkLoader {
         if (serverType != null) {
           servers.add(serverType);
         } else {
-          print('Warning: Unknown MCP server type "$name"');
+          VideLogger.instance.warn('TeamFrameworkLoader', 'Unknown MCP server type "$name"');
         }
       } catch (e) {
-        print('Error parsing MCP server "$name": $e');
+        VideLogger.instance.error('TeamFrameworkLoader', 'Error parsing MCP server "$name": $e');
       }
     }
 
@@ -401,7 +402,7 @@ $agentsList
         final name = getName(definition);
         results[name] = definition;
       } catch (e) {
-        print('Error loading bundled ${entry.key}: $e');
+        VideLogger.instance.error('TeamFrameworkLoader', 'Error loading bundled ${entry.key}: $e');
       }
     }
   }
@@ -430,11 +431,11 @@ $agentsList
           results[name] = definition;
         } catch (e) {
           // Log but continue loading other files
-          print('Error loading $source ${path.basename(file.path)}: $e');
+          VideLogger.instance.error('TeamFrameworkLoader', 'Error loading $source ${path.basename(file.path)}: $e');
         }
       }
     } catch (e) {
-      print('Error scanning directory $dirPath: $e');
+      VideLogger.instance.error('TeamFrameworkLoader', 'Error scanning directory $dirPath: $e');
     }
   }
 
