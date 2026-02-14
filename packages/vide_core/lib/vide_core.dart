@@ -62,7 +62,6 @@ export 'src/configuration/vide_core_config.dart';
 export 'src/configuration/vide_config_manager.dart';
 export 'src/configuration/local_settings_manager.dart';
 export 'src/configuration/working_dir_provider.dart';
-export 'src/configuration/dangerously_skip_permissions_provider.dart';
 
 // =============================================================================
 // Team Framework

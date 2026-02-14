@@ -5,8 +5,8 @@ import 'vide_config_manager.dart';
 /// Configuration values that must be provided by the UI layer.
 ///
 /// Replaces the separate abstract providers (workingDirProvider,
-/// videConfigManagerProvider, permissionHandlerProvider, dangerouslySkipPermissionsProvider)
-/// with a single, compile-time-checked configuration object.
+/// videConfigManagerProvider, permissionHandlerProvider) with a single,
+/// compile-time-checked configuration object.
 class VideCoreConfig {
   final String workingDirectory;
   final VideConfigManager configManager;

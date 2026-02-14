@@ -34,11 +34,12 @@ class SessionTestHarness {
 
     container = ProviderContainer(
       overrides: [
-        videConfigManagerProvider.overrideWithValue(configManager),
-        workingDirProvider.overrideWithValue(tempDir.path),
-        permissionHandlerProvider.overrideWithValue(PermissionHandler()),
-        if (dangerouslySkipPermissions)
-          dangerouslySkipPermissionsProvider.overrideWith((ref) => true),
+        videCoreConfigProvider.overrideWithValue(VideCoreConfig(
+          workingDirectory: tempDir.path,
+          configManager: configManager,
+          permissionHandler: PermissionHandler(),
+          dangerouslySkipPermissions: dangerouslySkipPermissions,
+        )),
       ],
     );
 
