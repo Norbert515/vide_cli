@@ -1,0 +1,16 @@
+name: codex_sdk
+description: Dart wrapper for OpenAI Codex CLI headless mode
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  claude_sdk: any
+  uuid: ^4.5.1
+  path: ^1.8.3
+
+dev_dependencies:
+  test: ^1.24.0
+  lints: ^3.0.0
