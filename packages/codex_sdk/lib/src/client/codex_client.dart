@@ -27,7 +27,9 @@ class CodexClient {
   String? _threadId;
   Process? _activeProcess;
   bool _isInitialized = false;
+  bool _isClosed = false;
   bool _turnFinished = false;
+  int _turnId = 0;
   final Completer<void> _initializedCompleter = Completer<void>();
 
   final String _sessionId;
@@ -165,6 +167,7 @@ class CodexClient {
   }
 
   Future<void> close() async {
+    _isClosed = true;
     _activeProcess?.kill(ProcessSignal.sigterm);
     _activeProcess = null;
 
@@ -202,6 +205,7 @@ class CodexClient {
 
   Future<void> _runCodexExec(String prompt) async {
     _turnFinished = false;
+    final currentTurnId = ++_turnId;
     final isResume = _threadId != null;
 
     final args = codexConfig.toCliArgs(
@@ -217,10 +221,10 @@ class CodexClient {
       );
     }
 
-    // For non-resume, add the prompt as a positional argument
-    if (!isResume) {
-      args.add(prompt);
-    }
+    // Prompt is always a positional argument.
+    // For non-resume: codex exec [FLAGS] <prompt>
+    // For resume:     codex exec [FLAGS] resume <threadId> <prompt>
+    args.add(prompt);
 
     try {
       final process = await Process.start(
@@ -236,27 +240,24 @@ class CodexClient {
 
       _activeProcess = process;
 
-      // For resume, send the prompt via stdin
-      if (isResume) {
-        process.stdin.writeln(prompt);
-        await process.stdin.flush();
-      }
-
       // Process stdout (JSONL events)
       final stdoutBuffer = StringBuffer();
       process.stdout
           .transform(utf8.decoder)
           .listen(
             (chunk) {
+              if (_turnId != currentTurnId) return;
               stdoutBuffer.write(chunk);
               _processChunk(stdoutBuffer);
             },
             onDone: () {
+              if (_turnId != currentTurnId) return;
               // Process any remaining data in buffer
               _processRemainingBuffer(stdoutBuffer);
               _onProcessDone();
             },
             onError: (error) {
+              if (_turnId != currentTurnId) return;
               _handleProcessError('stdout error: $error');
             },
           );
@@ -269,6 +270,7 @@ class CodexClient {
 
       // Handle process exit
       process.exitCode.then((exitCode) {
+        if (_turnId != currentTurnId) return;
         _activeProcess = null;
         if (_turnFinished) return;
         if (exitCode != 0 && stderrBuffer.isNotEmpty) {
@@ -337,7 +339,7 @@ class CodexClient {
       // Handle init data (MetaResponse)
       if (response is MetaResponse) {
         _initData = response;
-        _initDataController.add(response);
+        if (!_isClosed) _initDataController.add(response);
         onMetaResponseReceived?.call(response);
       }
 
@@ -351,12 +353,12 @@ class CodexClient {
 
     if (turnComplete) {
       _updateStatus(ClaudeStatus.ready);
-      _turnCompleteController.add(null);
+      if (!_isClosed) _turnCompleteController.add(null);
     }
   }
 
   void _onProcessDone() {
-    if (_turnFinished) return;
+    if (_turnFinished || _isClosed) return;
     _turnFinished = true;
     // If we never got a completion event, emit one now
     if (_currentConversation.isProcessing) {
@@ -372,11 +374,12 @@ class CodexClient {
       );
       _updateConversation(result.updatedConversation);
       _updateStatus(ClaudeStatus.ready);
-      _turnCompleteController.add(null);
+      if (!_isClosed) _turnCompleteController.add(null);
     }
   }
 
   void _handleProcessError(String error) {
+    if (_isClosed) return;
     final errorResponse = ErrorResponse(
       id: 'codex_error_${DateTime.now().millisecondsSinceEpoch}',
       timestamp: DateTime.now(),
@@ -389,15 +392,17 @@ class CodexClient {
     );
     _updateConversation(result.updatedConversation);
     _updateStatus(ClaudeStatus.ready);
-    _turnCompleteController.add(null);
+    if (!_isClosed) _turnCompleteController.add(null);
   }
 
   void _updateConversation(Conversation newConversation) {
+    if (_isClosed) return;
     _currentConversation = newConversation;
     _conversationController.add(_currentConversation);
   }
 
   void _updateStatus(ClaudeStatus status) {
+    if (_isClosed) return;
     if (_currentStatus != status) {
       _currentStatus = status;
       _statusController.add(status);

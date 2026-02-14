@@ -1,25 +1,23 @@
 class CodexConfig {
   final String? model;
   final String? profile;
-  final String approvalPolicy;
   final String sandboxMode;
   final String? workingDirectory;
   final String? sessionId;
   final String? appendSystemPrompt;
   final List<String>? additionalFlags;
-  final bool fullAuto;
+  final bool skipGitRepoCheck;
   final List<String>? additionalDirs;
 
   const CodexConfig({
     this.model,
     this.profile,
-    this.approvalPolicy = 'on-request',
     this.sandboxMode = 'workspace-write',
     this.workingDirectory,
     this.sessionId,
     this.appendSystemPrompt,
     this.additionalFlags,
-    this.fullAuto = true,
+    this.skipGitRepoCheck = false,
     this.additionalDirs,
   });
 
@@ -29,10 +27,7 @@ class CodexConfig {
     final args = <String>['exec'];
 
     args.add('--json');
-
-    if (fullAuto) {
-      args.add('--full-auto');
-    }
+    args.add('--full-auto');
 
     if (model != null) {
       args.addAll(['--model', model!]);
@@ -42,16 +37,16 @@ class CodexConfig {
       args.addAll(['--profile', profile!]);
     }
 
-    if (!fullAuto) {
-      args.addAll(['--ask-for-approval', approvalPolicy]);
-    }
-
     if (sandboxMode != 'workspace-write') {
       args.addAll(['--sandbox', sandboxMode]);
     }
 
     if (appendSystemPrompt != null) {
       args.addAll(['-c', 'instructions.append=$appendSystemPrompt']);
+    }
+
+    if (skipGitRepoCheck) {
+      args.add('--skip-git-repo-check');
     }
 
     if (additionalDirs != null) {
@@ -76,25 +71,23 @@ class CodexConfig {
   CodexConfig copyWith({
     String? model,
     String? profile,
-    String? approvalPolicy,
     String? sandboxMode,
     String? workingDirectory,
     String? sessionId,
     String? appendSystemPrompt,
     List<String>? additionalFlags,
-    bool? fullAuto,
+    bool? skipGitRepoCheck,
     List<String>? additionalDirs,
   }) {
     return CodexConfig(
       model: model ?? this.model,
       profile: profile ?? this.profile,
-      approvalPolicy: approvalPolicy ?? this.approvalPolicy,
       sandboxMode: sandboxMode ?? this.sandboxMode,
       workingDirectory: workingDirectory ?? this.workingDirectory,
       sessionId: sessionId ?? this.sessionId,
       appendSystemPrompt: appendSystemPrompt ?? this.appendSystemPrompt,
       additionalFlags: additionalFlags ?? this.additionalFlags,
-      fullAuto: fullAuto ?? this.fullAuto,
+      skipGitRepoCheck: skipGitRepoCheck ?? this.skipGitRepoCheck,
       additionalDirs: additionalDirs ?? this.additionalDirs,
     );
   }
