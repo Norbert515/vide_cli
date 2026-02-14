@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:args/command_runner.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_server/vide_server.dart' as server;
 
 class SessionServerCommand extends Command<void> {
@@ -38,6 +39,9 @@ class SessionServerCommand extends Command<void> {
     }
 
     Directory.current = workingDir;
+
+    // Initialize structured logging
+    VideLogger.init('${VideConfigManager().configRoot}/logs');
 
     await server.startServer(
       server.VideServerConfig(port: port, workingDirectory: workingDir),

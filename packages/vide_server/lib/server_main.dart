@@ -44,6 +44,9 @@ class VideServerConfig {
 ///
 /// The caller is responsible for keeping the process alive.
 Future<HttpServer> startServer(VideServerConfig config) async {
+  // Initialize structured logging
+  VideLogger.init('${VideConfigManager().configRoot}/logs');
+
   // Set up logging
   Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {

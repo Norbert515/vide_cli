@@ -131,6 +131,9 @@ Future<void> main(
   bool forceDaemon = false,
   bool dangerouslySkipPermissions = false,
 }) async {
+  // Initialize structured logging
+  VideLogger.init('${VideConfigManager().configRoot}/logs');
+
   // Initialize Sentry and set up nocterm error handler
   await SentryService.init();
 
