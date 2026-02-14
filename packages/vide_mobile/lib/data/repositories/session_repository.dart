@@ -368,6 +368,18 @@ class SessionRepository extends _$SessionRepository {
     );
   }
 
+  /// Responds to an ask-user-question request.
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    final session = state.session;
+    if (session == null || !state.isActive) {
+      throw SessionException('No active session');
+    }
+    session.respondToAskUserQuestion(requestId, answers: answers);
+  }
+
   /// Aborts all active agents.
   void abort() {
     final session = state.session;

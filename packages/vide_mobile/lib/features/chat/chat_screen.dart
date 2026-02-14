@@ -11,6 +11,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/session_repository.dart';
+import '../permissions/ask_user_question_sheet.dart';
 import '../permissions/permission_sheet.dart';
 import '../permissions/plan_approval_sheet.dart';
 import 'chat_state.dart';
@@ -47,6 +48,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Tracks whether plan approval sheet is currently showing.
   bool _isPlanApprovalSheetShowing = false;
+
+  /// Tracks whether ask-user-question sheet is currently showing.
+  bool _isAskUserQuestionSheetShowing = false;
 
   /// Currently selected tab index (0 = main agent, 1+ = other agents).
   int _selectedTabIndex = 0;
@@ -199,6 +203,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           }
         }
 
+      case AskUserQuestionEvent():
+        notifier.setPendingAskUserQuestion(event);
+
       case ErrorEvent(:final message):
         notifier.setError(message);
 
@@ -315,6 +322,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  void _handleAskUserQuestion(Map<String, String> answers) {
+    final state = ref.read(chatNotifierProvider(widget.sessionId));
+    final pending = state.pendingAskUserQuestion;
+    if (pending == null) return;
+
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    sessionRepo.respondToAskUserQuestion(pending.requestId, answers: answers);
+
+    ref
+        .read(chatNotifierProvider(widget.sessionId).notifier)
+        .setPendingAskUserQuestion(null);
+    if (_isAskUserQuestionSheetShowing) {
+      _isAskUserQuestionSheetShowing = false;
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _showAskUserQuestionSheet(AskUserQuestionEvent request) {
+    if (_isAskUserQuestionSheetShowing) return;
+    _isAskUserQuestionSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (context) => AskUserQuestionSheet(
+        request: request,
+        onSubmit: _handleAskUserQuestion,
+      ),
+    ).whenComplete(() {
+      _isAskUserQuestionSheetShowing = false;
+    });
+  }
+
   void _openToolDetail(ToolContent tool) {
     context.push(AppRoutes.toolDetailPath(widget.sessionId), extra: tool);
   }
@@ -345,6 +387,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && state.pendingPlanApproval != null) {
           _showPlanApprovalSheet(state.pendingPlanApproval!);
+        }
+      });
+    }
+
+    if (state.pendingAskUserQuestion != null &&
+        !_isAskUserQuestionSheetShowing) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && state.pendingAskUserQuestion != null) {
+          _showAskUserQuestionSheet(state.pendingAskUserQuestion!);
         }
       });
     }

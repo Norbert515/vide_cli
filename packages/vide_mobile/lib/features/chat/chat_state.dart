@@ -11,17 +11,20 @@ part 'chat_state.g.dart';
 class ChatState {
   final PermissionRequestEvent? pendingPermission;
   final PlanApprovalRequestEvent? pendingPlanApproval;
+  final AskUserQuestionEvent? pendingAskUserQuestion;
   final String? error;
 
   const ChatState({
     this.pendingPermission,
     this.pendingPlanApproval,
+    this.pendingAskUserQuestion,
     this.error,
   });
 
   ChatState copyWith({
     PermissionRequestEvent? Function()? pendingPermission,
     PlanApprovalRequestEvent? Function()? pendingPlanApproval,
+    AskUserQuestionEvent? Function()? pendingAskUserQuestion,
     String? Function()? error,
   }) {
     return ChatState(
@@ -31,6 +34,9 @@ class ChatState {
       pendingPlanApproval: pendingPlanApproval != null
           ? pendingPlanApproval()
           : this.pendingPlanApproval,
+      pendingAskUserQuestion: pendingAskUserQuestion != null
+          ? pendingAskUserQuestion()
+          : this.pendingAskUserQuestion,
       error: error != null ? error() : this.error,
     );
   }
@@ -54,6 +60,10 @@ class ChatNotifier extends _$ChatNotifier {
 
   void setPendingPlanApproval(PlanApprovalRequestEvent? request) {
     state = state.copyWith(pendingPlanApproval: () => request);
+  }
+
+  void setPendingAskUserQuestion(AskUserQuestionEvent? request) {
+    state = state.copyWith(pendingAskUserQuestion: () => request);
   }
 
   void setError(String? error) {
