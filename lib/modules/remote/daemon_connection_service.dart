@@ -25,7 +25,6 @@ class DaemonConnectionState {
   final String? error;
   final String? host;
   final int? port;
-  final String? authToken;
 
   const DaemonConnectionState({
     this.client,
@@ -33,7 +32,6 @@ class DaemonConnectionState {
     this.error,
     this.host,
     this.port,
-    this.authToken,
   });
 
   /// Whether connected and healthy.
@@ -48,7 +46,6 @@ class DaemonConnectionState {
     String? error,
     String? host,
     int? port,
-    String? authToken,
   }) {
     return DaemonConnectionState(
       client: client ?? this.client,
@@ -56,7 +53,6 @@ class DaemonConnectionState {
       error: error ?? this.error,
       host: host ?? this.host,
       port: port ?? this.port,
-      authToken: authToken ?? this.authToken,
     );
   }
 }
@@ -89,34 +85,30 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
 
     final String targetHost;
     final int targetPort;
-    final String? targetAuthToken;
 
     if (remoteConfig != null) {
       targetHost = remoteConfig.host;
       targetPort = remoteConfig.port;
-      targetAuthToken = remoteConfig.authToken;
     } else {
       final configManager = _ref.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       targetHost = settings.daemonHost;
       targetPort = settings.daemonPort;
-      targetAuthToken = null;
     }
 
     // Check if target changed
     if (state.host == targetHost &&
         state.port == targetPort &&
-        state.authToken == targetAuthToken &&
         state.client != null &&
         state.error == null) {
       return; // Already connected with same target
     }
 
-    await _connect(targetHost, targetPort, authToken: targetAuthToken);
+    await _connect(targetHost, targetPort);
   }
 
   /// Connect to daemon at the given host/port.
-  Future<void> _connect(String host, int port, {String? authToken}) async {
+  Future<void> _connect(String host, int port) async {
     // Clean up existing connection
     _disconnect();
 
@@ -124,10 +116,9 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
       isConnecting: true,
       host: host,
       port: port,
-      authToken: authToken,
     );
 
-    final client = DaemonClient(host: host, port: port, authToken: authToken);
+    final client = DaemonClient(host: host, port: port);
 
     try {
       final healthy = await client.isHealthy();
@@ -143,7 +134,6 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
         client: client,
         host: state.host,
         port: state.port,
-        authToken: authToken,
       );
     } catch (e) {
       state = state.copyWith(
@@ -342,13 +332,8 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   }
 
   Uri _applySessionStreamAuth(Uri wsUri) {
-    final token = state.authToken;
-    if (token == null || token.isEmpty) return wsUri;
-    if (wsUri.queryParameters.containsKey('token')) return wsUri;
-
-    final params = Map<String, String>.from(wsUri.queryParameters);
-    params['token'] = token;
-    return wsUri.replace(queryParameters: params);
+    // No auth token needed - relying on Tailscale for security
+    return wsUri;
   }
 
   /// List sessions from the daemon.

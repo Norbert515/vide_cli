@@ -95,11 +95,6 @@ void main() {
         expect(copied.port, equals(9090));
       });
 
-      test('overrides authToken', () {
-        const original = DaemonConnectionState(authToken: 'old-token');
-        final copied = original.copyWith(authToken: 'new-token');
-        expect(copied.authToken, equals('new-token'));
-      });
     });
 
     group('default constructor', () {
@@ -111,7 +106,6 @@ void main() {
         expect(state.error, isNull);
         expect(state.host, isNull);
         expect(state.port, isNull);
-        expect(state.authToken, isNull);
       });
     });
   });
