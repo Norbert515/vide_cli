@@ -15,7 +15,6 @@ void main() {
     DaemonClient? daemonClient;
     late int daemonPort;
 
-    const authToken = 'e2e-auth-token';
     final fakeServerScript = _resolveFakeSessionServerScriptPath();
     final fakeServerWorkingDirectory = p.normalize(
       p.join(p.dirname(fakeServerScript), '..', '..'),
@@ -36,14 +35,12 @@ void main() {
       daemonServer = DaemonServer(
         registry: registry!,
         port: daemonPort,
-        authToken: authToken,
       );
       await daemonServer!.start();
 
       daemonClient = DaemonClient(
         host: '127.0.0.1',
         port: daemonPort,
-        authToken: authToken,
       );
     });
 
@@ -89,21 +86,7 @@ void main() {
         );
         expect(details.httpUrl, equals('http://127.0.0.1:$daemonPort'));
 
-        await expectLater(
-          WebSocket.connect(details.wsUrl),
-          throwsA(
-            anyOf(
-              isA<WebSocketException>(),
-              isA<SocketException>(),
-              isA<HttpException>(),
-            ),
-          ),
-        );
-
-        final authedWsUri = detailsWsUri.replace(
-          queryParameters: {'token': authToken},
-        );
-        final socket = await WebSocket.connect(authedWsUri.toString());
+        final socket = await WebSocket.connect(details.wsUrl);
         socket.add('ping');
 
         final echoed = await socket.first.timeout(const Duration(seconds: 5));

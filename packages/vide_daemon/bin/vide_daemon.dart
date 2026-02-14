@@ -30,15 +30,6 @@ void main(List<String> arguments) async {
       'state-dir',
       help: 'Directory for daemon state (defaults to ~/.vide/daemon)',
     )
-    ..addFlag(
-      'generate-token',
-      help: 'Generate and require an auth token',
-      negatable: false,
-    )
-    ..addOption(
-      'token',
-      help: 'Auth token to require (implies --generate-token behavior)',
-    )
     ..addOption(
       'host',
       defaultsTo: '127.0.0.1',
@@ -62,7 +53,6 @@ void main(List<String> arguments) async {
     print('Examples:');
     print('  vide_daemon');
     print('  vide_daemon --port 9000');
-    print('  vide_daemon --generate-token');
   }
 
   ArgResults argResults;
@@ -93,8 +83,6 @@ void main(List<String> arguments) async {
     port: port,
     stateDir: argResults['state-dir'] as String?,
     videServerPath: argResults['vide-server-path'] as String?,
-    authToken: argResults['token'] as String?,
-    generateToken: argResults['generate-token'] as bool,
     verbose: argResults['verbose'] as bool,
     bindAddress: argResults['host'] as String,
   );

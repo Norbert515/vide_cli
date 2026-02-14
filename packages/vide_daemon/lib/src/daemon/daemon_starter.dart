@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
@@ -21,32 +20,22 @@ class DaemonConfig {
   /// Auto-detected if not specified.
   final String? videServerPath;
 
-  /// Auth token for the daemon.
-  /// If null and [generateToken] is false, no auth is required.
-  final String? authToken;
-
-  /// Generate a random auth token.
-  final bool generateToken;
-
   /// Enable verbose logging.
   final bool verbose;
 
   /// IP address to bind to.
   /// Defaults to '127.0.0.1' (localhost only).
   /// Use '0.0.0.0' for all interfaces, or a specific IP (e.g., Tailscale).
-  /// WARNING: When binding to non-localhost, use authentication.
   final String bindAddress;
 
   /// Callback invoked when server is ready.
-  /// Receives the server URL and optional auth token.
-  final void Function(String url, String? token)? onReady;
+  /// Receives the server URL.
+  final void Function(String url)? onReady;
 
   DaemonConfig({
     required this.port,
     this.stateDir,
     this.videServerPath,
-    this.authToken,
-    this.generateToken = false,
     this.verbose = false,
     this.bindAddress = '127.0.0.1',
     this.onReady,
@@ -142,12 +131,6 @@ class DaemonStarter {
     final spawnConfig = _determineSpawnConfig(config.videServerPath);
     _log.info('Session spawn config: $spawnConfig');
 
-    // Handle auth token
-    String? authToken = config.authToken;
-    if (authToken == null && config.generateToken) {
-      authToken = _generateToken();
-    }
-
     // Create registry
     final registry = SessionRegistry(
       stateFilePath: stateFilePath,
@@ -161,7 +144,6 @@ class DaemonStarter {
     final server = DaemonServer(
       registry: registry,
       port: config.port,
-      authToken: authToken,
       bindAddress: config.bindAddress,
     );
 
@@ -174,7 +156,6 @@ class DaemonStarter {
     _printBanner(
       port: config.port,
       stateDir: stateDir,
-      authToken: authToken,
       sessionCount: registry.sessionCount,
       bindAddress: config.bindAddress,
     );
@@ -182,7 +163,6 @@ class DaemonStarter {
     // Invoke ready callback if provided
     config.onReady?.call(
       'http://${config.bindAddress}:${config.port}',
-      authToken,
     );
 
     _server = server;
@@ -260,19 +240,10 @@ class DaemonStarter {
     );
   }
 
-  /// Generate a random 32-character auth token.
-  static String _generateToken() {
-    final random = Random.secure();
-    const chars =
-        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    return List.generate(32, (_) => chars[random.nextInt(chars.length)]).join();
-  }
-
   /// Print the startup banner.
   void _printBanner({
     required int port,
     required String stateDir,
-    required String? authToken,
     required int sessionCount,
     required String bindAddress,
   }) {
@@ -283,11 +254,6 @@ class DaemonStarter {
     print('╠══════════════════════════════════════════════════════════════╣');
     print('║  URL: ${url.padRight(54)}║');
     print('║  State: ${stateDir.padRight(52)}║');
-    if (authToken != null) {
-      print('║  Token: ${authToken.padRight(52)}║');
-    } else {
-      print('║  Auth: none (localhost only)                                ║');
-    }
     print('║  Sessions: ${sessionCount.toString().padRight(49)}║');
     print('╠══════════════════════════════════════════════════════════════╣');
     print('║  Endpoints:                                                  ║');

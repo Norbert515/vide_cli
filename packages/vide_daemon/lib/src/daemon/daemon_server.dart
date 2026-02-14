@@ -17,7 +17,6 @@ import 'session_registry.dart';
 class DaemonServer {
   final SessionRegistry registry;
   final int port;
-  final String? authToken;
   final String bindAddress;
   final DateTime startedAt = DateTime.now();
 
@@ -30,7 +29,6 @@ class DaemonServer {
   DaemonServer({
     required this.registry,
     required this.port,
-    this.authToken,
     this.bindAddress = '127.0.0.1',
   });
 
@@ -85,7 +83,6 @@ class DaemonServer {
     // Build middleware pipeline
     final pipeline = Pipeline()
         .addMiddleware(_corsMiddleware())
-        .addMiddleware(_authMiddleware())
         .addHandler(router);
 
     return pipeline;
@@ -100,7 +97,7 @@ class DaemonServer {
             headers: {
               'Access-Control-Allow-Origin': '*',
               'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+              'Access-Control-Allow-Headers': 'Content-Type',
             },
           );
         }
@@ -109,60 +106,6 @@ class DaemonServer {
         return response.change(headers: {'Access-Control-Allow-Origin': '*'});
       };
     };
-  }
-
-  Middleware _authMiddleware() {
-    return (Handler handler) {
-      return (Request request) async {
-        // Skip auth if no token is configured
-        if (authToken == null) {
-          return handler(request);
-        }
-
-        // Skip auth for health check
-        if (request.url.path == 'health') {
-          return handler(request);
-        }
-
-        // WebSocket clients often pass auth token as query parameter
-        // because custom headers are not consistently available.
-        final queryToken = request.url.queryParameters['token'];
-        if (_isWebSocketAuthPath(request.url.path) && queryToken == authToken) {
-          return handler(request);
-        }
-
-        // Check Authorization header
-        final authHeader = request.headers['authorization'];
-        if (authHeader == null) {
-          return Response.forbidden(
-            jsonEncode({'error': 'Authorization header required'}),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        // Expect "Bearer <token>" format
-        if (!authHeader.startsWith('Bearer ')) {
-          return Response.forbidden(
-            jsonEncode({'error': 'Invalid authorization format'}),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        final token = authHeader.substring(7);
-        if (token != authToken) {
-          return Response.forbidden(
-            jsonEncode({'error': 'Invalid token'}),
-            headers: {'Content-Type': 'application/json'},
-          );
-        }
-
-        return handler(request);
-      };
-    };
-  }
-
-  bool _isWebSocketAuthPath(String path) {
-    return path == 'daemon' || path.endsWith('/stream');
   }
 
   Future<Response> _handleHealth(Request request) async {

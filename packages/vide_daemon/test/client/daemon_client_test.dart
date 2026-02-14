@@ -394,37 +394,6 @@ void main() {
       });
     });
 
-    group('authentication', () {
-      test('includes auth token in headers when provided', () async {
-        final mockClient = MockClient((request) async {
-          expect(request.headers['Authorization'], 'Bearer test-token-123');
-
-          return http.Response(jsonEncode({'sessions': []}), 200);
-        });
-
-        final daemonClient = DaemonClient(
-          port: 8080,
-          httpClient: mockClient,
-          authToken: 'test-token-123',
-        );
-
-        await daemonClient.listSessions();
-        daemonClient.close();
-      });
-
-      test('does not include auth header when token is null', () async {
-        final mockClient = MockClient((request) async {
-          expect(request.headers.containsKey('Authorization'), isFalse);
-
-          return http.Response(jsonEncode({'sessions': []}), 200);
-        });
-
-        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
-
-        await daemonClient.listSessions();
-        daemonClient.close();
-      });
-    });
   });
 
   group('DaemonClientException', () {
