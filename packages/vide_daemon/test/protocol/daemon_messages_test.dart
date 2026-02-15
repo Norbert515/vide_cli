@@ -29,7 +29,6 @@ void main() {
 
       expect(json['initial-message'], 'Hello');
       expect(json['working-directory'], '/path/to/project');
-      expect(json['model'], isNull);
       expect(json['permission-mode'], isNull);
       expect(json['team'], isNull);
     });
@@ -38,7 +37,6 @@ void main() {
       final request = CreateSessionRequest(
         initialMessage: 'Hello',
         workingDirectory: '/path/to/project',
-        model: 'sonnet',
         permissionMode: 'auto',
         team: 'enterprise',
       );
@@ -47,7 +45,6 @@ void main() {
 
       expect(json['initial-message'], 'Hello');
       expect(json['working-directory'], '/path/to/project');
-      expect(json['model'], 'sonnet');
       expect(json['permission-mode'], 'auto');
       expect(json['team'], 'enterprise');
     });
@@ -62,7 +59,6 @@ void main() {
 
       expect(request.initialMessage, 'Test message');
       expect(request.workingDirectory, '/test/path');
-      expect(request.model, isNull);
       expect(request.permissionMode, isNull);
       expect(request.team, isNull);
     });
@@ -71,7 +67,6 @@ void main() {
       final json = {
         'initial-message': 'Test message',
         'working-directory': '/test/path',
-        'model': 'opus',
         'permission-mode': 'manual',
         'team': 'startup',
       };
@@ -80,7 +75,6 @@ void main() {
 
       expect(request.initialMessage, 'Test message');
       expect(request.workingDirectory, '/test/path');
-      expect(request.model, 'opus');
       expect(request.permissionMode, 'manual');
       expect(request.team, 'startup');
     });
@@ -89,7 +83,6 @@ void main() {
       final original = CreateSessionRequest(
         initialMessage: 'Round trip test',
         workingDirectory: '/round/trip',
-        model: 'haiku',
         permissionMode: 'auto',
         team: 'balanced',
       );
@@ -99,7 +92,6 @@ void main() {
 
       expect(restored.initialMessage, original.initialMessage);
       expect(restored.workingDirectory, original.workingDirectory);
-      expect(restored.model, original.model);
       expect(restored.permissionMode, original.permissionMode);
       expect(restored.team, original.team);
     });
@@ -418,7 +410,6 @@ void main() {
         createdAt: DateTime.utc(2024, 8, 1),
         pid: 99999,
         initialMessage: 'Hello daemon',
-        model: 'sonnet',
         permissionMode: 'auto',
         team: 'enterprise',
       );
@@ -431,7 +422,6 @@ void main() {
       expect(json['created-at'], '2024-08-01T00:00:00.000Z');
       expect(json['pid'], 99999);
       expect(json['initial-message'], 'Hello daemon');
-      expect(json['model'], 'sonnet');
       expect(json['permission-mode'], 'auto');
       expect(json['team'], 'enterprise');
     });
@@ -454,7 +444,6 @@ void main() {
       expect(state.createdAt, DateTime.utc(2024, 9, 15, 18));
       expect(state.pid, 11111);
       expect(state.initialMessage, 'Restored message');
-      expect(state.model, isNull);
       expect(state.permissionMode, isNull);
       expect(state.team, isNull);
     });
@@ -467,7 +456,6 @@ void main() {
         createdAt: DateTime.utc(2024, 10, 10, 10, 10),
         pid: 77777,
         initialMessage: 'Round trip',
-        model: 'haiku',
         permissionMode: 'manual',
         team: 'startup',
       );
@@ -481,7 +469,6 @@ void main() {
       expect(restored.createdAt, original.createdAt);
       expect(restored.pid, original.pid);
       expect(restored.initialMessage, original.initialMessage);
-      expect(restored.model, original.model);
       expect(restored.permissionMode, original.permissionMode);
       expect(restored.team, original.team);
     });

@@ -61,7 +61,6 @@ class DaemonClient {
   Future<CreateSessionResponse> createSession({
     required String initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
     List<Map<String, dynamic>>? attachments,
@@ -69,7 +68,6 @@ class DaemonClient {
     final request = CreateSessionRequest(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
-      model: model,
       permissionMode: permissionMode,
       team: team,
       attachments: attachments,

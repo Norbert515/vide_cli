@@ -199,14 +199,12 @@ class VideClient {
   Future<RemoteVideSession> createSession({
     required String initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
   }) async {
     final info = await createSessionRaw(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
-      model: model,
       permissionMode: permissionMode,
       team: team,
     );
@@ -225,7 +223,6 @@ class VideClient {
   Future<SessionConnectionInfo> createSessionRaw({
     required String initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
   }) async {
@@ -235,7 +232,6 @@ class VideClient {
       body: jsonEncode({
         'initial-message': initialMessage,
         'working-directory': workingDirectory,
-        if (model != null) 'model': model,
         if (permissionMode != null) 'permission-mode': permissionMode,
         if (team != null) 'team': team,
       }),

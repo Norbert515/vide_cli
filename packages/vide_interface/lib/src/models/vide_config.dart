@@ -11,9 +11,6 @@ class VideSessionConfig {
   /// Initial message to send to the main agent.
   final String initialMessage;
 
-  /// Model to use: 'sonnet', 'opus', or 'haiku'.
-  final String? model;
-
   /// Permission mode: 'accept-edits', 'plan', 'ask', or 'deny'.
   final String? permissionMode;
 
@@ -26,7 +23,6 @@ class VideSessionConfig {
   const VideSessionConfig({
     required this.workingDirectory,
     required this.initialMessage,
-    this.model,
     this.permissionMode,
     this.team = 'enterprise',
     this.dangerouslySkipPermissions = false,

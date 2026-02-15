@@ -77,7 +77,6 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
       final session = await sessionRepo.createSession(
         initialMessage: state.initialMessage,
         workingDirectory: state.workingDirectory,
-        model: 'sonnet',
         team: state.team,
         serverId: state.selectedServerId,
       );

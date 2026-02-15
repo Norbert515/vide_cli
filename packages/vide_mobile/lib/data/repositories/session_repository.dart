@@ -95,7 +95,6 @@ class SessionRepository extends _$SessionRepository {
   Future<RemoteVideSession> createSession({
     required String initialMessage,
     required String workingDirectory,
-    String? model,
     String? team,
     String? serverId,
   }) async {
@@ -138,7 +137,6 @@ class SessionRepository extends _$SessionRepository {
     final remoteSession = await videClient.createSession(
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
-      model: model,
       team: team,
     );
 
@@ -384,7 +382,7 @@ class SessionRepository extends _$SessionRepository {
   RemoteVideSession? get session => state.session;
 
   /// Sends a user message.
-  void sendMessage(String content, {String? model}) {
+  void sendMessage(String content) {
     final session = state.session;
     if (session == null || !state.isActive) {
       throw SessionException('No active session');

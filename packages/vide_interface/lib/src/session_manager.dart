@@ -49,7 +49,6 @@ abstract interface class VideSessionManager {
   Future<VideSession> createSession({
     String? initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
     List<VideAttachment>? attachments,

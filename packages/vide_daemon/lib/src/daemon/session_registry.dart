@@ -57,7 +57,6 @@ class SessionRegistry {
   Future<SessionProcess> createSession({
     required String initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
     List<Map<String, dynamic>>? attachments,
@@ -68,7 +67,6 @@ class SessionRegistry {
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       spawnConfig: spawnConfig,
-      model: model,
       permissionMode: permissionMode,
       team: team,
       attachments: attachments,

@@ -59,7 +59,6 @@ class RemoteVideSessionManager implements VideSessionManager {
   Future<VideSession> createSession({
     String? initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
     List<VideAttachment>? attachments,
@@ -76,7 +75,6 @@ class RemoteVideSessionManager implements VideSessionManager {
       initialMessage: initialMessage,
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
-      model: model,
       team: team,
       attachments: attachments,
     );

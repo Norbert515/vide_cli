@@ -16,7 +16,6 @@ class SessionProcess {
   final int port;
   final DateTime createdAt;
   final String initialMessage;
-  final String? model;
   final String? permissionMode;
   final String? team;
 
@@ -44,7 +43,6 @@ class SessionProcess {
     required this.createdAt,
     required this.initialMessage,
     required Process process,
-    this.model,
     this.permissionMode,
     this.team,
   }) : _process = process,
@@ -71,7 +69,6 @@ class SessionProcess {
     required String initialMessage,
     required String workingDirectory,
     required SessionSpawnConfig spawnConfig,
-    String? model,
     String? permissionMode,
     String? team,
     List<Map<String, dynamic>>? attachments,
@@ -162,7 +159,6 @@ class SessionProcess {
     final createBody = jsonEncode({
       'initial-message': initialMessage,
       'working-directory': workingDirectory,
-      if (model != null) 'model': model,
       if (permissionMode != null) 'permission-mode': permissionMode,
       if (team != null) 'team': team,
       if (attachments != null && attachments.isNotEmpty)
@@ -200,7 +196,6 @@ class SessionProcess {
       createdAt: DateTime.now(),
       initialMessage: initialMessage,
       process: process,
-      model: model,
       permissionMode: permissionMode,
       team: team,
     );
@@ -505,7 +500,6 @@ class SessionProcess {
       createdAt: createdAt,
       pid: pid,
       initialMessage: initialMessage,
-      model: model,
       permissionMode: permissionMode,
       team: team,
     );

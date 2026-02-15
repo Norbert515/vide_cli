@@ -170,7 +170,6 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     required String initialMessage,
     required String workingDirectory,
     String? permissionMode,
-    String? model,
     String? team,
     List<VideAttachment>? attachments,
     void Function()? onReady,
@@ -207,7 +206,6 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
           initialMessage: initialMessage,
           workingDirectory: workingDirectory,
           permissionMode: permissionMode,
-          model: model,
           team: team,
           attachments: rawAttachments,
         );

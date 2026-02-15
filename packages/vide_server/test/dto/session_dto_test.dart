@@ -7,7 +7,6 @@ void main() {
       final json = {
         'initial-message': 'Hello',
         'working-directory': '/path/to/project',
-        'model': 'opus',
         'permission-mode': 'interactive',
       };
 
@@ -15,7 +14,6 @@ void main() {
 
       expect(request.initialMessage, 'Hello');
       expect(request.workingDirectory, '/path/to/project');
-      expect(request.model, 'opus');
       expect(request.permissionMode, 'interactive');
     });
 
@@ -26,7 +24,6 @@ void main() {
 
       expect(request.initialMessage, 'Hello');
       expect(request.workingDirectory, '/path');
-      expect(request.model, isNull);
       expect(request.permissionMode, isNull);
       expect(request.attachments, isNull);
     });
@@ -117,7 +114,6 @@ void main() {
       final json = {
         'type': 'user-message',
         'content': 'Hello there',
-        'model': 'haiku',
       };
 
       final message = ClientMessage.fromJson(json);
@@ -126,7 +122,6 @@ void main() {
       final userMsg = message as UserMessage;
       expect(userMsg.content, 'Hello there');
       expect(userMsg.agentId, isNull);
-      expect(userMsg.model, 'haiku');
     });
 
     test('fromJson parses user-message with target agent', () {

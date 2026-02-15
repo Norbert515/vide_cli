@@ -148,7 +148,6 @@ void main() {
       test('includes optional parameters', () async {
         final mockClient = MockClient((request) async {
           final body = jsonDecode(request.body) as Map<String, dynamic>;
-          expect(body['model'], 'sonnet');
           expect(body['permission-mode'], 'auto');
           expect(body['team'], 'enterprise');
 
@@ -170,7 +169,6 @@ void main() {
         final response = await daemonClient.createSession(
           initialMessage: 'Test',
           workingDirectory: '/work',
-          model: 'sonnet',
           permissionMode: 'auto',
           team: 'enterprise',
         );

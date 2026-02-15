@@ -11,7 +11,6 @@ CreateSessionRequest _$CreateSessionRequestFromJson(
 ) => CreateSessionRequest(
   initialMessage: json['initial-message'] as String,
   workingDirectory: json['working-directory'] as String,
-  model: json['model'] as String?,
   permissionMode: json['permission-mode'] as String?,
   team: json['team'] as String?,
   attachments: (json['attachments'] as List<dynamic>?)
@@ -24,7 +23,6 @@ Map<String, dynamic> _$CreateSessionRequestToJson(
 ) => <String, dynamic>{
   'initial-message': instance.initialMessage,
   'working-directory': instance.workingDirectory,
-  'model': instance.model,
   'permission-mode': instance.permissionMode,
   'team': instance.team,
   'attachments': instance.attachments,
@@ -145,7 +143,6 @@ PersistedSessionState _$PersistedSessionStateFromJson(
   createdAt: DateTime.parse(json['created-at'] as String),
   pid: (json['pid'] as num).toInt(),
   initialMessage: json['initial-message'] as String,
-  model: json['model'] as String?,
   permissionMode: json['permission-mode'] as String?,
   team: json['team'] as String?,
 );
@@ -159,7 +156,6 @@ Map<String, dynamic> _$PersistedSessionStateToJson(
   'created-at': instance.createdAt.toIso8601String(),
   'pid': instance.pid,
   'initial-message': instance.initialMessage,
-  'model': instance.model,
   'permission-mode': instance.permissionMode,
   'team': instance.team,
 };

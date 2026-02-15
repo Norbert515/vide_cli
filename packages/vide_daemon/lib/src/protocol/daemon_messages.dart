@@ -30,8 +30,6 @@ class CreateSessionRequest {
   @JsonKey(name: 'working-directory')
   final String workingDirectory;
 
-  final String? model;
-
   @JsonKey(name: 'permission-mode')
   final String? permissionMode;
 
@@ -43,7 +41,6 @@ class CreateSessionRequest {
   CreateSessionRequest({
     required this.initialMessage,
     required this.workingDirectory,
-    this.model,
     this.permissionMode,
     this.team,
     this.attachments,
@@ -229,8 +226,6 @@ class PersistedSessionState {
   @JsonKey(name: 'initial-message')
   final String initialMessage;
 
-  final String? model;
-
   @JsonKey(name: 'permission-mode')
   final String? permissionMode;
 
@@ -243,7 +238,6 @@ class PersistedSessionState {
     required this.createdAt,
     required this.pid,
     required this.initialMessage,
-    this.model,
     this.permissionMode,
     this.team,
   });

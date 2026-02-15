@@ -119,7 +119,6 @@ Future<Response> createSession(
   final session = await sessionManager.createSession(
     workingDirectory: canonicalPath,
     initialMessage: req.initialMessage,
-    model: req.model,
     permissionMode: req.permissionMode,
     team: req.team ?? 'enterprise',
     attachments: attachments,

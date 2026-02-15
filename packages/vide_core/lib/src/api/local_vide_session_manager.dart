@@ -77,7 +77,6 @@ class LocalVideSessionManager implements VideSessionManager {
   Future<VideSession> createSession({
     String? initialMessage,
     required String workingDirectory,
-    String? model,
     String? permissionMode,
     String? team,
     List<VideAttachment>? attachments,
@@ -106,7 +105,6 @@ class LocalVideSessionManager implements VideSessionManager {
     final network = await manager.startNew(
       claudeMessage,
       workingDirectory: workingDirectory,
-      model: model,
       permissionMode: permissionMode,
       team: team ?? 'enterprise',
     );

@@ -166,9 +166,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// If provided, it's atomically set as worktreePath in the network.
   /// If null, effectiveWorkingDirectory falls back to the provider value.
   ///
-  /// [model] - Optional model override (e.g., 'sonnet', 'opus', 'haiku').
-  /// If provided, overrides the default model for the main agent.
-  ///
   /// [permissionMode] - Optional permission mode override (e.g., 'accept-edits', 'plan', 'ask', 'deny').
   /// If provided, overrides the default permission mode for the main agent.
   ///
@@ -178,7 +175,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   Future<AgentNetwork> startNew(
     Message? initialMessage, {
     String? workingDirectory,
-    String? model,
     String? permissionMode,
     String team = 'enterprise',
   }) async {
@@ -223,12 +219,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     if (permissionMode != null) {
       PermissionMode.parse(permissionMode); // throws ArgumentError if invalid
       leadConfig = leadConfig.copyWith(permissionMode: permissionMode);
-    }
-
-    // Apply model override if provided
-    // This sets the model via --model CLI arg at client creation time
-    if (model != null) {
-      leadConfig = leadConfig.copyWith(model: model);
     }
 
     // Create client synchronously - initialization happens in background

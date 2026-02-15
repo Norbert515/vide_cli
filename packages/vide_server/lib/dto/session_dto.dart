@@ -5,7 +5,6 @@ import 'package:uuid/uuid.dart';
 class CreateSessionRequest {
   final String initialMessage;
   final String workingDirectory;
-  final String? model;
   final String? permissionMode;
   final String? team;
   final List<UserMessageAttachment>? attachments;
@@ -13,7 +12,6 @@ class CreateSessionRequest {
   CreateSessionRequest({
     required this.initialMessage,
     required this.workingDirectory,
-    this.model,
     this.permissionMode,
     this.team,
     this.attachments,
@@ -24,7 +22,6 @@ class CreateSessionRequest {
     return CreateSessionRequest(
       initialMessage: json['initial-message'] as String,
       workingDirectory: json['working-directory'] as String,
-      model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
       team: json['team'] as String?,
       attachments: rawAttachments
@@ -89,14 +86,12 @@ class UserMessage implements ClientMessage {
 
   final String content;
   final String? agentId;
-  final String? model;
   final String? permissionMode;
   final List<UserMessageAttachment>? attachments;
 
   UserMessage({
     required this.content,
     this.agentId,
-    this.model,
     this.permissionMode,
     this.attachments,
   });
@@ -106,7 +101,6 @@ class UserMessage implements ClientMessage {
     return UserMessage(
       content: json['content'] as String,
       agentId: json['agent-id'] as String?,
-      model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
       attachments: rawAttachments
           ?.map(

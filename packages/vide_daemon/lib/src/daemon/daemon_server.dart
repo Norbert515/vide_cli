@@ -131,7 +131,6 @@ class DaemonServer {
       final session = await registry.createSession(
         initialMessage: createRequest.initialMessage,
         workingDirectory: createRequest.workingDirectory,
-        model: createRequest.model,
         permissionMode: createRequest.permissionMode,
         team: createRequest.team,
         attachments: createRequest.attachments,

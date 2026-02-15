@@ -3,7 +3,7 @@
 /// Tests verify:
 /// 1. Tool use events (tool-use, tool-result)
 /// 2. Permission handling (permission-request, permission-response, permission-resolved)
-/// 3. Model and permission-mode selection
+/// 3. Permission-mode selection
 /// 4. Error handling (unknown message types)
 /// 5. Abort functionality
 /// 6. WebSocket keepalive
@@ -272,105 +272,6 @@ void main() {
           }
         },
         timeout: Timeout(Duration(seconds: 120)),
-      );
-    });
-
-    group('Model Selection', () {
-      test(
-        'session can be created with model parameter',
-        () async {
-          // Test with haiku model (faster)
-          final createResponse = await http.post(
-            Uri.parse('$baseUrl/api/v1/sessions'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'initial-message': 'Say "hello" only.',
-              'working-directory': Directory.current.path,
-              'model': 'haiku',
-            }),
-          );
-
-          expect(createResponse.statusCode, 200);
-          final sessionData = jsonDecode(createResponse.body);
-          expect(sessionData['session-id'], isNotEmpty);
-
-          // Connect and verify it works
-          final sessionId = sessionData['session-id'];
-          final wsUrl =
-              'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
-          final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-          final completer = Completer<void>();
-          var gotMessage = false;
-
-          channel.stream.listen((message) {
-            final event = jsonDecode(message as String) as Map<String, dynamic>;
-            if (event['type'] == 'message') gotMessage = true;
-            if (event['type'] == 'done' || event['type'] == 'error') {
-              if (!completer.isCompleted) completer.complete();
-            }
-          });
-
-          await completer.future.timeout(const Duration(seconds: 60));
-          await channel.sink.close();
-
-          expect(gotMessage, isTrue, reason: 'Should receive message events');
-        },
-        timeout: Timeout(Duration(seconds: 90)),
-      );
-
-      test(
-        'user-message can specify model for subsequent messages',
-        () async {
-          final createResponse = await http.post(
-            Uri.parse('$baseUrl/api/v1/sessions'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'initial-message': 'Remember the word "apple".',
-              'working-directory': Directory.current.path,
-            }),
-          );
-
-          expect(createResponse.statusCode, 200);
-          final sessionData = jsonDecode(createResponse.body);
-          final sessionId = sessionData['session-id'];
-
-          final wsUrl =
-              'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
-          final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-          var turnCount = 0;
-          final completer = Completer<void>();
-
-          channel.stream.listen((message) {
-            final event = jsonDecode(message as String) as Map<String, dynamic>;
-
-            if (event['type'] == 'done') {
-              turnCount++;
-              if (turnCount == 1) {
-                // Send follow-up with different model
-                channel.sink.add(
-                  jsonEncode({
-                    'type': 'user-message',
-                    'content': 'What word did I ask you to remember?',
-                    'model': 'haiku', // Use haiku for speed
-                  }),
-                );
-              } else if (turnCount == 2) {
-                completer.complete();
-              }
-            }
-            if (event['type'] == 'error' && !completer.isCompleted) {
-              completer.complete();
-            }
-          });
-
-          await completer.future.timeout(const Duration(seconds: 120));
-          await channel.sink.close();
-
-          expect(turnCount, greaterThanOrEqualTo(2));
-        },
-        timeout: Timeout(Duration(seconds: 150)),
       );
     });
 
