@@ -6,7 +6,9 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
 
+import '../../data/repositories/server_registry.dart';
 import '../../data/repositories/session_repository.dart';
+import '../../domain/models/server_connection.dart';
 import 'session_creation_state.dart';
 
 /// Screen for creating a new session.
@@ -77,6 +79,7 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
         workingDirectory: state.workingDirectory,
         model: 'sonnet',
         team: state.team,
+        serverId: state.selectedServerId,
       );
 
       await settingsStorage.addRecentWorkingDirectory(state.workingDirectory);
@@ -106,6 +109,7 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(sessionCreationNotifierProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Scaffold(
       appBar: AppBar(
@@ -196,6 +200,97 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                         .setPermissionMode(mode);
                   },
                 ),
+                // Server selection (only when multiple servers connected)
+                Builder(builder: (context) {
+                  final registryState = ref.watch(serverRegistryProvider);
+                  final connectedServers = registryState.entries
+                      .where((e) =>
+                          e.value.status == ServerHealthStatus.connected)
+                      .toList();
+
+                  if (connectedServers.length <= 1) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const SizedBox(height: 24),
+                      Text(
+                        'Server',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...connectedServers.map((entry) {
+                        final serverId = entry.key;
+                        final server = entry.value;
+                        final isSelected =
+                            state.selectedServerId == serverId ||
+                                (state.selectedServerId == null &&
+                                    entry == connectedServers.first);
+
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: InkWell(
+                            onTap: !state.isCreating
+                                ? () => ref
+                                    .read(sessionCreationNotifierProvider
+                                        .notifier)
+                                    .setSelectedServerId(serverId)
+                                : null,
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? videColors.accentSubtle
+                                    : null,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? videColors.accent
+                                      : colorScheme.outlineVariant,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.dns_outlined,
+                                    size: 18,
+                                    color: isSelected
+                                        ? videColors.accent
+                                        : videColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      server.connection.displayName,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? videColors.accent
+                                            : colorScheme.onSurface,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.normal,
+                                      ),
+                                    ),
+                                  ),
+                                  if (isSelected)
+                                    Icon(Icons.check,
+                                        size: 18, color: videColors.accent),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                }),
               ],
             ),
           ),

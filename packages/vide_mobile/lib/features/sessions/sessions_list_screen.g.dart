@@ -7,7 +7,7 @@ part of 'sessions_list_screen.dart';
 // **************************************************************************
 
 String _$sessionsListRefreshHash() =>
-    r'b2740dfd8c2056dd8d1d1d84aa9859b737711f17';
+    r'dbf805acb49fc4e60a25720151b7ac39e4eeebab';
 
 /// Triggers a refresh of the session list from the daemon.
 ///

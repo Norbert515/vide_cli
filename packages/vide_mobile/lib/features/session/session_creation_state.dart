@@ -24,6 +24,7 @@ class SessionCreationState with _$SessionCreationState {
     @Default(PermissionMode.defaultMode) PermissionMode permissionMode,
     @Default(false) bool isCreating,
     String? error,
+    String? selectedServerId,
   }) = _SessionCreationState;
 }
 
@@ -57,6 +58,10 @@ class SessionCreationNotifier extends _$SessionCreationNotifier {
 
   void setError(String? error) {
     state = state.copyWith(error: error);
+  }
+
+  void setSelectedServerId(String? serverId) {
+    state = state.copyWith(selectedServerId: serverId);
   }
 
   bool validate() {

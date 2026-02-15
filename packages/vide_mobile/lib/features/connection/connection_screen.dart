@@ -5,12 +5,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
-import '../../data/local/settings_storage.dart';
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
 import '../../domain/models/server_connection.dart';
 import 'connection_state.dart';
 
-/// Screen for connecting to a Vide server.
+/// Screen for adding a new server or auto-connecting to saved servers.
 class ConnectionScreen extends ConsumerStatefulWidget {
   const ConnectionScreen({super.key});
 
@@ -51,32 +50,37 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   }
 
   Future<void> _attemptAutoConnect() async {
-    final settingsStorage = ref.read(settingsStorageProvider.notifier);
-    final lastConnection = await settingsStorage.getLastConnection();
+    final registry = ref.read(serverRegistryProvider.notifier);
 
-    if (lastConnection == null || !mounted) return;
+    // Wait a moment for the registry to load servers from storage
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    final servers = ref.read(serverRegistryProvider);
+    if (servers.isEmpty || !mounted) {
+      setState(() => _isAutoConnecting = false);
+      return;
+    }
 
     setState(() {
       _isAutoConnecting = true;
       _autoConnectError = null;
     });
 
-    _hostController.text = lastConnection.host;
-    _portController.text = lastConnection.port.toString();
-
     try {
-      await ref
-          .read(connectionRepositoryProvider.notifier)
-          .connect(lastConnection);
-      if (mounted) {
+      await registry.connectAll();
+      if (mounted && registry.hasConnectedServer) {
         context.go(AppRoutes.sessions);
+      } else if (mounted) {
+        setState(() {
+          _isAutoConnecting = false;
+          _autoConnectError = 'Could not connect to any configured server';
+        });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isAutoConnecting = false;
-          _autoConnectError =
-              'Could not connect to ${lastConnection.host}:${lastConnection.port}';
+          _autoConnectError = 'Connection failed: $e';
         });
       }
     }
@@ -86,32 +90,22 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final notifier = ref.read(connectionNotifierProvider.notifier);
-
-    // Test connection first
     final success = await notifier.testConnection();
     if (!success || !mounted) return;
 
-    // If test passed, connect
     final state = ref.read(connectionNotifierProvider);
-    final connection = ServerConnection(
+    final server = ServerConnection.create(
       host: state.host,
       port: state.port,
+      name: state.host == 'localhost' ? 'Local Server' : state.host,
     );
 
-    try {
-      await ref.read(connectionRepositoryProvider.notifier).connect(connection);
-      if (mounted) {
-        context.go(AppRoutes.sessions);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to connect: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+    final registry = ref.read(serverRegistryProvider.notifier);
+    await registry.addServer(server);
+    await registry.connectServer(server.id);
+
+    if (mounted) {
+      context.go(AppRoutes.sessions);
     }
   }
 
@@ -175,7 +169,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Connect to Server',
+                  'Add Server',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -259,8 +253,8 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                             color: colorScheme.onPrimary,
                           ),
                         )
-                      : const Icon(Icons.login_outlined),
-                  label: Text(isTesting ? 'Connecting...' : 'Connect'),
+                      : const Icon(Icons.add),
+                  label: Text(isTesting ? 'Connecting...' : 'Add Server'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                   ),

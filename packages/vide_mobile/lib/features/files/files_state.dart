@@ -1,7 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vide_client/vide_client.dart';
 
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
 
 part 'files_state.g.dart';
 
@@ -60,11 +60,13 @@ class FilesNotifier extends _$FilesNotifier {
   Future<void> _load(String path) async {
     state = state.copyWith(isLoading: true, clearError: true);
 
-    final client = ref.read(connectionRepositoryProvider).client;
-    if (client == null) {
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final connected = registry.connectedEntries;
+    if (connected.isEmpty || connected.first.client == null) {
       state = state.copyWith(isLoading: false, error: 'Not connected');
       return;
     }
+    final client = connected.first.client!;
 
     try {
       final results = await Future.wait([

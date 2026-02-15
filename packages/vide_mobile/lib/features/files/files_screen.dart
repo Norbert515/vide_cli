@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:vide_client/vide_client.dart';
 
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
 import 'files_state.dart';
 import 'widgets/diff_bottom_sheet.dart';
 import 'widgets/file_list_tile.dart';
@@ -29,7 +29,10 @@ class FilesScreen extends ConsumerWidget {
     FileEntry entry,
     String rootPath,
   ) async {
-    final client = ref.read(connectionRepositoryProvider).client;
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final connected = registry.connectedEntries;
+    if (connected.isEmpty) return;
+    final client = connected.first.client;
     if (client == null) return;
 
     final fullDiff = await client.gitDiff(rootPath);

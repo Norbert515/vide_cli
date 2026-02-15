@@ -22,6 +22,7 @@ mixin _$SessionCreationState {
   PermissionMode get permissionMode => throw _privateConstructorUsedError;
   bool get isCreating => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
+  String? get selectedServerId => throw _privateConstructorUsedError;
 
   /// Create a copy of SessionCreationState
   /// with the given fields replaced by the non-null parameter values.
@@ -42,7 +43,8 @@ abstract class $SessionCreationStateCopyWith<$Res> {
       String team,
       PermissionMode permissionMode,
       bool isCreating,
-      String? error});
+      String? error,
+      String? selectedServerId});
 }
 
 /// @nodoc
@@ -67,6 +69,7 @@ class _$SessionCreationStateCopyWithImpl<$Res,
     Object? permissionMode = null,
     Object? isCreating = null,
     Object? error = freezed,
+    Object? selectedServerId = freezed,
   }) {
     return _then(_value.copyWith(
       initialMessage: null == initialMessage
@@ -93,6 +96,10 @@ class _$SessionCreationStateCopyWithImpl<$Res,
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
               as String?,
+      selectedServerId: freezed == selectedServerId
+          ? _value.selectedServerId
+          : selectedServerId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ) as $Val);
   }
 }
@@ -111,7 +118,8 @@ abstract class _$$SessionCreationStateImplCopyWith<$Res>
       String team,
       PermissionMode permissionMode,
       bool isCreating,
-      String? error});
+      String? error,
+      String? selectedServerId});
 }
 
 /// @nodoc
@@ -133,6 +141,7 @@ class __$$SessionCreationStateImplCopyWithImpl<$Res>
     Object? permissionMode = null,
     Object? isCreating = null,
     Object? error = freezed,
+    Object? selectedServerId = freezed,
   }) {
     return _then(_$SessionCreationStateImpl(
       initialMessage: null == initialMessage
@@ -159,6 +168,10 @@ class __$$SessionCreationStateImplCopyWithImpl<$Res>
           ? _value.error
           : error // ignore: cast_nullable_to_non_nullable
               as String?,
+      selectedServerId: freezed == selectedServerId
+          ? _value.selectedServerId
+          : selectedServerId // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
   }
 }
@@ -172,7 +185,8 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
       this.team = 'enterprise',
       this.permissionMode = PermissionMode.defaultMode,
       this.isCreating = false,
-      this.error});
+      this.error,
+      this.selectedServerId});
 
   @override
   @JsonKey()
@@ -191,10 +205,12 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
   final bool isCreating;
   @override
   final String? error;
+  @override
+  final String? selectedServerId;
 
   @override
   String toString() {
-    return 'SessionCreationState(initialMessage: $initialMessage, workingDirectory: $workingDirectory, team: $team, permissionMode: $permissionMode, isCreating: $isCreating, error: $error)';
+    return 'SessionCreationState(initialMessage: $initialMessage, workingDirectory: $workingDirectory, team: $team, permissionMode: $permissionMode, isCreating: $isCreating, error: $error, selectedServerId: $selectedServerId)';
   }
 
   @override
@@ -211,12 +227,14 @@ class _$SessionCreationStateImpl implements _SessionCreationState {
                 other.permissionMode == permissionMode) &&
             (identical(other.isCreating, isCreating) ||
                 other.isCreating == isCreating) &&
-            (identical(other.error, error) || other.error == error));
+            (identical(other.error, error) || other.error == error) &&
+            (identical(other.selectedServerId, selectedServerId) ||
+                other.selectedServerId == selectedServerId));
   }
 
   @override
   int get hashCode => Object.hash(runtimeType, initialMessage, workingDirectory,
-      team, permissionMode, isCreating, error);
+      team, permissionMode, isCreating, error, selectedServerId);
 
   /// Create a copy of SessionCreationState
   /// with the given fields replaced by the non-null parameter values.
@@ -236,7 +254,8 @@ abstract class _SessionCreationState implements SessionCreationState {
       final String team,
       final PermissionMode permissionMode,
       final bool isCreating,
-      final String? error}) = _$SessionCreationStateImpl;
+      final String? error,
+      final String? selectedServerId}) = _$SessionCreationStateImpl;
 
   @override
   String get initialMessage;
@@ -250,6 +269,8 @@ abstract class _SessionCreationState implements SessionCreationState {
   bool get isCreating;
   @override
   String? get error;
+  @override
+  String? get selectedServerId;
 
   /// Create a copy of SessionCreationState
   /// with the given fields replaced by the non-null parameter values.

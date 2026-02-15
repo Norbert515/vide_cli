@@ -8,7 +8,7 @@ import '../../core/providers/connection_state_provider.dart';
 import '../../domain/services/network_monitor_service.dart';
 import '../../domain/services/reconnection_service.dart';
 import '../local/settings_storage.dart';
-import 'connection_repository.dart';
+import 'server_registry.dart';
 
 part 'session_repository.g.dart';
 
@@ -55,6 +55,12 @@ class SessionRepository extends _$SessionRepository {
   StreamSubscription<VideEvent>? _eventSubscription;
   StreamSubscription<bool>? _connectionStateSubscription;
   NetworkStatus? _lastNetworkStatus;
+  final Map<String, String> _sessionServerMap = {};
+
+  /// Register which server a session belongs to.
+  void registerSessionServer(String sessionId, String serverId) {
+    _sessionServerMap[sessionId] = serverId;
+  }
 
   void _log(String message) {
     developer.log(message, name: 'SessionRepository');
@@ -91,15 +97,30 @@ class SessionRepository extends _$SessionRepository {
     required String workingDirectory,
     String? model,
     String? team,
+    String? serverId,
   }) async {
     _log('Creating session with message: $initialMessage');
 
-    final connectionState = ref.read(connectionRepositoryProvider);
-    if (!connectionState.isConnected || connectionState.connection == null) {
-      throw SessionException('Not connected to server');
+    // Resolve which server to use
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final ServerEntry serverEntry;
+
+    if (serverId != null) {
+      final entry = registry.state[serverId];
+      if (entry == null || entry.status != ServerHealthStatus.connected) {
+        throw SessionException('Server not connected');
+      }
+      serverEntry = entry;
+    } else {
+      // Auto-select first connected server
+      final connected = registry.connectedEntries;
+      if (connected.isEmpty) {
+        throw SessionException('No servers connected');
+      }
+      serverEntry = connected.first;
     }
 
-    final connection = connectionState.connection!;
+    final connection = serverEntry.connection;
 
     // Close existing session
     close();
@@ -123,6 +144,9 @@ class SessionRepository extends _$SessionRepository {
 
     _log('Session created: ${remoteSession.id}');
 
+    // Register session-server mapping for reconnection
+    registerSessionServer(remoteSession.id, connection.id);
+
     // Save working directory
     final settingsStorage = ref.read(settingsStorageProvider.notifier);
     await settingsStorage.saveWorkingDirectory(workingDirectory);
@@ -144,15 +168,34 @@ class SessionRepository extends _$SessionRepository {
   /// to the same session. This ensures the caller receives ConnectedEvent +
   /// HistoryEvent through the streams (important when the chat screen
   /// subscribes after session creation).
-  Future<RemoteVideSession> connectToExistingSession(String sessionId) async {
+  Future<RemoteVideSession> connectToExistingSession(
+    String sessionId, {
+    String? serverId,
+  }) async {
     _log('Connecting to existing session: $sessionId');
 
-    final connectionState = ref.read(connectionRepositoryProvider);
-    if (!connectionState.isConnected || connectionState.connection == null) {
-      throw SessionException('Not connected to server');
+    // Resolve which server to use
+    serverId ??= _sessionServerMap[sessionId];
+
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final ServerEntry serverEntry;
+
+    if (serverId != null) {
+      final entry = registry.state[serverId];
+      if (entry == null || entry.status != ServerHealthStatus.connected) {
+        throw SessionException('Server not connected');
+      }
+      serverEntry = entry;
+    } else {
+      // Auto-select first connected server
+      final connected = registry.connectedEntries;
+      if (connected.isEmpty) {
+        throw SessionException('No servers connected');
+      }
+      serverEntry = connected.first;
     }
 
-    final connection = connectionState.connection!;
+    final connection = serverEntry.connection;
 
     // Close existing session (same or different)
     close();
@@ -277,12 +320,29 @@ class SessionRepository extends _$SessionRepository {
 
     _log('Attempting to reconnect to session ${currentSession.id}');
 
-    final connectionState = ref.read(connectionRepositoryProvider);
-    if (!connectionState.isConnected || connectionState.connection == null) {
-      throw SessionException('Not connected to server');
+    final registry = ref.read(serverRegistryProvider.notifier);
+
+    // Try to find the server this session belongs to
+    final serverId = _sessionServerMap[currentSession.id];
+    ServerEntry? serverEntry;
+
+    if (serverId != null) {
+      final entry = registry.state[serverId];
+      if (entry != null && entry.status == ServerHealthStatus.connected) {
+        serverEntry = entry;
+      }
     }
 
-    final connection = connectionState.connection!;
+    // Fall back to first connected server
+    if (serverEntry == null) {
+      final connected = registry.connectedEntries;
+      if (connected.isEmpty) {
+        throw SessionException('No servers connected');
+      }
+      serverEntry = connected.first;
+    }
+
+    final connection = serverEntry.connection;
 
     // Create vide_client instance
     final videClient = VideClient(

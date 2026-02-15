@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../core/providers/app_providers.dart';
 import '../../domain/models/server_connection.dart';
@@ -17,6 +18,7 @@ class SettingsKeys {
   static const recentWorkingDirectories = 'recent_working_directories';
   static const lastTeam = 'last_team';
   static const themeMode = 'theme_mode';
+  static const configuredServers = 'configured_servers';
 }
 
 /// Wrapper for SharedPreferences to persist app settings.
@@ -155,6 +157,83 @@ class SettingsStorage extends _$SettingsStorage {
     await _prefs.setString(SettingsKeys.themeMode, mode.name);
   }
 
+  /// Gets all configured servers.
+  Future<List<ServerConnection>> getServers() async {
+    await future;
+    // Migration: if old single-server key exists, migrate it
+    final oldJson = _prefs.getString(SettingsKeys.serverConnection);
+    final serversJson = _prefs.getString(SettingsKeys.configuredServers);
+
+    if (serversJson == null && oldJson != null) {
+      // Migrate old single server to new format
+      try {
+        final oldData = jsonDecode(oldJson) as Map<String, dynamic>;
+        // Old connections don't have an ID, create one with an ID
+        final migrated = ServerConnection(
+          id: const Uuid().v4(),
+          host: oldData['host'] as String,
+          port: oldData['port'] as int,
+          isSecure: oldData['isSecure'] as bool? ?? false,
+          name: oldData['name'] as String?,
+        );
+        final list = [migrated];
+        await _prefs.setString(
+          SettingsKeys.configuredServers,
+          jsonEncode(list.map((s) => s.toJson()).toList()),
+        );
+        // Clean up old key
+        await _prefs.remove(SettingsKeys.serverConnection);
+        return list;
+      } catch (e) {
+        return [];
+      }
+    }
+
+    if (serversJson == null) return [];
+    try {
+      final list = jsonDecode(serversJson) as List<dynamic>;
+      return list
+          .map((e) => ServerConnection.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Adds a server to the configured list.
+  Future<void> addServer(ServerConnection server) async {
+    await future;
+    final servers = await getServers();
+    servers.add(server);
+    await _saveServers(servers);
+  }
+
+  /// Removes a server by its ID.
+  Future<void> removeServer(String id) async {
+    await future;
+    final servers = await getServers();
+    servers.removeWhere((s) => s.id == id);
+    await _saveServers(servers);
+  }
+
+  /// Updates an existing server (matched by ID).
+  Future<void> updateServer(ServerConnection server) async {
+    await future;
+    final servers = await getServers();
+    final index = servers.indexWhere((s) => s.id == server.id);
+    if (index != -1) {
+      servers[index] = server;
+      await _saveServers(servers);
+    }
+  }
+
+  Future<void> _saveServers(List<ServerConnection> servers) async {
+    await _prefs.setString(
+      SettingsKeys.configuredServers,
+      jsonEncode(servers.map((s) => s.toJson()).toList()),
+    );
+  }
+
   /// Clears all stored settings.
   Future<void> clear() async {
     await future;
@@ -164,5 +243,6 @@ class SettingsStorage extends _$SettingsStorage {
     await _prefs.remove(SettingsKeys.recentWorkingDirectories);
     await _prefs.remove(SettingsKeys.lastTeam);
     await _prefs.remove(SettingsKeys.themeMode);
+    await _prefs.remove(SettingsKeys.configuredServers);
   }
 }

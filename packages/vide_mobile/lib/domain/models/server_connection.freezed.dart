@@ -20,6 +20,7 @@ ServerConnection _$ServerConnectionFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$ServerConnection {
+  String get id => throw _privateConstructorUsedError;
   String get host => throw _privateConstructorUsedError;
   int get port => throw _privateConstructorUsedError;
   bool get isSecure => throw _privateConstructorUsedError;
@@ -41,7 +42,7 @@ abstract class $ServerConnectionCopyWith<$Res> {
           ServerConnection value, $Res Function(ServerConnection) then) =
       _$ServerConnectionCopyWithImpl<$Res, ServerConnection>;
   @useResult
-  $Res call({String host, int port, bool isSecure, String? name});
+  $Res call({String id, String host, int port, bool isSecure, String? name});
 }
 
 /// @nodoc
@@ -59,12 +60,17 @@ class _$ServerConnectionCopyWithImpl<$Res, $Val extends ServerConnection>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? id = null,
     Object? host = null,
     Object? port = null,
     Object? isSecure = null,
     Object? name = freezed,
   }) {
     return _then(_value.copyWith(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
       host: null == host
           ? _value.host
           : host // ignore: cast_nullable_to_non_nullable
@@ -93,7 +99,7 @@ abstract class _$$ServerConnectionImplCopyWith<$Res>
       __$$ServerConnectionImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String host, int port, bool isSecure, String? name});
+  $Res call({String id, String host, int port, bool isSecure, String? name});
 }
 
 /// @nodoc
@@ -109,12 +115,17 @@ class __$$ServerConnectionImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
+    Object? id = null,
     Object? host = null,
     Object? port = null,
     Object? isSecure = null,
     Object? name = freezed,
   }) {
     return _then(_$ServerConnectionImpl(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
       host: null == host
           ? _value.host
           : host // ignore: cast_nullable_to_non_nullable
@@ -139,7 +150,8 @@ class __$$ServerConnectionImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$ServerConnectionImpl implements _ServerConnection {
   const _$ServerConnectionImpl(
-      {required this.host,
+      {required this.id,
+      required this.host,
       required this.port,
       this.isSecure = false,
       this.name});
@@ -147,6 +159,8 @@ class _$ServerConnectionImpl implements _ServerConnection {
   factory _$ServerConnectionImpl.fromJson(Map<String, dynamic> json) =>
       _$$ServerConnectionImplFromJson(json);
 
+  @override
+  final String id;
   @override
   final String host;
   @override
@@ -159,7 +173,7 @@ class _$ServerConnectionImpl implements _ServerConnection {
 
   @override
   String toString() {
-    return 'ServerConnection(host: $host, port: $port, isSecure: $isSecure, name: $name)';
+    return 'ServerConnection(id: $id, host: $host, port: $port, isSecure: $isSecure, name: $name)';
   }
 
   @override
@@ -167,6 +181,7 @@ class _$ServerConnectionImpl implements _ServerConnection {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$ServerConnectionImpl &&
+            (identical(other.id, id) || other.id == id) &&
             (identical(other.host, host) || other.host == host) &&
             (identical(other.port, port) || other.port == port) &&
             (identical(other.isSecure, isSecure) ||
@@ -176,7 +191,7 @@ class _$ServerConnectionImpl implements _ServerConnection {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, host, port, isSecure, name);
+  int get hashCode => Object.hash(runtimeType, id, host, port, isSecure, name);
 
   /// Create a copy of ServerConnection
   /// with the given fields replaced by the non-null parameter values.
@@ -197,7 +212,8 @@ class _$ServerConnectionImpl implements _ServerConnection {
 
 abstract class _ServerConnection implements ServerConnection {
   const factory _ServerConnection(
-      {required final String host,
+      {required final String id,
+      required final String host,
       required final int port,
       final bool isSecure,
       final String? name}) = _$ServerConnectionImpl;
@@ -205,6 +221,8 @@ abstract class _ServerConnection implements ServerConnection {
   factory _ServerConnection.fromJson(Map<String, dynamic> json) =
       _$ServerConnectionImpl.fromJson;
 
+  @override
+  String get id;
   @override
   String get host;
   @override

@@ -9,6 +9,7 @@ part of 'server_connection.dart';
 _$ServerConnectionImpl _$$ServerConnectionImplFromJson(
         Map<String, dynamic> json) =>
     _$ServerConnectionImpl(
+      id: json['id'] as String,
       host: json['host'] as String,
       port: (json['port'] as num).toInt(),
       isSecure: json['isSecure'] as bool? ?? false,
@@ -18,6 +19,7 @@ _$ServerConnectionImpl _$$ServerConnectionImplFromJson(
 Map<String, dynamic> _$$ServerConnectionImplToJson(
         _$ServerConnectionImpl instance) =>
     <String, dynamic>{
+      'id': instance.id,
       'host': instance.host,
       'port': instance.port,
       'isSecure': instance.isSecure,

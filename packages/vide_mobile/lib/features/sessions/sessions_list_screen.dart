@@ -6,7 +6,7 @@ import 'package:vide_client/vide_client.dart';
 
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
 import '../../domain/services/session_list_manager.dart';
 
 part 'sessions_list_screen.g.dart';
@@ -18,7 +18,7 @@ part 'sessions_list_screen.g.dart';
 /// directly for live updates.
 @riverpod
 Future<void> sessionsListRefresh(Ref ref) async {
-  ref.watch(connectionRepositoryProvider);
+  ref.watch(serverRegistryProvider);
   await ref.read(sessionListManagerProvider.notifier).refresh();
 }
 
@@ -29,8 +29,9 @@ class SessionsListScreen extends ConsumerWidget {
   Future<void> _stopSession(
     BuildContext context,
     WidgetRef ref,
-    SessionSummary session,
+    SessionListEntry entry,
   ) async {
+    final session = entry.summary;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -53,11 +54,12 @@ class SessionsListScreen extends ConsumerWidget {
 
     if (confirmed != true) return;
 
-    final connectionState = ref.read(connectionRepositoryProvider);
-    if (connectionState.client == null) return;
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final client = registry.getClient(entry.serverId);
+    if (client == null) return;
 
     try {
-      await connectionState.client!.stopSession(session.sessionId);
+      await client.stopSession(session.sessionId);
       ref.invalidate(sessionsListRefreshProvider);
     } catch (e) {
       if (context.mounted) {
@@ -127,7 +129,7 @@ class SessionsListScreen extends ConsumerWidget {
           final entry = item as SessionListEntry;
           return _SessionCard(
             entry: entry,
-            onStop: () => _stopSession(context, ref, entry.summary),
+            onStop: () => _stopSession(context, ref, entry),
           );
         },
       ),
@@ -389,6 +391,32 @@ class _SessionCard extends ConsumerWidget {
                   ),
                 ],
               ),
+              // Server badge (only when multiple servers are configured)
+              Builder(builder: (context) {
+                final serverCount = ref.watch(serverRegistryProvider).length;
+                if (serverCount <= 1) return const SizedBox.shrink();
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.dns_outlined,
+                        size: 14,
+                        color: colorScheme.outline,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        entry.serverName,
+                        style:
+                            Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.outline,
+                                ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
               // Latest activity preview (message or tool call)
               if (latestActivity != null) ...[
                 const SizedBox(height: 6),

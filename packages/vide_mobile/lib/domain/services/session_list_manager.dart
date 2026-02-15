@@ -4,7 +4,9 @@ import 'dart:developer' as developer;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vide_client/vide_client.dart';
 
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
+import '../../data/repositories/session_repository.dart';
+import '../models/server_connection.dart';
 
 part 'session_list_manager.g.dart';
 
@@ -26,12 +28,16 @@ class SessionListEntry {
   final RemoteVideSession? session;
   final DateTime? lastEventAt;
   final LatestActivity? latestActivity;
+  final String serverId;
+  final String serverName;
 
   const SessionListEntry({
     required this.summary,
     this.session,
     this.lastEventAt,
     this.latestActivity,
+    required this.serverId,
+    required this.serverName,
   });
 
   /// Sort key: most recent activity or creation time.
@@ -88,45 +94,91 @@ class SessionListManager extends _$SessionListManager {
     _sessions.clear();
   }
 
-  /// Fetch sessions from daemon and start monitoring new ones.
+  /// Fetch sessions from all connected servers and start monitoring new ones.
   Future<void> refresh() async {
-    final connectionState = ref.read(connectionRepositoryProvider);
-    if (!connectionState.isConnected || connectionState.client == null) return;
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final connectedClients = registry.getConnectedClients();
 
-    final client = connectionState.client!;
-    final summaries = await client.listSessions();
-    _updateSessions(client, summaries);
+    if (connectedClients.isEmpty) return;
+
+    // Collect all sessions from all servers
+    final allServerData =
+        <String, (VideClient, List<SessionSummary>, ServerEntry)>{};
+
+    for (final entry in connectedClients.entries) {
+      final serverId = entry.key;
+      final client = entry.value;
+      final serverEntry = registry.state[serverId];
+      if (serverEntry == null) continue;
+
+      try {
+        final summaries = await client.listSessions();
+        allServerData[serverId] = (client, summaries, serverEntry);
+      } catch (e) {
+        _log('Failed to fetch sessions from server $serverId: $e');
+        // Continue — partial failure is OK
+      }
+    }
+
+    _updateAllSessions(allServerData);
   }
 
-  void _updateSessions(VideClient client, List<SessionSummary> summaries) {
-    final currentIds = _sessions.keys.toSet();
-    final newIds = summaries.map((s) => s.sessionId).toSet();
+  void _updateAllSessions(
+    Map<String, (VideClient, List<SessionSummary>, ServerEntry)> serverData,
+  ) {
+    // Build set of all valid session IDs across all servers
+    final newIds = <String>{};
+    for (final (_, summaries, _) in serverData.values) {
+      for (final s in summaries) {
+        newIds.add(s.sessionId);
+      }
+    }
 
-    // Remove sessions that no longer exist
+    // Remove sessions that no longer exist on any server
+    final currentIds = _sessions.keys.toSet();
     for (final id in currentIds.difference(newIds)) {
       _removeSession(id);
     }
 
-    // Add or update sessions
-    for (final summary in summaries) {
-      final id = summary.sessionId;
-      final existing = state[id];
+    // Add or update sessions from each server
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
 
-      if (existing != null) {
-        // Update summary (state/connectedClients may change)
-        state = {
-          ...state,
-          id: SessionListEntry(
-            summary: summary,
-            session: existing.session,
-            lastEventAt: existing.lastEventAt,
-            latestActivity: existing.latestActivity,
-          )
-        };
-      } else {
-        // New session
-        state = {...state, id: SessionListEntry(summary: summary)};
-        _connectToSession(client, id);
+    for (final entry in serverData.entries) {
+      final serverId = entry.key;
+      final (client, summaries, serverEntry) = entry.value;
+
+      for (final summary in summaries) {
+        final id = summary.sessionId;
+        final existing = state[id];
+
+        // Register session-server mapping for reconnection
+        sessionRepo.registerSessionServer(id, serverId);
+
+        if (existing != null) {
+          // Update summary
+          state = {
+            ...state,
+            id: SessionListEntry(
+              summary: summary,
+              session: existing.session,
+              lastEventAt: existing.lastEventAt,
+              latestActivity: existing.latestActivity,
+              serverId: serverId,
+              serverName: serverEntry.connection.displayName,
+            ),
+          };
+        } else {
+          // New session
+          state = {
+            ...state,
+            id: SessionListEntry(
+              summary: summary,
+              serverId: serverId,
+              serverName: serverEntry.connection.displayName,
+            ),
+          };
+          _connectToSession(client, id);
+        }
       }
     }
   }
@@ -161,6 +213,8 @@ class SessionListManager extends _$SessionListManager {
           session: session,
           lastEventAt: entry.lastEventAt,
           latestActivity: entry.latestActivity,
+          serverId: entry.serverId,
+          serverName: entry.serverName,
         )
       };
 
@@ -224,6 +278,8 @@ class SessionListManager extends _$SessionListManager {
         session: entry.session,
         lastEventAt: DateTime.now(),
         latestActivity: activity,
+        serverId: entry.serverId,
+        serverName: entry.serverName,
       )
     };
   }

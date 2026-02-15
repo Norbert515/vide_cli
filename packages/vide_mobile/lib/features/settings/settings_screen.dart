@@ -6,7 +6,8 @@ import '../../core/providers/theme_provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/local/settings_storage.dart';
-import '../../data/repositories/connection_repository.dart';
+import '../../data/repositories/server_registry.dart';
+import '../../domain/models/server_connection.dart';
 import 'widgets/settings_tile.dart';
 
 /// Settings screen for the app.
@@ -16,49 +17,67 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final connectionState = ref.watch(connectionRepositoryProvider);
-
-    final serverSubtitle = connectionState.isConnected &&
-            connectionState.connection != null
-        ? '${connectionState.connection!.host}:${connectionState.connection!.port}'
-        : 'Not connected';
+    final registryState = ref.watch(serverRegistryProvider);
 
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(AppRoutes.sessions),
+          onPressed: () {
+            if (registryState.isEmpty) {
+              context.go(AppRoutes.connection);
+            } else {
+              context.go(AppRoutes.sessions);
+            }
+          },
         ),
         title: const Text('Settings'),
       ),
       body: ListView(
         children: [
           const SizedBox(height: 8),
-          // Connection section
-          const SectionHeader(title: 'Connection'),
+          // Servers section
+          const SectionHeader(title: 'Servers'),
+          ...registryState.entries.map((entry) {
+            final server = entry.value;
+            final statusColor = switch (server.status) {
+              ServerHealthStatus.connected => videColors.success,
+              ServerHealthStatus.connecting => videColors.warning,
+              ServerHealthStatus.error => videColors.error,
+              ServerHealthStatus.disconnected =>
+                Theme.of(context).colorScheme.outline,
+            };
+
+            return SettingsTile(
+              icon: Icons.dns_outlined,
+              title: server.connection.displayName,
+              subtitle:
+                  '${server.connection.host}:${server.connection.port}',
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: statusColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right),
+                ],
+              ),
+              onTap: () =>
+                  _showServerOptions(context, ref, entry.key, server),
+            );
+          }),
           SettingsTile(
-            icon: Icons.dns_outlined,
-            title: 'Current Server',
-            subtitle: serverSubtitle,
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              context.go(AppRoutes.connection);
-            },
+            icon: Icons.add,
+            title: 'Add Server',
+            subtitle: 'Connect to another Vide server',
+            onTap: () => context.push(AppRoutes.connection),
           ),
-          if (connectionState.isConnected)
-            SettingsTile(
-              icon: Icons.link_off,
-              title: 'Disconnect',
-              subtitle: 'Disconnect and return to setup',
-              onTap: () {
-                ref.read(connectionRepositoryProvider.notifier).disconnect();
-                ref.read(settingsStorageProvider.notifier).clear();
-                ref
-                    .read(themeModeNotifierProvider.notifier)
-                    .setThemeMode(ThemeMode.system);
-                context.go(AppRoutes.connection);
-              },
-            ),
           const Divider(height: 32),
           // Appearance section
           const SectionHeader(title: 'Appearance'),
@@ -132,6 +151,93 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
+  void _showServerOptions(
+    BuildContext context,
+    WidgetRef ref,
+    String serverId,
+    ServerEntry server,
+  ) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                server.status == ServerHealthStatus.connected
+                    ? Icons.link_off
+                    : Icons.link,
+              ),
+              title: Text(
+                server.status == ServerHealthStatus.connected
+                    ? 'Disconnect'
+                    : 'Connect',
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                final registry = ref.read(serverRegistryProvider.notifier);
+                if (server.status == ServerHealthStatus.connected) {
+                  registry.disconnectServer(serverId);
+                } else {
+                  registry.connectServer(serverId);
+                }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.delete_outline, color: videColors.error),
+              title: Text(
+                'Remove',
+                style: TextStyle(color: videColors.error),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _confirmRemoveServer(context, ref, serverId, server);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmRemoveServer(
+    BuildContext context,
+    WidgetRef ref,
+    String serverId,
+    ServerEntry server,
+  ) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Server?'),
+        content: Text(
+          'Remove "${server.connection.displayName}" from your servers?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              ref.read(serverRegistryProvider.notifier).removeServer(serverId);
+              Navigator.pop(context);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: videColors.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showThemeSelector(BuildContext context) {
     showDialog(
       context: context,
@@ -156,7 +262,7 @@ class SettingsScreen extends ConsumerWidget {
           ),
           FilledButton(
             onPressed: () {
-              ref.read(connectionRepositoryProvider.notifier).disconnect();
+              ref.read(serverRegistryProvider.notifier).disconnectAll();
               ref.read(settingsStorageProvider.notifier).clear();
               ref
                   .read(themeModeNotifierProvider.notifier)
