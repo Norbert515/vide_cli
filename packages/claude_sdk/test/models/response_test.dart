@@ -92,10 +92,12 @@ void main() {
         expect(response, isA<MetaResponse>());
       });
 
-      test('parses type=system without init subtype as StatusResponse', () {
+      test('parses type=system with unrecognized subtype as TextResponse', () {
         final json = {'type': 'system', 'subtype': 'other', 'status': 'ready'};
         final response = ClaudeResponse.fromJson(json);
-        expect(response, isA<StatusResponse>());
+        // Unrecognized system subtypes return TextResponse to avoid
+        // ClaudeStatus.unknown incorrectly affecting agent status tracking.
+        expect(response, isA<TextResponse>());
       });
 
       test(
