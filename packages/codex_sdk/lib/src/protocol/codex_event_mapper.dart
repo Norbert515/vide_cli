@@ -15,15 +15,45 @@ class CodexEventMapper {
   /// Map a single Codex event to zero or more ClaudeResponse objects.
   List<ClaudeResponse> mapEvent(CodexEvent event) {
     return switch (event) {
+      // Thread lifecycle
       ThreadStartedEvent e => _mapThreadStarted(e),
+      ThreadNameUpdatedEvent _ => [],
+      ThreadCompactedEvent _ => [],
+
+      // Turn lifecycle
       TurnStartedEvent _ => _mapTurnStarted(),
-      TurnCompletedEvent e => _mapTurnCompleted(e),
-      TurnFailedEvent e => _mapTurnFailed(e),
-      ItemEvent e => _mapItem(e),
+      TurnCompletedEvent _ => _mapTurnCompleted(),
+
+      // Item lifecycle
+      ItemStartedEvent e => _mapItemStarted(e),
+      ItemCompletedEvent e => _mapItemCompleted(e),
+
+      // Streaming deltas
+      AgentMessageDeltaEvent e => _mapAgentMessageDelta(e),
+      ReasoningSummaryDeltaEvent _ => [],
+      ReasoningTextDeltaEvent _ => [],
+      CommandOutputDeltaEvent _ => [],
+      FileChangeOutputDeltaEvent _ => [],
+      McpToolCallProgressEvent _ => [],
+
+      // Token usage
+      TokenUsageUpdatedEvent e => _mapTokenUsage(e),
+
+      // Legacy events
+      TaskCompleteEvent e => _mapTaskComplete(e),
+      McpStartupCompleteEvent _ => [],
+
+      // Errors
       CodexErrorEvent e => _mapError(e),
+
+      // Unknown
       UnknownCodexEvent _ => [],
     };
   }
+
+  // --------------------------------------------------------------------------
+  // Thread lifecycle
+  // --------------------------------------------------------------------------
 
   List<ClaudeResponse> _mapThreadStarted(ThreadStartedEvent event) {
     return [
@@ -35,6 +65,10 @@ class CodexEventMapper {
     ];
   }
 
+  // --------------------------------------------------------------------------
+  // Turn lifecycle
+  // --------------------------------------------------------------------------
+
   List<ClaudeResponse> _mapTurnStarted() {
     return [
       StatusResponse(
@@ -45,29 +79,95 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapTurnCompleted(TurnCompletedEvent event) {
+  List<ClaudeResponse> _mapTurnCompleted() {
     return [
       CompletionResponse(
         id: _nextId(),
         timestamp: DateTime.now(),
         stopReason: 'completed',
-        inputTokens: event.usage?.inputTokens,
-        outputTokens: event.usage?.outputTokens,
-        cacheReadInputTokens: event.usage?.cachedInputTokens,
       ),
     ];
   }
 
-  List<ClaudeResponse> _mapTurnFailed(TurnFailedEvent event) {
+  // --------------------------------------------------------------------------
+  // Item lifecycle
+  // --------------------------------------------------------------------------
+
+  List<ClaudeResponse> _mapItemStarted(ItemStartedEvent event) {
+    return switch (event.itemType) {
+      'agentMessage' => [],
+      'commandExecution' => _mapCommandExecutionStarted(event),
+      'fileChange' => _mapFileChangeStarted(event),
+      'mcpToolCall' => _mapMcpToolCallStarted(event),
+      'reasoning' => [],
+      'webSearch' => _mapWebSearchStarted(event),
+      'todoList' => [],
+      _ => [],
+    };
+  }
+
+  List<ClaudeResponse> _mapItemCompleted(ItemCompletedEvent event) {
+    return switch (event.itemType) {
+      'agentMessage' => _mapAgentMessageCompleted(event),
+      'commandExecution' => _mapCommandExecutionCompleted(event),
+      'fileChange' => _mapFileChangeCompleted(event),
+      'mcpToolCall' => _mapMcpToolCallCompleted(event),
+      'reasoning' => _mapReasoningCompleted(event),
+      'webSearch' => _mapWebSearchCompleted(event),
+      'todoList' => _mapTodoListCompleted(event),
+      _ => [],
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Streaming deltas
+  // --------------------------------------------------------------------------
+
+  List<ClaudeResponse> _mapAgentMessageDelta(AgentMessageDeltaEvent event) {
     return [
-      ErrorResponse(
-        id: _nextId(),
+      TextResponse(
+        id: event.itemId,
         timestamp: DateTime.now(),
-        error: event.error ?? 'Turn failed',
-        details: event.details?.toString(),
+        content: event.delta,
+        isCumulative: false,
       ),
     ];
   }
+
+  // --------------------------------------------------------------------------
+  // Token usage
+  // --------------------------------------------------------------------------
+
+  List<ClaudeResponse> _mapTokenUsage(TokenUsageUpdatedEvent event) {
+    return [
+      CompletionResponse(
+        id: _nextId(),
+        timestamp: DateTime.now(),
+        stopReason: 'usage_update',
+        inputTokens: event.usage.inputTokens,
+        outputTokens: event.usage.outputTokens,
+        cacheReadInputTokens: event.usage.cachedInputTokens,
+      ),
+    ];
+  }
+
+  // --------------------------------------------------------------------------
+  // Legacy events
+  // --------------------------------------------------------------------------
+
+  List<ClaudeResponse> _mapTaskComplete(TaskCompleteEvent event) {
+    return [
+      CompletionResponse(
+        id: _nextId(),
+        timestamp: DateTime.now(),
+        stopReason: 'completed',
+      ),
+    ];
+  }
+
+  // --------------------------------------------------------------------------
+  // Errors
+  // --------------------------------------------------------------------------
 
   List<ClaudeResponse> _mapError(CodexErrorEvent event) {
     return [
@@ -80,22 +180,12 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapItem(ItemEvent event) {
-    return switch (event.itemType) {
-      'agent_message' => _mapAgentMessage(event),
-      'command_execution' => _mapCommandExecution(event),
-      'file_change' => _mapFileChange(event),
-      'mcp_tool_call' => _mapMcpToolCall(event),
-      'reasoning' => _mapReasoning(event),
-      'web_search' => _mapWebSearch(event),
-      'todo_list' => _mapTodoList(event),
-      _ => [],
-    };
-  }
+  // --------------------------------------------------------------------------
+  // Item type handlers
+  // --------------------------------------------------------------------------
 
-  List<ClaudeResponse> _mapAgentMessage(ItemEvent event) {
-    if (!event.isCompleted) return [];
-    final text = event.data['text'] as String? ?? '';
+  List<ClaudeResponse> _mapAgentMessageCompleted(ItemCompletedEvent event) {
+    final text = _extractStringField(event.itemData, 'text') ?? '';
     if (text.isEmpty) return [];
     return [
       TextResponse(
@@ -107,127 +197,122 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapCommandExecution(ItemEvent event) {
-    if (event.isStarted) {
-      return [
-        ToolUseResponse(
-          id: event.itemId,
-          timestamp: DateTime.now(),
-          toolName: 'Bash',
-          parameters: {'command': event.data['command'] as String? ?? ''},
-          toolUseId: event.itemId,
-        ),
-      ];
-    }
-    if (event.isCompleted) {
-      final exitCode = event.data['exit_code'] as int?;
-      final output = event.data['aggregated_output'] as String? ?? '';
-      return [
-        ToolResultResponse(
-          id: '${event.itemId}_result',
-          timestamp: DateTime.now(),
-          toolUseId: event.itemId,
-          content: output,
-          isError: exitCode != null && exitCode != 0,
-        ),
-      ];
-    }
-    return [];
+  List<ClaudeResponse> _mapCommandExecutionStarted(ItemStartedEvent event) {
+    return [
+      ToolUseResponse(
+        id: event.itemId,
+        timestamp: DateTime.now(),
+        toolName: 'Bash',
+        parameters: {'command': event.itemData['command'] as String? ?? ''},
+        toolUseId: event.itemId,
+      ),
+    ];
   }
 
-  List<ClaudeResponse> _mapFileChange(ItemEvent event) {
-    // Codex emits file changes with a `changes` array:
-    //   { "changes": [{ "path": "lib/foo.dart", "kind": "add" }, ...] }
-    // where kind is "add", "update", or "delete".
-    final changes = event.data['changes'] as List<dynamic>?;
-
-    if (event.isStarted) {
-      final params = <String, dynamic>{};
-      if (changes != null && changes.isNotEmpty) {
-        final paths = changes
-            .map((c) => (c as Map)['path'] as String? ?? '')
-            .toList();
-        params['files'] = paths;
-        final kind = (changes.first as Map)['kind'] as String? ?? 'update';
-        params['kind'] = kind;
-      }
-      final toolName = _inferFileToolName(changes);
-      return [
-        ToolUseResponse(
-          id: event.itemId,
-          timestamp: DateTime.now(),
-          toolName: toolName,
-          parameters: params,
-          toolUseId: event.itemId,
-        ),
-      ];
-    }
-    if (event.isCompleted) {
-      final summary = changes != null
-          ? changes
-                .map((c) {
-                  final path = (c as Map)['path'] ?? '';
-                  final kind = c['kind'] ?? '';
-                  return '$kind: $path';
-                })
-                .join('\n')
-          : 'Done';
-      return [
-        ToolResultResponse(
-          id: '${event.itemId}_result',
-          timestamp: DateTime.now(),
-          toolUseId: event.itemId,
-          content: summary,
-          isError: false,
-        ),
-      ];
-    }
-    return [];
+  List<ClaudeResponse> _mapCommandExecutionCompleted(
+    ItemCompletedEvent event,
+  ) {
+    final exitCode = event.itemData['exit_code'] as int?;
+    final output =
+        event.itemData['aggregated_output'] as String? ??
+        event.itemData['output'] as String? ??
+        '';
+    return [
+      ToolResultResponse(
+        id: '${event.itemId}_result',
+        timestamp: DateTime.now(),
+        toolUseId: event.itemId,
+        content: output,
+        isError: exitCode != null && exitCode != 0,
+      ),
+    ];
   }
 
-  List<ClaudeResponse> _mapMcpToolCall(ItemEvent event) {
-    if (event.isStarted) {
-      final serverLabel = event.data['server'] as String? ?? '';
-      final toolName = event.data['tool'] as String? ?? '';
-      final fullName = serverLabel.isNotEmpty
-          ? 'mcp__${serverLabel}__$toolName'
-          : toolName;
-      final arguments = event.data['arguments'];
-      return [
-        ToolUseResponse(
-          id: event.itemId,
-          timestamp: DateTime.now(),
-          toolName: fullName,
-          parameters: arguments is Map<String, dynamic>
-              ? arguments
-              : <String, dynamic>{},
-          toolUseId: event.itemId,
-        ),
-      ];
+  List<ClaudeResponse> _mapFileChangeStarted(ItemStartedEvent event) {
+    final changes = event.itemData['changes'] as List<dynamic>?;
+    final params = <String, dynamic>{};
+    if (changes != null && changes.isNotEmpty) {
+      final paths =
+          changes.map((c) => (c as Map)['path'] as String? ?? '').toList();
+      params['files'] = paths;
+      final kind = (changes.first as Map)['kind'] as String? ?? 'update';
+      params['kind'] = kind;
     }
-    if (event.isCompleted) {
-      final error = event.data['error'];
-      final isError = error != null;
-      final content = isError
-          ? _extractErrorMessage(error)
-          : _extractMcpResult(event.data['result']);
-      return [
-        ToolResultResponse(
-          id: '${event.itemId}_result',
-          timestamp: DateTime.now(),
-          toolUseId: event.itemId,
-          content: content,
-          isError: isError,
-        ),
-      ];
-    }
-    return [];
+    final toolName = _inferFileToolName(changes);
+    return [
+      ToolUseResponse(
+        id: event.itemId,
+        timestamp: DateTime.now(),
+        toolName: toolName,
+        parameters: params,
+        toolUseId: event.itemId,
+      ),
+    ];
   }
 
-  List<ClaudeResponse> _mapReasoning(ItemEvent event) {
-    if (!event.isCompleted) return [];
-    final text =
-        event.data['text'] as String? ?? event.data['summary'] as String? ?? '';
+  List<ClaudeResponse> _mapFileChangeCompleted(ItemCompletedEvent event) {
+    final changes = event.itemData['changes'] as List<dynamic>?;
+    final summary = changes != null
+        ? changes
+              .map((c) {
+                final path = (c as Map)['path'] ?? '';
+                final kind = c['kind'] ?? '';
+                return '$kind: $path';
+              })
+              .join('\n')
+        : 'Done';
+    return [
+      ToolResultResponse(
+        id: '${event.itemId}_result',
+        timestamp: DateTime.now(),
+        toolUseId: event.itemId,
+        content: summary,
+        isError: false,
+      ),
+    ];
+  }
+
+  List<ClaudeResponse> _mapMcpToolCallStarted(ItemStartedEvent event) {
+    final serverLabel = event.itemData['server'] as String? ?? '';
+    final toolName = event.itemData['tool'] as String? ?? '';
+    final fullName =
+        serverLabel.isNotEmpty ? 'mcp__${serverLabel}__$toolName' : toolName;
+    final arguments = event.itemData['arguments'];
+    return [
+      ToolUseResponse(
+        id: event.itemId,
+        timestamp: DateTime.now(),
+        toolName: fullName,
+        parameters:
+            arguments is Map<String, dynamic>
+                ? arguments
+                : <String, dynamic>{},
+        toolUseId: event.itemId,
+      ),
+    ];
+  }
+
+  List<ClaudeResponse> _mapMcpToolCallCompleted(ItemCompletedEvent event) {
+    final error = event.itemData['error'];
+    final isError = error != null;
+    final content = isError
+        ? _extractErrorMessage(error)
+        : _extractMcpResult(event.itemData['result']);
+    return [
+      ToolResultResponse(
+        id: '${event.itemId}_result',
+        timestamp: DateTime.now(),
+        toolUseId: event.itemId,
+        content: content,
+        isError: isError,
+      ),
+    ];
+  }
+
+  List<ClaudeResponse> _mapReasoningCompleted(ItemCompletedEvent event) {
+    final text = _extractStringField(event.itemData, 'text') ??
+        _extractStringField(event.itemData, 'summary') ??
+        '';
     if (text.isEmpty) return [];
     return [
       TextResponse(
@@ -239,36 +324,33 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapWebSearch(ItemEvent event) {
-    if (event.isStarted) {
-      final query = event.data['query'] as String? ?? '';
-      return [
-        ToolUseResponse(
-          id: event.itemId,
-          timestamp: DateTime.now(),
-          toolName: 'WebSearch',
-          parameters: {'query': query},
-          toolUseId: event.itemId,
-        ),
-      ];
-    }
-    if (event.isCompleted) {
-      return [
-        ToolResultResponse(
-          id: '${event.itemId}_result',
-          timestamp: DateTime.now(),
-          toolUseId: event.itemId,
-          content: 'Search complete',
-          isError: false,
-        ),
-      ];
-    }
-    return [];
+  List<ClaudeResponse> _mapWebSearchStarted(ItemStartedEvent event) {
+    final query = event.itemData['query'] as String? ?? '';
+    return [
+      ToolUseResponse(
+        id: event.itemId,
+        timestamp: DateTime.now(),
+        toolName: 'WebSearch',
+        parameters: {'query': query},
+        toolUseId: event.itemId,
+      ),
+    ];
   }
 
-  List<ClaudeResponse> _mapTodoList(ItemEvent event) {
-    if (!event.isCompleted && !event.isUpdated) return [];
-    final items = event.data['items'] as List<dynamic>? ?? [];
+  List<ClaudeResponse> _mapWebSearchCompleted(ItemCompletedEvent event) {
+    return [
+      ToolResultResponse(
+        id: '${event.itemId}_result',
+        timestamp: DateTime.now(),
+        toolUseId: event.itemId,
+        content: 'Search complete',
+        isError: false,
+      ),
+    ];
+  }
+
+  List<ClaudeResponse> _mapTodoListCompleted(ItemCompletedEvent event) {
+    final items = event.itemData['items'] as List<dynamic>? ?? [];
     if (items.isEmpty) return [];
     final text = items
         .map((item) {
@@ -288,6 +370,10 @@ class CodexEventMapper {
     ];
   }
 
+  // --------------------------------------------------------------------------
+  // Helpers
+  // --------------------------------------------------------------------------
+
   String _inferFileToolName(List<dynamic>? changes) {
     if (changes == null || changes.isEmpty) return 'Write';
     final kind = (changes.first as Map)['kind'] as String? ?? '';
@@ -299,13 +385,10 @@ class CodexEventMapper {
     };
   }
 
-  /// Extract text from MCP result, which can be a string, a content block
-  /// array, or a plain map.
   String _extractMcpResult(dynamic result) {
     if (result == null) return '';
     if (result is String) return result;
     if (result is List) {
-      // Content block array: [{type: "text", text: "..."}, ...]
       return result
           .map((block) {
             if (block is Map && block['type'] == 'text') {
@@ -320,10 +403,30 @@ class CodexEventMapper {
     return result.toString();
   }
 
-  /// Extract error message from structured or string error.
   String _extractErrorMessage(dynamic error) {
     if (error is String) return error;
     if (error is Map) return error['message'] as String? ?? error.toString();
     return error.toString();
+  }
+
+  /// Extracts a string from a field that may be a String or a List of content
+  /// blocks (e.g., `[{"type": "summary_text", "text": "..."}]`).
+  String? _extractStringField(Map<String, dynamic> data, String key) {
+    final value = data[key];
+    if (value is String) return value;
+    if (value is List) {
+      final parts = value
+          .map((block) {
+            if (block is Map && block.containsKey('text')) {
+              return block['text'] as String? ?? '';
+            }
+            if (block is String) return block;
+            return '';
+          })
+          .where((s) => s.isNotEmpty)
+          .toList();
+      return parts.isEmpty ? null : parts.join('\n');
+    }
+    return null;
   }
 }

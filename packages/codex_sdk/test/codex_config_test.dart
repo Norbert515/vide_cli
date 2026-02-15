@@ -2,115 +2,81 @@ import 'package:codex_sdk/codex_sdk.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('CodexConfig.toCliArgs', () {
-    test('generates minimal args with defaults', () {
+  group('CodexConfig.toThreadStartParams', () {
+    test('includes cwd when workingDirectory is set', () {
+      const config = CodexConfig(workingDirectory: '/tmp/project');
+      final params = config.toThreadStartParams();
+      expect(params['cwd'], '/tmp/project');
+    });
+
+    test('omits cwd when workingDirectory is null', () {
       const config = CodexConfig();
-      final args = config.toCliArgs();
-      expect(args, ['exec', '--json', '--full-auto']);
+      final params = config.toThreadStartParams();
+      expect(params.containsKey('cwd'), isFalse);
     });
 
-    test('always includes --full-auto', () {
-      const config = CodexConfig();
-      final args = config.toCliArgs();
-      expect(args, contains('--full-auto'));
-    });
-
-    test('includes model flag', () {
-      const config = CodexConfig(model: 'o3');
-      final args = config.toCliArgs();
-      expect(args, contains('--model'));
-      expect(args[args.indexOf('--model') + 1], 'o3');
-    });
-
-    test('includes profile flag', () {
-      const config = CodexConfig(profile: 'my-profile');
-      final args = config.toCliArgs();
-      expect(args, contains('--profile'));
-      expect(args[args.indexOf('--profile') + 1], 'my-profile');
-    });
-
-    test('includes sandbox mode when not default', () {
+    test('includes sandbox mode', () {
       const config = CodexConfig(sandboxMode: 'danger-full-access');
-      final args = config.toCliArgs();
-      expect(args, contains('--sandbox'));
-      expect(args[args.indexOf('--sandbox') + 1], 'danger-full-access');
+      final params = config.toThreadStartParams();
+      expect(params['sandbox'], 'danger-full-access');
     });
 
-    test('omits sandbox mode when default workspace-write', () {
-      const config = CodexConfig(sandboxMode: 'workspace-write');
-      final args = config.toCliArgs();
-      expect(args, isNot(contains('--sandbox')));
+    test('uses default sandbox mode workspace-write', () {
+      const config = CodexConfig();
+      final params = config.toThreadStartParams();
+      expect(params['sandbox'], 'workspace-write');
     });
 
-    test('includes system prompt append', () {
+    test('includes approval policy', () {
+      const config = CodexConfig(approvalPolicy: 'never');
+      final params = config.toThreadStartParams();
+      expect(params['approvalPolicy'], 'never');
+    });
+
+    test('uses default approval policy on-failure', () {
+      const config = CodexConfig();
+      final params = config.toThreadStartParams();
+      expect(params['approvalPolicy'], 'on-failure');
+    });
+
+    test('includes model when set', () {
+      const config = CodexConfig(model: 'o3');
+      final params = config.toThreadStartParams();
+      expect(params['model'], 'o3');
+    });
+
+    test('omits model when null', () {
+      const config = CodexConfig();
+      final params = config.toThreadStartParams();
+      expect(params.containsKey('model'), isFalse);
+    });
+
+    test('includes developerInstructions from appendSystemPrompt', () {
       const config = CodexConfig(appendSystemPrompt: 'Be concise');
-      final args = config.toCliArgs();
-      expect(args, contains('-c'));
-      final cIndex = args.indexOf('-c');
-      expect(args[cIndex + 1], 'instructions.append=Be concise');
+      final params = config.toThreadStartParams();
+      expect(params['developerInstructions'], 'Be concise');
     });
 
-    test('includes additional dirs with --add-dir', () {
-      const config = CodexConfig(additionalDirs: ['/tmp/a', '/tmp/b']);
-      final args = config.toCliArgs();
-      expect(args.where((a) => a == '--add-dir').length, 2);
-      final firstIdx = args.indexOf('--add-dir');
-      expect(args[firstIdx + 1], '/tmp/a');
-      final secondIdx = args.indexOf('--add-dir', firstIdx + 1);
-      expect(args[secondIdx + 1], '/tmp/b');
-    });
-
-    test('includes additional flags', () {
-      const config = CodexConfig(additionalFlags: ['--verbose', '--debug']);
-      final args = config.toCliArgs();
-      expect(args, containsAll(['--verbose', '--debug']));
-    });
-
-    test('includes --skip-git-repo-check when set', () {
-      const config = CodexConfig(skipGitRepoCheck: true);
-      final args = config.toCliArgs();
-      expect(args, contains('--skip-git-repo-check'));
-    });
-
-    test('omits --skip-git-repo-check by default', () {
+    test('omits developerInstructions when appendSystemPrompt is null', () {
       const config = CodexConfig();
-      final args = config.toCliArgs();
-      expect(args, isNot(contains('--skip-git-repo-check')));
+      final params = config.toThreadStartParams();
+      expect(params.containsKey('developerInstructions'), isFalse);
     });
 
-    test('places resume subcommand after all flags', () {
-      const config = CodexConfig(model: 'o3', additionalFlags: ['--verbose']);
-      final args = config.toCliArgs(
-        isResume: true,
-        resumeThreadId: 'thread_123',
+    test('builds complete params with all fields', () {
+      const config = CodexConfig(
+        model: 'o4-mini',
+        sandboxMode: 'read-only',
+        workingDirectory: '/home/user/project',
+        appendSystemPrompt: 'Be helpful',
+        approvalPolicy: 'on-request',
       );
-
-      final resumeIndex = args.indexOf('resume');
-      expect(resumeIndex, isNot(-1));
-      expect(args[resumeIndex + 1], 'thread_123');
-
-      // All flags should come before resume
-      expect(args.indexOf('--model'), lessThan(resumeIndex));
-      expect(args.indexOf('--verbose'), lessThan(resumeIndex));
-      expect(args.indexOf('--json'), lessThan(resumeIndex));
-    });
-
-    test('does not include resume when isResume is false', () {
-      const config = CodexConfig();
-      final args = config.toCliArgs(isResume: false);
-      expect(args, isNot(contains('resume')));
-    });
-
-    test('does not include resume when threadId is null', () {
-      const config = CodexConfig();
-      final args = config.toCliArgs(isResume: true, resumeThreadId: null);
-      expect(args, isNot(contains('resume')));
-    });
-
-    test('starts with exec', () {
-      const config = CodexConfig();
-      final args = config.toCliArgs();
-      expect(args.first, 'exec');
+      final params = config.toThreadStartParams();
+      expect(params['model'], 'o4-mini');
+      expect(params['sandbox'], 'read-only');
+      expect(params['cwd'], '/home/user/project');
+      expect(params['developerInstructions'], 'Be helpful');
+      expect(params['approvalPolicy'], 'on-request');
     });
   });
 
@@ -123,8 +89,8 @@ void main() {
         workingDirectory: '/tmp',
         sessionId: 'session_1',
         appendSystemPrompt: 'Be brief',
-        additionalFlags: ['--verbose'],
         additionalDirs: ['/data'],
+        approvalPolicy: 'never',
       );
 
       final copy = original.copyWith(model: 'o4-mini');
@@ -134,14 +100,20 @@ void main() {
       expect(copy.workingDirectory, '/tmp');
       expect(copy.sessionId, 'session_1');
       expect(copy.appendSystemPrompt, 'Be brief');
-      expect(copy.additionalFlags, ['--verbose']);
       expect(copy.additionalDirs, ['/data']);
+      expect(copy.approvalPolicy, 'never');
     });
 
     test('preserves values when no overrides given', () {
       const original = CodexConfig(model: 'o3');
       final copy = original.copyWith();
       expect(copy.model, 'o3');
+    });
+
+    test('can override approvalPolicy', () {
+      const original = CodexConfig();
+      final copy = original.copyWith(approvalPolicy: 'never');
+      expect(copy.approvalPolicy, 'never');
     });
   });
 }

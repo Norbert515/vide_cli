@@ -10,9 +10,12 @@ void main() {
   });
 
   group('CodexEventMapper.mapEvent', () {
-    group('thread.started', () {
+    group('thread/started', () {
       test('maps to MetaResponse with session_id', () {
-        final event = ThreadStartedEvent(threadId: 'thread_abc');
+        const event = ThreadStartedEvent(
+          threadId: 'thread_abc',
+          threadData: {},
+        );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         expect(responses[0], isA<MetaResponse>());
@@ -22,9 +25,9 @@ void main() {
       });
     });
 
-    group('turn.started', () {
+    group('turn/started', () {
       test('maps to StatusResponse processing', () {
-        const event = TurnStartedEvent();
+        const event = TurnStartedEvent(turnId: '0', turnData: {});
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         expect(responses[0], isA<StatusResponse>());
@@ -35,54 +38,31 @@ void main() {
       });
     });
 
-    group('turn.completed', () {
-      test('maps to CompletionResponse with usage', () {
-        final event = TurnCompletedEvent(
-          usage: CodexUsage(
-            inputTokens: 100,
-            cachedInputTokens: 50,
-            outputTokens: 200,
-          ),
+    group('turn/completed', () {
+      test('maps to CompletionResponse', () {
+        const event = TurnCompletedEvent(
+          turnId: '0',
+          status: 'completed',
+          turnData: {},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         expect(responses[0], isA<CompletionResponse>());
         final completion = responses[0] as CompletionResponse;
         expect(completion.stopReason, 'completed');
-        expect(completion.inputTokens, 100);
-        expect(completion.outputTokens, 200);
-        expect(completion.cacheReadInputTokens, 50);
-      });
-
-      test('maps to CompletionResponse without usage', () {
-        const event = TurnCompletedEvent();
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        final completion = responses[0] as CompletionResponse;
-        expect(completion.inputTokens, isNull);
-        expect(completion.outputTokens, isNull);
       });
     });
 
-    group('turn.failed', () {
-      test('maps to ErrorResponse', () {
-        const event = TurnFailedEvent(
-          error: 'rate limit exceeded',
-          details: {'code': 429},
+    group('task_complete', () {
+      test('maps to CompletionResponse', () {
+        const event = TaskCompleteEvent(
+          lastAgentMessage: 'Done!',
+          params: {},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
-        expect(responses[0], isA<ErrorResponse>());
-        final error = responses[0] as ErrorResponse;
-        expect(error.error, 'rate limit exceeded');
-        expect(error.details, contains('429'));
-      });
-
-      test('uses fallback message when error is null', () {
-        const event = TurnFailedEvent();
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        expect((responses[0] as ErrorResponse).error, 'Turn failed');
+        expect(responses[0], isA<CompletionResponse>());
+        expect((responses[0] as CompletionResponse).stopReason, 'completed');
       });
     });
 
@@ -98,19 +78,54 @@ void main() {
 
     group('unknown event', () {
       test('maps to empty list', () {
-        final event = UnknownCodexEvent({'type': 'future.thing'});
+        const event = UnknownCodexEvent(method: 'future/thing', params: {});
         final responses = mapper.mapEvent(event);
         expect(responses, isEmpty);
       });
     });
 
-    group('agent_message item', () {
-      test('maps completed event to TextResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+    group('token usage', () {
+      test('maps to CompletionResponse with usage data', () {
+        final event = TokenUsageUpdatedEvent(
+          usage: CodexUsage(
+            inputTokens: 100,
+            cachedInputTokens: 50,
+            outputTokens: 200,
+          ),
+        );
+        final responses = mapper.mapEvent(event);
+        expect(responses, hasLength(1));
+        expect(responses[0], isA<CompletionResponse>());
+        final completion = responses[0] as CompletionResponse;
+        expect(completion.stopReason, 'usage_update');
+        expect(completion.inputTokens, 100);
+        expect(completion.outputTokens, 200);
+        expect(completion.cacheReadInputTokens, 50);
+      });
+    });
+
+    group('agentMessage delta', () {
+      test('maps to non-cumulative TextResponse', () {
+        const event = AgentMessageDeltaEvent(
           itemId: 'msg_001',
-          itemType: 'agent_message',
-          data: {'text': 'Hello world'},
+          delta: 'Hello ',
+        );
+        final responses = mapper.mapEvent(event);
+        expect(responses, hasLength(1));
+        expect(responses[0], isA<TextResponse>());
+        final text = responses[0] as TextResponse;
+        expect(text.id, 'msg_001');
+        expect(text.content, 'Hello ');
+        expect(text.isCumulative, isFalse);
+      });
+    });
+
+    group('agentMessage item completed', () {
+      test('maps to cumulative TextResponse', () {
+        const event = ItemCompletedEvent(
+          itemId: 'msg_001',
+          itemType: 'agentMessage',
+          itemData: {'text': 'Hello world'},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
@@ -121,44 +136,31 @@ void main() {
         expect(text.isCumulative, isTrue);
       });
 
-      test('returns empty for non-completed event', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+      test('returns empty for empty text', () {
+        const event = ItemCompletedEvent(
           itemId: 'msg_001',
-          itemType: 'agent_message',
-          data: {'text': ''},
+          itemType: 'agentMessage',
+          itemData: {'text': ''},
         );
         expect(mapper.mapEvent(event), isEmpty);
       });
 
-      test('returns empty for completed event with empty text', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+      test('returns empty for no text key', () {
+        const event = ItemCompletedEvent(
           itemId: 'msg_001',
-          itemType: 'agent_message',
-          data: {'text': ''},
-        );
-        expect(mapper.mapEvent(event), isEmpty);
-      });
-
-      test('returns empty for completed event with no text key', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
-          itemId: 'msg_001',
-          itemType: 'agent_message',
-          data: {},
+          itemType: 'agentMessage',
+          itemData: {},
         );
         expect(mapper.mapEvent(event), isEmpty);
       });
     });
 
-    group('command_execution item', () {
+    group('commandExecution item', () {
       test('maps started event to ToolUseResponse with Bash', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'cmd_001',
-          itemType: 'command_execution',
-          data: {'command': 'ls -la'},
+          itemType: 'commandExecution',
+          itemData: {'command': 'ls -la'},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
@@ -170,11 +172,10 @@ void main() {
       });
 
       test('maps completed event to ToolResultResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'cmd_001',
-          itemType: 'command_execution',
-          data: {
+          itemType: 'commandExecution',
+          itemData: {
             'command': 'ls -la',
             'exit_code': 0,
             'aggregated_output': 'file1.dart\nfile2.dart',
@@ -190,34 +191,32 @@ void main() {
       });
 
       test('marks non-zero exit code as error', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'cmd_001',
-          itemType: 'command_execution',
-          data: {'exit_code': 1, 'aggregated_output': 'command not found'},
+          itemType: 'commandExecution',
+          itemData: {'exit_code': 1, 'aggregated_output': 'command not found'},
         );
         final responses = mapper.mapEvent(event);
         expect((responses[0] as ToolResultResponse).isError, isTrue);
       });
 
-      test('returns empty for updated event', () {
-        const event = ItemEvent(
-          eventType: 'item.updated',
+      test('falls back to output field when aggregated_output missing', () {
+        const event = ItemCompletedEvent(
           itemId: 'cmd_001',
-          itemType: 'command_execution',
-          data: {},
+          itemType: 'commandExecution',
+          itemData: {'exit_code': 0, 'output': 'fallback output'},
         );
-        expect(mapper.mapEvent(event), isEmpty);
+        final responses = mapper.mapEvent(event);
+        expect((responses[0] as ToolResultResponse).content, 'fallback output');
       });
     });
 
-    group('file_change item', () {
+    group('fileChange item', () {
       test('maps started event with changes to ToolUseResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'file_001',
-          itemType: 'file_change',
-          data: {
+          itemType: 'fileChange',
+          itemData: {
             'changes': [
               {'path': 'lib/foo.dart', 'kind': 'add'},
             ],
@@ -233,11 +232,10 @@ void main() {
       });
 
       test('infers Edit tool for update kind', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'file_001',
-          itemType: 'file_change',
-          data: {
+          itemType: 'fileChange',
+          itemData: {
             'changes': [
               {'path': 'lib/foo.dart', 'kind': 'update'},
             ],
@@ -247,27 +245,11 @@ void main() {
         expect((responses[0] as ToolUseResponse).toolName, 'Edit');
       });
 
-      test('infers Write tool for delete kind', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
-          itemId: 'file_001',
-          itemType: 'file_change',
-          data: {
-            'changes': [
-              {'path': 'lib/old.dart', 'kind': 'delete'},
-            ],
-          },
-        );
-        final responses = mapper.mapEvent(event);
-        expect((responses[0] as ToolUseResponse).toolName, 'Write');
-      });
-
       test('maps completed event to summary ToolResultResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'file_001',
-          itemType: 'file_change',
-          data: {
+          itemType: 'fileChange',
+          itemData: {
             'changes': [
               {'path': 'lib/foo.dart', 'kind': 'add'},
               {'path': 'lib/bar.dart', 'kind': 'update'},
@@ -276,43 +258,28 @@ void main() {
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
-        expect(responses[0], isA<ToolResultResponse>());
         final result = responses[0] as ToolResultResponse;
         expect(result.content, 'add: lib/foo.dart\nupdate: lib/bar.dart');
         expect(result.isError, isFalse);
       });
 
-      test('handles started event with no changes', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
-          itemId: 'file_001',
-          itemType: 'file_change',
-          data: {},
-        );
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        expect((responses[0] as ToolUseResponse).toolName, 'Write');
-      });
-
       test('handles completed event with no changes', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'file_001',
-          itemType: 'file_change',
-          data: {},
+          itemType: 'fileChange',
+          itemData: {},
         );
         final responses = mapper.mapEvent(event);
         expect((responses[0] as ToolResultResponse).content, 'Done');
       });
     });
 
-    group('mcp_tool_call item', () {
-      test('maps started event to ToolUseResponse with server prefix', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+    group('mcpToolCall item', () {
+      test('maps started event with server prefix', () {
+        const event = ItemStartedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {
+          itemType: 'mcpToolCall',
+          itemData: {
             'server': 'vide-git',
             'tool': 'gitStatus',
             'arguments': {'detailed': true},
@@ -326,47 +293,46 @@ void main() {
       });
 
       test('uses tool name alone when server is empty', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {'server': '', 'tool': 'someBuiltinTool', 'arguments': {}},
+          itemType: 'mcpToolCall',
+          itemData: {'server': '', 'tool': 'someBuiltinTool', 'arguments': {}},
         );
         final responses = mapper.mapEvent(event);
         expect((responses[0] as ToolUseResponse).toolName, 'someBuiltinTool');
       });
 
       test('handles non-map arguments', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {'server': 'test', 'tool': 'myTool', 'arguments': 'not a map'},
+          itemType: 'mcpToolCall',
+          itemData: {
+            'server': 'test',
+            'tool': 'myTool',
+            'arguments': 'not a map',
+          },
         );
         final responses = mapper.mapEvent(event);
         expect((responses[0] as ToolUseResponse).parameters, isEmpty);
       });
 
-      test('maps completed event with result to ToolResultResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+      test('maps completed event with string result', () {
+        const event = ItemCompletedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {'result': 'some output'},
+          itemType: 'mcpToolCall',
+          itemData: {'result': 'some output'},
         );
         final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
         final result = responses[0] as ToolResultResponse;
         expect(result.content, 'some output');
         expect(result.isError, isFalse);
       });
 
       test('maps completed event with content block array result', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {
+          itemType: 'mcpToolCall',
+          itemData: {
             'result': [
               {'type': 'text', 'text': 'line 1'},
               {'type': 'text', 'text': 'line 2'},
@@ -379,98 +345,74 @@ void main() {
       });
 
       test('maps completed event with error', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {'error': 'tool not found'},
+          itemType: 'mcpToolCall',
+          itemData: {'error': 'tool not found'},
         );
         final responses = mapper.mapEvent(event);
         final result = responses[0] as ToolResultResponse;
         expect(result.content, 'tool not found');
         expect(result.isError, isTrue);
       });
-
-      test('maps completed event with structured error', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
-          itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {
-            'error': {'message': 'permission denied', 'code': 403},
-          },
-        );
-        final responses = mapper.mapEvent(event);
-        final result = responses[0] as ToolResultResponse;
-        expect(result.content, 'permission denied');
-        expect(result.isError, isTrue);
-      });
-
-      test('returns empty for updated event', () {
-        const event = ItemEvent(
-          eventType: 'item.updated',
-          itemId: 'mcp_001',
-          itemType: 'mcp_tool_call',
-          data: {},
-        );
-        expect(mapper.mapEvent(event), isEmpty);
-      });
     });
 
     group('reasoning item', () {
       test('maps completed event to TextResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'reason_001',
           itemType: 'reasoning',
-          data: {'text': 'Let me think about this...'},
+          itemData: {'text': 'Let me think...'},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         final text = responses[0] as TextResponse;
-        expect(text.content, 'Let me think about this...');
+        expect(text.content, 'Let me think...');
         expect(text.isCumulative, isTrue);
       });
 
       test('falls back to summary field', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'reason_001',
           itemType: 'reasoning',
-          data: {'summary': 'Thinking summary'},
+          itemData: {'summary': 'Thinking summary'},
         );
         final responses = mapper.mapEvent(event);
         expect((responses[0] as TextResponse).content, 'Thinking summary');
       });
 
-      test('returns empty for non-completed event', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+      test('handles summary as list of content blocks', () {
+        const event = ItemCompletedEvent(
           itemId: 'reason_001',
           itemType: 'reasoning',
-          data: {},
+          itemData: {
+            'summary': [
+              {'type': 'summary_text', 'text': 'Thinking about it'},
+            ],
+          },
         );
-        expect(mapper.mapEvent(event), isEmpty);
+        final responses = mapper.mapEvent(event);
+        expect(responses, hasLength(1));
+        expect(
+            (responses[0] as TextResponse).content, 'Thinking about it');
       });
 
       test('returns empty for empty text', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'reason_001',
           itemType: 'reasoning',
-          data: {'text': ''},
+          itemData: {'text': ''},
         );
         expect(mapper.mapEvent(event), isEmpty);
       });
     });
 
-    group('web_search item', () {
+    group('webSearch item', () {
       test('maps started event to WebSearch ToolUseResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
+        const event = ItemStartedEvent(
           itemId: 'search_001',
-          itemType: 'web_search',
-          data: {'query': 'dart async patterns'},
+          itemType: 'webSearch',
+          itemData: {'query': 'dart async patterns'},
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
@@ -480,96 +422,85 @@ void main() {
       });
 
       test('maps completed event to ToolResultResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'search_001',
-          itemType: 'web_search',
-          data: {},
+          itemType: 'webSearch',
+          itemData: {},
         );
         final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
         final result = responses[0] as ToolResultResponse;
         expect(result.content, 'Search complete');
         expect(result.isError, isFalse);
       });
-
-      test('returns empty for updated event', () {
-        const event = ItemEvent(
-          eventType: 'item.updated',
-          itemId: 'search_001',
-          itemType: 'web_search',
-          data: {},
-        );
-        expect(mapper.mapEvent(event), isEmpty);
-      });
     });
 
-    group('todo_list item', () {
+    group('todoList item', () {
       test('maps completed event to checklist TextResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'todo_001',
-          itemType: 'todo_list',
-          data: {
+          itemType: 'todoList',
+          itemData: {
             'items': [
               {'text': 'Write tests', 'completed': true},
               {'text': 'Fix bugs', 'completed': false},
-              {'text': 'Deploy', 'completed': false},
             ],
           },
         );
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         final text = responses[0] as TextResponse;
-        expect(text.content, '[x] Write tests\n[ ] Fix bugs\n[ ] Deploy');
+        expect(text.content, '[x] Write tests\n[ ] Fix bugs');
         expect(text.isCumulative, isTrue);
       });
 
-      test('maps updated event to checklist TextResponse', () {
-        const event = ItemEvent(
-          eventType: 'item.updated',
-          itemId: 'todo_001',
-          itemType: 'todo_list',
-          data: {
-            'items': [
-              {'text': 'Write tests', 'completed': true},
-            ],
-          },
-        );
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        expect((responses[0] as TextResponse).content, '[x] Write tests');
-      });
-
-      test('returns empty for started event', () {
-        const event = ItemEvent(
-          eventType: 'item.started',
-          itemId: 'todo_001',
-          itemType: 'todo_list',
-          data: {'items': []},
-        );
-        expect(mapper.mapEvent(event), isEmpty);
-      });
-
       test('returns empty for empty items list', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+        const event = ItemCompletedEvent(
           itemId: 'todo_001',
-          itemType: 'todo_list',
-          data: {'items': []},
+          itemType: 'todoList',
+          itemData: {'items': []},
         );
         expect(mapper.mapEvent(event), isEmpty);
       });
     });
 
     group('unknown item type', () {
-      test('returns empty list', () {
-        const event = ItemEvent(
-          eventType: 'item.completed',
+      test('returns empty list for started', () {
+        const event = ItemStartedEvent(
           itemId: 'x_001',
-          itemType: 'unknown_future_type',
-          data: {},
+          itemType: 'unknownFutureType',
+          itemData: {},
         );
+        expect(mapper.mapEvent(event), isEmpty);
+      });
+
+      test('returns empty list for completed', () {
+        const event = ItemCompletedEvent(
+          itemId: 'x_001',
+          itemType: 'unknownFutureType',
+          itemData: {},
+        );
+        expect(mapper.mapEvent(event), isEmpty);
+      });
+    });
+
+    group('events that map to empty', () {
+      test('ThreadNameUpdatedEvent maps to empty', () {
+        const event = ThreadNameUpdatedEvent(threadId: 't', name: 'n');
+        expect(mapper.mapEvent(event), isEmpty);
+      });
+
+      test('McpStartupCompleteEvent maps to empty', () {
+        const event = McpStartupCompleteEvent();
+        expect(mapper.mapEvent(event), isEmpty);
+      });
+
+      test('ReasoningSummaryDeltaEvent maps to empty', () {
+        const event = ReasoningSummaryDeltaEvent(itemId: 'r', delta: 'x');
+        expect(mapper.mapEvent(event), isEmpty);
+      });
+
+      test('CommandOutputDeltaEvent maps to empty', () {
+        const event = CommandOutputDeltaEvent(itemId: 'c', delta: 'x');
         expect(mapper.mapEvent(event), isEmpty);
       });
     });
@@ -579,7 +510,7 @@ void main() {
     test('generates unique IDs across events', () {
       final ids = <String>{};
       for (var i = 0; i < 5; i++) {
-        const event = TurnStartedEvent();
+        const event = TurnStartedEvent(turnId: '0', turnData: {});
         final responses = mapper.mapEvent(event);
         ids.add(responses[0].id);
       }

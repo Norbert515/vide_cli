@@ -5,7 +5,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:codex_sdk/codex_sdk.dart';
 import 'package:test/test.dart';
 
-/// End-to-end test that runs a real `codex exec` process.
+/// End-to-end test that runs a real `codex app-server` subprocess.
 ///
 /// Requires:
 ///   - `codex` CLI installed and on PATH
@@ -29,6 +29,7 @@ void main() {
       codexConfig: CodexConfig(
         workingDirectory: tempDir.path,
         skipGitRepoCheck: true,
+        approvalPolicy: 'never',
       ),
     );
   });
@@ -106,23 +107,16 @@ void main() {
     expect(conv.isProcessing, isFalse);
   });
 
-  test('captures thread ID from thread.started event', () async {
+  test('captures thread ID from thread/start response', () async {
     await client.init();
 
-    final turnFuture = client.onTurnComplete.first;
-    client.sendMessage(Message(text: 'Say "ok"'));
-
-    await turnFuture.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out waiting for turn completion'),
-    );
-
+    // Thread ID is set during init from thread/start response
     expect(
-      client.initData,
+      client.threadId,
       isNotNull,
-      reason: 'Expected MetaResponse from thread.started',
+      reason: 'Expected threadId from thread/start',
     );
-    expect(client.initData!.metadata['session_id'], isNotEmpty);
+    expect(client.threadId, isNotEmpty);
   });
 
   test('status transitions correctly during a turn', () async {
@@ -150,7 +144,7 @@ void main() {
     expect(statuses.last, ClaudeStatus.ready);
   });
 
-  test('abort kills the process and resets status', () async {
+  test('abort sends turn/interrupt and resets status', () async {
     await client.init();
 
     final processingFuture = client.statusStream
@@ -177,7 +171,7 @@ void main() {
     // If it already finished, that's fine
   });
 
-  test('clearConversation resets state', () async {
+  test('clearConversation resets state and starts new thread', () async {
     await client.init();
 
     final turnFuture = client.onTurnComplete.first;
@@ -189,12 +183,17 @@ void main() {
     );
 
     expect(client.currentConversation.messages, isNotEmpty);
+    final oldThreadId = client.threadId;
 
     await client.clearConversation();
     expect(client.currentConversation.messages, isEmpty);
+
+    // Should have a new thread ID
+    expect(client.threadId, isNotNull);
+    expect(client.threadId, isNot(equals(oldThreadId)));
   });
 
-  test('multi-turn resume sends follow-up on same thread', () async {
+  test('multi-turn sends follow-up on same thread', () async {
     await client.init();
 
     // Turn 1: establish a fact
@@ -208,12 +207,11 @@ void main() {
       onTimeout: () => fail('Timed out on turn 1'),
     );
 
-    // Should have captured a thread ID
-    expect(client.initData, isNotNull);
-    final threadId = client.initData!.metadata['session_id'] as String;
-    expect(threadId, isNotEmpty);
+    // Should have captured a thread ID during init
+    expect(client.threadId, isNotNull);
+    final threadId = client.threadId;
 
-    // Turn 2: ask about the fact (resume on same thread)
+    // Turn 2: ask about the fact (same persistent thread)
     final turn2Future = client.onTurnComplete.first;
     client.sendMessage(
       Message(text: 'What number did I just tell you to remember? Reply with just the number.'),
@@ -223,6 +221,9 @@ void main() {
       const Duration(seconds: 60),
       onTimeout: () => fail('Timed out on turn 2'),
     );
+
+    // Thread ID should be the same (persistent session)
+    expect(client.threadId, equals(threadId));
 
     // Should have user + assistant messages from both turns
     final conv = client.currentConversation;
