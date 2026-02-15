@@ -432,6 +432,12 @@ class ClaudeClientImpl implements ClaudeClient {
     for (final response in responses) {
       // Extract and emit status updates
       if (response is StatusResponse) {
+        if (response.status == ClaudeStatus.unknown) {
+          stderr.writeln(
+            '[claude_sdk] WARNING: Received unknown ClaudeStatus. '
+            'Raw data: ${response.rawData}',
+          );
+        }
         _updateStatus(response.status);
       }
 

@@ -96,17 +96,27 @@ class AgentStatusSyncService {
           );
           break;
         case ClaudeStatus.error:
-        case ClaudeStatus.unknown:
           // On error, set to idle so triggers can fire
           VideLogger.instance.debug(
             'AgentStatusSyncService',
-            'Agent $agentId: ClaudeStatus.${claudeStatus.name} -> setting idle (was ${currentAgentStatus.name})',
+            'Agent $agentId: ClaudeStatus.error -> setting idle (was ${currentAgentStatus.name})',
             sessionId: _networkId,
           );
           if (currentAgentStatus == AgentStatus.working) {
             agentStatusNotifier.setStatus(AgentStatus.idle);
             checkAllAgentsIdle();
           }
+          break;
+        case ClaudeStatus.unknown:
+          // 'unknown' means a status string we don't recognize — often
+          // caused by unhandled system message subtypes during compaction.
+          // Do NOT set idle here; the agent is likely still working.
+          // Only 'ready' (true turn completion) should transition to idle.
+          VideLogger.instance.warn(
+            'AgentStatusSyncService',
+            'Agent $agentId: ClaudeStatus.unknown ignored (was ${currentAgentStatus.name}) — likely unrecognized system message during compaction',
+            sessionId: _networkId,
+          );
           break;
       }
     });

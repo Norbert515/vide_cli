@@ -193,7 +193,10 @@ sealed class ClaudeResponse {
         if (subtype == 'local_command') {
           return LocalCommandResponse.fromJson(json);
         }
-        return StatusResponse.fromJson(json);
+        // Unrecognized system subtype — return as a generic text response
+        // rather than a StatusResponse, which would produce ClaudeStatus.unknown
+        // and incorrectly affect agent status tracking.
+        return TextResponse.fromJson(json);
       case 'result':
         return CompletionResponse.fromResultJson(json);
       case 'meta':
