@@ -54,6 +54,7 @@ class ServerEntry {
 @Riverpod(keepAlive: true)
 class ServerRegistry extends _$ServerRegistry {
   Timer? _healthCheckTimer;
+  Completer<void>? _loadCompleter;
 
   void _log(String message) {
     developer.log(message, name: 'ServerRegistry');
@@ -66,10 +67,14 @@ class ServerRegistry extends _$ServerRegistry {
     });
 
     // Load servers on init
+    _loadCompleter = Completer<void>();
     _loadServers();
 
     return const {};
   }
+
+  /// Waits until servers have been loaded from storage.
+  Future<void> get loaded => _loadCompleter?.future ?? Future.value();
 
   Future<void> _loadServers() async {
     final storage = ref.read(settingsStorageProvider.notifier);
@@ -80,6 +85,7 @@ class ServerRegistry extends _$ServerRegistry {
       entries[server.id] = ServerEntry(connection: server);
     }
     state = entries;
+    _loadCompleter?.complete();
   }
 
   /// Adds a new server and persists it.

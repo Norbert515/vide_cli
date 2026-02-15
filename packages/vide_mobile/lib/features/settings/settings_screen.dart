@@ -161,6 +161,7 @@ class SettingsScreen extends ConsumerWidget {
 
     showModalBottomSheet(
       context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -187,6 +188,14 @@ class SettingsScreen extends ConsumerWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Rename'),
+              onTap: () {
+                Navigator.pop(context);
+                _showRenameServer(context, ref, serverId, server);
+              },
+            ),
+            ListTile(
               leading: Icon(Icons.delete_outline, color: videColors.error),
               title: Text(
                 'Remove',
@@ -199,6 +208,57 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showRenameServer(
+    BuildContext context,
+    WidgetRef ref,
+    String serverId,
+    ServerEntry server,
+  ) {
+    final controller = TextEditingController(text: server.connection.name ?? '');
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Rename Server'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: 'Name',
+            hintText: '${server.connection.host}:${server.connection.port}',
+          ),
+          onSubmitted: (_) {
+            final name = controller.text.trim();
+            ref.read(serverRegistryProvider.notifier).updateServer(
+                  server.connection.copyWith(
+                    name: name.isEmpty ? null : name,
+                  ),
+                );
+            Navigator.pop(context);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final name = controller.text.trim();
+              ref.read(serverRegistryProvider.notifier).updateServer(
+                    server.connection.copyWith(
+                      name: name.isEmpty ? null : name,
+                    ),
+                  );
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }

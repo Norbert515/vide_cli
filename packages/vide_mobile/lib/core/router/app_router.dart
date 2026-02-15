@@ -19,8 +19,8 @@ part 'app_router.g.dart';
 
 /// Route paths for the app
 abstract class AppRoutes {
-  static const connection = '/';
-  static const sessions = '/sessions';
+  static const sessions = '/';
+  static const connection = '/connection';
   static const newSession = '/session/new';
   static const session = '/session/:id';
   static const settings = '/settings';
@@ -37,7 +37,7 @@ abstract class AppRoutes {
 @riverpod
 GoRouter appRouter(Ref ref) {
   return GoRouter(
-    initialLocation: AppRoutes.connection,
+    initialLocation: AppRoutes.sessions,
     debugLogDiagnostics: true,
     routes: [
       GoRoute(

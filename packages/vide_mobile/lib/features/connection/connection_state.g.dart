@@ -7,7 +7,7 @@ part of 'connection_state.dart';
 // **************************************************************************
 
 String _$connectionNotifierHash() =>
-    r'62029ded806a66843e3d8405628100d8f25bf6aa';
+    r'6d1faa929ec765f9a6eba476c4ce56450d28ba44';
 
 /// Provider for connection state management.
 ///

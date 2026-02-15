@@ -18,18 +18,21 @@ class ConnectionScreen extends ConsumerStatefulWidget {
 }
 
 class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
+  final _nameController = TextEditingController();
   final _hostController = TextEditingController(text: 'localhost');
   final _portController = TextEditingController(text: '8080');
   final _formKey = GlobalKey<FormState>();
-  bool _isAutoConnecting = false;
-  String? _autoConnectError;
 
   @override
   void initState() {
     super.initState();
+    _nameController.addListener(_onNameChanged);
     _hostController.addListener(_onHostChanged);
     _portController.addListener(_onPortChanged);
-    _attemptAutoConnect();
+  }
+
+  void _onNameChanged() {
+    ref.read(connectionNotifierProvider.notifier).setName(_nameController.text);
   }
 
   void _onHostChanged() {
@@ -44,46 +47,10 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _hostController.dispose();
     _portController.dispose();
     super.dispose();
-  }
-
-  Future<void> _attemptAutoConnect() async {
-    final registry = ref.read(serverRegistryProvider.notifier);
-
-    // Wait a moment for the registry to load servers from storage
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    final servers = ref.read(serverRegistryProvider);
-    if (servers.isEmpty || !mounted) {
-      setState(() => _isAutoConnecting = false);
-      return;
-    }
-
-    setState(() {
-      _isAutoConnecting = true;
-      _autoConnectError = null;
-    });
-
-    try {
-      await registry.connectAll();
-      if (mounted && registry.hasConnectedServer) {
-        context.go(AppRoutes.sessions);
-      } else if (mounted) {
-        setState(() {
-          _isAutoConnecting = false;
-          _autoConnectError = 'Could not connect to any configured server';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isAutoConnecting = false;
-          _autoConnectError = 'Connection failed: $e';
-        });
-      }
-    }
   }
 
   Future<void> _connectToServer() async {
@@ -97,7 +64,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     final server = ServerConnection.create(
       host: state.host,
       port: state.port,
-      name: state.host == 'localhost' ? 'Local Server' : state.host,
+      name: state.name.isEmpty ? null : state.name,
     );
 
     final registry = ref.read(serverRegistryProvider.notifier);
@@ -114,32 +81,6 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
     final connectionState = ref.watch(connectionNotifierProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final isTesting = connectionState.status == ConnectionStatus.testing;
-
-    if (_isAutoConnecting) {
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.terminal_rounded,
-                size: 80,
-                color: colorScheme.primary,
-              ),
-              const SizedBox(height: 24),
-              const CircularProgressIndicator(),
-              const SizedBox(height: 16),
-              Text(
-                'Connecting to saved server...',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -169,7 +110,7 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Add Server',
+                  'Connect',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -183,11 +124,19 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                       ),
                   textAlign: TextAlign.center,
                 ),
-                if (_autoConnectError != null) ...[
-                  const SizedBox(height: 16),
-                  _AutoConnectErrorBanner(message: _autoConnectError!),
-                ],
                 const SizedBox(height: 48),
+                // Name field (optional)
+                TextFormField(
+                  controller: _nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name (optional)',
+                    hintText: 'e.g. Work Mac, Remote Server',
+                    prefixIcon: Icon(Icons.label_outlined),
+                  ),
+                  textInputAction: TextInputAction.next,
+                  enabled: !isTesting,
+                ),
+                const SizedBox(height: 16),
                 // Host field
                 TextFormField(
                   controller: _hostController,
@@ -253,8 +202,8 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                             color: colorScheme.onPrimary,
                           ),
                         )
-                      : const Icon(Icons.add),
-                  label: Text(isTesting ? 'Connecting...' : 'Add Server'),
+                      : const Icon(Icons.login_outlined),
+                  label: Text(isTesting ? 'Connecting...' : 'Connect'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
                   ),
@@ -263,44 +212,6 @@ class _ConnectionScreenState extends ConsumerState<ConnectionScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _AutoConnectErrorBanner extends StatelessWidget {
-  final String message;
-
-  const _AutoConnectErrorBanner({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.warning_amber_rounded,
-            color: colorScheme.onErrorContainer,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                color: colorScheme.onErrorContainer,
-                fontSize: 13,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

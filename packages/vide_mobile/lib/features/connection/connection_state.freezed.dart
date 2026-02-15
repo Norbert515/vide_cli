@@ -18,6 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$ConnectionState {
   String get host => throw _privateConstructorUsedError;
   int get port => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
   ConnectionStatus get status => throw _privateConstructorUsedError;
   String? get error => throw _privateConstructorUsedError;
 
@@ -34,7 +35,12 @@ abstract class $ConnectionStateCopyWith<$Res> {
           ConnectionState value, $Res Function(ConnectionState) then) =
       _$ConnectionStateCopyWithImpl<$Res, ConnectionState>;
   @useResult
-  $Res call({String host, int port, ConnectionStatus status, String? error});
+  $Res call(
+      {String host,
+      int port,
+      String name,
+      ConnectionStatus status,
+      String? error});
 }
 
 /// @nodoc
@@ -54,6 +60,7 @@ class _$ConnectionStateCopyWithImpl<$Res, $Val extends ConnectionState>
   $Res call({
     Object? host = null,
     Object? port = null,
+    Object? name = null,
     Object? status = null,
     Object? error = freezed,
   }) {
@@ -66,6 +73,10 @@ class _$ConnectionStateCopyWithImpl<$Res, $Val extends ConnectionState>
           ? _value.port
           : port // ignore: cast_nullable_to_non_nullable
               as int,
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
       status: null == status
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
@@ -86,7 +97,12 @@ abstract class _$$ConnectionStateImplCopyWith<$Res>
       __$$ConnectionStateImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String host, int port, ConnectionStatus status, String? error});
+  $Res call(
+      {String host,
+      int port,
+      String name,
+      ConnectionStatus status,
+      String? error});
 }
 
 /// @nodoc
@@ -104,6 +120,7 @@ class __$$ConnectionStateImplCopyWithImpl<$Res>
   $Res call({
     Object? host = null,
     Object? port = null,
+    Object? name = null,
     Object? status = null,
     Object? error = freezed,
   }) {
@@ -116,6 +133,10 @@ class __$$ConnectionStateImplCopyWithImpl<$Res>
           ? _value.port
           : port // ignore: cast_nullable_to_non_nullable
               as int,
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
       status: null == status
           ? _value.status
           : status // ignore: cast_nullable_to_non_nullable
@@ -134,6 +155,7 @@ class _$ConnectionStateImpl implements _ConnectionState {
   const _$ConnectionStateImpl(
       {this.host = 'localhost',
       this.port = 8080,
+      this.name = '',
       this.status = ConnectionStatus.disconnected,
       this.error});
 
@@ -145,13 +167,16 @@ class _$ConnectionStateImpl implements _ConnectionState {
   final int port;
   @override
   @JsonKey()
+  final String name;
+  @override
+  @JsonKey()
   final ConnectionStatus status;
   @override
   final String? error;
 
   @override
   String toString() {
-    return 'ConnectionState(host: $host, port: $port, status: $status, error: $error)';
+    return 'ConnectionState(host: $host, port: $port, name: $name, status: $status, error: $error)';
   }
 
   @override
@@ -161,12 +186,13 @@ class _$ConnectionStateImpl implements _ConnectionState {
             other is _$ConnectionStateImpl &&
             (identical(other.host, host) || other.host == host) &&
             (identical(other.port, port) || other.port == port) &&
+            (identical(other.name, name) || other.name == name) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.error, error) || other.error == error));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, host, port, status, error);
+  int get hashCode => Object.hash(runtimeType, host, port, name, status, error);
 
   /// Create a copy of ConnectionState
   /// with the given fields replaced by the non-null parameter values.
@@ -182,6 +208,7 @@ abstract class _ConnectionState implements ConnectionState {
   const factory _ConnectionState(
       {final String host,
       final int port,
+      final String name,
       final ConnectionStatus status,
       final String? error}) = _$ConnectionStateImpl;
 
@@ -189,6 +216,8 @@ abstract class _ConnectionState implements ConnectionState {
   String get host;
   @override
   int get port;
+  @override
+  String get name;
   @override
   ConnectionStatus get status;
   @override

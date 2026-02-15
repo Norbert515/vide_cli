@@ -23,14 +23,44 @@ Future<void> sessionsListRefresh(Ref ref) async {
 }
 
 /// Screen showing list of existing sessions.
-class SessionsListScreen extends ConsumerWidget {
+/// This is the initial route. If no servers are configured, redirects to connection screen.
+/// If servers exist, auto-connects in the background.
+class SessionsListScreen extends ConsumerStatefulWidget {
   const SessionsListScreen({super.key});
 
-  Future<void> _stopSession(
-    BuildContext context,
-    WidgetRef ref,
-    SessionListEntry entry,
-  ) async {
+  @override
+  ConsumerState<SessionsListScreen> createState() => _SessionsListScreenState();
+}
+
+class _SessionsListScreenState extends ConsumerState<SessionsListScreen> {
+  bool _initialConnectAttempted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoConnectOrRedirect();
+  }
+
+  Future<void> _autoConnectOrRedirect() async {
+    final registry = ref.read(serverRegistryProvider.notifier);
+
+    // Wait for registry to finish loading servers from storage
+    await registry.loaded;
+    if (!mounted) return;
+
+    final servers = ref.read(serverRegistryProvider);
+    if (servers.isEmpty) {
+      context.go(AppRoutes.connection);
+      return;
+    }
+
+    if (!_initialConnectAttempted) {
+      _initialConnectAttempted = true;
+      await registry.connectAll();
+    }
+  }
+
+  Future<void> _stopSession(SessionListEntry entry) async {
     final session = entry.summary;
     final confirmed = await showDialog<bool>(
       context: context,
@@ -73,11 +103,7 @@ class SessionsListScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildList(
-    BuildContext context,
-    WidgetRef ref,
-    List<SessionGroup> groups,
-  ) {
+  Widget _buildList(List<SessionGroup> groups) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (groups.isEmpty) {
@@ -129,7 +155,7 @@ class SessionsListScreen extends ConsumerWidget {
           final entry = item as SessionListEntry;
           return _SessionCard(
             entry: entry,
-            onStop: () => _stopSession(context, ref, entry),
+            onStop: () => _stopSession(entry),
           );
         },
       ),
@@ -162,7 +188,7 @@ class SessionsListScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final refreshAsync = ref.watch(sessionsListRefreshProvider);
     final managerState = ref.watch(sessionListManagerProvider);
     final groups = ref.read(sessionListManagerProvider.notifier).groupedEntries;
@@ -187,9 +213,9 @@ class SessionsListScreen extends ConsumerWidget {
       body: refreshAsync.when(
         loading: () => managerState.isEmpty
             ? const Center(child: CircularProgressIndicator())
-            : _buildList(context, ref, groups),
+            : _buildList(groups),
         error: (error, _) => managerState.isNotEmpty
-            ? _buildList(context, ref, groups)
+            ? _buildList(groups)
             : Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -219,7 +245,7 @@ class SessionsListScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-        data: (_) => _buildList(context, ref, groups),
+        data: (_) => _buildList(groups),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(AppRoutes.newSession),
@@ -391,29 +417,33 @@ class _SessionCard extends ConsumerWidget {
                   ),
                 ],
               ),
-              // Server badge (only when multiple servers are configured)
+              // Server badge (only when multiple servers are connected)
               Builder(builder: (context) {
-                final serverCount = ref.watch(serverRegistryProvider).length;
-                if (serverCount <= 1) return const SizedBox.shrink();
+                final connectedCount = ref
+                    .watch(serverRegistryProvider)
+                    .values
+                    .where(
+                        (s) => s.status == ServerHealthStatus.connected)
+                    .length;
+                if (connectedCount <= 1) return const SizedBox.shrink();
 
                 return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.dns_outlined,
-                        size: 14,
-                        color: colorScheme.outline,
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      entry.serverName,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        entry.serverName,
-                        style:
-                            Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: colorScheme.outline,
-                                ),
-                      ),
-                    ],
+                    ),
                   ),
                 );
               }),

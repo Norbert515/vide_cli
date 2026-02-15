@@ -19,6 +19,7 @@ class ConnectionState with _$ConnectionState {
   const factory ConnectionState({
     @Default('localhost') String host,
     @Default(8080) int port,
+    @Default('') String name,
     @Default(ConnectionStatus.disconnected) ConnectionStatus status,
     String? error,
   }) = _ConnectionState;
@@ -30,6 +31,10 @@ class ConnectionNotifier extends _$ConnectionNotifier {
   @override
   ConnectionState build() {
     return const ConnectionState();
+  }
+
+  void setName(String name) {
+    state = state.copyWith(name: name.trim());
   }
 
   void setHost(String host) {
