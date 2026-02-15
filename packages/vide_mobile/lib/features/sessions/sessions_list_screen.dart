@@ -312,11 +312,6 @@ class _SessionCard extends ConsumerWidget {
     final isReady = session.state == 'ready';
     final statusColor = isReady ? videColors.success : videColors.warning;
 
-    // Format the working directory to show just the project name
-    final dirParts = session.workingDirectory.split('/');
-    final shortDir =
-        dirParts.isNotEmpty ? dirParts.last : session.workingDirectory;
-
     // Format time ago using last activity or creation time
     final timeAgo = _formatTimeAgo(entry.sortTime);
 
@@ -395,67 +390,14 @@ class _SessionCard extends ConsumerWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Working directory
-              Row(
-                children: [
-                  Icon(
-                    Icons.folder_outlined,
-                    size: 16,
-                    color: colorScheme.outline,
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      shortDir,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colorScheme.outline,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              // Server badge (only when multiple servers are connected)
-              Builder(builder: (context) {
-                final connectedCount = ref
-                    .watch(serverRegistryProvider)
-                    .values
-                    .where(
-                        (s) => s.status == ServerHealthStatus.connected)
-                    .length;
-                if (connectedCount <= 1) return const SizedBox.shrink();
-
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      entry.serverName,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colorScheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                );
-              }),
               // Latest activity preview (message or tool call)
-              if (latestActivity != null) ...[
-                const SizedBox(height: 6),
-                _LatestActivityWidget(
-                  activity: latestActivity,
-                  colorScheme: colorScheme,
-                  videColors: videColors,
-                ),
-              ],
+              // Always reserve space to prevent card height jumps.
+              const SizedBox(height: 6),
+              _LatestActivityWidget(
+                activity: latestActivity,
+                colorScheme: colorScheme,
+                videColors: videColors,
+              ),
               // Inline permission request
               if (pendingPermission != null) ...[
                 const SizedBox(height: 8),
@@ -510,6 +452,36 @@ class _SessionCard extends ConsumerWidget {
                           color: colorScheme.outline,
                         ),
                   ),
+                  // Server name (only when multiple servers)
+                  Builder(builder: (context) {
+                    final connectedCount = ref
+                        .watch(serverRegistryProvider)
+                        .values
+                        .where(
+                            (s) => s.status == ServerHealthStatus.connected)
+                        .length;
+                    if (connectedCount <= 1) return const SizedBox.shrink();
+
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(width: 16),
+                        Icon(
+                          Icons.dns_outlined,
+                          size: 14,
+                          color: colorScheme.outline,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          entry.serverName,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.outline,
+                                  ),
+                        ),
+                      ],
+                    );
+                  }),
                   const Spacer(),
                   // Status indicator — show spinner if any agent is busy
                   if (anyAgentBusy)
@@ -566,10 +538,16 @@ class _SessionCard extends ConsumerWidget {
 }
 
 /// Displays the latest activity: either a message preview or a tool call.
+///
+/// Always reserves a fixed height (2 lines) so the card doesn't jump when
+/// activity changes or appears/disappears.
 class _LatestActivityWidget extends StatelessWidget {
-  final LatestActivity activity;
+  final LatestActivity? activity;
   final ColorScheme colorScheme;
   final VideThemeColors videColors;
+
+  /// Height of two body-small lines + gap + border padding.
+  static const double _reservedHeight = 36;
 
   const _LatestActivityWidget({
     required this.activity,
@@ -579,49 +557,75 @@ class _LatestActivityWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    switch (activity.type) {
-      case LatestActivityType.message:
-        return Text(
-          activity.text,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        );
-      case LatestActivityType.toolUse:
-        return Row(
-          children: [
-            Icon(
-              Icons.build_outlined,
-              size: 13,
-              color: videColors.accent,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              activity.text,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: videColors.accent,
-              ),
-            ),
-            if (activity.subtitle != null) ...[
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  activity.subtitle!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ],
-        );
+    final act = activity;
+
+    if (act == null) {
+      return const SizedBox(height: _reservedHeight);
     }
+
+    final isToolUse = act.type == LatestActivityType.toolUse;
+    final accentColor =
+        isToolUse ? videColors.accent : colorScheme.onSurfaceVariant;
+
+    return SizedBox(
+      height: _reservedHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: accentColor.withValues(alpha: 0.4),
+              width: 2,
+            ),
+          ),
+        ),
+        padding: const EdgeInsets.only(left: 8),
+        child: switch (act.type) {
+          LatestActivityType.message => Text(
+              act.text,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          LatestActivityType.toolUse => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.build_outlined,
+                      size: 13,
+                      color: videColors.accent,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      act.text,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: videColors.accent,
+                      ),
+                    ),
+                  ],
+                ),
+                if (act.subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    act.subtitle!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: videColors.textSecondary,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+        },
+      ),
+    );
   }
 }
 
@@ -705,47 +709,43 @@ class _InlinePermissionWidget extends StatelessWidget {
     final subtitle = _permissionSubtitle(displayName, permission.toolInput);
 
     return Container(
-      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: videColors.warningContainer,
-        borderRadius: BorderRadius.circular(8),
+        border: Border(
+          left: BorderSide(color: videColors.warning, width: 2),
+        ),
       ),
+      padding: const EdgeInsets.only(left: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(
-                Icons.security_outlined,
+                Icons.shield_outlined,
                 size: 14,
                 color: videColors.warning,
               ),
               const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  displayName,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
-                  ),
+              Text(
+                displayName,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ],
           ),
           if (subtitle != null) ...[
             const SizedBox(height: 2),
-            Padding(
-              padding: const EdgeInsets.only(left: 20),
-              child: Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 11,
+                color: videColors.textSecondary,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
           const SizedBox(height: 8),
@@ -753,14 +753,16 @@ class _InlinePermissionWidget extends StatelessWidget {
             children: [
               Expanded(
                 child: SizedBox(
-                  height: 32,
+                  height: 36,
                   child: OutlinedButton(
                     onPressed: onDeny,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: videColors.error,
-                      side: BorderSide(color: videColors.error),
+                      foregroundColor: videColors.textSecondary,
+                      side: BorderSide(
+                        color: colorScheme.outlineVariant,
+                      ),
                       padding: EdgeInsets.zero,
-                      textStyle: const TextStyle(fontSize: 12),
+                      textStyle: const TextStyle(fontSize: 13),
                     ),
                     child: const Text('Deny'),
                   ),
@@ -769,12 +771,15 @@ class _InlinePermissionWidget extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: SizedBox(
-                  height: 32,
+                  height: 36,
                   child: FilledButton(
                     onPressed: onAllow,
                     style: FilledButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      textStyle: const TextStyle(fontSize: 12),
+                      textStyle: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     child: const Text('Allow'),
                   ),
