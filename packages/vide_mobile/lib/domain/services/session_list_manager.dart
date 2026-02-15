@@ -292,6 +292,48 @@ class SessionListManager extends _$SessionListManager {
     }
   }
 
+  /// Add a session discovered via daemon WebSocket event.
+  void addSessionFromDaemon({
+    required DaemonSessionCreatedEvent event,
+    required VideClient client,
+    required String serverId,
+    required String serverName,
+  }) {
+    final id = event.sessionId;
+    if (state.containsKey(id)) return;
+
+    _log('Session added from daemon event: $id');
+
+    final summary = SessionSummary(
+      sessionId: id,
+      workingDirectory: event.workingDirectory,
+      createdAt: event.createdAt,
+      state: 'ready',
+      connectedClients: 0,
+      port: event.port,
+    );
+
+    final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
+    sessionRepo.registerSessionServer(id, serverId);
+
+    state = {
+      ...state,
+      id: SessionListEntry(
+        summary: summary,
+        serverId: serverId,
+        serverName: serverName,
+      ),
+    };
+    _connectToSession(client, id);
+  }
+
+  /// Remove a session discovered via daemon WebSocket event.
+  void removeSessionFromDaemon(String sessionId) {
+    if (!state.containsKey(sessionId)) return;
+    _log('Session removed from daemon event: $sessionId');
+    _removeSession(sessionId);
+  }
+
   /// Respond to a permission request.
   void respondToPermission(
     String sessionId,

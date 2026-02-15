@@ -24,4 +24,5 @@ library;
 export 'package:vide_interface/vide_interface.dart';
 
 export 'src/client.dart';
+export 'src/daemon_events.dart';
 export 'src/remote_vide_session.dart';

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:vide_interface/vide_interface.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'daemon_events.dart';
 import 'remote_vide_session.dart';
 
 /// Summary of a session from the daemon.
@@ -118,6 +120,16 @@ class VideClient {
   }
 
   String get _httpUrl => 'http://$host:$port';
+  String get _wsUrl => 'ws://$host:$port';
+
+  /// Connect to the daemon WebSocket for real-time session events.
+  ///
+  /// Returns a [DaemonConnection] that provides a stream of [DaemonEvent]s
+  /// and can be disposed when no longer needed.
+  DaemonConnection connectToDaemon() {
+    final channel = WebSocketChannel.connect(Uri.parse('$_wsUrl/daemon'));
+    return DaemonConnection._(channel);
+  }
 
   /// Check if the daemon is running and healthy.
   ///
@@ -397,6 +409,26 @@ class SessionConnectionInfo {
   final String wsUrl;
 
   SessionConnectionInfo({required this.sessionId, required this.wsUrl});
+}
+
+/// A connection to the daemon WebSocket that streams [DaemonEvent]s.
+class DaemonConnection {
+  final WebSocketChannel _channel;
+  late final Stream<DaemonEvent> _events;
+
+  DaemonConnection._(this._channel) {
+    _events = _channel.stream
+        .map((message) => DaemonEvent.fromJsonString(message as String))
+        .handleError((_) {});
+  }
+
+  /// Stream of daemon events (session created, stopped, health changes).
+  Stream<DaemonEvent> get events => _events;
+
+  /// Close the WebSocket connection.
+  Future<void> dispose() async {
+    await _channel.sink.close();
+  }
 }
 
 /// Exception thrown by [VideClient] operations.

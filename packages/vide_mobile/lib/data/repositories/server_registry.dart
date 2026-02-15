@@ -5,6 +5,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:vide_client/vide_client.dart';
 
 import '../../domain/models/server_connection.dart';
+import '../../domain/services/session_list_manager.dart';
 import '../local/settings_storage.dart';
 
 part 'server_registry.g.dart';
@@ -55,6 +56,8 @@ class ServerEntry {
 class ServerRegistry extends _$ServerRegistry {
   Timer? _healthCheckTimer;
   Completer<void>? _loadCompleter;
+  final Map<String, DaemonConnection> _daemonConnections = {};
+  final Map<String, StreamSubscription<DaemonEvent>> _daemonSubscriptions = {};
 
   void _log(String message) {
     developer.log(message, name: 'ServerRegistry');
@@ -64,6 +67,14 @@ class ServerRegistry extends _$ServerRegistry {
   Map<String, ServerEntry> build() {
     ref.onDispose(() {
       _healthCheckTimer?.cancel();
+      for (final sub in _daemonSubscriptions.values) {
+        sub.cancel();
+      }
+      _daemonSubscriptions.clear();
+      for (final conn in _daemonConnections.values) {
+        conn.dispose();
+      }
+      _daemonConnections.clear();
     });
 
     // Load servers on init
@@ -149,6 +160,7 @@ class ServerRegistry extends _$ServerRegistry {
         ),
       };
       _log('Connected to ${entry.connection.displayName}');
+      _connectDaemonStream(id, client, entry.connection);
       _ensureHealthChecks();
     } else {
       state = {
@@ -166,6 +178,8 @@ class ServerRegistry extends _$ServerRegistry {
   void disconnectServer(String id) {
     final entry = state[id];
     if (entry == null) return;
+
+    _disconnectDaemonStream(id);
 
     state = {
       ...state,
@@ -188,6 +202,9 @@ class ServerRegistry extends _$ServerRegistry {
   /// Disconnects from all servers.
   void disconnectAll() {
     _healthCheckTimer?.cancel();
+    for (final id in _daemonSubscriptions.keys.toList()) {
+      _disconnectDaemonStream(id);
+    }
     final updated = <String, ServerEntry>{};
     for (final entry in state.entries) {
       updated[entry.key] = entry.value.copyWith(
@@ -262,6 +279,59 @@ class ServerRegistry extends _$ServerRegistry {
           };
         }
       }
+    }
+  }
+
+  void _connectDaemonStream(
+    String serverId,
+    VideClient client,
+    ServerConnection connection,
+  ) {
+    _disconnectDaemonStream(serverId);
+
+    _log('Connecting daemon stream for ${connection.displayName}');
+    final daemonConn = client.connectToDaemon();
+    _daemonConnections[serverId] = daemonConn;
+
+    _daemonSubscriptions[serverId] = daemonConn.events.listen(
+      (event) => _handleDaemonEvent(serverId, client, connection, event),
+      onError: (error) {
+        _log('Daemon stream error for ${connection.displayName}: $error');
+      },
+      onDone: () {
+        _log('Daemon stream closed for ${connection.displayName}');
+      },
+    );
+  }
+
+  void _disconnectDaemonStream(String serverId) {
+    _daemonSubscriptions[serverId]?.cancel();
+    _daemonSubscriptions.remove(serverId);
+    _daemonConnections[serverId]?.dispose();
+    _daemonConnections.remove(serverId);
+  }
+
+  void _handleDaemonEvent(
+    String serverId,
+    VideClient client,
+    ServerConnection connection,
+    DaemonEvent event,
+  ) {
+    final manager = ref.read(sessionListManagerProvider.notifier);
+
+    switch (event) {
+      case DaemonSessionCreatedEvent():
+        manager.addSessionFromDaemon(
+          event: event,
+          client: client,
+          serverId: serverId,
+          serverName: connection.displayName,
+        );
+      case DaemonSessionStoppedEvent():
+        manager.removeSessionFromDaemon(event.sessionId);
+      case DaemonSessionHealthEvent():
+      case DaemonStatusEvent():
+        break;
     }
   }
 }

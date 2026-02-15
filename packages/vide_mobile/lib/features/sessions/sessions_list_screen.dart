@@ -199,11 +199,6 @@ class _SessionsListScreenState extends ConsumerState<SessionsListScreen> {
         title: const Text('Sessions'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(sessionsListRefreshProvider),
-            tooltip: 'Refresh',
-          ),
-          IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => context.push(AppRoutes.settings),
             tooltip: 'Settings',
