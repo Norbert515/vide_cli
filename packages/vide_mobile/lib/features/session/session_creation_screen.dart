@@ -322,7 +322,6 @@ class _WorkingDirectorySelector extends ConsumerStatefulWidget {
 class _WorkingDirectorySelectorState
     extends ConsumerState<_WorkingDirectorySelector> {
   List<String> _recentDirs = [];
-  bool _showManualInput = false;
   final _pathController = TextEditingController();
 
   @override
@@ -379,71 +378,187 @@ class _WorkingDirectorySelectorState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  void _showDirectoryOptions() {
+    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final hasServer = _getSelectedClient() != null;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final dir in _recentDirs)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _DirectoryRow(
-              path: dir,
-              isSelected: dir == widget.selectedDirectory,
-              onTap: widget.enabled ? () => widget.onSelected(dir) : null,
-            ),
-          ),
-        Row(
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_recentDirs.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Recent',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: videColors.textSecondary,
+                  ),
+                ),
+              ),
+              for (final dir in _recentDirs)
+                ListTile(
+                  leading: Icon(
+                    Icons.folder_outlined,
+                    color: dir == widget.selectedDirectory
+                        ? videColors.accent
+                        : videColors.textSecondary,
+                    size: 20,
+                  ),
+                  title: Text(
+                    dir,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: dir == widget.selectedDirectory
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: dir == widget.selectedDirectory
+                          ? videColors.accent
+                          : colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: dir == widget.selectedDirectory
+                      ? Icon(Icons.check, size: 18, color: videColors.accent)
+                      : null,
+                  dense: true,
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onSelected(dir);
+                  },
+                ),
+              const Divider(height: 1),
+            ],
+            ListTile(
+              leading: Icon(
+                Icons.folder_open,
+                size: 20,
+                color: hasServer ? null : videColors.textSecondary,
+              ),
+              title: Text(
+                hasServer ? 'Browse server...' : 'Browse (no server)',
+                style: TextStyle(
+                  color: hasServer ? null : videColors.textSecondary,
+                ),
+              ),
+              enabled: hasServer,
+              onTap: () {
+                Navigator.pop(context);
+                _openFolderPicker();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, size: 20),
+              title: const Text('Enter path manually'),
+              onTap: () {
+                Navigator.pop(context);
+                _showManualPathInput();
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showManualPathInput() {
+    _pathController.text = widget.selectedDirectory;
+    _pathController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _pathController.text.length,
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Working Directory'),
+        content: TextField(
+          controller: _pathController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: '/path/to/project',
+            labelText: 'Path',
+          ),
+          onSubmitted: (value) {
+            final path = value.trim();
+            if (path.isNotEmpty) {
+              widget.onSelected(path);
+            }
+            Navigator.pop(context);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final path = _pathController.text.trim();
+              if (path.isNotEmpty) {
+                widget.onSelected(path);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text('Select'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final hasValue = widget.selectedDirectory.isNotEmpty;
+
+    return InkWell(
+      onTap: widget.enabled ? _showDirectoryOptions : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: colorScheme.outlineVariant),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.folder_outlined,
+              size: 18,
+              color: videColors.textSecondary,
+            ),
+            const SizedBox(width: 10),
             Expanded(
-              child: TextButton.icon(
-                onPressed: widget.enabled && hasServer
-                    ? _openFolderPicker
-                    : null,
-                icon: const Icon(Icons.folder_open, size: 18),
-                label: Text(hasServer ? 'Browse...' : 'Browse (no server)'),
+              child: Text(
+                hasValue ? widget.selectedDirectory : 'Select a directory',
+                style: TextStyle(
+                  color: hasValue
+                      ? colorScheme.onSurface
+                      : videColors.textSecondary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            TextButton(
-              onPressed: widget.enabled
-                  ? () => setState(() => _showManualInput = !_showManualInput)
-                  : null,
-              child: Text(_showManualInput ? 'Hide' : 'Enter path'),
+            Icon(
+              Icons.unfold_more,
+              size: 18,
+              color: videColors.textSecondary,
             ),
           ],
         ),
-        if (_showManualInput)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: TextField(
-              controller: _pathController,
-              decoration: InputDecoration(
-                hintText: '/path/to/project',
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.check, size: 18),
-                  onPressed: () {
-                    final path = _pathController.text.trim();
-                    if (path.isNotEmpty) {
-                      widget.onSelected(path);
-                      _pathController.clear();
-                      setState(() => _showManualInput = false);
-                    }
-                  },
-                ),
-              ),
-              onSubmitted: (value) {
-                final path = value.trim();
-                if (path.isNotEmpty) {
-                  widget.onSelected(path);
-                  _pathController.clear();
-                  setState(() => _showManualInput = false);
-                }
-              },
-            ),
-          ),
-      ],
+      ),
     );
   }
 }
@@ -691,61 +806,6 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
   }
 }
 
-class _DirectoryRow extends StatelessWidget {
-  final String path;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  const _DirectoryRow({
-    required this.path,
-    required this.isSelected,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? videColors.accentSubtle : null,
-          border: Border.all(
-            color: isSelected ? videColors.accent : colorScheme.outlineVariant,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.folder_outlined,
-              size: 18,
-              color: videColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                path,
-                style: TextStyle(
-                  color: isSelected ? videColors.accent : colorScheme.onSurface,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (isSelected)
-              Icon(Icons.check, size: 18, color: videColors.accent),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _PermissionModeSelector extends StatelessWidget {
   final PermissionMode selectedMode;

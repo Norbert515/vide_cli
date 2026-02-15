@@ -47,12 +47,19 @@ class SettingsScreen extends ConsumerWidget {
               ServerHealthStatus.disconnected =>
                 Theme.of(context).colorScheme.outline,
             };
+            final statusLabel = switch (server.status) {
+              ServerHealthStatus.connected => 'Connected',
+              ServerHealthStatus.connecting => 'Connecting...',
+              ServerHealthStatus.error =>
+                server.errorMessage ?? 'Error',
+              ServerHealthStatus.disconnected => 'Disconnected',
+            };
 
             return SettingsTile(
               icon: Icons.dns_outlined,
               title: server.connection.displayName,
               subtitle:
-                  '${server.connection.host}:${server.connection.port}',
+                  '${server.connection.host}:${server.connection.port} · $statusLabel',
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -189,10 +196,10 @@ class SettingsScreen extends ConsumerWidget {
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename'),
+              title: const Text('Edit Connection'),
               onTap: () {
                 Navigator.pop(context);
-                _showRenameServer(context, ref, serverId, server);
+                _showEditServer(context, ref, serverId, server);
               },
             ),
             ListTile(
@@ -212,34 +219,89 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showRenameServer(
+  void _showEditServer(
     BuildContext context,
     WidgetRef ref,
     String serverId,
     ServerEntry server,
   ) {
-    final controller = TextEditingController(text: server.connection.name ?? '');
+    final nameController =
+        TextEditingController(text: server.connection.name ?? '');
+    final hostController =
+        TextEditingController(text: server.connection.host);
+    final portController =
+        TextEditingController(text: server.connection.port.toString());
+
+    void save() {
+      final name = nameController.text.trim();
+      final host = hostController.text.trim();
+      final port = int.tryParse(portController.text.trim());
+
+      if (host.isEmpty || port == null) return;
+
+      final registry = ref.read(serverRegistryProvider.notifier);
+
+      // Disconnect first if connection details changed
+      final connectionChanged = host != server.connection.host ||
+          port != server.connection.port;
+      if (connectionChanged &&
+          server.status == ServerHealthStatus.connected) {
+        registry.disconnectServer(serverId);
+      }
+
+      registry.updateServer(
+        server.connection.copyWith(
+          name: name.isEmpty ? null : name,
+          host: host,
+          port: port,
+        ),
+      );
+
+      Navigator.pop(context);
+
+      // Reconnect with new details
+      if (connectionChanged) {
+        registry.connectServer(serverId);
+      }
+    }
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Rename Server'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(
-            labelText: 'Name',
-            hintText: '${server.connection.host}:${server.connection.port}',
-          ),
-          onSubmitted: (_) {
-            final name = controller.text.trim();
-            ref.read(serverRegistryProvider.notifier).updateServer(
-                  server.connection.copyWith(
-                    name: name.isEmpty ? null : name,
-                  ),
-                );
-            Navigator.pop(context);
-          },
+        title: const Text('Edit Server'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Name (optional)',
+                hintText: 'My Server',
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: hostController,
+              decoration: const InputDecoration(
+                labelText: 'Host',
+                hintText: '192.168.1.100',
+              ),
+              keyboardType: TextInputType.url,
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: portController,
+              decoration: const InputDecoration(
+                labelText: 'Port',
+                hintText: '8080',
+              ),
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => save(),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -247,15 +309,7 @@ class SettingsScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () {
-              final name = controller.text.trim();
-              ref.read(serverRegistryProvider.notifier).updateServer(
-                    server.connection.copyWith(
-                      name: name.isEmpty ? null : name,
-                    ),
-                  );
-              Navigator.pop(context);
-            },
+            onPressed: save,
             child: const Text('Save'),
           ),
         ],
