@@ -314,12 +314,16 @@ class ConversationStateManager {
     final state = _getOrCreateAgentState(event);
     state.taskName = event.taskName;
 
-    // Deduplicate user messages by content (matches RemoteConversationBuilder)
-    if (event.role == 'user') {
-      final isDuplicate = state.messages.any(
-        (m) => m.role == 'user' && m.text == event.content,
-      );
-      if (isDuplicate) return;
+    // Deduplicate user messages against the last message only.
+    // User messages are emitted twice: once optimistically (for instant UI) and
+    // once from the conversation stream (when Claude SDK processes it). Only the
+    // last message needs checking since these arrive back-to-back. Checking all
+    // history would silently drop legitimate repeated messages (e.g. "yes").
+    if (event.role == 'user' && state.messages.isNotEmpty) {
+      final lastMessage = state.messages.last;
+      if (lastMessage.role == 'user' && lastMessage.text == event.content) {
+        return;
+      }
     }
 
     if (state.currentMessageEventId != event.eventId) {
