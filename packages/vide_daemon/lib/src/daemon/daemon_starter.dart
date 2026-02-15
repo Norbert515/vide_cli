@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:logging/logging.dart';
 import 'package:path/path.dart' as path;
 
+import '../lifecycle/daemon_info.dart';
 import 'daemon_server.dart';
 import 'session_registry.dart';
 
@@ -89,7 +90,7 @@ class SessionSpawnConfig {
 
 /// Shared daemon startup logic.
 ///
-/// Used by both `vide serve` and `bin/vide_daemon.dart`.
+/// Used by `vide daemon start` and `bin/vide_daemon.dart`.
 class DaemonStarter {
   final DaemonConfig config;
   final Logger _log = Logger('VideDaemon');
@@ -171,6 +172,18 @@ class DaemonStarter {
     _server = server;
     _registry = registry;
 
+    // Write daemon info file for lifecycle management (stop/status)
+    DaemonInfo.write(
+      DaemonInfo(
+        pid: pid,
+        port: config.port,
+        host: config.bindAddress,
+        startedAt: DateTime.now().toUtc(),
+        logFile: DaemonInfo.logFilePath(stateDir: stateDir),
+      ),
+      stateDir: stateDir,
+    );
+
     return (server: server, registry: registry);
   }
 
@@ -179,6 +192,11 @@ class DaemonStarter {
     _log.info('Shutting down...');
     await _server?.stop();
     await _registry?.dispose();
+
+    // Remove daemon info file
+    final stateDir = config.stateDir ?? _defaultStateDir();
+    DaemonInfo.delete(stateDir: stateDir);
+
     _log.info('Goodbye!');
   }
 

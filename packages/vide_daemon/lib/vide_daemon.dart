@@ -12,3 +12,6 @@ export 'src/daemon/session_registry.dart';
 export 'src/protocol/daemon_messages.dart';
 export 'src/protocol/daemon_events.dart';
 export 'src/client/daemon_client.dart';
+export 'src/lifecycle/daemon_info.dart';
+export 'src/lifecycle/daemon_lifecycle.dart';
+export 'src/lifecycle/service_installer.dart';

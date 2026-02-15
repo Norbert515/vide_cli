@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:vide_cli/cli/connect_command.dart';
-import 'package:vide_cli/cli/serve_command.dart';
+import 'package:vide_cli/cli/daemon_command.dart';
 import 'package:vide_cli/cli/session_server_command.dart';
 import 'package:vide_cli/main.dart' as app;
 import 'package:vide_core/vide_core.dart';
@@ -34,7 +34,7 @@ class VideCommandRunner extends CommandRunner<void> {
       )
       ..addFlag('daemon', negatable: false, help: 'Force daemon session mode');
 
-    addCommand(ServeCommand());
+    addCommand(DaemonCommand());
     addCommand(ConnectCommand());
     addCommand(SessionServerCommand());
   }
@@ -44,11 +44,14 @@ class VideCommandRunner extends CommandRunner<void> {
 
 EXAMPLES:
     vide                                   Launch interactive TUI
-    vide serve                             Start daemon on port 8080
-    vide serve --port 9000                 Start daemon on port 9000
-    vide serve --generate-token            Start with auto-generated auth token
-    vide serve --bind-all --generate-token Allow remote connections (with auth)
-    vide serve --host 100.x.x.x           Bind to specific IP (e.g., Tailscale)
+    vide daemon start                      Start daemon on port 8080
+    vide daemon start --port 9000          Start daemon on port 9000
+    vide daemon start --detach             Start daemon in background
+    vide daemon start --host 100.x.x.x    Bind to specific IP (e.g., Tailscale)
+    vide daemon stop                       Stop the running daemon
+    vide daemon status                     Show daemon status
+    vide daemon install --port 9000        Install as system service
+    vide daemon uninstall                  Remove system service
     vide connect 8080                      Connect to localhost:8080
     vide connect 192.168.1.10:8080         Connect to remote daemon
     vide connect 8080 --session abc123     Connect to specific session
