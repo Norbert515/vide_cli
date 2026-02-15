@@ -33,6 +33,9 @@ class SessionRegistry {
   /// Configuration for spawning session server processes.
   final SessionSpawnConfig spawnConfig;
 
+  /// Whether to skip all permission checks for spawned sessions.
+  final bool dangerouslySkipPermissions;
+
   /// Event controller for broadcasting daemon events.
   final StreamController<DaemonEvent> _eventController =
       StreamController<DaemonEvent>.broadcast();
@@ -45,7 +48,11 @@ class SessionRegistry {
 
   final Logger _log = Logger('SessionRegistry');
 
-  SessionRegistry({required this.stateFilePath, required this.spawnConfig});
+  SessionRegistry({
+    required this.stateFilePath,
+    required this.spawnConfig,
+    this.dangerouslySkipPermissions = false,
+  });
 
   /// Get all active sessions.
   Iterable<SessionProcess> get sessions => _sessions.values;
@@ -70,6 +77,7 @@ class SessionRegistry {
       permissionMode: permissionMode,
       team: team,
       attachments: attachments,
+      dangerouslySkipPermissions: dangerouslySkipPermissions,
     );
 
     // Set up event handlers
@@ -124,6 +132,7 @@ class SessionRegistry {
       sessionId: sessionId,
       workingDirectory: workingDirectory,
       spawnConfig: spawnConfig,
+      dangerouslySkipPermissions: dangerouslySkipPermissions,
     );
 
     // Set up event handlers

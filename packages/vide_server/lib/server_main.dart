@@ -31,7 +31,17 @@ class VideServerConfig {
   /// Working directory override (defaults to current directory).
   final String? workingDirectory;
 
-  const VideServerConfig({this.port, this.workingDirectory});
+  /// Whether to skip all permission checks for sessions.
+  ///
+  /// DANGEROUS: Only for sandboxed environments. Propagated from daemon
+  /// via VIDE_DANGEROUSLY_SKIP_PERMISSIONS environment variable.
+  final bool dangerouslySkipPermissions;
+
+  const VideServerConfig({
+    this.port,
+    this.workingDirectory,
+    this.dangerouslySkipPermissions = false,
+  });
 }
 
 /// Start the vide_server and return the running HttpServer.
@@ -69,6 +79,12 @@ Future<HttpServer> startServer(VideServerConfig config) async {
     );
   }
 
+  if (config.dangerouslySkipPermissions) {
+    log.warning(
+      'dangerously-skip-permissions is enabled - all permissions will be auto-approved!',
+    );
+  }
+
   // Create session manager with isolated containers (each session gets its own providers).
   final permissionHandler = PermissionHandler();
   final container = ProviderContainer(
@@ -77,6 +93,7 @@ Future<HttpServer> startServer(VideServerConfig config) async {
         workingDirectory: Directory.current.path,
         configManager: VideConfigManager(),
         permissionHandler: permissionHandler,
+        dangerouslySkipPermissions: config.dangerouslySkipPermissions,
       )),
     ],
   );

@@ -53,6 +53,7 @@ class DaemonLifecycle {
     required int port,
     required String host,
     bool verbose = false,
+    bool dangerouslySkipPermissions = false,
   }) async {
     if (isRunning()) {
       final info = DaemonInfo.read(stateDir: stateDir)!;
@@ -83,6 +84,7 @@ class DaemonLifecycle {
       host,
       if (stateDir != null) ...['--state-dir', stateDir!],
       if (verbose) '--verbose',
+      if (dangerouslySkipPermissions) '--dangerously-skip-permissions',
     ];
 
     // Use shell redirection to capture stdout/stderr to log file.

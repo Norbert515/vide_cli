@@ -29,6 +29,12 @@ class DaemonConfig {
   /// Use '0.0.0.0' for all interfaces, or a specific IP (e.g., Tailscale).
   final String bindAddress;
 
+  /// Whether to skip all permission checks for spawned sessions.
+  ///
+  /// DANGEROUS: Only for sandboxed environments (Docker, VMs) where
+  /// filesystem isolation protects the host system.
+  final bool dangerouslySkipPermissions;
+
   /// Callback invoked when server is ready.
   /// Receives the server URL.
   final void Function(String url)? onReady;
@@ -39,6 +45,7 @@ class DaemonConfig {
     this.videServerPath,
     this.verbose = false,
     this.bindAddress = '127.0.0.1',
+    this.dangerouslySkipPermissions = false,
     this.onReady,
   });
 }
@@ -125,6 +132,13 @@ class DaemonStarter {
     // Check bind address and warn if dangerous
     await _checkBindAddress(config.bindAddress);
 
+    if (config.dangerouslySkipPermissions) {
+      _log.warning(
+        'dangerously-skip-permissions is enabled — '
+        'all sessions will auto-approve every tool call',
+      );
+    }
+
     // Determine state directory
     final stateDir = config.stateDir ?? _defaultStateDir();
     final stateFilePath = path.join(stateDir, 'state.json');
@@ -140,6 +154,7 @@ class DaemonStarter {
     final registry = SessionRegistry(
       stateFilePath: stateFilePath,
       spawnConfig: spawnConfig,
+      dangerouslySkipPermissions: config.dangerouslySkipPermissions,
     );
 
     // Restore any existing sessions
@@ -290,6 +305,13 @@ class DaemonStarter {
     print('║    WS     /daemon          - Real-time daemon events         ║');
     print('╠══════════════════════════════════════════════════════════════╣');
     _printSecurityNotice(bindAddress);
+    if (config.dangerouslySkipPermissions) {
+      print('╠══════════════════════════════════════════════════════════════╣');
+      print('║                                                              ║');
+      print('║  ⚠️  PERMISSIONS DISABLED: All tool calls auto-approved       ║');
+      print('║  Only use in sandboxed environments (Docker, VMs)!          ║');
+      print('║                                                              ║');
+    }
     print('╚══════════════════════════════════════════════════════════════╝');
     print('');
     print('Server ready. Press Ctrl+C to stop.');

@@ -72,6 +72,7 @@ class SessionProcess {
     String? permissionMode,
     String? team,
     List<Map<String, dynamic>>? attachments,
+    bool dangerouslySkipPermissions = false,
     Duration startupTimeout = const Duration(seconds: 30),
   }) async {
     final log = Logger('SessionProcess.spawn');
@@ -107,6 +108,8 @@ class SessionProcess {
         ...Platform.environment,
         // Ensure the process knows its working directory
         'VIDE_WORKING_DIR': workingDirectory,
+        if (dangerouslySkipPermissions)
+          'VIDE_DANGEROUSLY_SKIP_PERMISSIONS': '1',
       },
     );
 
@@ -214,6 +217,7 @@ class SessionProcess {
     required String sessionId,
     required String workingDirectory,
     required SessionSpawnConfig spawnConfig,
+    bool dangerouslySkipPermissions = false,
     Duration startupTimeout = const Duration(seconds: 30),
   }) async {
     final log = Logger('SessionProcess.spawnForResume');
@@ -249,6 +253,8 @@ class SessionProcess {
       environment: {
         ...Platform.environment,
         'VIDE_WORKING_DIR': workingDirectory,
+        if (dangerouslySkipPermissions)
+          'VIDE_DANGEROUSLY_SKIP_PERMISSIONS': '1',
       },
     );
 

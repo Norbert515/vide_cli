@@ -57,6 +57,13 @@ class DaemonStartCommand extends Command<void> {
         help:
             'Bind to all network interfaces (0.0.0.0). '
             'WARNING: Requires confirmation prompt for security.',
+      )
+      ..addFlag(
+        'dangerously-skip-permissions',
+        negatable: false,
+        help:
+            'Skip all permission checks for spawned sessions. '
+            'DANGEROUS: Only for sandboxed environments (Docker, VMs).',
       );
   }
 
@@ -76,6 +83,13 @@ class DaemonStartCommand extends Command<void> {
     final stateDir = argResults!['state-dir'] as String?;
     final verbose = argResults!['verbose'] as bool;
     final detach = argResults!['detach'] as bool;
+    final dangerouslySkipPermissions =
+        argResults!['dangerously-skip-permissions'] as bool;
+
+    // Prompt for confirmation BEFORE detaching, while stdin is still available
+    if (dangerouslySkipPermissions) {
+      _confirmDangerouslySkipPermissions();
+    }
 
     if (detach) {
       await _startDetached(
@@ -83,6 +97,7 @@ class DaemonStartCommand extends Command<void> {
         host: host,
         stateDir: stateDir,
         verbose: verbose,
+        dangerouslySkipPermissions: dangerouslySkipPermissions,
       );
     } else {
       await _startForeground(
@@ -90,8 +105,51 @@ class DaemonStartCommand extends Command<void> {
         host: host,
         stateDir: stateDir,
         verbose: verbose,
+        dangerouslySkipPermissions: dangerouslySkipPermissions,
       );
     }
+  }
+
+  void _confirmDangerouslySkipPermissions() {
+    print('');
+    print('╔══════════════════════════════════════════════════════════════╗');
+    print('║                    ⚠️  SECURITY WARNING ⚠️                    ║');
+    print('╠══════════════════════════════════════════════════════════════╣');
+    print('║                                                              ║');
+    print('║  You are about to SKIP ALL PERMISSION CHECKS.               ║');
+    print('║                                                              ║');
+    print('║  All sessions spawned by this daemon will auto-approve       ║');
+    print('║  every tool call, including:                                  ║');
+    print('║    • File writes and deletions                               ║');
+    print('║    • Arbitrary shell command execution                       ║');
+    print('║    • Git operations (push, force-push, etc.)                 ║');
+    print('║    • Network requests                                        ║');
+    print('║                                                              ║');
+    print('║  ⚠️  ONLY USE THIS IN A SANDBOXED ENVIRONMENT ⚠️              ║');
+    print('║                                                              ║');
+    print('║  Safe environments:                                          ║');
+    print('║    • Docker containers                                       ║');
+    print('║    • Virtual machines                                        ║');
+    print('║    • Disposable CI/CD runners                                ║');
+    print('║                                                              ║');
+    print('║  NEVER use this on your host machine or with access          ║');
+    print('║  to sensitive data, credentials, or production systems.      ║');
+    print('║                                                              ║');
+    print('╚══════════════════════════════════════════════════════════════╝');
+    print('');
+    stdout.write('Type "yes" to confirm skipping all permission checks: ');
+
+    final response = stdin.readLineSync()?.trim().toLowerCase();
+    if (response != 'yes') {
+      print('');
+      print('Daemon startup cancelled.');
+      print('');
+      exit(1);
+    }
+
+    print('');
+    print('⚠️  Proceeding with ALL permission checks DISABLED');
+    print('');
   }
 
   Future<void> _startDetached({
@@ -99,6 +157,7 @@ class DaemonStartCommand extends Command<void> {
     required String host,
     String? stateDir,
     required bool verbose,
+    required bool dangerouslySkipPermissions,
   }) async {
     final lifecycle = DaemonLifecycle(stateDir: stateDir);
 
@@ -107,6 +166,7 @@ class DaemonStartCommand extends Command<void> {
         port: port,
         host: host,
         verbose: verbose,
+        dangerouslySkipPermissions: dangerouslySkipPermissions,
       );
       print('Daemon started in background');
       print('  PID:  ${info.pid}');
@@ -128,12 +188,14 @@ class DaemonStartCommand extends Command<void> {
     required String host,
     String? stateDir,
     required bool verbose,
+    required bool dangerouslySkipPermissions,
   }) async {
     final config = DaemonConfig(
       port: port,
       stateDir: stateDir,
       verbose: verbose,
       bindAddress: host,
+      dangerouslySkipPermissions: dangerouslySkipPermissions,
     );
 
     final starter = DaemonStarter(config);

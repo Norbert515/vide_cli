@@ -40,11 +40,18 @@ class SessionServerCommand extends Command<void> {
 
     Directory.current = workingDir;
 
+    final dangerouslySkipPermissions =
+        Platform.environment['VIDE_DANGEROUSLY_SKIP_PERMISSIONS'] == '1';
+
     // Initialize structured logging
     VideLogger.init('${VideConfigManager().configRoot}/logs');
 
     await server.startServer(
-      server.VideServerConfig(port: port, workingDirectory: workingDir),
+      server.VideServerConfig(
+        port: port,
+        workingDirectory: workingDir,
+        dangerouslySkipPermissions: dangerouslySkipPermissions,
+      ),
     );
 
     // Keep the process alive
