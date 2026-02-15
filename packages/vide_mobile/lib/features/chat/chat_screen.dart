@@ -424,6 +424,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             tooltip: 'Files',
           ),
+          IconButton(
+            icon: const Icon(Icons.commit),
+            onPressed: () {
+              final workingDir = _session?.state.workingDirectory ?? '';
+              context.push(
+                AppRoutes.gitPath(widget.sessionId),
+                extra: workingDir,
+              );
+            },
+            tooltip: 'Git',
+          ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
             child: Center(child: ConnectionStatusChip()),

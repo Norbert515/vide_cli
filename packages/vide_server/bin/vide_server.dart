@@ -18,6 +18,10 @@ void main(List<String> arguments) async {
       'port',
       abbr: 'p',
       help: 'Port number to listen on (default: auto-select)',
+    )
+    ..addOption(
+      'filesystem-root',
+      help: 'Root directory for filesystem/git API (overrides config file)',
     );
 
   void printUsage() {
@@ -62,8 +66,13 @@ void main(List<String> arguments) async {
     }
   }
 
+  final filesystemRoot = argResults['filesystem-root'] as String?;
+
   // Start the server using shared logic
-  await startServer(VideServerConfig(port: port));
+  await startServer(VideServerConfig(
+    port: port,
+    filesystemRoot: filesystemRoot,
+  ));
 
   // Keep the process alive
   await Completer<void>().future;

@@ -9,6 +9,8 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'package:vide_server/vide_server.dart' as vide_server;
+
 import '../protocol/daemon_events.dart';
 import '../protocol/daemon_messages.dart';
 import 'session_registry.dart';
@@ -39,7 +41,10 @@ class DaemonServer {
     // Subscribe to registry events to broadcast to WebSocket clients
     _eventSubscription = registry.events.listen(_broadcastEvent);
 
-    final handler = _createHandler();
+    // Load server config for filesystem/git routes
+    final serverConfig = await vide_server.ServerConfig.load();
+
+    final handler = _createHandler(serverConfig);
 
     final address = InternetAddress(bindAddress);
     _server = await shelf_io.serve(handler, address, port);
@@ -63,7 +68,7 @@ class DaemonServer {
     _server = null;
   }
 
-  Handler _createHandler() {
+  Handler _createHandler(vide_server.ServerConfig serverConfig) {
     final router = Router();
 
     // Health check
@@ -76,6 +81,71 @@ class DaemonServer {
     router.get('/sessions/<sessionId>/stream', _handleSessionStreamWebSocket);
     router.get('/sessions/<sessionId>', _handleGetSession);
     router.delete('/sessions/<sessionId>', _handleStopSession);
+
+    // Filesystem browsing API
+    router.get('/api/v1/filesystem', (Request request) {
+      return vide_server.listDirectory(request, serverConfig);
+    });
+    router.get('/api/v1/filesystem/content', (Request request) {
+      return vide_server.readFileContent(request, serverConfig);
+    });
+
+    router.post('/api/v1/filesystem', (Request request) {
+      return vide_server.createDirectory(request, serverConfig);
+    });
+
+    // Git API
+    router.get('/api/v1/git/status', (Request request) {
+      return vide_server.gitStatus(request, serverConfig);
+    });
+    router.get('/api/v1/git/branches', (Request request) {
+      return vide_server.gitBranches(request, serverConfig);
+    });
+    router.get('/api/v1/git/log', (Request request) {
+      return vide_server.gitLog(request, serverConfig);
+    });
+    router.get('/api/v1/git/diff', (Request request) {
+      return vide_server.gitDiff(request, serverConfig);
+    });
+    router.get('/api/v1/git/worktrees', (Request request) {
+      return vide_server.gitWorktrees(request, serverConfig);
+    });
+    router.get('/api/v1/git/stash/list', (Request request) {
+      return vide_server.gitStashList(request, serverConfig);
+    });
+    router.post('/api/v1/git/commit', (Request request) {
+      return vide_server.gitCommit(request, serverConfig);
+    });
+    router.post('/api/v1/git/stage', (Request request) {
+      return vide_server.gitStage(request, serverConfig);
+    });
+    router.post('/api/v1/git/checkout', (Request request) {
+      return vide_server.gitCheckout(request, serverConfig);
+    });
+    router.post('/api/v1/git/push', (Request request) {
+      return vide_server.gitPush(request, serverConfig);
+    });
+    router.post('/api/v1/git/pull', (Request request) {
+      return vide_server.gitPull(request, serverConfig);
+    });
+    router.post('/api/v1/git/fetch', (Request request) {
+      return vide_server.gitFetch(request, serverConfig);
+    });
+    router.post('/api/v1/git/sync', (Request request) {
+      return vide_server.gitSync(request, serverConfig);
+    });
+    router.post('/api/v1/git/merge', (Request request) {
+      return vide_server.gitMerge(request, serverConfig);
+    });
+    router.post('/api/v1/git/stash', (Request request) {
+      return vide_server.gitStash(request, serverConfig);
+    });
+    router.post('/api/v1/git/worktree/add', (Request request) {
+      return vide_server.gitWorktreeAdd(request, serverConfig);
+    });
+    router.post('/api/v1/git/worktree/remove', (Request request) {
+      return vide_server.gitWorktreeRemove(request, serverConfig);
+    });
 
     // WebSocket for daemon events
     router.get('/daemon', _handleDaemonWebSocket);

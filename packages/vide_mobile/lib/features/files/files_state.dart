@@ -58,6 +58,10 @@ class FilesNotifier extends _$FilesNotifier {
   }
 
   Future<void> _load(String path) async {
+    // When called from build(), state is not yet initialized.
+    // Use a microtask to ensure build() has returned before we read state.
+    await Future<void>.value();
+
     state = state.copyWith(isLoading: true, clearError: true);
 
     final registry = ref.read(serverRegistryProvider.notifier);

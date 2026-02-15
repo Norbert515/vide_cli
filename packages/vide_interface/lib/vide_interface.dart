@@ -28,6 +28,8 @@ export 'src/events/agent_info.dart';
 // =============================================================================
 export 'src/models/enums.dart';
 export 'src/models/filesystem.dart';
+export 'src/models/git_branch.dart';
+export 'src/models/git_log.dart';
 export 'src/models/git_status.dart';
 export 'src/models/vide_agent.dart';
 export 'src/models/vide_config.dart';

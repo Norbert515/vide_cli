@@ -7,7 +7,7 @@ part of 'session_list_manager.dart';
 // **************************************************************************
 
 String _$sessionListManagerHash() =>
-    r'2d3aa5817dc63260a6a9a95777d9840fad0f04ca';
+    r'45f05ffa4ce160e13011de3e417462f5023a5be8';
 
 /// Manages RemoteVideSession instances for all sessions on the list screen.
 ///

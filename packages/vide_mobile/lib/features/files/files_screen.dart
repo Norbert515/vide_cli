@@ -4,7 +4,9 @@ import 'package:vide_client/vide_client.dart';
 
 import '../../data/repositories/server_registry.dart';
 import 'files_state.dart';
+import 'utils/diff_utils.dart';
 import 'widgets/diff_bottom_sheet.dart';
+import 'widgets/file_content_bottom_sheet.dart';
 import 'widgets/file_list_tile.dart';
 import 'widgets/git_status_header.dart';
 
@@ -23,6 +25,48 @@ class FilesScreen extends ConsumerWidget {
     return parts.isNotEmpty ? parts.last : path;
   }
 
+  Future<void> _showFileContent(
+    BuildContext context,
+    WidgetRef ref,
+    FileEntry entry,
+    String rootPath,
+    bool isChanged,
+  ) async {
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final connected = registry.connectedEntries;
+    if (connected.isEmpty) return;
+    final client = connected.first.client;
+    if (client == null) return;
+
+    try {
+      final content = await client.readFileContent(entry.path);
+
+      if (!context.mounted) return;
+
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => FileContentBottomSheet(
+          fileName: entry.name,
+          content: content,
+          isChanged: isChanged,
+          onViewDiff: isChanged
+              ? () {
+                  Navigator.of(sheetContext).pop();
+                  _showDiff(context, ref, entry, rootPath);
+                }
+              : null,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to read file: $e')),
+      );
+    }
+  }
+
   Future<void> _showDiff(
     BuildContext context,
     WidgetRef ref,
@@ -36,7 +80,8 @@ class FilesScreen extends ConsumerWidget {
     if (client == null) return;
 
     final fullDiff = await client.gitDiff(rootPath);
-    final fileDiff = _filterDiffForFile(fullDiff, entry.path, rootPath);
+    final relativePath = toRelativePath(entry.path, rootPath);
+    final fileDiff = filterDiffForFile(fullDiff, relativePath);
 
     if (!context.mounted) return;
 
@@ -51,29 +96,6 @@ class FilesScreen extends ConsumerWidget {
     );
   }
 
-  String _filterDiffForFile(String fullDiff, String filePath, String rootPath) {
-    final relativePath = filePath.length > rootPath.length &&
-            filePath.startsWith(rootPath)
-        ? filePath.substring(rootPath.length + 1)
-        : filePath;
-
-    final lines = fullDiff.split('\n');
-    final buffer = StringBuffer();
-    var inTargetSection = false;
-
-    for (final line in lines) {
-      if (line.startsWith('diff --git ')) {
-        inTargetSection = line.contains('a/$relativePath') &&
-            line.contains('b/$relativePath');
-      }
-      if (inTargetSection) {
-        buffer.writeln(line);
-      }
-    }
-
-    return buffer.toString().trimRight();
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(filesNotifierProvider(workingDirectory));
@@ -82,15 +104,17 @@ class FilesScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (state.isAtRoot) {
+              Navigator.of(context).pop();
+            } else {
+              notifier.navigateUp();
+            }
+          },
+        ),
         title: Text(_basename(state.currentPath)),
-        actions: [
-          if (!state.isAtRoot)
-            IconButton(
-              icon: const Icon(Icons.arrow_upward),
-              onPressed: () => notifier.navigateUp(),
-              tooltip: 'Parent directory',
-            ),
-        ],
       ),
       body: Column(
         children: [
@@ -179,12 +203,13 @@ class FilesScreen extends ConsumerWidget {
                                   onTap: () {
                                     if (entry.isDirectory) {
                                       notifier.navigateTo(entry.path);
-                                    } else if (isChanged) {
-                                      _showDiff(
+                                    } else {
+                                      _showFileContent(
                                         context,
                                         ref,
                                         entry,
                                         state.rootPath,
+                                        isChanged,
                                       );
                                     }
                                   },

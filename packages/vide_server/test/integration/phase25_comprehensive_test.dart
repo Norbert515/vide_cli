@@ -30,31 +30,12 @@ void main() {
   late int port;
   late String baseUrl;
   late Directory testDir;
-  late String configFilePath;
 
   setUpAll(() async {
     // Create a test directory for file operations
     testDir = await Directory.systemTemp.createTemp('phase25_e2e_test_');
 
-    // Create config file for testing
-    final homeDir = Platform.environment['HOME'] ?? Directory.current.path;
-    final configDir = Directory(p.join(homeDir, '.vide', 'api'));
-    await configDir.create(recursive: true);
-    configFilePath = p.join(configDir.path, 'config.json');
-
-    // Save existing config if present
-    String? existingConfig;
-    final configFile = File(configFilePath);
-    if (await configFile.exists()) {
-      existingConfig = await configFile.readAsString();
-    }
-
-    // Write test config
-    await configFile.writeAsString(
-      jsonEncode({'auto-approve-all': false, 'filesystem-root': testDir.path}),
-    );
-
-    // Start the server
+    // Start the server with filesystem-root pointing to our test directory
     port = testPortBase + phase25ComprehensiveTestOffset;
     baseUrl = 'http://127.0.0.1:$port';
 
@@ -63,6 +44,8 @@ void main() {
       'bin/vide_server.dart',
       '--port',
       '$port',
+      '--filesystem-root',
+      testDir.path,
     ], workingDirectory: Directory.current.path);
 
     // Wait for server to be ready
@@ -81,16 +64,6 @@ void main() {
       const Duration(seconds: 30),
       onTimeout: () => throw Exception('Server failed to start'),
     );
-
-    // Restore config on teardown
-    addTearDown(() async {
-      final file = File(configFilePath);
-      if (existingConfig != null) {
-        await file.writeAsString(existingConfig);
-      } else if (await file.exists()) {
-        await file.delete();
-      }
-    });
   });
 
   tearDownAll(() async {

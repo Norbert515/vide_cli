@@ -302,6 +302,24 @@ class VideClient {
   // Filesystem API
   // ==========================================================================
 
+  /// Read file content as a UTF-8 string.
+  Future<String> readFileContent(String path) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/filesystem/content').replace(
+      queryParameters: {'path': path},
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException(
+        'Failed to read file: ${response.body}',
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data['content'] as String;
+  }
+
   /// List directory contents.
   ///
   /// If [parent] is null, lists the server's configured filesystem root.
@@ -351,6 +369,92 @@ class VideClient {
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return GitStatusInfo.fromJson(data);
+  }
+
+  /// Get git log (recent commits).
+  Future<List<GitCommitInfo>> gitLog(
+    String path, {
+    int count = 10,
+  }) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/git/log').replace(
+      queryParameters: {
+        'path': path,
+        'count': count.toString(),
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to get git log: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final commits = data['commits'] as List<dynamic>;
+    return commits
+        .map((c) => GitCommitInfo.fromJson(c as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Get git branches.
+  Future<List<GitBranchInfo>> gitBranches(
+    String path, {
+    bool all = false,
+  }) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/git/branches').replace(
+      queryParameters: {
+        'path': path,
+        if (all) 'all': 'true',
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException(
+        'Failed to get git branches: ${response.body}',
+      );
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final branches = data['branches'] as List<dynamic>;
+    return branches
+        .map((b) => GitBranchInfo.fromJson(b as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Stage files.
+  Future<void> gitStage(String path, List<String> files) async {
+    final response = await http.post(
+      Uri.parse('$_httpUrl/api/v1/git/stage'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'path': path, 'files': files}),
+    );
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to stage files: ${response.body}');
+    }
+  }
+
+  /// Create a commit.
+  Future<void> gitCommit(
+    String path,
+    String message, {
+    bool all = false,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_httpUrl/api/v1/git/commit'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'path': path,
+        'message': message,
+        if (all) 'all': true,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to commit: ${response.body}');
+    }
   }
 
   /// Get git diff output.

@@ -34,24 +34,7 @@ void main() {
       p.join(testDir.path, 'subdir', 'nested.txt'),
     ).writeAsString('nested');
 
-    // Create config file with filesystem-root set to our test directory
-    final homeDir = Platform.environment['HOME'] ?? Directory.current.path;
-    final configDir = Directory(p.join(homeDir, '.vide', 'api'));
-    await configDir.create(recursive: true);
-    final configFile = File(p.join(configDir.path, 'config.json'));
-
-    // Save existing config if present
-    String? existingConfig;
-    if (await configFile.exists()) {
-      existingConfig = await configFile.readAsString();
-    }
-
-    // Write test config
-    await configFile.writeAsString(
-      jsonEncode({'auto-approve-all': false, 'filesystem-root': testDir.path}),
-    );
-
-    // Start the server
+    // Start the server with filesystem-root pointing to our test directory
     port = testPortBase + filesystemTestOffset;
     baseUrl = 'http://127.0.0.1:$port';
 
@@ -60,6 +43,8 @@ void main() {
       'bin/vide_server.dart',
       '--port',
       '$port',
+      '--filesystem-root',
+      testDir.path,
     ], workingDirectory: Directory.current.path);
 
     // Wait for server to be ready
@@ -79,14 +64,6 @@ void main() {
       onTimeout: () => throw Exception('Server failed to start'),
     );
 
-    // Restore original config after test (in tearDownAll)
-    addTearDown(() async {
-      if (existingConfig != null) {
-        await configFile.writeAsString(existingConfig);
-      } else {
-        await configFile.delete();
-      }
-    });
   });
 
   tearDownAll(() async {

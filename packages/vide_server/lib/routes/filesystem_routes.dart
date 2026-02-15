@@ -12,6 +12,8 @@ import 'package:shelf/shelf.dart';
 
 import '../services/server_config.dart';
 
+const _maxFileSize = 1024 * 1024; // 1MB
+
 final _log = Logger('FilesystemRoutes');
 
 /// GET /api/v1/filesystem - List directory contents
@@ -117,6 +119,120 @@ Future<Response> listDirectory(Request request, ServerConfig config) async {
 
   return Response.ok(
     jsonEncode({'entries': entries}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// GET /api/v1/filesystem/content - Read file content
+///
+/// Query params:
+///   path: string (required) - absolute path to the file
+///
+/// Returns:
+/// ```json
+/// {
+///   "content": "file content as UTF-8 string",
+///   "path": "/Users/chris/myproject/main.dart"
+/// }
+/// ```
+Future<Response> readFileContent(Request request, ServerConfig config) async {
+  final pathParam = request.url.queryParameters['path'];
+  if (pathParam == null || pathParam.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'path query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final rootPath = p.canonicalize(config.filesystemRoot);
+  final targetPath = p.canonicalize(pathParam);
+
+  _log.fine('GET /filesystem/content: path=$pathParam, resolved=$targetPath');
+
+  if (!_isWithinRoot(targetPath, rootPath)) {
+    _log.warning(
+      'Path traversal attempt: $targetPath is outside root $rootPath',
+    );
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Path is outside allowed filesystem root',
+        'code': 'PATH_TRAVERSAL',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final targetType = FileSystemEntity.typeSync(targetPath, followLinks: false);
+
+  if (targetType == FileSystemEntityType.link) {
+    _log.warning('Symlink access denied: $targetPath');
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Symlinks are not allowed',
+        'code': 'SYMLINK_DENIED',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  if (targetType != FileSystemEntityType.file) {
+    return Response.notFound(
+      jsonEncode({
+        'error': 'File not found: $targetPath',
+        'code': 'NOT_FOUND',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final file = File(targetPath);
+  final fileSize = await file.length();
+
+  if (fileSize > _maxFileSize) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'File too large (${fileSize} bytes, max $_maxFileSize)',
+        'code': 'FILE_TOO_LARGE',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Check for binary content by reading first 8KB
+  final bytes = await file.openRead(0, fileSize.clamp(0, 8192)).fold<List<int>>(
+    <int>[],
+    (prev, chunk) => prev..addAll(chunk),
+  );
+  if (bytes.any((b) => b == 0)) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'Binary files are not supported',
+        'code': 'BINARY_FILE',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final String content;
+  try {
+    content = await file.readAsString();
+  } on FormatException {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'File cannot be read as text',
+        'code': 'ENCODING_ERROR',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  _log.fine('Read file: $targetPath (${content.length} chars)');
+
+  return Response.ok(
+    jsonEncode({'content': content, 'path': targetPath}),
     headers: {'Content-Type': 'application/json'},
   );
 }

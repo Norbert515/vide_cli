@@ -7,6 +7,7 @@ import 'package:vide_client/vide_client.dart';
 
 import '../../features/chat/chat_screen.dart';
 import '../../features/files/files_screen.dart';
+import '../../features/git/git_screen.dart';
 import '../../features/chat/widgets/tool_card.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
@@ -28,10 +29,12 @@ abstract class AppRoutes {
   static const title = '/title';
   static const toolDetail = '/session/:id/tool';
   static const files = '/session/:id/files';
+  static const git = '/session/:id/git';
 
   static String sessionPath(String id) => '/session/$id';
   static String toolDetailPath(String sessionId) => '/session/$sessionId/tool';
   static String filesPath(String id) => '/session/$id/files';
+  static String gitPath(String id) => '/session/$id/git';
 }
 
 @riverpod
@@ -77,6 +80,17 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final workingDirectory = state.extra as String? ?? '';
           return FilesScreen(
+            sessionId: state.pathParameters['id']!,
+            workingDirectory: workingDirectory,
+          );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.git,
+        name: 'git',
+        builder: (context, state) {
+          final workingDirectory = state.extra as String? ?? '';
+          return GitScreen(
             sessionId: state.pathParameters['id']!,
             workingDirectory: workingDirectory,
           );

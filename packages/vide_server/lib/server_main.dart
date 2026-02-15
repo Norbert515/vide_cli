@@ -37,10 +37,15 @@ class VideServerConfig {
   /// via VIDE_DANGEROUSLY_SKIP_PERMISSIONS environment variable.
   final bool dangerouslySkipPermissions;
 
+  /// Override for the filesystem root used by filesystem/git routes.
+  /// When set, takes precedence over the value in config.json.
+  final String? filesystemRoot;
+
   const VideServerConfig({
     this.port,
     this.workingDirectory,
     this.dangerouslySkipPermissions = false,
+    this.filesystemRoot,
   });
 }
 
@@ -71,8 +76,14 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   log.info('Starting Vide API Server...');
   log.fine('Port: ${config.port ?? "auto"}');
 
-  // Load server configuration
-  final serverConfig = await ServerConfig.load();
+  // Load server configuration, applying CLI overrides
+  var serverConfig = await ServerConfig.load();
+  if (config.filesystemRoot != null) {
+    serverConfig = ServerConfig(
+      autoApproveAll: serverConfig.autoApproveAll,
+      filesystemRoot: config.filesystemRoot,
+    );
+  }
   if (serverConfig.autoApproveAll) {
     log.warning(
       'Auto-approve-all is enabled - all permissions will be granted!',
@@ -172,6 +183,10 @@ Handler _createHandler(
   // Filesystem browsing API
   router.get('/api/v1/filesystem', (Request request) {
     return listDirectory(request, serverConfig);
+  });
+
+  router.get('/api/v1/filesystem/content', (Request request) {
+    return readFileContent(request, serverConfig);
   });
 
   router.post('/api/v1/filesystem', (Request request) {
