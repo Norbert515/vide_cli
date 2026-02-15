@@ -1,32 +1,13 @@
-import 'dart:convert';
-
 import 'codex_event.dart';
+import 'json_rpc_message.dart';
 
-/// Parses raw JSONL lines from `codex exec --json` stdout into [CodexEvent]s.
+/// Converts [JsonRpcNotification]s from the transport into [CodexEvent]s.
+///
+/// The transport layer handles JSONL framing and message routing.
+/// This parser just maps typed notification objects to domain events.
 class CodexEventParser {
-  /// Parse a single JSON line into a [CodexEvent].
-  /// Returns null if the line is empty or cannot be parsed.
-  CodexEvent? parseLine(String line) {
-    final trimmed = line.trim();
-    if (trimmed.isEmpty) return null;
-
-    try {
-      final json = jsonDecode(trimmed) as Map<String, dynamic>;
-      return CodexEvent.fromJson(json);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Parse a chunk of text that may contain multiple JSONL lines.
-  List<CodexEvent> parseChunk(String chunk) {
-    final events = <CodexEvent>[];
-    for (final line in chunk.split('\n')) {
-      final event = parseLine(line);
-      if (event != null) {
-        events.add(event);
-      }
-    }
-    return events;
+  /// Convert a [JsonRpcNotification] into a [CodexEvent].
+  CodexEvent parseNotification(JsonRpcNotification notification) {
+    return CodexEvent.fromNotification(notification);
   }
 }

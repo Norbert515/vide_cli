@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:claude_sdk/claude_sdk.dart';
@@ -7,14 +6,18 @@ import 'package:uuid/uuid.dart';
 
 import '../config/codex_config.dart';
 import '../config/codex_mcp_registry.dart';
+import '../protocol/codex_approval.dart';
 import '../protocol/codex_event.dart';
 import '../protocol/codex_event_mapper.dart';
 import '../protocol/codex_event_parser.dart';
+import '../protocol/json_rpc_message.dart';
+import '../transport/codex_transport.dart';
 
-/// Standalone client backed by Codex CLI (`codex exec --json`).
+/// Standalone client backed by Codex CLI (`codex app-server`).
 ///
-/// Each turn spawns a new `codex exec` process (or `codex exec resume <threadId>`
-/// for multi-turn). The JSONL events are parsed, mapped to [ClaudeResponse]
+/// Uses a persistent subprocess communicating via JSON-RPC over stdin/stdout.
+/// The transport layer handles message framing and request correlation.
+/// Notifications are parsed into [CodexEvent]s, mapped to [ClaudeResponse]
 /// objects, and fed through [ResponseProcessor] so the entire downstream
 /// pipeline (Conversation, TUI, vide_server) works unchanged.
 class CodexClient {
@@ -24,12 +27,11 @@ class CodexClient {
   final CodexEventParser _parser = CodexEventParser();
   final CodexEventMapper _mapper = CodexEventMapper();
 
+  final CodexTransport _transport = CodexTransport();
+
   String? _threadId;
-  Process? _activeProcess;
   bool _isInitialized = false;
   bool _isClosed = false;
-  bool _turnFinished = false;
-  int _turnId = 0;
   final Completer<void> _initializedCompleter = Completer<void>();
 
   final String _sessionId;
@@ -41,6 +43,8 @@ class CodexClient {
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _initDataController = StreamController<MetaResponse>.broadcast();
   final _queuedMessageController = StreamController<String?>.broadcast();
+  final _approvalRequestController =
+      StreamController<CodexApprovalRequest>.broadcast();
 
   Conversation _currentConversation = Conversation.empty();
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
@@ -62,7 +66,8 @@ class CodexClient {
     });
   }
 
-  /// Initialize the client: start MCP servers and mark as ready.
+  /// Initialize the client: start MCP servers, launch app-server, handshake,
+  /// start a thread, and wait for MCP startup to complete.
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -71,6 +76,71 @@ class CodexClient {
       if (!server.isRunning) {
         await server.start();
       }
+    }
+
+    // Write MCP config before starting the app-server
+    if (mcpServers.isNotEmpty) {
+      await CodexMcpRegistry.writeConfig(
+        mcpServers: mcpServers,
+        workingDirectory: _workingDirectory,
+      );
+    }
+
+    // Start the persistent subprocess
+    await _transport.start(workingDirectory: _workingDirectory);
+
+    // Subscribe to notifications → event pipeline
+    _transport.notifications.listen(_onNotification);
+
+    // Subscribe to server requests → approval pipeline
+    _transport.serverRequests.listen(_onServerRequest);
+
+    // Initialize handshake
+    final initResponse = await _transport.sendRequest('initialize', {
+      'clientInfo': {
+        'name': 'vide',
+        'version': '0.1.0',
+        'title': 'Vide',
+      },
+      'capabilities': {'experimentalApi': true},
+    });
+
+    if (initResponse.isError) {
+      throw StateError(
+        'Codex initialize failed: ${initResponse.error?.message}',
+      );
+    }
+
+    // Send initialized notification
+    _transport.sendNotification('initialized');
+
+    // Start a thread
+    final threadResponse = await _transport.sendRequest(
+      'thread/start',
+      codexConfig.toThreadStartParams(),
+    );
+
+    if (threadResponse.isError) {
+      throw StateError(
+        'Codex thread/start failed: ${threadResponse.error?.message}',
+      );
+    }
+
+    final threadResult = threadResponse.result ?? {};
+    final thread = threadResult['thread'] as Map<String, dynamic>? ?? {};
+    _threadId = thread['id'] as String?;
+
+    // Wait for mcp_startup_complete notification
+    if (mcpServers.isNotEmpty) {
+      await _transport.notifications
+          .where((n) => n.method == 'codex/event/mcp_startup_complete')
+          .first
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw TimeoutException(
+              'Timed out waiting for MCP startup to complete',
+            ),
+          );
     }
 
     _isInitialized = true;
@@ -86,6 +156,8 @@ class CodexClient {
   String get sessionId => _sessionId;
 
   String get workingDirectory => _workingDirectory;
+
+  String? get threadId => _threadId;
 
   Stream<Conversation> get conversation => _conversationController.stream;
 
@@ -107,6 +179,10 @@ class CodexClient {
 
   String? get currentQueuedMessage => _queuedMessageText;
 
+  /// Approval requests from the server.
+  Stream<CodexApprovalRequest> get approvalRequests =>
+      _approvalRequestController.stream;
+
   void clearQueuedMessage() {
     _queuedMessageText = null;
     _queuedAttachments = null;
@@ -114,7 +190,8 @@ class CodexClient {
   }
 
   void sendMessage(Message message) {
-    if (message.text.trim().isEmpty && (message.attachments?.isEmpty ?? true)) {
+    if (message.text.trim().isEmpty &&
+        (message.attachments?.isEmpty ?? true)) {
       return;
     }
 
@@ -137,8 +214,15 @@ class CodexClient {
 
     _updateStatus(ClaudeStatus.processing);
 
-    // Spawn codex exec process
-    _runCodexExec(message.text);
+    _startTurn(message.text);
+  }
+
+  /// Respond to a server approval request.
+  void respondToApproval(
+    dynamic requestId,
+    CodexApprovalDecision decision,
+  ) {
+    _transport.respondToRequest(requestId, {'decision': decision.toJson()});
   }
 
   void injectToolResult(ToolResultResponse toolResult) {
@@ -161,15 +245,17 @@ class CodexClient {
   }
 
   Future<void> abort() async {
-    _activeProcess?.kill(ProcessSignal.sigint);
-    _activeProcess = null;
+    if (!_transport.isRunning || _threadId == null) return;
+    await _transport.sendRequest('turn/interrupt', {
+      'threadId': _threadId,
+    });
     _updateStatus(ClaudeStatus.ready);
   }
 
   Future<void> close() async {
     _isClosed = true;
-    _activeProcess?.kill(ProcessSignal.sigterm);
-    _activeProcess = null;
+
+    await _transport.close();
 
     for (final server in mcpServers) {
       await server.stop();
@@ -182,13 +268,25 @@ class CodexClient {
     await _statusController.close();
     await _initDataController.close();
     await _queuedMessageController.close();
+    await _approvalRequestController.close();
 
     _isInitialized = false;
   }
 
   Future<void> clearConversation() async {
     _updateConversation(Conversation.empty());
-    _threadId = null;
+
+    // Start a new thread on the same persistent server
+    final threadResponse = await _transport.sendRequest(
+      'thread/start',
+      codexConfig.toThreadStartParams(),
+    );
+
+    if (!threadResponse.isError) {
+      final threadResult = threadResponse.result ?? {};
+      final thread = threadResult['thread'] as Map<String, dynamic>? ?? {};
+      _threadId = thread['id'] as String?;
+    }
   }
 
   T? getMcpServer<T extends McpServerBase>(String name) {
@@ -203,123 +301,55 @@ class CodexClient {
   // Private implementation
   // ============================================================
 
-  Future<void> _runCodexExec(String prompt) async {
-    _turnFinished = false;
-    final currentTurnId = ++_turnId;
-    final isResume = _threadId != null;
+  Future<void> _startTurn(String prompt) async {
+    final turnResponse = await _transport.sendRequest('turn/start', {
+      'threadId': _threadId,
+      'input': [
+        {'type': 'text', 'text': prompt},
+      ],
+    });
 
-    final args = codexConfig.toCliArgs(
-      isResume: isResume,
-      resumeThreadId: _threadId,
-    );
-
-    // Write MCP config if we have servers
-    if (mcpServers.isNotEmpty) {
-      await CodexMcpRegistry.writeConfig(
-        mcpServers: mcpServers,
-        workingDirectory: _workingDirectory,
+    if (turnResponse.isError) {
+      _handleError(
+        'turn/start failed: ${turnResponse.error?.message ?? 'unknown'}',
       );
-    }
-
-    // Prompt is always a positional argument.
-    // For non-resume: codex exec [FLAGS] <prompt>
-    // For resume:     codex exec [FLAGS] resume <threadId> <prompt>
-    args.add(prompt);
-
-    try {
-      final process = await Process.start(
-        'codex',
-        args,
-        workingDirectory: _workingDirectory,
-        environment: {
-          ...Platform.environment,
-          // Ensure JSON output even if config doesn't set it
-          'CODEX_OUTPUT_FORMAT': 'json',
-        },
-      );
-
-      _activeProcess = process;
-
-      // Process stdout (JSONL events)
-      final stdoutBuffer = StringBuffer();
-      process.stdout
-          .transform(utf8.decoder)
-          .listen(
-            (chunk) {
-              if (_turnId != currentTurnId) return;
-              stdoutBuffer.write(chunk);
-              _processChunk(stdoutBuffer);
-            },
-            onDone: () {
-              if (_turnId != currentTurnId) return;
-              // Process any remaining data in buffer
-              _processRemainingBuffer(stdoutBuffer);
-              _onProcessDone();
-            },
-            onError: (error) {
-              if (_turnId != currentTurnId) return;
-              _handleProcessError('stdout error: $error');
-            },
-          );
-
-      // Capture stderr for error reporting
-      final stderrBuffer = StringBuffer();
-      process.stderr.transform(utf8.decoder).listen((chunk) {
-        stderrBuffer.write(chunk);
-      });
-
-      // Handle process exit
-      process.exitCode.then((exitCode) {
-        if (_turnId != currentTurnId) return;
-        _activeProcess = null;
-        if (_turnFinished) return;
-        if (exitCode != 0 && stderrBuffer.isNotEmpty) {
-          _handleProcessError(
-            'Codex exited with code $exitCode: ${stderrBuffer.toString()}',
-          );
-        }
-      });
-    } catch (e) {
-      _handleProcessError('Failed to start codex: $e');
     }
   }
 
-  void _processChunk(StringBuffer buffer) {
-    // Extract complete lines from the buffer
-    final content = buffer.toString();
-    final lines = content.split('\n');
+  void _onNotification(JsonRpcNotification notification) {
+    if (_isClosed) return;
 
-    // Keep the last incomplete line in the buffer
-    buffer.clear();
-    if (!content.endsWith('\n') && lines.isNotEmpty) {
-      buffer.write(lines.removeLast());
-    } else if (lines.isNotEmpty && lines.last.isEmpty) {
-      lines.removeLast();
-    }
-
-    for (final line in lines) {
-      if (line.trim().isEmpty) continue;
-
-      final event = _parser.parseLine(line);
-      if (event == null) continue;
-
-      _handleEvent(event);
-    }
+    final event = _parser.parseNotification(notification);
+    _handleEvent(event);
   }
 
-  void _processRemainingBuffer(StringBuffer buffer) {
-    final remaining = buffer.toString().trim();
-    if (remaining.isEmpty) return;
+  void _onServerRequest(JsonRpcRequest request) {
+    if (_isClosed) return;
 
-    final event = _parser.parseLine(remaining);
-    if (event != null) {
-      _handleEvent(event);
+    switch (request.method) {
+      case 'item/commandExecution/requestApproval':
+        final approval = CodexApprovalRequest.commandExecution(
+          requestId: request.id,
+          params: request.params,
+        );
+        _approvalRequestController.add(approval);
+      case 'item/fileChange/requestApproval':
+        final approval = CodexApprovalRequest.fileChange(
+          requestId: request.id,
+          params: request.params,
+        );
+        _approvalRequestController.add(approval);
+      case 'item/tool/requestUserInput':
+        final approval = CodexApprovalRequest.userInput(
+          requestId: request.id,
+          params: request.params,
+        );
+        _approvalRequestController.add(approval);
     }
-    buffer.clear();
   }
 
   void _handleEvent(CodexEvent event) {
-    // Capture thread ID from thread.started
+    // Capture thread ID from thread/started notification
     if (event is ThreadStartedEvent) {
       _threadId = event.threadId;
     }
@@ -344,7 +374,8 @@ class CodexClient {
       }
 
       // Process through ResponseProcessor
-      final result = _responseProcessor.processResponse(response, conversation);
+      final result =
+          _responseProcessor.processResponse(response, conversation);
       conversation = result.updatedConversation;
       turnComplete = turnComplete || result.turnComplete;
     }
@@ -357,28 +388,7 @@ class CodexClient {
     }
   }
 
-  void _onProcessDone() {
-    if (_turnFinished || _isClosed) return;
-    _turnFinished = true;
-    // If we never got a completion event, emit one now
-    if (_currentConversation.isProcessing) {
-      final completionResponse = CompletionResponse(
-        id: 'codex_done_${DateTime.now().millisecondsSinceEpoch}',
-        timestamp: DateTime.now(),
-        stopReason: 'completed',
-      );
-
-      final result = _responseProcessor.processResponse(
-        completionResponse,
-        _currentConversation,
-      );
-      _updateConversation(result.updatedConversation);
-      _updateStatus(ClaudeStatus.ready);
-      if (!_isClosed) _turnCompleteController.add(null);
-    }
-  }
-
-  void _handleProcessError(String error) {
+  void _handleError(String error) {
     if (_isClosed) return;
     final errorResponse = ErrorResponse(
       id: 'codex_error_${DateTime.now().millisecondsSinceEpoch}',

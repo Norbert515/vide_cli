@@ -5,9 +5,9 @@ class CodexConfig {
   final String? workingDirectory;
   final String? sessionId;
   final String? appendSystemPrompt;
-  final List<String>? additionalFlags;
   final bool skipGitRepoCheck;
   final List<String>? additionalDirs;
+  final String approvalPolicy;
 
   const CodexConfig({
     this.model,
@@ -16,56 +16,31 @@ class CodexConfig {
     this.workingDirectory,
     this.sessionId,
     this.appendSystemPrompt,
-    this.additionalFlags,
     this.skipGitRepoCheck = false,
     this.additionalDirs,
+    this.approvalPolicy = 'on-failure',
   });
 
-  List<String> toCliArgs({bool isResume = false, String? resumeThreadId}) {
-    // Codex CLI expects: codex exec [FLAGS] [resume <id>] [prompt]
-    // All flags must come before the resume subcommand.
-    final args = <String>['exec'];
+  /// Build the params map for the `thread/start` JSON-RPC request.
+  Map<String, dynamic> toThreadStartParams() {
+    final params = <String, dynamic>{};
 
-    args.add('--json');
-    args.add('--full-auto');
+    if (workingDirectory != null) {
+      params['cwd'] = workingDirectory;
+    }
+
+    params['sandbox'] = sandboxMode;
+    params['approvalPolicy'] = approvalPolicy;
 
     if (model != null) {
-      args.addAll(['--model', model!]);
-    }
-
-    if (profile != null) {
-      args.addAll(['--profile', profile!]);
-    }
-
-    if (sandboxMode != 'workspace-write') {
-      args.addAll(['--sandbox', sandboxMode]);
+      params['model'] = model;
     }
 
     if (appendSystemPrompt != null) {
-      args.addAll(['-c', 'instructions.append=$appendSystemPrompt']);
+      params['developerInstructions'] = appendSystemPrompt;
     }
 
-    if (skipGitRepoCheck) {
-      args.add('--skip-git-repo-check');
-    }
-
-    if (additionalDirs != null) {
-      for (final dir in additionalDirs!) {
-        args.addAll(['--add-dir', dir]);
-      }
-    }
-
-    if (additionalFlags != null) {
-      args.addAll(additionalFlags!);
-    }
-
-    // resume subcommand goes after all flags
-    if (isResume && resumeThreadId != null) {
-      args.add('resume');
-      args.add(resumeThreadId);
-    }
-
-    return args;
+    return params;
   }
 
   CodexConfig copyWith({
@@ -75,9 +50,9 @@ class CodexConfig {
     String? workingDirectory,
     String? sessionId,
     String? appendSystemPrompt,
-    List<String>? additionalFlags,
     bool? skipGitRepoCheck,
     List<String>? additionalDirs,
+    String? approvalPolicy,
   }) {
     return CodexConfig(
       model: model ?? this.model,
@@ -86,9 +61,9 @@ class CodexConfig {
       workingDirectory: workingDirectory ?? this.workingDirectory,
       sessionId: sessionId ?? this.sessionId,
       appendSystemPrompt: appendSystemPrompt ?? this.appendSystemPrompt,
-      additionalFlags: additionalFlags ?? this.additionalFlags,
       skipGitRepoCheck: skipGitRepoCheck ?? this.skipGitRepoCheck,
       additionalDirs: additionalDirs ?? this.additionalDirs,
+      approvalPolicy: approvalPolicy ?? this.approvalPolicy,
     );
   }
 }
