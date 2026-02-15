@@ -67,14 +67,24 @@ class DaemonInfo {
     return path.join(logDir(stateDir: stateDir), 'daemon.log');
   }
 
-  /// Read daemon info from disk. Returns null if not found.
+  /// Read daemon info from disk. Returns null if not found or corrupt.
   static DaemonInfo? read({String? stateDir}) {
     final file = File(filePath(stateDir: stateDir));
     if (!file.existsSync()) return null;
 
-    final contents = file.readAsStringSync();
-    final json = jsonDecode(contents) as Map<String, dynamic>;
-    return DaemonInfo.fromJson(json);
+    try {
+      final contents = file.readAsStringSync();
+      final json = jsonDecode(contents) as Map<String, dynamic>;
+      return DaemonInfo.fromJson(json);
+    } on FormatException {
+      // Corrupt JSON (e.g., process crashed mid-write) — treat as absent
+      file.deleteSync();
+      return null;
+    } on TypeError {
+      // Unexpected JSON structure — treat as absent
+      file.deleteSync();
+      return null;
+    }
   }
 
   /// Write daemon info to disk.

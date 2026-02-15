@@ -67,6 +67,9 @@ class DaemonStartCommand extends Command<void> {
     if (port == null) {
       usageException('Port must be a valid number, got: $portStr');
     }
+    if (port < 1 || port > 65535) {
+      usageException('Port must be between 1 and 65535, got: $port');
+    }
 
     final bindAll = argResults!['bind-all'] as bool;
     final host = bindAll ? '0.0.0.0' : argResults!['host'] as String;
@@ -256,6 +259,9 @@ class DaemonInstallCommand extends Command<void> {
     final port = int.tryParse(portStr);
     if (port == null) {
       usageException('Port must be a valid number, got: $portStr');
+    }
+    if (port < 1 || port > 65535) {
+      usageException('Port must be between 1 and 65535, got: $port');
     }
 
     final host = argResults!['host'] as String;

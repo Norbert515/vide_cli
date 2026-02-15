@@ -41,6 +41,31 @@ void main() {
       expect(plist, contains('<string>127.0.0.1</string>'));
       expect(plist, contains('<string>/usr/local/bin/vide</string>'));
     });
+
+    test('XML-escapes special characters in binaryPath', () {
+      final plist = LaunchdInstaller.generatePlist(
+        binaryPath: '/path/with<angle>brackets&amp',
+        port: 8080,
+        host: '127.0.0.1',
+        logPath: '/tmp/daemon.log',
+      );
+
+      // Should contain escaped versions, not raw special chars
+      expect(plist, contains('&lt;angle&gt;brackets&amp;amp'));
+      // Should NOT contain unescaped angle brackets in string values
+      expect(plist, isNot(contains('<string>/path/with<angle>')));
+    });
+
+    test('XML-escapes special characters in logPath', () {
+      final plist = LaunchdInstaller.generatePlist(
+        binaryPath: '/usr/local/bin/vide',
+        port: 8080,
+        host: '127.0.0.1',
+        logPath: '/tmp/log"with"quotes',
+      );
+
+      expect(plist, contains('&quot;with&quot;quotes'));
+    });
   });
 
   group('SystemdInstaller.generateServiceFile', () {
@@ -64,6 +89,28 @@ void main() {
       expect(service, contains('Restart=on-failure'));
       expect(service, contains('[Install]'));
       expect(service, contains('WantedBy=default.target'));
+    });
+
+    test('rejects host with newline injection', () {
+      expect(
+        () => SystemdInstaller.generateServiceFile(
+          binaryPath: '/usr/local/bin/vide',
+          port: 9000,
+          host: '10.0.0.1\nExecStartPost=/bin/sh -c evil',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
+
+    test('rejects binaryPath with newline injection', () {
+      expect(
+        () => SystemdInstaller.generateServiceFile(
+          binaryPath: '/usr/local/bin/vide\nExecStartPost=/bin/sh',
+          port: 9000,
+          host: '10.0.0.1',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
     });
   });
 }

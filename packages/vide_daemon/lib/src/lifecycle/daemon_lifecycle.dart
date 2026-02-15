@@ -88,8 +88,8 @@ class DaemonLifecycle {
     // Use shell redirection to capture stdout/stderr to log file.
     // ProcessStartMode.detached doesn't expose stdio, so we use
     // a shell wrapper to redirect output before detaching.
-    final shellCommand = '${daemonArgs.map(_shellEscape).join(' ')} '
-        '>> ${_shellEscape(logPath)} 2>&1';
+    final shellCommand = '${daemonArgs.map(shellEscape).join(' ')} '
+        '>> ${shellEscape(logPath)} 2>&1';
 
     await Process.start(
       '/bin/sh',
@@ -201,10 +201,15 @@ class DaemonLifecycle {
     }
   }
 
-  /// Check if a process is alive by sending signal 0.
+  /// Check if a process is alive.
+  ///
+  /// Uses `kill -0` via a shell command, which checks process existence
+  /// without sending any actual signal (unlike SIGCONT which would
+  /// resume a stopped process as a side effect).
   static bool _isProcessAlive(int pid) {
     try {
-      return Process.killPid(pid, ProcessSignal.sigcont);
+      final result = Process.runSync('kill', ['-0', pid.toString()]);
+      return result.exitCode == 0;
     } catch (_) {
       return false;
     }
@@ -237,7 +242,13 @@ class DaemonLifecycle {
   }
 
   /// Escape a string for safe use in a shell command.
-  static String _shellEscape(String s) {
+  ///
+  /// Uses single-quoting to prevent shell interpretation of special
+  /// characters ($, `, !, etc.). Single quotes within the string are
+  /// escaped using the '\'' pattern.
+  ///
+  /// Visible for testing.
+  static String shellEscape(String s) {
     if (s.isEmpty) return "''";
     // If the string is simple (alphanumeric, dashes, dots, slashes), no quoting needed
     if (RegExp(r'^[a-zA-Z0-9._/:-]+$').hasMatch(s)) return s;

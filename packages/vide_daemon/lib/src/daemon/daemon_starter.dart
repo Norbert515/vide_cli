@@ -97,6 +97,7 @@ class DaemonStarter {
 
   DaemonServer? _server;
   SessionRegistry? _registry;
+  bool _shuttingDown = false;
 
   DaemonStarter(this.config);
 
@@ -189,6 +190,9 @@ class DaemonStarter {
 
   /// Stop the daemon server and clean up resources.
   Future<void> stop() async {
+    if (_shuttingDown) return;
+    _shuttingDown = true;
+
     _log.info('Shutting down...');
     await _server?.stop();
     await _registry?.dispose();
@@ -316,7 +320,7 @@ class DaemonStarter {
       print('║  Only devices in your tailnet can connect.                  ║');
     } else {
       print('║                                                              ║');
-      print('║  🔒 Security: Bound to $bindAddress${' ' * (33 - bindAddress.length)}║');
+      print('║  🔒 Security: Bound to ${'$bindAddress'.padRight(33)}║');
       print('║  Accessible on this network interface only.                 ║');
     }
   }
