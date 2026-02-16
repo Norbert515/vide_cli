@@ -41,6 +41,10 @@ daemon port="8080":
 daemon-debug port="8080":
     cd packages/vide_daemon && dart run bin/vide_daemon.dart --port {{port}} --verbose
 
+# Start the daemon on Tailscale with detach
+daemon-tailscale:
+    videdev daemon start --host 100.69.74.9 --port 8093 --detach
+
 # Create a new release (interactive)
 release:
     #!/usr/bin/env bash

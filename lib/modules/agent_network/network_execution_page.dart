@@ -33,6 +33,14 @@ class NetworkExecutionPage extends StatefulComponent {
   }) async {
     context.read(sessionSelectionProvider.notifier).selectSession(session);
 
+    // Mark session as seen on the daemon (best-effort).
+    final daemonState = context.read(daemonConnectionProvider);
+    if (daemonState.isConnected) {
+      context.read(daemonConnectionProvider.notifier).markSessionSeen(
+        session.id,
+      );
+    }
+
     return Navigator.of(context).push<void>(
       PageRoute(
         builder: (context) => const NetworkExecutionPage(),

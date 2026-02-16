@@ -177,6 +177,26 @@ class SessionRegistry {
     return _sessions[sessionId];
   }
 
+  /// Mark a session as seen by the user.
+  Future<void> markSessionSeen(String sessionId) async {
+    final session = _sessions[sessionId];
+    if (session == null) {
+      _log.warning('Session not found for markSeen: $sessionId');
+      return;
+    }
+
+    session.markSeen();
+
+    _eventController.add(
+      SessionSeenEvent(
+        sessionId: sessionId,
+        lastSeenAt: session.lastSeenAt!,
+      ),
+    );
+
+    await persist();
+  }
+
   /// Stop and remove a session.
   Future<void> stopSession(String sessionId) async {
     final session = _sessions[sessionId];

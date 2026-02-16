@@ -78,6 +78,7 @@ class DaemonServer {
     router.post('/sessions', _handleCreateSession);
     router.get('/sessions', _handleListSessions);
     router.post('/sessions/<sessionId>/resume', _handleResumeSession);
+    router.post('/sessions/<sessionId>/seen', _handleMarkSessionSeen);
     router.get('/sessions/<sessionId>/stream', _handleSessionStreamWebSocket);
     router.get('/sessions/<sessionId>', _handleGetSession);
     router.delete('/sessions/<sessionId>', _handleStopSession);
@@ -266,6 +267,26 @@ class DaemonServer {
         headers: {'Content-Type': 'application/json'},
       );
     }
+  }
+
+  Future<Response> _handleMarkSessionSeen(
+    Request request,
+    String sessionId,
+  ) async {
+    final session = registry.getSession(sessionId);
+    if (session == null) {
+      return Response.notFound(
+        jsonEncode({'error': 'Session not found'}),
+        headers: {'Content-Type': 'application/json'},
+      );
+    }
+
+    await registry.markSessionSeen(sessionId);
+
+    return Response.ok(
+      jsonEncode({'status': 'ok', 'session-id': sessionId}),
+      headers: {'Content-Type': 'application/json'},
+    );
   }
 
   Future<Response> _handleListSessions(Request request) async {

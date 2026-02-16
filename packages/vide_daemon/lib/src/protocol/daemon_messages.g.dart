@@ -72,6 +72,9 @@ SessionSummary _$SessionSummaryFromJson(Map<String, dynamic> json) =>
           ? null
           : DateTime.parse(json['last-active-at'] as String),
       agentCount: (json['agent-count'] as num?)?.toInt() ?? 0,
+      lastSeenAt: json['last-seen-at'] == null
+          ? null
+          : DateTime.parse(json['last-seen-at'] as String),
     );
 
 Map<String, dynamic> _$SessionSummaryToJson(SessionSummary instance) =>
@@ -85,6 +88,7 @@ Map<String, dynamic> _$SessionSummaryToJson(SessionSummary instance) =>
       'goal': instance.goal,
       'last-active-at': instance.lastActiveAt?.toIso8601String(),
       'agent-count': instance.agentCount,
+      'last-seen-at': instance.lastSeenAt?.toIso8601String(),
     };
 
 const _$SessionProcessStateEnumMap = {
@@ -145,6 +149,9 @@ PersistedSessionState _$PersistedSessionStateFromJson(
   initialMessage: json['initial-message'] as String,
   permissionMode: json['permission-mode'] as String?,
   team: json['team'] as String?,
+  lastSeenAt: json['last-seen-at'] == null
+      ? null
+      : DateTime.parse(json['last-seen-at'] as String),
 );
 
 Map<String, dynamic> _$PersistedSessionStateToJson(
@@ -158,6 +165,7 @@ Map<String, dynamic> _$PersistedSessionStateToJson(
   'initial-message': instance.initialMessage,
   'permission-mode': instance.permissionMode,
   'team': instance.team,
+  'last-seen-at': instance.lastSeenAt?.toIso8601String(),
 };
 
 DaemonState _$DaemonStateFromJson(Map<String, dynamic> json) => DaemonState(

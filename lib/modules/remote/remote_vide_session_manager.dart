@@ -233,6 +233,7 @@ class RemoteVideSessionManager implements VideSessionManager {
           createdAt: summary.createdAt,
         ),
       ),
+      lastSeenAt: summary.lastSeenAt,
     );
   }
 }

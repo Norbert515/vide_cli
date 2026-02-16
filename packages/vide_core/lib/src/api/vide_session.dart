@@ -775,6 +775,12 @@ class LocalVideSession implements VideSession {
           ),
         );
 
+        // Set agent status to waitingForUser while waiting for permission
+        final statusNotifier = _container.read(
+          agentStatusProvider(agentId).notifier,
+        );
+        statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
         // Wait for response indefinitely - user can take as long as needed
         try {
           return await completer.future;
@@ -782,6 +788,8 @@ class LocalVideSession implements VideSession {
           return claude.PermissionResultDeny(message: 'Error: $e');
         } finally {
           _pendingRequests.remove(requestId);
+          // Restore to working since the agent will continue processing
+          statusNotifier.setStatus(internal.AgentStatus.working);
         }
     }
   }
@@ -868,7 +876,16 @@ class LocalVideSession implements VideSession {
         ),
       );
 
+      // Set agent status to waitingForUser while waiting for answers
+      final statusNotifier = _container.read(
+        agentStatusProvider(agentId).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
       final answers = await completer.future;
+
+      // Restore to working since the agent will continue processing
+      statusNotifier.setStatus(internal.AgentStatus.working);
 
       return claude.PermissionResultAllow(
         updatedInput: {...toolInput, 'answers': answers},
@@ -925,8 +942,17 @@ class LocalVideSession implements VideSession {
         ),
       );
 
+      // Set agent status to waitingForUser while waiting for plan approval
+      final statusNotifier = _container.read(
+        agentStatusProvider(agentId).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
       // Wait for user response
       final result = await completer.future;
+
+      // Restore to working since the agent will continue processing
+      statusNotifier.setStatus(internal.AgentStatus.working);
 
       switch (result.action) {
         case 'accept':

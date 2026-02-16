@@ -131,6 +131,10 @@ class SessionSummary {
   @JsonKey(name: 'agent-count')
   final int agentCount;
 
+  /// When the session was last viewed by a user (across any client).
+  @JsonKey(name: 'last-seen-at')
+  final DateTime? lastSeenAt;
+
   SessionSummary({
     required this.sessionId,
     required this.workingDirectory,
@@ -141,6 +145,7 @@ class SessionSummary {
     this.goal,
     this.lastActiveAt,
     this.agentCount = 0,
+    this.lastSeenAt,
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) =>
@@ -231,6 +236,10 @@ class PersistedSessionState {
 
   final String? team;
 
+  /// When the session was last viewed by a user (across any client).
+  @JsonKey(name: 'last-seen-at')
+  final DateTime? lastSeenAt;
+
   PersistedSessionState({
     required this.sessionId,
     required this.port,
@@ -240,6 +249,7 @@ class PersistedSessionState {
     required this.initialMessage,
     this.permissionMode,
     this.team,
+    this.lastSeenAt,
   });
 
   factory PersistedSessionState.fromJson(Map<String, dynamic> json) =>

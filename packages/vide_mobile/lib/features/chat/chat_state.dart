@@ -9,28 +9,30 @@ part 'chat_state.g.dart';
 /// [RemoteVideSession] directly. This state only tracks things that are
 /// purely UI concerns with no home in the session model.
 class ChatState {
-  final PermissionRequestEvent? pendingPermission;
+  final List<PermissionRequestEvent> pendingPermissions;
   final PlanApprovalRequestEvent? pendingPlanApproval;
   final AskUserQuestionEvent? pendingAskUserQuestion;
   final String? error;
 
   const ChatState({
-    this.pendingPermission,
+    this.pendingPermissions = const [],
     this.pendingPlanApproval,
     this.pendingAskUserQuestion,
     this.error,
   });
 
+  /// The next permission request to show, or null if the queue is empty.
+  PermissionRequestEvent? get currentPermission =>
+      pendingPermissions.firstOrNull;
+
   ChatState copyWith({
-    PermissionRequestEvent? Function()? pendingPermission,
+    List<PermissionRequestEvent>? pendingPermissions,
     PlanApprovalRequestEvent? Function()? pendingPlanApproval,
     AskUserQuestionEvent? Function()? pendingAskUserQuestion,
     String? Function()? error,
   }) {
     return ChatState(
-      pendingPermission: pendingPermission != null
-          ? pendingPermission()
-          : this.pendingPermission,
+      pendingPermissions: pendingPermissions ?? this.pendingPermissions,
       pendingPlanApproval: pendingPlanApproval != null
           ? pendingPlanApproval()
           : this.pendingPlanApproval,
@@ -54,8 +56,25 @@ class ChatNotifier extends _$ChatNotifier {
     return const ChatState();
   }
 
-  void setPendingPermission(PermissionRequestEvent? request) {
-    state = state.copyWith(pendingPermission: () => request);
+  void enqueuePermission(PermissionRequestEvent request) {
+    state = state.copyWith(
+      pendingPermissions: [...state.pendingPermissions, request],
+    );
+  }
+
+  void dequeuePermission() {
+    if (state.pendingPermissions.isEmpty) return;
+    state = state.copyWith(
+      pendingPermissions: state.pendingPermissions.sublist(1),
+    );
+  }
+
+  void removePermissionByRequestId(String requestId) {
+    state = state.copyWith(
+      pendingPermissions: state.pendingPermissions
+          .where((r) => r.requestId != requestId)
+          .toList(),
+    );
   }
 
   void setPendingPlanApproval(PlanApprovalRequestEvent? request) {

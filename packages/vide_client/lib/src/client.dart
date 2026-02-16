@@ -17,6 +17,9 @@ class SessionSummary {
   final int connectedClients;
   final int port;
 
+  /// When the session was last viewed by a user (across any client).
+  final DateTime? lastSeenAt;
+
   SessionSummary({
     required this.sessionId,
     required this.workingDirectory,
@@ -24,9 +27,11 @@ class SessionSummary {
     required this.state,
     required this.connectedClients,
     required this.port,
+    this.lastSeenAt,
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) {
+    final lastSeenRaw = json['last-seen-at'] as String?;
     return SessionSummary(
       sessionId: json['session-id'] as String,
       workingDirectory: json['working-directory'] as String,
@@ -34,6 +39,7 @@ class SessionSummary {
       state: json['state'] as String,
       connectedClients: json['connected-clients'] as int,
       port: json['port'] as int,
+      lastSeenAt: lastSeenRaw != null ? DateTime.parse(lastSeenRaw) : null,
     );
   }
 }
@@ -279,6 +285,23 @@ class VideClient {
   Future<WebSocketChannel> openChannel(String sessionId) async {
     final details = await getSession(sessionId);
     return WebSocketChannel.connect(Uri.parse(details.wsUrl));
+  }
+
+  /// Mark a session as seen by the user.
+  Future<void> markSessionSeen(String sessionId) async {
+    final response = await http.post(
+      Uri.parse('$_httpUrl/sessions/$sessionId/seen'),
+    );
+
+    if (response.statusCode == 404) {
+      throw VideClientException('Session not found: $sessionId');
+    }
+
+    if (response.statusCode != 200) {
+      throw VideClientException(
+        'Failed to mark session seen: ${response.body}',
+      );
+    }
   }
 
   /// Stop a session.

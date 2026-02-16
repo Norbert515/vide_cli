@@ -46,6 +46,19 @@ class SessionListEntry {
   /// Pending permission from the remote session (if any).
   PermissionRequestEvent? get pendingPermission =>
       session?.pendingPermissionRequest;
+
+  /// Whether this session has unseen activity.
+  ///
+  /// True when there is activity (lastEventAt) that occurred after the
+  /// session was last viewed (summary.lastSeenAt), or if the session has
+  /// never been viewed but has activity.
+  bool get hasUnseen {
+    final eventAt = lastEventAt;
+    if (eventAt == null) return false;
+    final seenAt = summary.lastSeenAt;
+    if (seenAt == null) return true;
+    return eventAt.isAfter(seenAt);
+  }
 }
 
 /// A group of sessions sharing the same working directory (project).
@@ -332,6 +345,46 @@ class SessionListManager extends _$SessionListManager {
     if (!state.containsKey(sessionId)) return;
     _log('Session removed from daemon event: $sessionId');
     _removeSession(sessionId);
+  }
+
+  /// Mark a session as seen by the user.
+  ///
+  /// Calls the daemon endpoint and updates local state immediately.
+  Future<void> markSeen(String sessionId, VideClient client) async {
+    try {
+      await client.markSessionSeen(sessionId);
+    } catch (e) {
+      _log('Failed to mark session $sessionId as seen: $e');
+    }
+  }
+
+  /// Handle a session-seen event from the daemon WebSocket.
+  void handleSessionSeenEvent(String sessionId, DateTime lastSeenAt) {
+    final entry = state[sessionId];
+    if (entry == null) return;
+
+    // Update the summary with the new lastSeenAt
+    final updatedSummary = SessionSummary(
+      sessionId: entry.summary.sessionId,
+      workingDirectory: entry.summary.workingDirectory,
+      createdAt: entry.summary.createdAt,
+      state: entry.summary.state,
+      connectedClients: entry.summary.connectedClients,
+      port: entry.summary.port,
+      lastSeenAt: lastSeenAt,
+    );
+
+    state = {
+      ...state,
+      sessionId: SessionListEntry(
+        summary: updatedSummary,
+        session: entry.session,
+        lastEventAt: entry.lastEventAt,
+        latestActivity: entry.latestActivity,
+        serverId: entry.serverId,
+        serverName: entry.serverName,
+      ),
+    };
   }
 
   /// Respond to a permission request.

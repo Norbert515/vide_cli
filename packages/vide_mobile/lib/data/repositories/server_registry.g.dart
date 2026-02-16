@@ -6,7 +6,7 @@ part of 'server_registry.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$serverRegistryHash() => r'e7a0bcf829d2bb357a8fee0915e4b223bc4b8164';
+String _$serverRegistryHash() => r'4d5abf8300493c8b3fdfe19dbec583fe4c61afe3';
 
 /// Registry for managing multiple server connections.
 ///

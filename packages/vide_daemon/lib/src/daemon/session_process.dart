@@ -29,6 +29,9 @@ class SessionProcess {
   /// Connected client count (tracked by session process, not daemon).
   int connectedClients = 0;
 
+  /// When the session was last viewed by a user (across any client).
+  DateTime? lastSeenAt;
+
   /// Callback invoked when the process exits unexpectedly.
   void Function(int exitCode)? onUnexpectedExit;
 
@@ -470,6 +473,11 @@ class SessionProcess {
     await _process.exitCode;
   }
 
+  /// Mark this session as seen by the user.
+  void markSeen() {
+    lastSeenAt = DateTime.now();
+  }
+
   /// Create a summary for listing.
   SessionSummary toSummary() {
     return SessionSummary(
@@ -479,6 +487,7 @@ class SessionProcess {
       state: state,
       connectedClients: connectedClients,
       port: port,
+      lastSeenAt: lastSeenAt,
     );
   }
 
@@ -508,6 +517,7 @@ class SessionProcess {
       initialMessage: initialMessage,
       permissionMode: permissionMode,
       team: team,
+      lastSeenAt: lastSeenAt,
     );
   }
 }

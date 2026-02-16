@@ -154,6 +154,24 @@ class DaemonClient {
     return SessionDetailsResponse.fromJson(json);
   }
 
+  /// Mark a session as seen by the user.
+  Future<void> markSessionSeen(String sessionId) async {
+    final response = await _httpClient.post(
+      Uri.parse('$_baseUrl/sessions/$sessionId/seen'),
+      headers: _headers,
+    );
+
+    if (response.statusCode == 404) {
+      throw SessionNotFoundException(sessionId);
+    }
+
+    if (response.statusCode != 200) {
+      throw DaemonClientException(
+        'Failed to mark session seen: ${response.statusCode}',
+      );
+    }
+  }
+
   /// Stop a session.
   Future<void> stopSession(String sessionId, {bool force = false}) async {
     final url = force

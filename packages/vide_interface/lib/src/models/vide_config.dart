@@ -52,6 +52,9 @@ class VideSessionInfo {
   /// The team framework team used for this session.
   final String? team;
 
+  /// When the session was last viewed by a user (across any client).
+  final DateTime? lastSeenAt;
+
   const VideSessionInfo({
     required this.id,
     required this.goal,
@@ -60,6 +63,7 @@ class VideSessionInfo {
     required this.agents,
     this.workingDirectory,
     this.team,
+    this.lastSeenAt,
   });
 
   /// Number of agents in the session.

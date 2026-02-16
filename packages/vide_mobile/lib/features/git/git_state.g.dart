@@ -6,7 +6,7 @@ part of 'git_state.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$gitNotifierHash() => r'c5206bf9916a85243767fae31325b27945997cd0';
+String _$gitNotifierHash() => r'1aaecbc232e6c205dd6a80441089dd42809cdf17';
 
 /// Copied from Dart SDK
 class _SystemHash {

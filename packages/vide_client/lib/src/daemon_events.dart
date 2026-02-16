@@ -10,6 +10,7 @@ sealed class DaemonEvent {
       'session-created' => DaemonSessionCreatedEvent.fromJson(json),
       'session-stopped' => DaemonSessionStoppedEvent.fromJson(json),
       'session-health' => DaemonSessionHealthEvent.fromJson(json),
+      'session-seen' => DaemonSessionSeenEvent.fromJson(json),
       'daemon-status' => DaemonStatusEvent.fromJson(json),
       _ => throw ArgumentError('Unknown daemon event type: $type'),
     };
@@ -97,6 +98,27 @@ class DaemonSessionHealthEvent extends DaemonEvent {
       sessionId: json['session-id'] as String,
       state: json['state'] as String,
       error: json['error'] as String?,
+    );
+  }
+}
+
+/// Event emitted when a session is marked as seen by a user.
+class DaemonSessionSeenEvent extends DaemonEvent {
+  @override
+  final String type = 'session-seen';
+
+  final String sessionId;
+  final DateTime lastSeenAt;
+
+  DaemonSessionSeenEvent({
+    required this.sessionId,
+    required this.lastSeenAt,
+  });
+
+  factory DaemonSessionSeenEvent.fromJson(Map<String, dynamic> json) {
+    return DaemonSessionSeenEvent(
+      sessionId: json['session-id'] as String,
+      lastSeenAt: DateTime.parse(json['last-seen-at'] as String),
     );
   }
 }

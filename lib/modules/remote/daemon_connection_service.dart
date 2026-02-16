@@ -370,6 +370,20 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     await client.stopSession(sessionId);
   }
 
+  /// Mark a session as seen by the user.
+  ///
+  /// Best-effort — does not throw on failure.
+  Future<void> markSessionSeen(String sessionId) async {
+    final client = state.client;
+    if (client == null || !state.isConnected) return;
+
+    try {
+      await client.markSessionSeen(sessionId);
+    } catch (_) {
+      // Best-effort — don't disrupt the user if this fails.
+    }
+  }
+
   /// Subscribe to daemon events.
   ///
   /// Returns null if not connected.

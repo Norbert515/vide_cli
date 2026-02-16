@@ -329,6 +329,8 @@ class ServerRegistry extends _$ServerRegistry {
         );
       case DaemonSessionStoppedEvent():
         manager.removeSessionFromDaemon(event.sessionId);
+      case DaemonSessionSeenEvent():
+        manager.handleSessionSeenEvent(event.sessionId, event.lastSeenAt);
       case DaemonSessionHealthEvent():
       case DaemonStatusEvent():
         break;

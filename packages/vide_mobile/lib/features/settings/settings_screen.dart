@@ -232,88 +232,90 @@ class SettingsScreen extends ConsumerWidget {
     final portController =
         TextEditingController(text: server.connection.port.toString());
 
-    void save() {
-      final name = nameController.text.trim();
-      final host = hostController.text.trim();
-      final port = int.tryParse(portController.text.trim());
-
-      if (host.isEmpty || port == null) return;
-
-      final registry = ref.read(serverRegistryProvider.notifier);
-
-      // Disconnect first if connection details changed
-      final connectionChanged = host != server.connection.host ||
-          port != server.connection.port;
-      if (connectionChanged &&
-          server.status == ServerHealthStatus.connected) {
-        registry.disconnectServer(serverId);
-      }
-
-      registry.updateServer(
-        server.connection.copyWith(
-          name: name.isEmpty ? null : name,
-          host: host,
-          port: port,
-        ),
-      );
-
-      Navigator.pop(context);
-
-      // Reconnect with new details
-      if (connectionChanged) {
-        registry.connectServer(serverId);
-      }
-    }
-
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Server'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Name (optional)',
-                hintText: 'My Server',
-              ),
-              textInputAction: TextInputAction.next,
+      builder: (dialogContext) {
+        void save() {
+          final name = nameController.text.trim();
+          final host = hostController.text.trim();
+          final port = int.tryParse(portController.text.trim());
+
+          if (host.isEmpty || port == null) return;
+
+          final registry = ref.read(serverRegistryProvider.notifier);
+
+          final connectionChanged = host != server.connection.host ||
+              port != server.connection.port;
+          if (connectionChanged &&
+              server.status == ServerHealthStatus.connected) {
+            registry.disconnectServer(serverId);
+          }
+
+          registry.updateServer(
+            server.connection.copyWith(
+              name: name.isEmpty ? null : name,
+              host: host,
+              port: port,
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: hostController,
-              decoration: const InputDecoration(
-                labelText: 'Host',
-                hintText: '192.168.1.100',
-              ),
-              keyboardType: TextInputType.url,
-              textInputAction: TextInputAction.next,
+          );
+
+          Navigator.pop(dialogContext);
+
+          if (connectionChanged) {
+            registry.connectServer(serverId);
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('Edit Server'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name (optional)',
+                    hintText: 'My Server',
+                  ),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: hostController,
+                  decoration: const InputDecoration(
+                    labelText: 'Host',
+                    hintText: '192.168.1.100',
+                  ),
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: portController,
+                  decoration: const InputDecoration(
+                    labelText: 'Port',
+                    hintText: '8080',
+                  ),
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => save(),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: portController,
-              decoration: const InputDecoration(
-                labelText: 'Port',
-                hintText: '8080',
-              ),
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => save(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: save,
+              child: const Text('Save'),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: save,
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

@@ -306,6 +306,7 @@ class _SessionCard extends ConsumerWidget {
     final remoteSession = entry.session;
     final isReady = session.state == 'ready';
     final statusColor = isReady ? videColors.success : videColors.warning;
+    final hasUnseen = entry.hasUnseen;
 
     // Format time ago using last activity or creation time
     final timeAgo = _formatTimeAgo(entry.sortTime);
@@ -330,12 +331,12 @@ class _SessionCard extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  // Status indicator
+                  // Status indicator — blue when unseen activity
                   Container(
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: statusColor,
+                      color: hasUnseen ? colorScheme.primary : statusColor,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -346,7 +347,9 @@ class _SessionCard extends ConsumerWidget {
                       remoteSession?.state.goal ??
                           'Session ${session.sessionId.substring(0, 8)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                            fontWeight: hasUnseen
+                                ? FontWeight.w700
+                                : FontWeight.w600,
                           ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,

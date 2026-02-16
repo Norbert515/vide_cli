@@ -10,11 +10,14 @@ import '../../core/providers/connection_state_provider.dart';
 import '../../core/router/app_router.dart';
 import '../../core/theme/tokens.dart';
 import '../../core/theme/vide_colors.dart';
+import '../../data/repositories/server_registry.dart';
 import '../../data/repositories/session_repository.dart';
+import '../../domain/services/session_list_manager.dart';
 import '../permissions/ask_user_question_sheet.dart';
 import '../permissions/permission_sheet.dart';
 import '../permissions/plan_approval_sheet.dart';
 import 'chat_state.dart';
+import 'git_status_provider.dart';
 import 'widgets/agent_tab_bar.dart';
 import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
@@ -45,6 +48,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// Tracks whether permission sheet is currently showing.
   bool _isPermissionSheetShowing = false;
+
+  /// The request ID of the permission currently displayed in the sheet.
+  String? _showingPermissionRequestId;
 
   /// Tracks whether plan approval sheet is currently showing.
   bool _isPlanApprovalSheetShowing = false;
@@ -87,6 +93,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (!mounted) return;
       setState(() => _session = session);
       _subscribeToSession(session);
+      _markSessionSeen();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -96,6 +103,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             behavior: SnackBarBehavior.fixed));
       }
     }
+  }
+
+  /// Mark this session as seen on the daemon.
+  void _markSessionSeen() {
+    final manager = ref.read(sessionListManagerProvider.notifier);
+    final entry = ref.read(sessionListManagerProvider)[widget.sessionId];
+    if (entry == null) return;
+
+    final registry = ref.read(serverRegistryProvider.notifier);
+    final client = registry.getClient(entry.serverId);
+    if (client == null) return;
+
+    manager.markSeen(widget.sessionId, client);
   }
 
   void _subscribeToSession(RemoteVideSession session) {
@@ -154,7 +174,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (pendingPerm != null) {
       ref
           .read(chatNotifierProvider(widget.sessionId).notifier)
-          .setPendingPermission(pendingPerm);
+          .enqueuePermission(pendingPerm);
     }
   }
 
@@ -175,17 +195,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     switch (event) {
       case PermissionRequestEvent():
-        notifier.setPendingPermission(event);
+        notifier.enqueuePermission(event);
 
       case PermissionResolvedEvent(:final requestId):
-        final pending =
-            ref.read(chatNotifierProvider(widget.sessionId)).pendingPermission;
-        if (pending?.requestId == requestId) {
-          notifier.setPendingPermission(null);
-          if (_isPermissionSheetShowing && mounted) {
-            Navigator.of(context).pop();
-            _isPermissionSheetShowing = false;
-          }
+        notifier.removePermissionByRequestId(requestId);
+        if (_isPermissionSheetShowing &&
+            _showingPermissionRequestId == requestId &&
+            mounted) {
+          Navigator.of(context).pop();
+          _isPermissionSheetShowing = false;
+          _showingPermissionRequestId = null;
         }
 
       case PlanApprovalRequestEvent():
@@ -251,18 +270,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _handlePermission(bool allow, {bool remember = false}) {
     final state = ref.read(chatNotifierProvider(widget.sessionId));
-    final pendingPermission = state.pendingPermission;
-    if (pendingPermission == null) return;
+    final currentPermission = state.currentPermission;
+    if (currentPermission == null) return;
 
     final sessionRepo = ref.read(sessionRepositoryProvider.notifier);
-    sessionRepo.respondToPermission(pendingPermission.requestId, allow,
+    sessionRepo.respondToPermission(currentPermission.requestId, allow,
         remember: remember);
 
     ref
         .read(chatNotifierProvider(widget.sessionId).notifier)
-        .setPendingPermission(null);
+        .dequeuePermission();
     if (_isPermissionSheetShowing) {
       _isPermissionSheetShowing = false;
+      _showingPermissionRequestId = null;
       Navigator.of(context).pop();
     }
   }
@@ -270,6 +290,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _showPermissionSheet(PermissionRequestEvent request) {
     if (_isPermissionSheetShowing) return;
     _isPermissionSheetShowing = true;
+    _showingPermissionRequestId = request.requestId;
 
     showModalBottomSheet(
       context: context,
@@ -283,6 +304,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     ).whenComplete(() {
       _isPermissionSheetShowing = false;
+      _showingPermissionRequestId = null;
     });
   }
 
@@ -375,10 +397,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final session = _session;
 
-    if (state.pendingPermission != null && !_isPermissionSheetShowing) {
+    if (state.currentPermission != null && !_isPermissionSheetShowing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && state.pendingPermission != null) {
-          _showPermissionSheet(state.pendingPermission!);
+        if (mounted && state.currentPermission != null) {
+          _showPermissionSheet(state.currentPermission!);
         }
       });
     }
@@ -406,6 +428,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final inputEnabled = !isProcessing && !isDisconnected;
     final hasAgents = _agents.isNotEmpty;
 
+    final workingDir = session?.state.workingDirectory ?? '';
+    final gitStatus = workingDir.isNotEmpty
+        ? ref.watch(gitStatusNotifierProvider(workingDir))
+        : null;
+    final changeCount = gitStatus?.allChangedFiles.length ?? 0;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -416,7 +445,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           IconButton(
             icon: const Icon(Icons.folder_outlined),
             onPressed: () {
-              final workingDir = _session?.state.workingDirectory ?? '';
               context.push(
                 AppRoutes.filesPath(widget.sessionId),
                 extra: workingDir,
@@ -424,16 +452,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             tooltip: 'Files',
           ),
-          IconButton(
-            icon: const Icon(Icons.commit),
-            onPressed: () {
-              final workingDir = _session?.state.workingDirectory ?? '';
-              context.push(
-                AppRoutes.gitPath(widget.sessionId),
-                extra: workingDir,
-              );
-            },
-            tooltip: 'Git',
+          Badge(
+            isLabelVisible: changeCount > 0,
+            label: Text(
+              '$changeCount',
+              style: const TextStyle(fontSize: 10),
+            ),
+            backgroundColor: videColors.warning,
+            child: IconButton(
+              icon: const Icon(Icons.commit),
+              onPressed: () {
+                context.push(
+                  AppRoutes.gitPath(widget.sessionId),
+                  extra: workingDir,
+                );
+              },
+              tooltip: 'Git',
+            ),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 8),
@@ -494,13 +529,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return _EmptyState();
     }
 
+    final pendingPermission =
+        ref.read(chatNotifierProvider(widget.sessionId)).currentPermission;
+
     final tabViews = <Widget>[
       for (final (index, agent) in _agents.indexed)
         _MessageList(
           agentState: session.conversationState.getAgentState(agent.id),
+          agentId: agent.id,
           agentStatus: agent.status,
           isMainAgent: index == 0,
           agents: _agents,
+          pendingPermission: pendingPermission,
           scrollController: _scrollControllers[agent.id] ?? ScrollController(),
           onAgentTap: _switchToAgentTab,
           onToolTap: _openToolDetail,
@@ -557,18 +597,22 @@ class _EmptyState extends StatelessWidget {
 /// [ConversationEntry]s with interleaved [TextContent] and [ToolContent].
 class _MessageList extends StatelessWidget {
   final AgentConversationState? agentState;
+  final String agentId;
   final VideAgentStatus agentStatus;
   final bool isMainAgent;
   final List<VideAgent> agents;
+  final PermissionRequestEvent? pendingPermission;
   final ScrollController scrollController;
   final ValueChanged<String>? onAgentTap;
   final void Function(ToolContent tool)? onToolTap;
 
   const _MessageList({
     required this.agentState,
+    required this.agentId,
     required this.agentStatus,
     required this.isMainAgent,
     required this.agents,
+    required this.pendingPermission,
     required this.scrollController,
     this.onAgentTap,
     this.onToolTap,
@@ -605,6 +649,19 @@ class _MessageList extends StatelessWidget {
           case AttachmentContent():
             break;
         }
+      }
+    }
+
+    // Hide the last tool card if it's the one awaiting permission —
+    // the permission sheet already shows all the tool info.
+    if (pendingPermission != null &&
+        pendingPermission!.agentId == agentId &&
+        items.isNotEmpty) {
+      final last = items.last;
+      if (last is _ToolRenderItem &&
+          last.tool.isExecuting &&
+          last.tool.toolName == pendingPermission!.toolName) {
+        items.removeLast();
       }
     }
 
