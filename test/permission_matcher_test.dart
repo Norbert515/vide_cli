@@ -17,7 +17,7 @@ void main() {
     test('matches bash with wildcard prefix (dart pub:*)', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub get'),
         ),
@@ -26,7 +26,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub upgrade'),
         ),
@@ -35,7 +35,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart run main.dart'),
         ),
@@ -46,7 +46,7 @@ void main() {
     test('matches bash with wildcard suffix (dart run:*)', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart run:*)',
+          'Bash(dart run *)',
           'Bash',
           BashToolInput(command: 'dart run main.dart'),
         ),
@@ -55,7 +55,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(dart run:*)',
+          'Bash(dart run *)',
           'Bash',
           BashToolInput(command: 'dart run bin/server.dart --port 8080'),
         ),
@@ -77,11 +77,11 @@ void main() {
       );
     });
 
-    test('matches timeout command with escaped regex special chars', () {
-      // For exact command matching, need to escape regex special chars or use wildcard
+    test('matches timeout command with glob wildcard', () {
+      // With glob matching, use * for wildcards instead of regex
       expect(
         PermissionMatcher.matches(
-          'Bash(timeout 10 dart run bin/debug_claude_stream\\.dart --json ".*")',
+          'Bash(timeout 10 dart run *)',
           'Bash',
           BashToolInput(
             command:
@@ -95,7 +95,7 @@ void main() {
     test('does not match different bash command', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(ls:*)',
+          'Bash(ls *)',
           'Bash',
           BashToolInput(command: 'pwd'),
         ),
@@ -111,6 +111,173 @@ void main() {
           BashToolInput(command: 'any command here'),
         ),
         isTrue,
+      );
+    });
+  });
+
+  group('PermissionMatcher - Bash glob matching', () {
+    test('space before * enforces word boundary (ls * vs ls*)', () {
+      // Bash(ls *) should match "ls -la" but NOT "lsof"
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls *)',
+          'Bash',
+          BashToolInput(command: 'ls -la'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls *)',
+          'Bash',
+          BashToolInput(command: 'lsof'),
+        ),
+        isFalse,
+      );
+
+      // Bash(ls*) should match both
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls*)',
+          'Bash',
+          BashToolInput(command: 'ls -la'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls*)',
+          'Bash',
+          BashToolInput(command: 'lsof'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('space before * matches command with no args', () {
+      // Bash(ls *) should also match bare "ls" (no args)
+      expect(
+        PermissionMatcher.matches(
+          'Bash(ls *)',
+          'Bash',
+          BashToolInput(command: 'ls'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('* in middle matches any characters', () {
+      // Bash(git * main) should match git checkout main, git merge main
+      expect(
+        PermissionMatcher.matches(
+          'Bash(git * main)',
+          'Bash',
+          BashToolInput(command: 'git checkout main'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(git * main)',
+          'Bash',
+          BashToolInput(command: 'git merge main'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(git * main)',
+          'Bash',
+          BashToolInput(command: 'git checkout feature'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('* at beginning matches any prefix', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(* --version)',
+          'Bash',
+          BashToolInput(command: 'node --version'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(* --version)',
+          'Bash',
+          BashToolInput(command: 'dart --version'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('legacy :* syntax works via backward compatibility', () {
+      // :* should be treated the same as space *
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart test:*)',
+          'Bash',
+          BashToolInput(command: 'dart test --verbose'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart test:*)',
+          'Bash',
+          BashToolInput(command: 'dart test'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart test:*)',
+          'Bash',
+          BashToolInput(command: 'dart testfoo'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('exact command matches without wildcard', () {
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart test)',
+          'Bash',
+          BashToolInput(command: 'dart test'),
+        ),
+        isTrue,
+      );
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart test)',
+          'Bash',
+          BashToolInput(command: 'dart test --verbose'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('special regex chars are treated as literals in glob', () {
+      // Characters like . + ? should be literal, not regex
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart run bin/server.dart)',
+          'Bash',
+          BashToolInput(command: 'dart run bin/server.dart'),
+        ),
+        isTrue,
+      );
+      // Without glob, .dart would match "xdart" because . is regex any-char
+      expect(
+        PermissionMatcher.matches(
+          'Bash(dart run bin/server.dart)',
+          'Bash',
+          BashToolInput(command: 'dart run bin/serverXdart'),
+        ),
+        isFalse,
       );
     });
   });
@@ -744,11 +911,11 @@ void main() {
 
     test('allows multiple Bash patterns from allow list', () {
       final allowPatterns = [
-        'Bash(dart pub:*)',
-        'Bash(dart run:*)',
-        'Bash(dart test:*)',
-        'Bash(pwd:*)',
-        'Bash(ls:*)',
+        'Bash(dart pub *)',
+        'Bash(dart run *)',
+        'Bash(dart test *)',
+        'Bash(pwd *)',
+        'Bash(ls *)',
       ];
 
       expect(

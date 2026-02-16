@@ -4,10 +4,10 @@ import 'package:vide_core/vide_core.dart';
 /// Verify the expected outcomes from the requirements
 void main() {
   group('Expected outcomes from requirements', () {
-    test('1. find /path -name "pubspec.yaml" matches Bash(find:*)', () {
+    test('1. find /path -name "pubspec.yaml" matches Bash(find *)', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           BashToolInput(command: 'find /path -name "pubspec.yaml"'),
         ),
@@ -15,10 +15,10 @@ void main() {
       );
     });
 
-    test('2. cd /project/sub && dart pub get matches Bash(dart pub:*)', () {
+    test('2. cd /project/sub && dart pub get matches Bash(dart pub *)', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'cd /project/sub && dart pub get'),
           context: {'cwd': '/project'},
@@ -28,11 +28,11 @@ void main() {
     });
 
     test(
-      '3. cd /project/sub && serverpod generate matches Bash(serverpod:*)',
+      '3. cd /project/sub && serverpod generate matches Bash(serverpod *)',
       () {
         expect(
           PermissionMatcher.matches(
-            'Bash(serverpod:*)',
+            'Bash(serverpod *)',
             'Bash',
             BashToolInput(command: 'cd /project/sub && serverpod generate'),
             context: {'cwd': '/project'},
@@ -43,11 +43,11 @@ void main() {
     );
 
     test(
-      '4. cd /project/sub && dart analyze file.dart matches Bash(dart analyze:*)',
+      '4. cd /project/sub && dart analyze file.dart matches Bash(dart analyze *)',
       () {
         expect(
           PermissionMatcher.matches(
-            'Bash(dart analyze:*)',
+            'Bash(dart analyze *)',
             'Bash',
             BashToolInput(command: 'cd /project/sub && dart analyze file.dart'),
             context: {'cwd': '/project'},
@@ -64,7 +64,7 @@ void main() {
         // With dart pub:* pattern, it should now pass (grep is auto-approved)
         expect(
           PermissionMatcher.matches(
-            'Bash(dart pub:*)',
+            'Bash(dart pub *)',
             'Bash',
             BashToolInput(command: 'dart pub deps | grep uuid'),
           ),
@@ -76,7 +76,7 @@ void main() {
         // This prevents: dangerous_cmd | grep pattern
         expect(
           PermissionMatcher.matches(
-            'Bash(grep:*)',
+            'Bash(grep *)',
             'Bash',
             BashToolInput(command: 'dart pub deps | grep uuid'),
           ),
@@ -99,7 +99,7 @@ void main() {
       // head and tail are safe output filters and should be auto-approved
       expect(
         PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           BashToolInput(command: 'find /path -name ".claude" | head -5'),
         ),
@@ -108,7 +108,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           BashToolInput(command: 'find /path -name "*.dart" | tail -10'),
         ),
@@ -117,7 +117,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           BashToolInput(command: 'find /path -type f 2>/dev/null | head -5'),
         ),
@@ -128,7 +128,7 @@ void main() {
     test('7. ls with grep/sort/uniq filters is auto-approved', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(ls:*)',
+          'Bash(ls *)',
           'Bash',
           BashToolInput(command: 'ls -la | grep ".dart"'),
         ),
@@ -137,7 +137,7 @@ void main() {
 
       expect(
         PermissionMatcher.matches(
-          'Bash(ls:*)',
+          'Bash(ls *)',
           'Bash',
           BashToolInput(command: 'ls | sort | uniq'),
         ),
@@ -148,7 +148,7 @@ void main() {
     test('8. Commands with jq JSON processor are auto-approved', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(curl:*)',
+          'Bash(curl *)',
           'Bash',
           BashToolInput(command: 'curl https://api.example.com | jq .data'),
         ),
@@ -158,12 +158,12 @@ void main() {
   });
 
   group('Pattern inference improvements', () {
-    test('find with path infers to Bash(find:*)', () {
+    test('find with path infers to Bash(find *)', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
         BashToolInput(command: 'find /any/path -name "*.dart"'),
       );
-      expect(pattern, 'Bash(find:*)');
+      expect(pattern, 'Bash(find *)');
     });
 
     test('cd && command infers from non-cd command', () {
@@ -172,7 +172,7 @@ void main() {
         BashToolInput(command: 'cd /project/sub && dart pub get'),
       );
       // Infers the full sub-command (more specific is better)
-      expect(pattern, 'Bash(dart pub get:*)');
+      expect(pattern, 'Bash(dart pub get *)');
     });
 
     test('serverpod with cd infers from serverpod command', () {
@@ -181,15 +181,15 @@ void main() {
         BashToolInput(command: 'cd packages/server && serverpod generate'),
       );
       // Infers the full sub-command (more specific is better)
-      expect(pattern, 'Bash(serverpod generate:*)');
+      expect(pattern, 'Bash(serverpod generate *)');
     });
 
-    test('dart analyze with file path infers to Bash(dart analyze:*)', () {
+    test('dart analyze with file path infers to Bash(dart analyze *)', () {
       final pattern = PatternInference.inferPattern(
         'Bash',
         BashToolInput(command: 'dart analyze /path/to/file.dart'),
       );
-      expect(pattern, 'Bash(dart analyze:*)');
+      expect(pattern, 'Bash(dart analyze *)');
     });
   });
 }

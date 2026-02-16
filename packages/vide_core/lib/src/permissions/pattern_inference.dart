@@ -25,26 +25,45 @@ class PatternInference {
   }
 
   /// Infer pattern for Bash commands
-  /// Example: "npm run test" → "Bash(npm run test:*)"
-  /// Example: "git status" → "Bash(git status:*)"
-  /// Example: "cd /path && dart pub get" → "Bash(dart pub get:*)"
-  /// Example: "find /path -name *.dart" → "Bash(find:*)"
-  /// Example: "dart test 2>&1" → "Bash(dart test:*)" (redirects stripped)
+  /// Example: "npm run test" → "Bash(npm run test *)"
+  /// Example: "git status" → "Bash(git status *)"
+  /// Example: "cd /path && dart pub get" → "Bash(dart pub get *)"
+  /// Example: "find /path -name *.dart" → "Bash(find *)"
+  /// Example: "dart test 2>&1" → "Bash(dart test *)" (redirects stripped)
   static String _inferBashPattern(String command) {
     if (command.isEmpty) return 'Bash(*)';
 
     // Parse compound commands
     final parsedCommands = BashCommandParser.parse(command);
 
-    // Find the "main" command (skip cd commands)
-    var mainCommand = parsedCommands
-        .firstWhere(
-          (cmd) => cmd.type != CommandType.cd,
-          orElse: () => parsedCommands.isNotEmpty
-              ? parsedCommands.first
-              : ParsedCommand('', CommandType.simple),
-        )
-        .command;
+    // Find the "main" command:
+    // - Skip cd commands (just directory changes)
+    // - Skip prefix commands (sleep, timeout, env, etc.)
+    // - Skip pipeline filter parts (grep, head, tail after |)
+    // - Prefer the last meaningful command (prefix cmds appear first in chains)
+    var mainCommand = '';
+    for (final cmd in parsedCommands.reversed) {
+      if (cmd.type == CommandType.cd) continue;
+      if (cmd.type == CommandType.pipelinePart) continue;
+      if (_isPrefixCommand(cmd.command)) continue;
+      mainCommand = cmd.command;
+      break;
+    }
+    // Fallback: if all non-cd commands are pipeline parts, use the first one
+    // (the producer, not the filter)
+    if (mainCommand.isEmpty) {
+      mainCommand = parsedCommands
+          .firstWhere(
+            (cmd) => cmd.type != CommandType.cd && !_isPrefixCommand(cmd.command),
+            orElse: () => parsedCommands.firstWhere(
+              (cmd) => cmd.type != CommandType.cd,
+              orElse: () => parsedCommands.isNotEmpty
+                  ? parsedCommands.first
+                  : ParsedCommand('', CommandType.simple),
+            ),
+          )
+          .command;
+    }
 
     if (mainCommand.isEmpty) return 'Bash(*)';
 
@@ -52,16 +71,19 @@ class PatternInference {
     // These are implementation details that shouldn't be part of the pattern
     mainCommand = _stripShellRedirects(mainCommand);
 
-    // Split into parts
-    final parts = mainCommand.trim().split(RegExp(r'\s+'));
+    // Split into parts (quote-aware)
+    final parts = _splitRespectingQuotes(mainCommand.trim());
     if (parts.isEmpty) return 'Bash(*)';
 
-    // Extract base command (command name only, no path arguments)
+    // Extract base command (command name only, no path/flag/quoted arguments)
     final baseParts = <String>[];
 
     for (final part in parts) {
       // Stop at flags
       if (part.startsWith('-')) break;
+
+      // Stop at quoted arguments (these are values, not sub-command names)
+      if (part.startsWith('"') || part.startsWith("'")) break;
 
       // Stop at path-like arguments (starting with / or ./ or ~/ or ..)
       if (part.startsWith('/') ||
@@ -79,7 +101,62 @@ class PatternInference {
     }
 
     final baseCommand = baseParts.join(' ');
-    return baseCommand.isEmpty ? 'Bash(*)' : 'Bash($baseCommand:*)';
+    return baseCommand.isEmpty ? 'Bash(*)' : 'Bash($baseCommand *)';
+  }
+
+  /// Split a command string into parts, keeping quoted strings as single tokens.
+  static List<String> _splitRespectingQuotes(String command) {
+    final parts = <String>[];
+    final buffer = StringBuffer();
+    var inSingleQuote = false;
+    var inDoubleQuote = false;
+
+    for (var i = 0; i < command.length; i++) {
+      final char = command[i];
+
+      if (char == "'" && !inDoubleQuote) {
+        inSingleQuote = !inSingleQuote;
+        buffer.write(char);
+      } else if (char == '"' && !inSingleQuote) {
+        inDoubleQuote = !inDoubleQuote;
+        buffer.write(char);
+      } else if (char == ' ' && !inSingleQuote && !inDoubleQuote) {
+        if (buffer.isNotEmpty) {
+          parts.add(buffer.toString());
+          buffer.clear();
+        }
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    if (buffer.isNotEmpty) {
+      parts.add(buffer.toString());
+    }
+
+    return parts;
+  }
+
+  /// Commands that are typically used as prefixes before the "real" command.
+  /// These are delay/wrapper commands that shouldn't be used for pattern inference.
+  static const _prefixCommands = {
+    'sleep',
+    'timeout',
+    'env',
+    'nice',
+    'nohup',
+    'time',
+    'watch',
+    'retry',
+    'wait',
+    'true',
+    'false',
+  };
+
+  /// Check if a command is a prefix/wrapper command like sleep, timeout, etc.
+  static bool _isPrefixCommand(String command) {
+    final firstWord = command.trim().split(RegExp(r'\s+')).firstOrNull ?? '';
+    return _prefixCommands.contains(firstWord);
   }
 
   /// Strip shell redirects from a command string.

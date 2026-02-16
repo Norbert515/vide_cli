@@ -6,7 +6,7 @@ void main() {
     test('matches compound command with cd and approved command', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'cd /project/packages/server && dart pub get'),
           context: {'cwd': '/project'},
@@ -20,7 +20,7 @@ void main() {
       () {
         expect(
           PermissionMatcher.matches(
-            'Bash(dart pub:*)',
+            'Bash(dart pub *)',
             'Bash',
             BashToolInput(command: 'dart pub deps | grep uuid'),
           ),
@@ -36,7 +36,7 @@ void main() {
       // This prevents: dangerous_cmd | allowed_cmd
       expect(
         PermissionMatcher.matches(
-          'Bash(grep:*)',
+          'Bash(grep *)',
           'Bash',
           BashToolInput(command: 'dart pub deps | grep uuid'),
         ),
@@ -47,7 +47,7 @@ void main() {
     test('does not match when cd goes outside working directory', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'cd /other && dart pub get'),
           context: {'cwd': '/project'},
@@ -59,7 +59,7 @@ void main() {
     test('matches when all commands in compound match', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(
             command: 'cd /project/sub && dart pub get && dart analyze',
@@ -73,7 +73,7 @@ void main() {
     test('does not match when one command in compound does not match', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(
             command: 'cd /project/sub && dart pub get && serverpod generate',
@@ -87,7 +87,7 @@ void main() {
     test('matches find command regardless of path', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(find:*)',
+          'Bash(find *)',
           'Bash',
           BashToolInput(command: 'find /any/path -name "*.dart"'),
         ),
@@ -98,7 +98,7 @@ void main() {
     test('matches serverpod command in compound', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(serverpod:*)',
+          'Bash(serverpod *)',
           'Bash',
           BashToolInput(command: 'cd packages/server && serverpod generate'),
           context: {'cwd': '/project'},
@@ -110,7 +110,7 @@ void main() {
     test('auto-approves cd to subdirectory', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(serverpod:*)',
+          'Bash(serverpod *)',
           'Bash',
           BashToolInput(command: 'cd packages/server && serverpod generate'),
           context: {'cwd': '/project'},
@@ -122,7 +122,7 @@ void main() {
     test('blocks cd outside working directory', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(serverpod:*)',
+          'Bash(serverpod *)',
           'Bash',
           BashToolInput(command: 'cd /other/path && serverpod generate'),
           context: {'cwd': '/project'},
@@ -134,7 +134,7 @@ void main() {
     test('matches complex pipeline with safe filters', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'dart pub deps | grep uuid | wc -l'),
         ),
@@ -156,7 +156,7 @@ void main() {
     test('handles empty command gracefully', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: ''),
         ),
@@ -167,7 +167,7 @@ void main() {
     test('handles command with only cd', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(cd:*)',
+          'Bash(cd *)',
           'Bash',
           BashToolInput(command: 'cd /project/sub'),
           context: {'cwd': '/project'},
@@ -181,7 +181,7 @@ void main() {
       () {
         expect(
           PermissionMatcher.matches(
-            'Bash(cd:*)',
+            'Bash(cd *)',
             'Bash',
             BashToolInput(command: 'cd /other'),
             context: {'cwd': '/project'},
@@ -194,7 +194,7 @@ void main() {
     test('handles quoted strings with operators', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           BashToolInput(command: 'echo "foo && bar" && echo "baz"'),
         ),
@@ -205,7 +205,7 @@ void main() {
     test('matches relative cd paths', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(
             command: 'cd ./packages/server && dart analyze file.dart',
@@ -222,7 +222,7 @@ void main() {
       // SECURITY: Single & must split the command so each part is validated
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub get & echo done'),
         ),
@@ -233,7 +233,7 @@ void main() {
     test('validates both commands with background operator', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'dart pub get & dart analyze'),
         ),
@@ -244,7 +244,7 @@ void main() {
     test('rejects when first command before & does not match', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'rm -rf / & dart pub get'),
         ),
@@ -255,7 +255,7 @@ void main() {
     test('rejects when second command after & does not match', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub get & rm -rf /'),
         ),
@@ -266,7 +266,7 @@ void main() {
     test('handles multiple & operators', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'dart pub get & dart test & dart analyze'),
         ),
@@ -277,7 +277,7 @@ void main() {
     test('handles mix of & and && operators', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'dart pub get && dart test & dart analyze'),
         ),
@@ -288,7 +288,7 @@ void main() {
     test('rejects mix of & and && when one command does not match', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub get && echo foo & dart pub deps'),
         ),
@@ -299,7 +299,7 @@ void main() {
     test('handles & in quoted strings correctly', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(echo:*)',
+          'Bash(echo *)',
           'Bash',
           BashToolInput(command: 'echo "run in background &" & echo done'),
         ),
@@ -310,7 +310,7 @@ void main() {
     test('handles single & with cd', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'cd /project/sub & dart pub get'),
           context: {'cwd': '/project'},
@@ -322,7 +322,7 @@ void main() {
     test('rejects background command with cd outside working directory', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart:*)',
+          'Bash(dart *)',
           'Bash',
           BashToolInput(command: 'cd /other & dart pub get'),
           context: {'cwd': '/project'},
@@ -336,7 +336,7 @@ void main() {
     test('matches simple command without context', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart pub:*)',
+          'Bash(dart pub *)',
           'Bash',
           BashToolInput(command: 'dart pub get'),
         ),
@@ -344,12 +344,12 @@ void main() {
       );
     });
 
-    test('matches regex pattern', () {
+    test('matches glob wildcard in middle', () {
       expect(
         PermissionMatcher.matches(
-          'Bash(dart (pub|test):*)',
+          'Bash(dart * get)',
           'Bash',
-          BashToolInput(command: 'dart test'),
+          BashToolInput(command: 'dart pub get'),
         ),
         isTrue,
       );

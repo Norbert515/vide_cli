@@ -210,7 +210,77 @@ class PermissionMatcher {
     return true; // All commands are safe
   }
 
-  /// Match Bash commands with compound command support
+  /// Convert a bash glob pattern to an anchored regex.
+  ///
+  /// Claude Code uses glob-style matching for Bash patterns:
+  /// - `*` matches any characters (like `.*` in regex)
+  /// - `Bash(ls *)` matches `ls`, `ls -la` but NOT `lsof` (space enforces
+  ///   word boundary: prefix must be followed by space-or-end-of-string)
+  /// - `Bash(ls*)` matches both `ls -la` AND `lsof`
+  /// - `Bash(git * main)` matches `git checkout main`
+  /// - Legacy `:*` suffix is treated as ` *` for backward compatibility
+  ///
+  /// The pattern is anchored (full-string match), not a substring search.
+  static RegExp _bashGlobToRegex(String pattern) {
+    // Legacy support: convert trailing `:*` to ` *`
+    var normalized = pattern;
+    if (normalized.endsWith(':*')) {
+      normalized =
+          '${normalized.substring(0, normalized.length - 2)} *';
+    }
+
+    // Special case: trailing ` *` enforces word boundary.
+    // "ls *" matches "ls" (end-of-string) and "ls -la" (space + args)
+    // but NOT "lsof" (no boundary).
+    // We handle this by converting trailing ` *` to `( .*)?` and then
+    // processing the rest normally.
+    String? trailingSuffix;
+    if (normalized.endsWith(' *')) {
+      trailingSuffix = '( .*)?';
+      normalized = normalized.substring(0, normalized.length - 2);
+    }
+
+    // Escape regex special characters, then convert glob `*` to `.*`
+    final buffer = StringBuffer();
+    for (var i = 0; i < normalized.length; i++) {
+      final char = normalized[i];
+      if (char == '*') {
+        buffer.write('.*');
+      } else if (_regexSpecialChars.contains(char)) {
+        buffer.write('\\');
+        buffer.write(char);
+      } else {
+        buffer.write(char);
+      }
+    }
+
+    if (trailingSuffix != null) {
+      buffer.write(trailingSuffix);
+    }
+
+    return RegExp('^${buffer.toString()}\$');
+  }
+
+  static const _regexSpecialChars = {
+    '.', '+', '?', '[', ']', '(', ')', '{', '}', '^', r'$', '|', r'\',
+  };
+
+  /// Check if a command matches a bash glob pattern.
+  static bool _bashGlobMatches(String pattern, String command) {
+    try {
+      return _bashGlobToRegex(pattern).hasMatch(command);
+    } catch (e) {
+      // If pattern is invalid, fall back to exact match
+      return pattern == command;
+    }
+  }
+
+  /// Match Bash commands with compound command support.
+  ///
+  /// Uses glob-style matching (like Claude Code):
+  /// - Each sub-command in `&&`/`||`/`;` chains is matched independently
+  /// - `cd` within the working directory is auto-approved
+  /// - Pipelines use smart matching with safe filter allowlists
   static bool _matchesBashCommand(
     String argPattern,
     String command,
@@ -247,8 +317,8 @@ class PermissionMatcher {
         // Wildcard pattern - use smart matching with safe filters
         return _matchesPipeline(parsedCommands, argPattern, cwd);
       } else {
-        // Exact pattern - just check if the whole command matches
-        return RegExp(argPattern).hasMatch(command);
+        // Exact pattern - check full command string
+        return _bashGlobMatches(argPattern, command);
       }
     }
 
@@ -264,7 +334,7 @@ class PermissionMatcher {
       }
 
       // Check this sub-command against the pattern
-      if (!RegExp(argPattern).hasMatch(parsed.command)) {
+      if (!_bashGlobMatches(argPattern, parsed.command)) {
         return false; // One sub-command doesn't match
       }
     }
@@ -295,7 +365,7 @@ class PermissionMatcher {
       }
 
       // Check if this command matches the pattern
-      final matches = RegExp(argPattern).hasMatch(parsed.command);
+      final matches = _bashGlobMatches(argPattern, parsed.command);
       if (matches) {
         hasMatchingCommand = true;
         continue;
