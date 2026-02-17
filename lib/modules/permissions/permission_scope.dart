@@ -265,6 +265,11 @@ class _PermissionScopeState extends State<PermissionScope> {
               .read(planApprovalStateProvider.notifier)
               .removeByRequestId(event.requestId);
 
+        case AskUserQuestionResolvedEvent():
+          context
+              .read(askUserQuestionStateProvider.notifier)
+              .removeByRequestId(event.requestId);
+
         default:
           break;
       }

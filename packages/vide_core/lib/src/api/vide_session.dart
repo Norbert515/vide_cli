@@ -520,6 +520,18 @@ class LocalVideSession implements VideSession {
     final pending = _pendingRequests.remove(requestId);
     if (pending is _PendingAskUserQuestion) {
       pending.completer.complete(answers);
+
+      // Broadcast resolution to all connected clients
+      _emit(
+        AskUserQuestionResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          answers: answers,
+        ),
+      );
     }
   }
 
@@ -863,6 +875,10 @@ class LocalVideSession implements VideSession {
       final completer = Completer<Map<String, String>>();
       _pendingRequests[requestId] = _PendingAskUserQuestion(
         completer: completer,
+        agentId: agentId,
+        agentType: agentType ?? 'unknown',
+        agentName: agentName,
+        taskName: taskName,
       );
 
       _emit(
@@ -1457,11 +1473,21 @@ class _PendingPermission extends _PendingRequest {
   }
 }
 
-/// A pending AskUserQuestion request.
+/// A pending AskUserQuestion request with agent metadata for the resolution event.
 class _PendingAskUserQuestion extends _PendingRequest {
   final Completer<Map<String, String>> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
 
-  _PendingAskUserQuestion({required this.completer});
+  _PendingAskUserQuestion({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+  });
 
   @override
   void onDispose() {

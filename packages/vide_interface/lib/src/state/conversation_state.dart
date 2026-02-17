@@ -287,6 +287,7 @@ class ConversationStateManager {
         _handleAgentTerminated(e);
       case PermissionRequestEvent _:
       case AskUserQuestionEvent _:
+      case AskUserQuestionResolvedEvent _:
       case PlanApprovalRequestEvent _:
       case PlanApprovalResolvedEvent _:
       case ErrorEvent _:

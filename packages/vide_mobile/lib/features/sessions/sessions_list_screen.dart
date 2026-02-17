@@ -314,7 +314,6 @@ class _SessionCard extends ConsumerWidget {
     // Live data from RemoteVideSession
     final latestActivity = entry.latestActivity;
     final pendingPermission = entry.pendingPermission;
-    final agentCount = remoteSession?.state.agents.length ?? 1;
     final anyAgentBusy = remoteSession?.state.isProcessing ?? false;
 
     return Card(
@@ -423,20 +422,6 @@ class _SessionCard extends ConsumerWidget {
               // Metadata row
               Row(
                 children: [
-                  // Agent count
-                  Icon(
-                    Icons.smart_toy_outlined,
-                    size: 14,
-                    color: colorScheme.outline,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$agentCount agent${agentCount != 1 ? 's' : ''}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: colorScheme.outline,
-                        ),
-                  ),
-                  const SizedBox(width: 16),
                   // Time ago
                   Icon(
                     Icons.access_time,

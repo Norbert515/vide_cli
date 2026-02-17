@@ -443,6 +443,8 @@ class RemoteVideSession implements VideSession {
         _handlePermissionRequest(event);
       case AskUserQuestionEvent():
         _handleAskUserQuestion(event);
+      case AskUserQuestionResolvedEvent():
+        _handleAskUserQuestionResolved(event);
       case TaskNameChangedEvent():
         _handleTaskNameChanged(event);
       case PermissionResolvedEvent():
@@ -787,6 +789,19 @@ class RemoteVideSession implements VideSession {
         taskName: event.taskName,
         requestId: event.requestId,
         questions: event.questions,
+      ),
+    );
+  }
+
+  void _handleAskUserQuestionResolved(AskUserQuestionResolvedEvent event) {
+    _emit(
+      AskUserQuestionResolvedEvent(
+        agentId: event.agentId,
+        agentType: _resolveAgentType(event.agentId, event),
+        agentName: _resolveAgentName(event.agentId, event),
+        taskName: event.taskName,
+        requestId: event.requestId,
+        answers: event.answers,
       ),
     );
   }

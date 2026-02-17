@@ -225,6 +225,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       case AskUserQuestionEvent():
         notifier.setPendingAskUserQuestion(event);
 
+      case AskUserQuestionResolvedEvent(:final requestId):
+        final currentPending = notifier.state.pendingAskUserQuestion;
+        if (currentPending?.requestId == requestId) {
+          notifier.setPendingAskUserQuestion(null);
+          if (_isAskUserQuestionSheetShowing && mounted) {
+            Navigator.of(context).pop();
+            _isAskUserQuestionSheetShowing = false;
+          }
+        }
+
       case ErrorEvent(:final message):
         notifier.setError(message);
 

@@ -206,6 +206,17 @@ sealed class VideEvent {
         requestId: data?['request-id'] as String? ?? '',
         questions: _parseQuestions(data?['questions']),
       ),
+      'ask-user-question-resolved' => AskUserQuestionResolvedEvent(
+        seq: seq,
+        agentId: agentId,
+        agentType: agentType,
+        agentName: agentName,
+        taskName: taskName,
+        timestamp: timestamp,
+        requestId: data?['request-id'] as String? ?? '',
+        answers: (data?['answers'] as Map<String, dynamic>?)
+            ?.map((k, v) => MapEntry(k, v?.toString() ?? '')) ?? {},
+      ),
       'task-name-changed' => TaskNameChangedEvent(
         seq: seq,
         agentId: agentId,
@@ -816,6 +827,37 @@ final class AskUserQuestionEvent extends VideEvent {
   @override
   String toString() =>
       'AskUserQuestionEvent($requestId, ${questions.length} questions)';
+}
+
+/// AskUserQuestion was resolved (answered) by a client.
+///
+/// Broadcast to all connected clients so they can dismiss stale question UI.
+final class AskUserQuestionResolvedEvent extends VideEvent {
+  final String requestId;
+  final Map<String, String> answers;
+
+  AskUserQuestionResolvedEvent({
+    super.seq,
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.requestId,
+    required this.answers,
+  });
+
+  @override
+  String get wireType => 'ask-user-question-resolved';
+
+  @override
+  Map<String, dynamic> dataFields() => {
+    'request-id': requestId,
+    'answers': answers,
+  };
+
+  @override
+  String toString() => 'AskUserQuestionResolvedEvent($requestId)';
 }
 
 /// Data for a single question in AskUserQuestionEvent.
