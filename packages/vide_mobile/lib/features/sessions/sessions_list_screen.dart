@@ -240,7 +240,22 @@ class _SessionsListScreenState extends ConsumerState<SessionsListScreen> {
                   ],
                 ),
               ),
-        data: (_) => _buildList(groups),
+        data: (_) {
+          // When servers are still connecting, refresh() completes with no
+          // results because getConnectedClients() returns empty. Avoid
+          // flashing "No active sessions" by showing a spinner until all
+          // servers have finished their connection attempt.
+          if (managerState.isEmpty) {
+            final anyConnecting = ref
+                .read(serverRegistryProvider)
+                .values
+                .any((s) => s.status == ServerHealthStatus.connecting);
+            if (anyConnecting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+          }
+          return _buildList(groups);
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push(AppRoutes.newSession),
