@@ -11,6 +11,7 @@ import '../../features/git/git_screen.dart';
 import '../../features/chat/widgets/tool_card.dart';
 import '../../features/connection/connection_screen.dart';
 import '../../features/session/session_creation_screen.dart';
+import '../../features/session/session_creation_state.dart';
 import '../../features/sessions/sessions_list_screen.dart';
 import '../../features/settings/admin_screen.dart';
 import '../../features/settings/settings_screen.dart';
@@ -56,7 +57,9 @@ GoRouter appRouter(Ref ref) {
       GoRoute(
         path: AppRoutes.newSession,
         name: 'newSession',
-        builder: (context, state) => const SessionCreationScreen(),
+        builder: (context, state) => SessionCreationScreen(
+          args: state.extra as SessionCreationArgs?,
+        ),
       ),
       GoRoute(
         path: AppRoutes.session,

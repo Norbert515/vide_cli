@@ -8,6 +8,7 @@ import '../../core/router/app_router.dart';
 import '../../core/theme/vide_colors.dart';
 import '../../data/repositories/server_registry.dart';
 import '../../domain/services/session_list_manager.dart';
+import '../session/session_creation_state.dart';
 
 part 'sessions_list_screen.g.dart';
 
@@ -148,8 +149,18 @@ class _SessionsListScreenState extends ConsumerState<SessionsListScreen> {
         itemBuilder: (context, index) {
           final item = _itemAt(groups, index, showHeaders);
           if (item is SessionGroup) {
+            // Use the most recent session's server for quick-start
+            final serverId =
+                item.entries.isNotEmpty ? item.entries.first.serverId : null;
             return _ProjectHeader(
               projectName: item.projectName,
+              onQuickStart: () => context.push(
+                AppRoutes.newSession,
+                extra: SessionCreationArgs(
+                  workingDirectory: item.workingDirectory,
+                  serverId: serverId,
+                ),
+              ),
             );
           }
           final entry = item as SessionListEntry;
@@ -268,14 +279,18 @@ class _SessionsListScreenState extends ConsumerState<SessionsListScreen> {
 
 class _ProjectHeader extends StatelessWidget {
   final String projectName;
+  final VoidCallback? onQuickStart;
 
-  const _ProjectHeader({required this.projectName});
+  const _ProjectHeader({
+    required this.projectName,
+    this.onQuickStart,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+      padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
           Icon(
@@ -298,6 +313,23 @@ class _ProjectHeader extends StatelessWidget {
               height: 1,
             ),
           ),
+          if (onQuickStart != null) ...[
+            const SizedBox(width: 4),
+            SizedBox(
+              width: 28,
+              height: 28,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 16,
+                icon: Icon(
+                  Icons.add_rounded,
+                  color: colorScheme.outline,
+                ),
+                onPressed: onQuickStart,
+                tooltip: 'New session in $projectName',
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -19,6 +19,7 @@ class SettingsKeys {
   static const lastTeam = 'last_team';
   static const themeMode = 'theme_mode';
   static const configuredServers = 'configured_servers';
+  static const pathServerMap = 'path_server_map';
 }
 
 /// Wrapper for SharedPreferences to persist app settings.
@@ -234,6 +235,35 @@ class SettingsStorage extends _$SettingsStorage {
     );
   }
 
+  /// Gets the cached server ID for a working directory path.
+  Future<String?> getServerForPath(String path) async {
+    await future;
+    final json = _prefs.getString(SettingsKeys.pathServerMap);
+    if (json == null) return null;
+    try {
+      final map = jsonDecode(json) as Map<String, dynamic>;
+      return map[path] as String?;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Caches the server ID used for a working directory path.
+  Future<void> saveServerForPath(String path, String serverId) async {
+    await future;
+    final json = _prefs.getString(SettingsKeys.pathServerMap);
+    Map<String, dynamic> map;
+    try {
+      map = json != null
+          ? jsonDecode(json) as Map<String, dynamic>
+          : <String, dynamic>{};
+    } catch (e) {
+      map = <String, dynamic>{};
+    }
+    map[path] = serverId;
+    await _prefs.setString(SettingsKeys.pathServerMap, jsonEncode(map));
+  }
+
   /// Clears all stored settings.
   Future<void> clear() async {
     await future;
@@ -244,5 +274,6 @@ class SettingsStorage extends _$SettingsStorage {
     await _prefs.remove(SettingsKeys.lastTeam);
     await _prefs.remove(SettingsKeys.themeMode);
     await _prefs.remove(SettingsKeys.configuredServers);
+    await _prefs.remove(SettingsKeys.pathServerMap);
   }
 }

@@ -145,9 +145,10 @@ class SessionRepository extends _$SessionRepository {
     // Register session-server mapping for reconnection
     registerSessionServer(remoteSession.id, connection.id);
 
-    // Save working directory
+    // Save working directory and path-server mapping
     final settingsStorage = ref.read(settingsStorageProvider.notifier);
     await settingsStorage.saveWorkingDirectory(workingDirectory);
+    await settingsStorage.saveServerForPath(workingDirectory, connection.id);
 
     // Set up event listening with disconnect handling
     _setupEventListening(remoteSession);

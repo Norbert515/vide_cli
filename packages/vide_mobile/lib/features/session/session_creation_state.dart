@@ -4,6 +4,17 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'session_creation_state.freezed.dart';
 part 'session_creation_state.g.dart';
 
+/// Arguments for pre-filling the session creation form.
+///
+/// Passed via `GoRouterState.extra` when navigating from the project
+/// quick-start button on the sessions list screen.
+class SessionCreationArgs {
+  final String? workingDirectory;
+  final String? serverId;
+
+  const SessionCreationArgs({this.workingDirectory, this.serverId});
+}
+
 /// Permission mode for tool execution.
 enum PermissionMode {
   defaultMode('default', 'Ask for each tool'),

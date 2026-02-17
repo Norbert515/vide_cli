@@ -14,7 +14,9 @@ import 'session_creation_state.dart';
 
 /// Screen for creating a new session.
 class SessionCreationScreen extends ConsumerStatefulWidget {
-  const SessionCreationScreen({super.key});
+  final SessionCreationArgs? args;
+
+  const SessionCreationScreen({super.key, this.args});
 
   @override
   ConsumerState<SessionCreationScreen> createState() =>
@@ -39,13 +41,36 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
   }
 
   Future<void> _loadDefaults() async {
+    final notifier = ref.read(sessionCreationNotifierProvider.notifier);
     final storage = ref.read(settingsStorageProvider.notifier);
-    final lastDir = await storage.getLastWorkingDirectory();
+    final args = widget.args;
 
-    if (lastDir != null) {
-      ref
-          .read(sessionCreationNotifierProvider.notifier)
-          .setWorkingDirectory(lastDir);
+    // Pre-fill from args (quick-start) or fall back to last used directory
+    final dir = args?.workingDirectory ?? await storage.getLastWorkingDirectory();
+    if (dir != null) {
+      notifier.setWorkingDirectory(dir);
+    }
+
+    // Pre-fill server from args or cached path-server mapping
+    if (args?.serverId != null) {
+      notifier.setSelectedServerId(args!.serverId);
+    } else if (dir != null) {
+      final cachedServerId = await storage.getServerForPath(dir);
+      if (cachedServerId != null) {
+        notifier.setSelectedServerId(cachedServerId);
+      }
+    }
+  }
+
+  Future<void> _onDirectoryChanged(String dir) async {
+    final notifier = ref.read(sessionCreationNotifierProvider.notifier);
+    notifier.setWorkingDirectory(dir);
+
+    // Auto-select the cached server for this directory
+    final storage = ref.read(settingsStorageProvider.notifier);
+    final cachedServerId = await storage.getServerForPath(dir);
+    if (cachedServerId != null && mounted) {
+      notifier.setSelectedServerId(cachedServerId);
     }
   }
 
@@ -268,11 +293,7 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                   selectedDirectory: state.workingDirectory,
                   enabled: !state.isCreating,
                   selectedServerId: state.selectedServerId,
-                  onSelected: (dir) {
-                    ref
-                        .read(sessionCreationNotifierProvider.notifier)
-                        .setWorkingDirectory(dir);
-                  },
+                  onSelected: (dir) => _onDirectoryChanged(dir),
                 ),
                 const SizedBox(height: 24),
                 // Permission mode
@@ -413,7 +434,7 @@ class _WorkingDirectorySelectorState
                     size: 20,
                   ),
                   title: Text(
-                    dir,
+                    _folderName(dir),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: dir == widget.selectedDirectory
@@ -422,6 +443,15 @@ class _WorkingDirectorySelectorState
                       color: dir == widget.selectedDirectory
                           ? videColors.accent
                           : colorScheme.onSurface,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    dir,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: videColors.textSecondary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -540,16 +570,35 @@ class _WorkingDirectorySelectorState
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                hasValue ? widget.selectedDirectory : 'Select a directory',
-                style: TextStyle(
-                  color: hasValue
-                      ? colorScheme.onSurface
-                      : videColors.textSecondary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
+              child: hasValue
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _folderName(widget.selectedDirectory),
+                          style: TextStyle(
+                            color: colorScheme.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          widget.selectedDirectory,
+                          style: TextStyle(
+                            color: videColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    )
+                  : Text(
+                      'Select a directory',
+                      style: TextStyle(color: videColors.textSecondary),
+                    ),
             ),
             Icon(
               Icons.unfold_more,
@@ -560,6 +609,11 @@ class _WorkingDirectorySelectorState
         ),
       ),
     );
+  }
+
+  static String _folderName(String path) {
+    final parts = path.split('/');
+    return parts.isNotEmpty ? parts.last : path;
   }
 }
 
