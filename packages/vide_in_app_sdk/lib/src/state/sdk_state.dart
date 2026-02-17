@@ -8,7 +8,8 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 /// Connection state for the SDK.
 enum VideSdkConnectionState { disconnected, connecting, connected, error }
 
-const _kServerUrlKey = 'vide_sdk_server_url';
+const _kHostKey = 'vide_sdk_host';
+const _kPortKey = 'vide_sdk_port';
 const _kWorkingDirKey = 'vide_sdk_working_directory';
 
 /// Central state for the Vide in-app SDK.
@@ -16,7 +17,8 @@ const _kWorkingDirKey = 'vide_sdk_working_directory';
 /// Manages the lifecycle of the [VideClient] and [RemoteVideSession],
 /// exposes connection state, and provides the active session to the UI.
 class VideSdkState extends ChangeNotifier {
-  String? _serverUrl;
+  String? _host;
+  int? _port;
   String? _workingDirectory;
 
   VideClient? _client;
@@ -25,15 +27,18 @@ class VideSdkState extends ChangeNotifier {
   String? _errorMessage;
   StreamSubscription<VideEvent>? _eventSubscription;
 
-  VideSdkState({String? serverUrl, String? workingDirectory})
-    : _serverUrl = serverUrl,
+  VideSdkState({String? host, int? port, String? workingDirectory})
+    : _host = host,
+      _port = port,
       _workingDirectory = workingDirectory;
 
-  String? get serverUrl => _serverUrl;
+  String? get host => _host;
+  int? get port => _port;
   String? get workingDirectory => _workingDirectory;
   bool get isConfigured =>
-      _serverUrl != null &&
-      _serverUrl!.isNotEmpty &&
+      _host != null &&
+      _host!.isNotEmpty &&
+      _port != null &&
       _workingDirectory != null &&
       _workingDirectory!.isNotEmpty;
 
@@ -47,21 +52,25 @@ class VideSdkState extends ChangeNotifier {
   /// Load persisted configuration from shared preferences.
   Future<void> loadConfig() async {
     final prefs = await SharedPreferences.getInstance();
-    _serverUrl ??= prefs.getString(_kServerUrlKey);
+    _host ??= prefs.getString(_kHostKey);
+    _port ??= prefs.getInt(_kPortKey);
     _workingDirectory ??= prefs.getString(_kWorkingDirKey);
     notifyListeners();
   }
 
   /// Update and persist configuration.
   Future<void> updateConfig({
-    required String serverUrl,
+    required String host,
+    required int port,
     required String workingDirectory,
   }) async {
-    _serverUrl = serverUrl;
+    _host = host;
+    _port = port;
     _workingDirectory = workingDirectory;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kServerUrlKey, serverUrl);
+    await prefs.setString(_kHostKey, host);
+    await prefs.setInt(_kPortKey, port);
     await prefs.setString(_kWorkingDirKey, workingDirectory);
 
     // Disconnect any existing session since config changed
@@ -69,12 +78,12 @@ class VideSdkState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Parse host and port from the server URL.
-  (String host, int port) get _parsedUrl {
-    var url = _serverUrl!;
-    if (!url.startsWith('http')) url = 'http://$url';
-    final uri = Uri.parse(url);
-    return (uri.host, uri.port);
+  /// Test connection to a server by checking its health endpoint.
+  ///
+  /// Returns true if the server is reachable and healthy.
+  Future<bool> testConnection({required String host, required int port}) async {
+    final client = VideClient(host: host, port: port);
+    return client.checkHealth();
   }
 
   /// Connect to the server and create a new session with the given message.
@@ -86,8 +95,7 @@ class VideSdkState extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final (host, port) = _parsedUrl;
-    _client = VideClient(host: host, port: port);
+    _client = VideClient(host: _host!, port: _port!);
 
     final pending = createPendingRemoteVideSession(
       initialMessage: initialMessage,
@@ -123,8 +131,7 @@ class VideSdkState extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final (host, port) = _parsedUrl;
-    _client = VideClient(host: host, port: port);
+    _client = VideClient(host: _host!, port: _port!);
 
     try {
       _session = await _client!.connectToSession(sessionId);

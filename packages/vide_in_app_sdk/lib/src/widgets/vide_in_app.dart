@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../services/screenshot_service.dart';
 import '../services/voice_input_service.dart';
@@ -9,52 +10,40 @@ import '../state/sdk_state.dart';
 import 'chat_panel.dart';
 import 'screenshot_canvas.dart';
 
-/// Trigger mechanism for opening the Vide overlay.
-enum VideTrigger {
-  /// Floating action button (always visible).
-  fab,
+/// Height of the collapsed bottom handle bar.
+const _kHandleBarHeight = 28.0;
 
-  /// Device shake gesture (mobile only).
-  shake,
+/// Fraction of screen height the dev tools area occupies when expanded.
+const _kExpandedFraction = 0.55;
 
-  /// Both FAB and shake.
-  both,
+/// Padding around the user's app when the dev tools are expanded.
+const _kExpandedPadding = 6.0;
 
-  /// Manual only — use [VideInApp.of(context).show()].
-  manual,
-}
+/// Corner radius for the user's app when encapsulated.
+const _kAppCornerRadius = 12.0;
 
-/// Adds the Vide AI assistant overlay to your Flutter app.
+/// Embeds your Flutter app inside the Vide dev environment.
 ///
-/// Wrap your [MaterialApp] (or [CupertinoApp]) with this widget:
+/// A minimal bottom handle bar is always visible. Tapping it expands the
+/// dev-tools panel (chat, screenshots) upward, shrinking the user's app.
 ///
 /// ```dart
 /// VideInApp(
-///   child: MaterialApp(
-///     home: MyHomePage(),
-///   ),
+///   child: MaterialApp(home: MyHomePage()),
 /// )
 /// ```
 ///
-/// Server URL and working directory are configured in-app and persisted.
-/// Access the controller from anywhere:
+/// Programmatic control:
 /// ```dart
-/// VideInApp.of(context).show();
+/// VideInApp.of(context).show();   // expand
+/// VideInApp.of(context).hide();   // collapse
+/// VideInApp.of(context).toggle(); // toggle
 /// ```
 class VideInApp extends StatefulWidget {
-  /// How to trigger the overlay.
-  final VideTrigger trigger;
-
-  /// Your app widget (typically a MaterialApp).
   final Widget child;
 
-  const VideInApp({
-    super.key,
-    this.trigger = VideTrigger.fab,
-    required this.child,
-  });
+  const VideInApp({super.key, required this.child});
 
-  /// Access the Vide controller from anywhere in the widget tree.
   static VideInAppController of(BuildContext context) {
     final state = context.findAncestorStateOfType<_VideInAppState>();
     if (state == null) {
@@ -69,25 +58,15 @@ class VideInApp extends StatefulWidget {
   State<VideInApp> createState() => _VideInAppState();
 }
 
-/// Controller for programmatic access to the Vide overlay.
 class VideInAppController {
   final _VideInAppState _state;
 
   VideInAppController._(this._state);
 
-  /// Show the chat panel.
-  void show() => _state._showPanel();
-
-  /// Hide the chat panel.
-  void hide() => _state._hidePanel();
-
-  /// Toggle the chat panel.
-  void toggle() => _state._togglePanel();
-
-  /// Take a screenshot and open the annotation canvas.
+  void show() => _state._expand();
+  void hide() => _state._collapse();
+  void toggle() => _state._toggle();
   Future<void> captureScreenshot() => _state._captureScreenshot();
-
-  /// Get the SDK state for direct access.
   VideSdkState get sdkState => _state._sdkState;
 }
 
@@ -100,13 +79,13 @@ class _VideInAppState extends State<VideInApp>
 
   final GlobalKey _repaintBoundaryKey = GlobalKey();
 
-  bool _panelVisible = false;
+  bool _expanded = false;
   bool _screenshotMode = false;
   ui.Image? _capturedScreenshot;
   Uint8List? _pendingScreenshotBytes;
 
-  late final AnimationController _slideController;
-  late final Animation<Offset> _slideAnimation;
+  late final AnimationController _expandController;
+  late final CurvedAnimation _expandCurve;
 
   @override
   void initState() {
@@ -120,53 +99,50 @@ class _VideInAppState extends State<VideInApp>
     _voiceService = VoiceInputService();
     _controller = VideInAppController._(this);
 
-    _slideController = AnimationController(
+    _expandController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _slideController,
-            curve: Curves.easeOutCubic,
-            reverseCurve: Curves.easeInCubic,
-          ),
-        );
+    _expandCurve = CurvedAnimation(
+      parent: _expandController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
   }
 
   @override
   void dispose() {
-    _slideController.dispose();
+    _expandController.dispose();
     _sdkState.dispose();
     _voiceService.dispose();
     _capturedScreenshot?.dispose();
     super.dispose();
   }
 
-  void _showPanel() {
-    setState(() => _panelVisible = true);
-    _slideController.forward();
+  void _expand() {
+    setState(() => _expanded = true);
+    _expandController.forward();
   }
 
-  void _hidePanel() {
-    _slideController.reverse().then((_) {
-      if (mounted) setState(() => _panelVisible = false);
+  void _collapse() {
+    _expandController.reverse().then((_) {
+      if (mounted) setState(() => _expanded = false);
     });
   }
 
-  void _togglePanel() {
-    if (_panelVisible) {
-      _hidePanel();
+  void _toggle() {
+    if (_expanded) {
+      _collapse();
     } else {
-      _showPanel();
+      _expand();
     }
   }
 
   Future<void> _captureScreenshot() async {
-    final wasVisible = _panelVisible;
-    if (wasVisible) {
-      setState(() => _panelVisible = false);
-      _slideController.value = 0;
+    final wasExpanded = _expanded;
+    if (wasExpanded) {
+      setState(() => _expanded = false);
+      _expandController.value = 0;
     }
 
     await Future.delayed(const Duration(milliseconds: 50));
@@ -178,8 +154,8 @@ class _VideInAppState extends State<VideInApp>
         _screenshotMode = true;
       });
     } catch (e) {
-      if (wasVisible && mounted) {
-        _showPanel();
+      if (wasExpanded && mounted) {
+        _expand();
       }
     }
   }
@@ -191,7 +167,7 @@ class _VideInAppState extends State<VideInApp>
       _screenshotMode = false;
       _pendingScreenshotBytes = bytes;
     });
-    _showPanel();
+    _expand();
   }
 
   void _onScreenshotCancel() {
@@ -200,89 +176,185 @@ class _VideInAppState extends State<VideInApp>
       _capturedScreenshot = null;
       _screenshotMode = false;
     });
-    _showPanel();
+    _expand();
   }
 
   @override
   Widget build(BuildContext context) {
-    final showFab =
-        (widget.trigger == VideTrigger.fab ||
-            widget.trigger == VideTrigger.both) &&
-        !_screenshotMode;
-
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: Stack(
-        children: [
-          // The user's app, wrapped in a repaint boundary for screenshots
-          RepaintBoundary(key: _repaintBoundaryKey, child: widget.child),
+      child: ListenableBuilder(
+        listenable: _sdkState,
+        builder: (context, _) {
+          if (!_sdkState.isConfigured) {
+            return _OverlayMaterialShell(
+              child: _SetupScreen(sdkState: _sdkState),
+            );
+          }
+          return _buildMainLayout(context);
+        },
+      ),
+    );
+  }
 
-          // Screenshot annotation canvas (full screen)
-          if (_screenshotMode && _capturedScreenshot != null)
-            Positioned.fill(
-              child: ScreenshotCanvas(
-                screenshot: _capturedScreenshot!,
-                onConfirm: _onScreenshotConfirm,
-                onCancel: _onScreenshotCancel,
-              ),
-            ),
+  Widget _buildMainLayout(BuildContext context) {
+    final screenHeight = MediaQuery.maybeOf(context)?.size.height ?? 800;
+    final expandedHeight = screenHeight * _kExpandedFraction;
 
-          // Scrim behind the panel
-          if (_panelVisible)
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _hidePanel,
-                child: AnimatedBuilder(
-                  animation: _slideController,
-                  builder: (context, _) {
-                    return ColoredBox(
-                      color: Colors.black.withValues(
-                        alpha: 0.4 * _slideController.value,
+    return Stack(
+      children: [
+        AnimatedBuilder(
+          animation: _expandCurve,
+          builder: (context, _) {
+            final t = _expandCurve.value;
+            final bottomHeight =
+                _kHandleBarHeight + (expandedHeight - _kHandleBarHeight) * t;
+            final padding = t * _kExpandedPadding;
+            final radius = t * _kAppCornerRadius;
+
+            return Container(
+              color: const Color(0xFF111118),
+              child: Column(
+                children: [
+                  // User's app
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: padding,
+                        right: padding,
+                        top: padding,
                       ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-          // Chat panel (slides up from bottom)
-          if (_panelVisible)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: (MediaQuery.maybeOf(context)?.size.height ?? 600) * 0.75,
-              child: SlideTransition(
-                position: _slideAnimation,
-                child: _OverlayMaterialShell(
-                  child: VideChatPanel(
-                    sdkState: _sdkState,
-                    voiceService: _voiceService,
-                    onScreenshotRequest: _captureScreenshot,
-                    pendingScreenshot: _pendingScreenshotBytes,
-                    onClearScreenshot: () {
-                      setState(() => _pendingScreenshotBytes = null);
-                    },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(radius),
+                        child: RepaintBoundary(
+                          key: _repaintBoundaryKey,
+                          child: widget.child,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  // Dev tools area (bottom)
+                  SizedBox(
+                    height: bottomHeight,
+                    child: _OverlayMaterialShell(
+                      child: Column(
+                        children: [
+                          _HandleBar(
+                            expanded: _expanded,
+                            onToggle: _toggle,
+                            sdkState: _sdkState,
+                          ),
+                          if (t > 0)
+                            Expanded(
+                              child: VideChatPanel(
+                                sdkState: _sdkState,
+                                voiceService: _voiceService,
+                                onScreenshotRequest: _captureScreenshot,
+                                pendingScreenshot: _pendingScreenshotBytes,
+                                onClearScreenshot: () {
+                                  setState(
+                                    () => _pendingScreenshotBytes = null,
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+
+        // Screenshot annotation canvas
+        if (_screenshotMode && _capturedScreenshot != null)
+          Positioned.fill(
+            child: ScreenshotCanvas(
+              screenshot: _capturedScreenshot!,
+              onConfirm: _onScreenshotConfirm,
+              onCancel: _onScreenshotCancel,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Bottom handle bar with Vide branding and connection status.
+class _HandleBar extends StatelessWidget {
+  final bool expanded;
+  final VoidCallback onToggle;
+  final VideSdkState sdkState;
+
+  const _HandleBar({
+    required this.expanded,
+    required this.onToggle,
+    required this.sdkState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onToggle,
+      child: SizedBox(
+        height: _kHandleBarHeight,
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            // Connection dot
+            ListenableBuilder(
+              listenable: sdkState,
+              builder: (context, _) {
+                final color = switch (sdkState.connectionState) {
+                  VideSdkConnectionState.connected => const Color(0xFF4ADE80),
+                  VideSdkConnectionState.connecting => const Color(0xFFFBBF24),
+                  VideSdkConnectionState.error => const Color(0xFFF87171),
+                  VideSdkConnectionState.disconnected => const Color(
+                    0xFF6B7280,
+                  ),
+                };
+                return Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'vide',
+              style: TextStyle(
+                color: const Color(0xFF9CA3AF),
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
               ),
             ),
-
-          // Floating action button
-          if (showFab && !_panelVisible)
-            Positioned(
-              right: 16,
-              bottom: (MediaQuery.maybeOf(context)?.padding.bottom ?? 0) + 16,
-              child: _VideFab(onTap: _togglePanel),
+            const Spacer(),
+            AnimatedRotation(
+              turns: expanded ? 0.5 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Icon(
+                Icons.expand_less_rounded,
+                color: const Color(0xFF6B7280),
+                size: 18,
+              ),
             ),
-        ],
+            const SizedBox(width: 12),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Provides the full Material infrastructure (Theme, Localizations, Navigator,
-/// Overlay) for widgets that sit outside the user's MaterialApp.
+/// Provides Material infrastructure for widgets outside the user's MaterialApp.
 class _OverlayMaterialShell extends StatelessWidget {
   final Widget child;
   const _OverlayMaterialShell({required this.child});
@@ -296,72 +368,275 @@ class _OverlayMaterialShell extends StatelessWidget {
         useMaterial3: true,
         brightness: Brightness.dark,
       ),
-      home: child,
+      home: Scaffold(body: child),
     );
   }
 }
 
-/// The floating action button that triggers the overlay.
-class _VideFab extends StatefulWidget {
-  final VoidCallback onTap;
+/// Full-screen setup page shown before the server is configured.
+class _SetupScreen extends StatefulWidget {
+  final VideSdkState sdkState;
 
-  const _VideFab({required this.onTap});
+  const _SetupScreen({required this.sdkState});
 
   @override
-  State<_VideFab> createState() => _VideFabState();
+  State<_SetupScreen> createState() => _SetupScreenState();
 }
 
-class _VideFabState extends State<_VideFab>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulseController;
+class _SetupScreenState extends State<_SetupScreen> {
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController();
+  final _workingDirController = TextEditingController();
+  bool _testing = false;
+  _SetupTestResult? _testResult;
 
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      duration: const Duration(seconds: 2),
-      vsync: this,
-    )..repeat(reverse: true);
+    final s = widget.sdkState;
+    if (s.host != null) _hostController.text = s.host!;
+    if (s.port != null) _portController.text = s.port!.toString();
+    if (s.workingDirectory != null) {
+      _workingDirController.text = s.workingDirectory!;
+    }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _hostController.dispose();
+    _portController.dispose();
+    _workingDirController.dispose();
     super.dispose();
+  }
+
+  Future<void> _testAndSave() async {
+    final host = _hostController.text.trim();
+    final portStr = _portController.text.trim();
+    final dir = _workingDirController.text.trim();
+
+    if (host.isEmpty || portStr.isEmpty || dir.isEmpty) {
+      setState(() {
+        _testResult = _SetupTestResult(
+          success: false,
+          message: 'All fields are required',
+        );
+      });
+      return;
+    }
+
+    final port = int.tryParse(portStr);
+    if (port == null || port < 1 || port > 65535) {
+      setState(() {
+        _testResult = _SetupTestResult(
+          success: false,
+          message: 'Invalid port number',
+        );
+      });
+      return;
+    }
+
+    setState(() {
+      _testing = true;
+      _testResult = null;
+    });
+
+    final success = await widget.sdkState.testConnection(
+      host: host,
+      port: port,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      await widget.sdkState.updateConfig(
+        host: host,
+        port: port,
+        workingDirectory: dir,
+      );
+    } else {
+      setState(() {
+        _testing = false;
+        _testResult = _SetupTestResult(
+          success: false,
+          message: 'Connection failed — check host and port',
+        );
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      child: AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, child) {
-          final scale = 1.0 + 0.05 * _pulseController.value;
-          return Transform.scale(scale: scale, child: child);
-        },
-        child: Container(
-          width: 56,
-          height: 56,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.code,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Vide',
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Connect to your Vide server to get started.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 36),
+
+                // Host
+                Text('Host', style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _hostController,
+                  decoration: InputDecoration(
+                    hintText: 'localhost',
+                    prefixIcon: const Icon(Icons.computer_outlined, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    isDense: true,
+                  ),
+                  keyboardType: TextInputType.url,
+                  textInputAction: TextInputAction.next,
+                  onChanged: (_) => _clearResult(),
+                ),
+                const SizedBox(height: 16),
+
+                // Port
+                Text('Port', style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _portController,
+                  decoration: InputDecoration(
+                    hintText: '8080',
+                    prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    isDense: true,
+                  ),
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.next,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(5),
+                  ],
+                  onChanged: (_) => _clearResult(),
+                ),
+                const SizedBox(height: 16),
+
+                // Working directory
+                Text(
+                  'Working Directory',
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
+                const SizedBox(height: 4),
+                TextField(
+                  controller: _workingDirController,
+                  decoration: InputDecoration(
+                    hintText: '/path/to/your/project',
+                    prefixIcon: const Icon(Icons.folder_outlined, size: 20),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    isDense: true,
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => _testAndSave(),
+                ),
+                const SizedBox(height: 24),
+
+                if (_testResult != null) ...[
+                  _buildResultChip(context),
+                  const SizedBox(height: 16),
+                ],
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: FilledButton.icon(
+                    onPressed: _testing ? null : _testAndSave,
+                    icon: _testing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.link),
+                    label: Text(_testing ? 'Testing...' : 'Test & Connect'),
+                  ),
+                ),
+              ],
             ),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
-          child: const Icon(Icons.auto_awesome, color: Colors.white, size: 28),
         ),
       ),
     );
   }
+
+  void _clearResult() {
+    if (_testResult != null) setState(() => _testResult = null);
+  }
+
+  Widget _buildResultChip(BuildContext context) {
+    final result = _testResult!;
+    final color = result.success ? Colors.green : Colors.red;
+    final icon = result.success
+        ? Icons.check_circle_outline
+        : Icons.error_outline;
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                result.message,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SetupTestResult {
+  final bool success;
+  final String message;
+  const _SetupTestResult({required this.success, required this.message});
 }

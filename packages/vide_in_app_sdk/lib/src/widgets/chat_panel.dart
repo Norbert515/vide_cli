@@ -2,12 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:vide_client/vide_client.dart';
 
 import '../services/voice_input_service.dart';
 import '../state/sdk_state.dart';
 
-/// Slide-up chat panel for interacting with the Vide AI assistant.
+/// Chat panel for interacting with the Vide AI assistant.
 ///
 /// Manages connection setup, message input (text + voice), streaming
 /// responses, and permission handling.
@@ -40,16 +41,20 @@ class VideChatPanel extends StatefulWidget {
 class _VideChatPanelState extends State<VideChatPanel> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
-  final _serverUrlController = TextEditingController();
+  final _hostController = TextEditingController();
+  final _portController = TextEditingController();
   final _workingDirController = TextEditingController();
   bool _voiceInitialized = false;
   bool _showingConfig = false;
+  bool _testingConnection = false;
+  _ConnectionTestResult? _testResult;
 
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
-    _serverUrlController.dispose();
+    _hostController.dispose();
+    _portController.dispose();
     _workingDirController.dispose();
     super.dispose();
   }
@@ -122,77 +127,61 @@ class _VideChatPanelState extends State<VideChatPanel> {
     return ListenableBuilder(
       listenable: widget.sdkState,
       builder: (context, _) {
+        final hasSession = widget.sdkState.session != null;
         return Material(
-          clipBehavior: Clip.antiAlias,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           color: Theme.of(context).colorScheme.surface,
-          elevation: 16,
-          child: Column(
-            children: [
-              // Drag handle
-              Center(
-                child: Container(
-                  margin: const EdgeInsets.only(top: 12, bottom: 8),
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade400,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-
-              // Header
-              _buildHeader(context),
-
-              const Divider(height: 1),
-
-              // Error banner
-              if (widget.sdkState.connectionState ==
-                  VideSdkConnectionState.error)
-                _buildErrorBanner(context),
-
-              // Messages
-              Expanded(child: _buildMessageList(context)),
-
-              // Pending screenshot preview
-              if (widget.pendingScreenshot != null)
-                _buildScreenshotPreview(context),
-
-              // Permission banner
-              _buildPermissionBanner(context),
-
-              // Input bar
-              _buildInputBar(context),
-            ],
-          ),
+          child: hasSession || _showingConfig
+              ? _buildSessionLayout(context)
+              : _buildEmptyLayout(context),
         );
       },
     );
   }
 
+  /// Layout when no session: input bar at top, empty space below.
+  Widget _buildEmptyLayout(BuildContext context) {
+    return Column(
+      children: [
+        // Input bar right at top
+        _buildInputBar(context),
+
+        // Error banner if needed
+        if (widget.sdkState.connectionState == VideSdkConnectionState.error)
+          _buildErrorBanner(context),
+
+        const Spacer(),
+      ],
+    );
+  }
+
+  /// Layout when there's an active session or config open.
+  Widget _buildSessionLayout(BuildContext context) {
+    return Column(
+      children: [
+        _buildHeader(context),
+        const Divider(height: 1),
+
+        if (widget.sdkState.connectionState == VideSdkConnectionState.error)
+          _buildErrorBanner(context),
+
+        Expanded(child: _buildMessageList(context)),
+
+        if (widget.pendingScreenshot != null) _buildScreenshotPreview(context),
+
+        _buildPermissionBanner(context),
+
+        _buildInputBar(context),
+      ],
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     final state = widget.sdkState;
-    final connectionColor = switch (state.connectionState) {
-      VideSdkConnectionState.connected => Colors.green,
-      VideSdkConnectionState.connecting => Colors.orange,
-      VideSdkConnectionState.error => Colors.red,
-      VideSdkConnectionState.disconnected => Colors.grey,
-    };
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: connectionColor,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
               _headerTitle(state),
@@ -208,7 +197,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
             ),
           const SizedBox(width: 8),
           _InputBarButton(
-            icon: Icons.settings,
+            icon: Icons.tune_rounded,
             onTap: () => setState(() => _showingConfig = !_showingConfig),
           ),
         ],
@@ -257,42 +246,13 @@ class _VideChatPanelState extends State<VideChatPanel> {
   }
 
   Widget _buildMessageList(BuildContext context) {
-    if (_showingConfig || !widget.sdkState.isConfigured) {
+    if (_showingConfig) {
       return _buildConfigForm(context);
     }
 
     final session = widget.sdkState.session;
     if (session == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.chat_bubble_outline,
-                size: 48,
-                color: Colors.grey.shade400,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Start a conversation',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Describe what you want to build or fix.\nAttach a screenshot for visual context.',
-                textAlign: TextAlign.center,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const SizedBox.shrink();
     }
 
     // Get conversation for main agent
@@ -316,8 +276,13 @@ class _VideChatPanelState extends State<VideChatPanel> {
 
   Widget _buildConfigForm(BuildContext context) {
     final state = widget.sdkState;
-    if (_serverUrlController.text.isEmpty && state.serverUrl != null) {
-      _serverUrlController.text = state.serverUrl!;
+
+    // Initialize controllers from existing state
+    if (_hostController.text.isEmpty && state.host != null) {
+      _hostController.text = state.host!;
+    }
+    if (_portController.text.isEmpty && state.port != null) {
+      _portController.text = state.port!.toString();
     }
     if (_workingDirController.text.isEmpty && state.workingDirectory != null) {
       _workingDirController.text = state.workingDirectory!;
@@ -328,7 +293,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Configuration', style: Theme.of(context).textTheme.titleMedium),
+          Text(
+            'Server Connection',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 4),
           Text(
             'Configure the Vide server connection.',
@@ -337,20 +305,50 @@ class _VideChatPanelState extends State<VideChatPanel> {
             ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
           ),
           const SizedBox(height: 20),
-          Text('Server URL', style: Theme.of(context).textTheme.labelMedium),
+
+          // Host field
+          Text('Host', style: Theme.of(context).textTheme.labelMedium),
           const SizedBox(height: 4),
           TextField(
-            controller: _serverUrlController,
+            controller: _hostController,
             decoration: InputDecoration(
-              hintText: 'localhost:8080',
+              hintText: 'localhost',
+              prefixIcon: const Icon(Icons.computer_outlined, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
               isDense: true,
             ),
             keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.next,
+            onChanged: (_) => _clearTestResult(),
           ),
           const SizedBox(height: 16),
+
+          // Port field
+          Text('Port', style: Theme.of(context).textTheme.labelMedium),
+          const SizedBox(height: 4),
+          TextField(
+            controller: _portController,
+            decoration: InputDecoration(
+              hintText: '8080',
+              prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              isDense: true,
+            ),
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(5),
+            ],
+            onChanged: (_) => _clearTestResult(),
+          ),
+          const SizedBox(height: 16),
+
+          // Working directory field
           Text(
             'Working Directory',
             style: Theme.of(context).textTheme.labelMedium,
@@ -360,28 +358,141 @@ class _VideChatPanelState extends State<VideChatPanel> {
             controller: _workingDirController,
             decoration: InputDecoration(
               hintText: '/path/to/your/project',
+              prefixIcon: const Icon(Icons.folder_outlined, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
               ),
               isDense: true,
             ),
+            textInputAction: TextInputAction.done,
           ),
           const SizedBox(height: 20),
+
+          // Connection test result
+          if (_testResult != null) _buildTestResultChip(context),
+          if (_testResult != null) const SizedBox(height: 16),
+
+          // Test & Save button
           SizedBox(
             width: double.infinity,
-            child: FilledButton(
-              onPressed: () {
-                final url = _serverUrlController.text.trim();
-                final dir = _workingDirController.text.trim();
-                if (url.isNotEmpty && dir.isNotEmpty) {
-                  state.updateConfig(serverUrl: url, workingDirectory: dir);
-                  setState(() => _showingConfig = false);
-                }
-              },
-              child: const Text('Save'),
+            child: FilledButton.icon(
+              onPressed: _testingConnection ? null : _testAndSave,
+              icon: _testingConnection
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.link),
+              label: Text(_testingConnection ? 'Testing...' : 'Test & Save'),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _clearTestResult() {
+    if (_testResult != null) {
+      setState(() => _testResult = null);
+    }
+  }
+
+  Future<void> _testAndSave() async {
+    final host = _hostController.text.trim();
+    final portStr = _portController.text.trim();
+    final dir = _workingDirController.text.trim();
+
+    if (host.isEmpty || portStr.isEmpty || dir.isEmpty) {
+      setState(() {
+        _testResult = _ConnectionTestResult(
+          success: false,
+          message: 'All fields are required',
+        );
+      });
+      return;
+    }
+
+    final port = int.tryParse(portStr);
+    if (port == null || port < 1 || port > 65535) {
+      setState(() {
+        _testResult = _ConnectionTestResult(
+          success: false,
+          message: 'Invalid port number',
+        );
+      });
+      return;
+    }
+
+    setState(() {
+      _testingConnection = true;
+      _testResult = null;
+    });
+
+    final success = await widget.sdkState.testConnection(
+      host: host,
+      port: port,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      widget.sdkState.updateConfig(
+        host: host,
+        port: port,
+        workingDirectory: dir,
+      );
+      setState(() {
+        _testingConnection = false;
+        _testResult = _ConnectionTestResult(
+          success: true,
+          message: 'Connected',
+        );
+        _showingConfig = false;
+      });
+    } else {
+      setState(() {
+        _testingConnection = false;
+        _testResult = _ConnectionTestResult(
+          success: false,
+          message: 'Connection failed - check host and port',
+        );
+      });
+    }
+  }
+
+  Widget _buildTestResultChip(BuildContext context) {
+    final result = _testResult!;
+    final color = result.success ? Colors.green : Colors.red;
+    final icon = result.success
+        ? Icons.check_circle_outline
+        : Icons.error_outline;
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18, color: color),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                result.message,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -478,7 +589,6 @@ class _VideChatPanelState extends State<VideChatPanel> {
           );
 
         case AttachmentContent():
-          // Show a small attachment indicator
           widgets.add(
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -634,69 +744,67 @@ class _VideChatPanelState extends State<VideChatPanel> {
   }
 
   Widget _buildInputBar(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-        child: Row(
-          children: [
-            // Screenshot button
-            _InputBarButton(
-              icon: Icons.photo_camera_outlined,
-              onTap: widget.onScreenshotRequest,
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Row(
+        children: [
+          const SizedBox(width: 4),
 
-            // Voice button
-            ListenableBuilder(
-              listenable: widget.voiceService,
-              builder: (context, _) {
-                return _InputBarButton(
-                  icon: widget.voiceService.isListening
-                      ? Icons.mic
-                      : Icons.mic_none,
-                  color: widget.voiceService.isListening ? Colors.red : null,
-                  onTap: _toggleVoice,
-                );
-              },
-            ),
-
-            // Text field
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                decoration: InputDecoration(
-                  hintText: widget.sdkState.hasActiveSession
-                      ? 'Message...'
-                      : 'What do you want to build?',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Theme.of(
-                    context,
-                  ).colorScheme.surfaceContainerHighest,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  isDense: true,
+          // Text field
+          Expanded(
+            child: TextField(
+              controller: _textController,
+              decoration: InputDecoration(
+                hintText: widget.sdkState.hasActiveSession
+                    ? 'Message...'
+                    : 'Ask Vide anything...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
                 ),
-                textInputAction: TextInputAction.send,
-                maxLines: 4,
-                minLines: 1,
-                onSubmitted: (_) => _sendMessage(),
+                filled: true,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                isDense: true,
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _InputBarButton(
+                      icon: Icons.crop_rounded,
+                      onTap: widget.onScreenshotRequest,
+                      size: 20,
+                    ),
+                    _InputBarButton(
+                      icon: Icons.arrow_upward_rounded,
+                      onTap: _sendMessage,
+                      size: 20,
+                    ),
+                  ],
+                ),
               ),
+              textInputAction: TextInputAction.send,
+              maxLines: 4,
+              minLines: 1,
+              onSubmitted: (_) => _sendMessage(),
             ),
-
-            const SizedBox(width: 4),
-
-            // Send button
-            _InputBarButton(icon: Icons.send, onTap: _sendMessage),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Result of a connection test.
+class _ConnectionTestResult {
+  final bool success;
+  final String message;
+
+  const _ConnectionTestResult({required this.success, required this.message});
 }
 
 /// A simple icon button that doesn't use [Tooltip] (which requires an
@@ -705,8 +813,14 @@ class _InputBarButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final Color? color;
+  final double size;
 
-  const _InputBarButton({required this.icon, this.onTap, this.color});
+  const _InputBarButton({
+    required this.icon,
+    this.onTap,
+    this.color,
+    this.size = 24,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -715,7 +829,7 @@ class _InputBarButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, color: color, size: 24),
+        child: Icon(icon, color: color, size: size),
       ),
     );
   }

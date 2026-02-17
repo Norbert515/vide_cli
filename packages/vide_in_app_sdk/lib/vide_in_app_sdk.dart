@@ -1,15 +1,13 @@
 /// Embed Vide AI assistant directly into any Flutter app.
 ///
-/// Wrap your app with [VideInApp] to get a Wiredash-style overlay
-/// that provides AI-powered development assistance with screenshot
-/// capture, annotations, and voice input.
+/// Wrap your app with [VideInApp] to embed it inside the Vide dev
+/// environment with a collapsible top panel for AI-powered development
+/// assistance, screenshot capture, annotations, and voice input.
 ///
 /// ```dart
 /// void main() {
 ///   runApp(
 ///     VideInApp(
-///       serverUrl: 'http://localhost:8080',
-///       workingDirectory: '/path/to/project',
 ///       child: MyApp(),
 ///     ),
 ///   );
