@@ -50,9 +50,96 @@ Structured engineering workflows, not just autocomplete.
 
 ## Remote Control
 
-REST API with WebSocket streaming. Every agent's status, messages, and tool calls stream in real time -- control your agent teams from anywhere.
+Run your agent teams on a remote server and connect from anywhere. Vide includes a daemon that manages sessions as sub-processes, with a REST API and WebSocket streaming for real-time control.
 
-Mobile app coming soon.
+### Quick Start (Local Daemon)
+
+```bash
+# Start the daemon
+vide daemon start
+```
+
+Then open Vide and press `Tab` to open settings -- enable daemon mode there. The TUI works identically in daemon mode -- the same UI, same workflows, just backed by daemon-managed sessions that persist even if the TUI disconnects.
+
+### Remote Access
+
+Run the daemon on a VPS and connect from your laptop:
+
+```bash
+# On the VPS
+vide daemon start --host $(tailscale ip -4) --port 8080
+
+# From your laptop
+vide connect 100.64.12.34:8080
+```
+
+[Tailscale](https://tailscale.com) is the recommended way to handle remote access. It creates encrypted peer-to-peer tunnels between your devices using WireGuard -- no port forwarding, no public exposure, no extra auth layer needed.
+
+<details>
+<summary>Setting up Tailscale on a VPS</summary>
+
+**1. Install on both your VPS and laptop:**
+
+```bash
+# VPS (Ubuntu/Debian)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+sudo systemctl enable --now tailscaled
+
+# macOS laptop
+brew install tailscale
+```
+
+**2. Start the daemon bound to the Tailscale IP:**
+
+```bash
+TS_IP=$(tailscale ip -4)
+vide daemon start --host $TS_IP --port 8080
+```
+
+The Tailscale IP (`100.x.x.x`) is in the CGNAT range -- never routed on the public internet. Your daemon is only reachable by devices on your tailnet.
+
+**3. Connect from your laptop:**
+
+```bash
+vide connect 100.64.12.34:8080
+
+# Or with MagicDNS:
+vide connect my-vps.my-tailnet.ts.net:8080
+```
+
+**4. (Optional) Install as a system service:**
+
+```bash
+# Auto-start the daemon on boot
+vide daemon install
+```
+
+</details>
+
+### Daemon CLI
+
+```bash
+vide daemon start              # Start the daemon (foreground)
+vide daemon start --detach     # Start in background
+vide daemon stop               # Stop the daemon
+vide daemon status             # Check if running
+vide daemon install            # Install as system service (launchd/systemd)
+vide daemon uninstall          # Remove system service
+```
+
+### Architecture
+
+```
+Laptop (TUI)                        VPS
+    │                                │
+    │── vide connect ──────────────► │  vide daemon (port 8080)
+    │                                │    ├── session A (vide_server :54321)
+    │◄─── WebSocket stream ─────────│    ├── session B (vide_server :54322)
+    │                                │    └── session C (vide_server :54323)
+```
+
+The daemon spawns a separate `vide_server` process per session for full isolation. Sessions persist across daemon restarts and survive client disconnects. Multiple TUI clients can connect to the same session simultaneously.
 
 ## Multi-Backend
 
