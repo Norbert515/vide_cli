@@ -323,7 +323,14 @@ class _SimplifiedStreamHandler {
       mainAgentId: sessionState.mainAgent?.id ?? '',
       lastSeq: _broadcaster.history.length,
       agents: agents
-          .map((a) => AgentInfo(id: a.id, type: a.type, name: a.name))
+          .map(
+            (a) => AgentInfo(
+              id: a.id,
+              type: a.type,
+              name: a.name,
+              spawnedBy: a.spawnedBy,
+            ),
+          )
           .toList(),
       metadata: {
         'working-directory': sessionState.workingDirectory,

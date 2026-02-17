@@ -509,6 +509,7 @@ class RemoteVideSession implements VideSession {
         id: agent.id,
         type: agent.type,
         name: agent.name,
+        spawnedBy: agent.spawnedBy,
       );
 
       final isMainWithInitialMessage =
@@ -708,13 +709,27 @@ class RemoteVideSession implements VideSession {
   void _handleAgentSpawned(AgentSpawnedEvent event) {
     final agentId = event.agentId;
 
-    // Skip if agent already exists (e.g. from ConnectedEvent before history replay).
-    if (_agents.containsKey(agentId)) return;
+    // If agent already exists (e.g. from ConnectedEvent before history replay),
+    // update spawnedBy if it was missing (ConnectedEvent doesn't carry it).
+    if (_agents.containsKey(agentId)) {
+      final existing = _agents[agentId]!;
+      if (existing.spawnedBy == null && event.spawnedBy.isNotEmpty) {
+        _agents[agentId] = _RemoteAgentInfo(
+          id: existing.id,
+          type: existing.type,
+          name: existing.name,
+          spawnedBy: event.spawnedBy,
+        );
+        _emitState();
+      }
+      return;
+    }
 
     _agents[agentId] = _RemoteAgentInfo(
       id: agentId,
       type: event.agentType,
       name: event.agentName,
+      spawnedBy: event.spawnedBy.isNotEmpty ? event.spawnedBy : null,
     );
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshModel(agentId);
@@ -990,6 +1005,7 @@ class RemoteVideSession implements VideSession {
             type: a.type,
             status: _agentStatuses[a.id] ?? VideAgentStatus.idle,
             createdAt: DateTime.now(),
+            spawnedBy: a.spawnedBy,
           ),
         )
         .toList();
@@ -1397,6 +1413,12 @@ class _RemoteAgentInfo {
   final String id;
   final String type;
   final String? name;
+  final String? spawnedBy;
 
-  _RemoteAgentInfo({required this.id, required this.type, this.name});
+  _RemoteAgentInfo({
+    required this.id,
+    required this.type,
+    this.name,
+    this.spawnedBy,
+  });
 }

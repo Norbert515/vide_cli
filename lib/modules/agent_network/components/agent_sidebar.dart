@@ -85,15 +85,40 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
     super.dispose();
   }
 
-  /// Build the list of sidebar items from current state
+  /// Build the list of sidebar items from current state, ordered as a
+  /// depth-first tree based on [VideAgent.spawnedBy] relationships.
   List<_SidebarItem> _buildItems(List<VideAgent> spawnedAgents) {
     final items = <_SidebarItem>[];
+    if (spawnedAgents.isEmpty) return items;
 
-    // Active Agents (always show all spawned agents)
-    if (spawnedAgents.isNotEmpty) {
-      items.add(_SidebarItem.header('Active Agents'));
-      for (final agent in spawnedAgents) {
-        items.add(_SidebarItem.agent(agent));
+    items.add(_SidebarItem.header('Active Agents'));
+
+    // Group agents by their parent ID
+    final childrenOf = <String?, List<VideAgent>>{};
+    for (final agent in spawnedAgents) {
+      childrenOf.putIfAbsent(agent.spawnedBy, () => []).add(agent);
+    }
+
+    // Depth-first traversal emitting each agent with tree metadata
+    void walk(String? parentId, int depth, List<bool> ancestorIsLast) {
+      final children = childrenOf[parentId] ?? [];
+      for (var i = 0; i < children.length; i++) {
+        final agent = children[i];
+        final isLast = i == children.length - 1;
+        final myAncestorIsLast = [...ancestorIsLast, isLast];
+        items.add(_SidebarItem.agent(agent, depth: depth, ancestorIsLast: myAncestorIsLast));
+        walk(agent.id, depth + 1, myAncestorIsLast);
+      }
+    }
+
+    walk(null, 0, []);
+
+    // If the tree walk didn't place all agents (e.g. orphans whose parent was
+    // already terminated), append them at root level.
+    final placed = items.where((i) => !i.isHeader).map((i) => i.agent!.id).toSet();
+    for (final agent in spawnedAgents) {
+      if (!placed.contains(agent.id)) {
+        items.add(_SidebarItem.agent(agent, depth: 0, ancestorIsLast: const [false]));
       }
     }
 
@@ -243,7 +268,7 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
                       final isSelectedById = selectedAgentId == item.agent!.id;
                       return _buildAgentRow(
                         index,
-                        item.agent!,
+                        item,
                         isSelected,
                         isSelectedById,
                         isHovered,
@@ -295,15 +320,18 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
 
   Component _buildAgentRow(
     int index,
-    VideAgent agent,
+    _SidebarItem item,
     bool isSelected,
     bool isSelectedById,
     bool isHovered,
     VideThemeData theme,
     int availableWidth,
   ) {
+    final agent = item.agent!;
     return _AgentRowItem(
       agent: agent,
+      depth: item.depth,
+      ancestorIsLast: item.ancestorIsLast,
       isSelected: isSelected,
       isSelectedById: isSelectedById,
       isHovered: isHovered,
@@ -323,6 +351,8 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
 /// Stateful widget for individual agent rows with animated spinner
 class _AgentRowItem extends StatefulComponent {
   final VideAgent agent;
+  final int depth;
+  final List<bool> ancestorIsLast;
   final bool isSelected;
   final bool isSelectedById;
   final bool isHovered;
@@ -334,6 +364,8 @@ class _AgentRowItem extends StatefulComponent {
 
   const _AgentRowItem({
     required this.agent,
+    this.depth = 0,
+    this.ancestorIsLast = const [],
     required this.isSelected,
     required this.isSelectedById,
     required this.isHovered,
@@ -405,6 +437,25 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
     };
   }
 
+  /// Builds a box-drawing tree prefix based on depth and which ancestors
+  /// were the last child at their level.
+  ///
+  /// Returns a record with separate tree-line and connector parts so they
+  /// can be styled independently (tree lines dim, connector colored).
+  ({String treeLine, String connector}) _buildTreePrefix(int depth, List<bool> ancestorIsLast) {
+    if (depth == 0) return (treeLine: '', connector: '  '); // root agents: simple indent
+
+    final buffer = StringBuffer();
+    // For ancestor levels between root (index 0) and current, draw
+    // continuation lines or blank space.
+    for (var i = 1; i < depth; i++) {
+      buffer.write(ancestorIsLast[i] ? '   ' : '│  ');
+    }
+    final treeLine = buffer.toString();
+    final connector = ancestorIsLast[depth] ? '└─ ' : '├─ ';
+    return (treeLine: treeLine, connector: connector);
+  }
+
   String _truncateText(String text, int maxLength) {
     if (maxLength <= 3) return text.length <= maxLength ? text : '…';
     if (text.length <= maxLength) return text;
@@ -426,12 +477,17 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
     final actualStatusColor = _getStatusColor(actualStatus, theme.status);
     final statusIndicator = _getStatusIndicator(actualStatus);
 
+    // Build tree prefix from depth and ancestor info
+    final (:treeLine, :connector) = _buildTreePrefix(component.depth, component.ancestorIsLast);
+
     // Build agent name with optional task
     String displayName = component.agent.name;
     if (component.agent.taskName != null && component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
-    displayName = _truncateText(displayName, component.availableWidth - 6);
+    // Account for tree prefix width + status indicator + spacing in truncation
+    final prefixWidth = treeLine.length + connector.length;
+    displayName = _truncateText(displayName, component.availableWidth - prefixWidth - 4);
 
     final bgColor = component.isSelected && component.isFocused
         ? theme.base.primary.withOpacity(0.15)
@@ -456,8 +512,14 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
           decoration: BoxDecoration(color: bgColor),
           child: Row(
             children: [
-              // Status indicator with color
-              Text('  $statusIndicator ', style: TextStyle(color: actualStatusColor)),
+              // Tree lines: continuation lines + connector (dim/subtle)
+              if (treeLine.isNotEmpty || connector.isNotEmpty)
+                Text(
+                  '$treeLine$connector',
+                  style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                ),
+              // Status indicator (colored)
+              Text('$statusIndicator ', style: TextStyle(color: actualStatusColor)),
               // Agent name
               Expanded(
                 child: Text(
@@ -482,8 +544,20 @@ class _SidebarItem {
   final VideAgent? agent;
   final String? headerText;
   final bool isHeader;
+  final int depth;
 
-  _SidebarItem.header(this.headerText) : agent = null, isHeader = true;
+  /// For each depth level, whether the ancestor at that level was the last
+  /// child of its parent. Used to decide between drawing `│` (continuation)
+  /// or blank space in the tree prefix.
+  final List<bool> ancestorIsLast;
 
-  _SidebarItem.agent(this.agent) : headerText = null, isHeader = false;
+  _SidebarItem.header(this.headerText)
+      : agent = null,
+        isHeader = true,
+        depth = 0,
+        ancestorIsLast = const [];
+
+  _SidebarItem.agent(this.agent, {this.depth = 0, this.ancestorIsLast = const []})
+      : headerText = null,
+        isHeader = false;
 }

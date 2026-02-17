@@ -14,12 +14,16 @@ class AgentInfo {
   /// as attribution on regular events.
   final String? status;
 
+  /// ID of the agent that spawned this one (null for main agent).
+  final String? spawnedBy;
+
   const AgentInfo({
     required this.id,
     required this.type,
     required this.name,
     this.taskName,
     this.status,
+    this.spawnedBy,
   });
 
   factory AgentInfo.fromJson(Map<String, dynamic> json) => AgentInfo(
@@ -28,6 +32,7 @@ class AgentInfo {
     name: json['agent-name'] as String? ?? json['name'] as String? ?? 'Agent',
     taskName: json['task-name'] as String?,
     status: json['status'] as String?,
+    spawnedBy: json['spawned-by'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -36,5 +41,6 @@ class AgentInfo {
     'agent-name': name,
     if (taskName != null) 'task-name': taskName,
     if (status != null) 'status': status,
+    if (spawnedBy != null) 'spawned-by': spawnedBy,
   };
 }
