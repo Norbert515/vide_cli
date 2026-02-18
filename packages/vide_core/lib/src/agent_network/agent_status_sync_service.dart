@@ -4,6 +4,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 
 import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
+import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
 import '../models/agent_status.dart';
 import 'agent_status_manager.dart';
@@ -69,12 +70,17 @@ class AgentStatusSyncService {
           // including compaction. 'ready' is only emitted by ClaudeClient
           // when turnComplete is true, so it correctly skips compaction.
           if (currentAgentStatus == AgentStatus.working) {
+            final effectiveStatus = effectiveIdleStatus(agentId);
             VideLogger.instance.debug(
               'AgentStatusSyncService',
-              'Agent $agentId: ClaudeStatus.ready -> setting idle (was working)',
+              'Agent $agentId: ClaudeStatus.ready -> setting ${effectiveStatus.name} (was working)',
               sessionId: _networkId,
             );
-            agentStatusNotifier.setStatus(AgentStatus.idle);
+            agentStatusNotifier.setStatus(effectiveStatus);
+            // If truly idle, cascade up to parent
+            if (effectiveStatus == AgentStatus.idle) {
+              cascadeIdleToParent(agentId);
+            }
             // Check if all agents are now idle
             checkAllAgentsIdle();
           } else {
@@ -97,13 +103,17 @@ class AgentStatusSyncService {
           break;
         case ClaudeStatus.error:
           // On error, set to idle so triggers can fire
-          VideLogger.instance.debug(
-            'AgentStatusSyncService',
-            'Agent $agentId: ClaudeStatus.error -> setting idle (was ${currentAgentStatus.name})',
-            sessionId: _networkId,
-          );
           if (currentAgentStatus == AgentStatus.working) {
-            agentStatusNotifier.setStatus(AgentStatus.idle);
+            final effectiveStatus = effectiveIdleStatus(agentId);
+            VideLogger.instance.debug(
+              'AgentStatusSyncService',
+              'Agent $agentId: ClaudeStatus.error -> setting ${effectiveStatus.name} (was ${currentAgentStatus.name})',
+              sessionId: _networkId,
+            );
+            agentStatusNotifier.setStatus(effectiveStatus);
+            if (effectiveStatus == AgentStatus.idle) {
+              cascadeIdleToParent(agentId);
+            }
             checkAllAgentsIdle();
           }
           break;
@@ -126,6 +136,81 @@ class AgentStatusSyncService {
   void cleanupStatusSync(AgentId agentId) {
     _statusSyncSubscriptions[agentId]?.cancel();
     _statusSyncSubscriptions.remove(agentId);
+  }
+
+  /// Returns [AgentStatus.idle] if the agent has no active children,
+  /// or [AgentStatus.waitingForAgent] if it still has running sub-agents.
+  ///
+  /// This prevents a parent agent from appearing "done" while its children
+  /// are still working.
+  AgentStatus effectiveIdleStatus(AgentId agentId) {
+    if (_hasActiveChildren(agentId)) {
+      VideLogger.instance.debug(
+        'AgentStatusSyncService',
+        'Agent $agentId has active children, using waitingForAgent instead of idle',
+        sessionId: _networkId,
+      );
+      return AgentStatus.waitingForAgent;
+    }
+    return AgentStatus.idle;
+  }
+
+  /// Returns true if [agentId] has any sub-agents that are not idle.
+  bool _hasActiveChildren(AgentId agentId) {
+    final network = _getCurrentNetwork();
+    if (network == null) return false;
+
+    return network.agents.any(
+      (a) => a.spawnedBy == agentId && _getStatus(a.id) != AgentStatus.idle,
+    );
+  }
+
+  /// Called when an agent transitions to idle or is terminated.
+  ///
+  /// Checks if the agent's parent was held in [waitingForAgent] only because
+  /// of active children. If all children are now idle (or removed),
+  /// transitions the parent to idle as well (cascading up the tree).
+  void cascadeIdleToParent(AgentId childAgentId) {
+    final network = _getCurrentNetwork();
+    if (network == null) return;
+
+    // Find the child's parent
+    final childMeta = network.agents.cast<AgentMetadata?>().firstWhere(
+      (a) => a!.id == childAgentId,
+      orElse: () => null,
+    );
+    if (childMeta == null || childMeta.spawnedBy == null) return;
+
+    _tryTransitionParentToIdle(childMeta.spawnedBy!);
+  }
+
+  /// Called when a child agent is terminated and removed from the network.
+  ///
+  /// Since the child no longer exists in the network, we pass the parent ID
+  /// directly instead of looking up the child's metadata.
+  void onChildTerminated(AgentId parentId) {
+    _tryTransitionParentToIdle(parentId);
+  }
+
+  /// Check if [parentId] can transition from waitingForAgent to idle.
+  void _tryTransitionParentToIdle(AgentId parentId) {
+    // Skip trigger-spawned agents
+    if (parentId.startsWith('trigger:')) return;
+
+    final parentStatus = _getStatus(parentId);
+    if (parentStatus != AgentStatus.waitingForAgent) return;
+
+    if (!_hasActiveChildren(parentId)) {
+      VideLogger.instance.debug(
+        'AgentStatusSyncService',
+        'All children of $parentId are idle/terminated, cascading idle to parent',
+        sessionId: _networkId,
+      );
+      _getStatusNotifier(parentId).setStatus(AgentStatus.idle);
+      checkAllAgentsIdle();
+      // Recurse up the tree
+      cascadeIdleToParent(parentId);
+    }
   }
 
   /// Check if all NON-TRIGGERED agents are idle and fire the trigger if so.

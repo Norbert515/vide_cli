@@ -5,7 +5,6 @@ import '../../logging/vide_logger.dart';
 import '../../models/agent_id.dart';
 import '../../models/agent_status.dart';
 import '../../agent_network/agent_network_manager.dart';
-import '../../team_framework/trigger_service.dart';
 import '../../agent_network/agent_status_manager.dart';
 import 'package:riverpod/riverpod.dart';
 
@@ -18,8 +17,6 @@ final ProviderFamily<AgentMCPServer, AgentId> agentServerProvider =
     callerAgentId: agentId,
     networkManager: ref.watch(agentNetworkManagerProvider.notifier),
     getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
-    getStatus: (id) => ref.read(agentStatusProvider(id)),
-    getTriggerService: () => ref.read(triggerServiceProvider),
   );
 });
 
@@ -36,19 +33,13 @@ class AgentMCPServer extends McpServerBase {
   final AgentId callerAgentId;
   final AgentNetworkManager _networkManager;
   final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
-  final AgentStatus Function(AgentId) _getStatus;
-  final TriggerService Function() _getTriggerService;
 
   AgentMCPServer({
     required this.callerAgentId,
     required AgentNetworkManager networkManager,
     required AgentStatusNotifier Function(AgentId) getStatusNotifier,
-    required AgentStatus Function(AgentId) getStatus,
-    required TriggerService Function() getTriggerService,
   }) : _networkManager = networkManager,
        _getStatusNotifier = getStatusNotifier,
-       _getStatus = getStatus,
-       _getTriggerService = getTriggerService,
        super(name: serverName, version: '1.0.0');
 
   @override
@@ -277,16 +268,23 @@ Call this when:
         );
 
         try {
-          _getStatusNotifier(callerAgentId).setStatus(status);
-
-          // If agent became idle, check if all agents are now idle
+          AgentStatus effectiveStatus;
           if (status == AgentStatus.idle) {
-            _checkAllAgentsIdle();
+            // Delegate to unified logic: guards against active children,
+            // cascades to parent, and checks the all-idle trigger.
+            effectiveStatus = _networkManager.setAgentIdleStatus(
+              callerAgentId,
+            );
+          } else {
+            effectiveStatus = status;
+            _getStatusNotifier(callerAgentId).setStatus(status);
           }
 
           return CallToolResult.fromContent(
             content: [
-              TextContent(text: 'Agent status updated to: "$statusStr"'),
+              TextContent(
+                text: 'Agent status updated to: "${effectiveStatus.name}"',
+              ),
             ],
           );
         } catch (e, stackTrace) {
@@ -307,53 +305,6 @@ Call this when:
     );
   }
 
-  /// Check if all agents in the network are idle, and fire trigger if so.
-  void _checkAllAgentsIdle() {
-    final network = _networkManager.currentState.currentNetwork;
-    if (network == null) return;
-
-    // Check status of all agents
-    var allIdle = true;
-    for (final agent in network.agents) {
-      final status = _getStatus(agent.id);
-      if (status != AgentStatus.idle) {
-        allIdle = false;
-        break;
-      }
-    }
-
-    VideLogger.instance.debug(
-      'AgentMCPServer',
-      '_checkAllAgentsIdle: allIdle=$allIdle agentCount=${network.agents.length}',
-      sessionId: network.id,
-    );
-
-    if (allIdle && network.agents.isNotEmpty) {
-      VideLogger.instance.info(
-        'AgentMCPServer',
-        'All ${network.agents.length} agents are idle, firing onAllAgentsIdle trigger',
-        sessionId: network.id,
-      );
-      // Fire trigger in background (don't block the tool response)
-      () async {
-        try {
-          final triggerService = _getTriggerService();
-          final context = TriggerContext(
-            triggerPoint: TriggerPoint.onAllAgentsIdle,
-            network: network,
-            teamName: network.team,
-          );
-          await triggerService.fire(context);
-        } catch (e) {
-          VideLogger.instance.error(
-            'AgentMCPServer',
-            'Error firing onAllAgentsIdle trigger: $e',
-            sessionId: network.id,
-          );
-        }
-      }();
-    }
-  }
 
   void _registerTerminateAgentTool(McpServer server) {
     server.tool(

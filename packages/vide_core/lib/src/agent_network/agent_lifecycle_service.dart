@@ -256,6 +256,12 @@ $initialPrompt''';
         sessionId: sessionId,
       );
     }
+
+    // If the terminated agent had a parent, check if the parent can now
+    // transition from waitingForAgent to idle.
+    if (targetAgent.spawnedBy != null) {
+      _statusSyncService.onChildTerminated(targetAgent.spawnedBy!);
+    }
   }
 
   /// Fork an existing agent, creating a new agent with the same conversation context.

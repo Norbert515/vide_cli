@@ -609,6 +609,23 @@ $message''';
     );
   }
 
+  /// Set an agent to idle, guarding against active children.
+  ///
+  /// If the agent still has running sub-agents, sets [AgentStatus.waitingForAgent]
+  /// instead of idle. If truly idle, cascades up the parent chain and checks
+  /// the all-agents-idle trigger.
+  ///
+  /// Returns the effective status that was set.
+  AgentStatus setAgentIdleStatus(AgentId agentId) {
+    final effective = _statusSyncService.effectiveIdleStatus(agentId);
+    _getStatusNotifier(agentId).setStatus(effective);
+    if (effective == AgentStatus.idle) {
+      _statusSyncService.cascadeIdleToParent(agentId);
+      _statusSyncService.checkAllAgentsIdle();
+    }
+    return effective;
+  }
+
   /// Fork an existing agent, creating a new agent with the same conversation context.
   ///
   /// Uses Claude Code's native --fork-session capability to branch the conversation.
