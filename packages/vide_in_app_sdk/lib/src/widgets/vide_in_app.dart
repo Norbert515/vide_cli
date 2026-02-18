@@ -1,8 +1,15 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:vide_client/vide_client.dart';
+
+import 'package:vide_mobile/core/theme/app_theme.dart';
+import 'package:vide_mobile/core/theme/tokens.dart';
+import 'package:vide_mobile/core/theme/vide_colors.dart';
+import 'package:vide_mobile/features/chat/widgets/chat_helpers.dart';
 
 import '../services/screenshot_service.dart';
 import '../services/voice_input_service.dart';
@@ -10,22 +17,29 @@ import '../state/sdk_state.dart';
 import 'chat_panel.dart';
 import 'screenshot_canvas.dart';
 
-/// Height of the collapsed bottom handle bar.
-const _kHandleBarHeight = 28.0;
+/// Height of the peek bar (handle + status row).
+const _kPeekHeight = 72.0;
 
-/// Fraction of screen height the dev tools area occupies when expanded.
-const _kExpandedFraction = 0.55;
+/// Max padding around the user's app when the sheet is fully expanded.
+const _kExpandedPadding = 8.0;
 
-/// Padding around the user's app when the dev tools are expanded.
-const _kExpandedPadding = 6.0;
+/// Max corner radius for the user's app when the sheet is fully expanded.
+const _kAppCornerRadius = 16.0;
 
-/// Corner radius for the user's app when encapsulated.
-const _kAppCornerRadius = 12.0;
+/// Half-screen snap fraction.
+const _kHalfFraction = 0.5;
+
+/// Full-screen snap fraction.
+const _kFullFraction = 0.95;
+
+/// Top corner radius for the sheet surface.
+const _kSheetRadius = 16.0;
 
 /// Embeds your Flutter app inside the Vide dev environment.
 ///
-/// A minimal bottom handle bar is always visible. Tapping it expands the
-/// dev-tools panel (chat, screenshots) upward, shrinking the user's app.
+/// A compact peek bar is always visible at the bottom showing the latest
+/// activity. Drag up to half screen for the full chat, or full screen for
+/// maximum space. The user's app scales down smoothly as the sheet expands.
 ///
 /// ```dart
 /// VideInApp(
@@ -35,9 +49,9 @@ const _kAppCornerRadius = 12.0;
 ///
 /// Programmatic control:
 /// ```dart
-/// VideInApp.of(context).show();   // expand
-/// VideInApp.of(context).hide();   // collapse
-/// VideInApp.of(context).toggle(); // toggle
+/// VideInApp.of(context).show();   // expand to half
+/// VideInApp.of(context).hide();   // collapse to peek
+/// VideInApp.of(context).toggle(); // toggle peek <-> half
 /// ```
 class VideInApp extends StatefulWidget {
   final Widget child;
@@ -63,29 +77,34 @@ class VideInAppController {
 
   VideInAppController._(this._state);
 
-  void show() => _state._expand();
-  void hide() => _state._collapse();
+  void show() => _state._animateToHalf();
+  void hide() => _state._animateToPeek();
   void toggle() => _state._toggle();
   Future<void> captureScreenshot() => _state._captureScreenshot();
   VideSdkState get sdkState => _state._sdkState;
 }
 
-class _VideInAppState extends State<VideInApp>
-    with SingleTickerProviderStateMixin {
+class _VideInAppState extends State<VideInApp> {
   late final VideSdkState _sdkState;
   late final ScreenshotService _screenshotService;
   late final VoiceInputService _voiceService;
   late final VideInAppController _controller;
+  late final DraggableScrollableController _sheetController;
 
   final GlobalKey _repaintBoundaryKey = GlobalKey();
 
-  bool _expanded = false;
   bool _screenshotMode = false;
   ui.Image? _capturedScreenshot;
   Uint8List? _pendingScreenshotBytes;
 
-  late final AnimationController _expandController;
-  late final CurvedAnimation _expandCurve;
+  /// Sheet size saved before entering screenshot mode, so we can restore it.
+  double? _preScreenshotSize;
+
+  /// Controls the fade animation for the screenshot overlay.
+  bool _screenshotVisible = false;
+
+  /// Cached peek fraction — computed from screen height in build.
+  double _peekFraction = 0.1;
 
   @override
   void initState() {
@@ -98,85 +117,163 @@ class _VideInAppState extends State<VideInApp>
     );
     _voiceService = VoiceInputService();
     _controller = VideInAppController._(this);
+    _sheetController = DraggableScrollableController();
 
-    _expandController = AnimationController(
-      duration: const Duration(milliseconds: 300),
-      vsync: this,
-    );
-    _expandCurve = CurvedAnimation(
-      parent: _expandController,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
+    // Auto-expand once config is loaded so the initial prompt is visible.
+    _sdkState.addListener(_autoExpandOnConfigured);
+  }
+
+  void _autoExpandOnConfigured() {
+    if (_sdkState.isConfigured) {
+      _sdkState.removeListener(_autoExpandOnConfigured);
+      // Wait for layout so _sheetController is attached
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _animateToHalf();
+      });
+    }
   }
 
   @override
   void dispose() {
-    _expandController.dispose();
+    _sdkState.removeListener(_autoExpandOnConfigured);
+    _sheetController.dispose();
     _sdkState.dispose();
     _voiceService.dispose();
     _capturedScreenshot?.dispose();
     super.dispose();
   }
 
-  void _expand() {
-    setState(() => _expanded = true);
-    _expandController.forward();
+  void _animateToPeek() {
+    if (_sheetController.isAttached) {
+      _sheetController.animateTo(
+        _peekFraction,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
-  void _collapse() {
-    _expandController.reverse().then((_) {
-      if (mounted) setState(() => _expanded = false);
-    });
+  void _animateToHalf() {
+    if (_sheetController.isAttached) {
+      _sheetController.animateTo(
+        _kHalfFraction,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _animateToFull() {
+    if (_sheetController.isAttached) {
+      _sheetController.animateTo(
+        _kFullFraction,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    }
   }
 
   void _toggle() {
-    if (_expanded) {
-      _collapse();
+    if (!_sheetController.isAttached) return;
+    final size = _sheetController.size;
+    if (size > _peekFraction + 0.05) {
+      _animateToPeek();
     } else {
-      _expand();
+      _animateToHalf();
     }
   }
 
+  bool get _isExpanded =>
+      _sheetController.isAttached &&
+      _sheetController.size > _peekFraction + 0.05;
+
   Future<void> _captureScreenshot() async {
-    final wasExpanded = _expanded;
+    // Remember where the sheet was so we can restore after confirm/cancel.
+    _preScreenshotSize =
+        _sheetController.isAttached ? _sheetController.size : null;
+
+    final wasExpanded = _isExpanded;
     if (wasExpanded) {
-      setState(() => _expanded = false);
-      _expandController.value = 0;
+      _animateToPeek();
+      // Wait for the collapse animation to finish before capturing.
+      await Future.delayed(const Duration(milliseconds: 350));
     }
 
-    await Future.delayed(const Duration(milliseconds: 50));
+    if (!mounted) return;
 
     try {
       final image = await _screenshotService.capture();
+      if (!mounted) return;
+      // Show the overlay (opacity 0) then trigger fade-in next frame.
       setState(() {
         _capturedScreenshot = image;
         _screenshotMode = true;
+        _screenshotVisible = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _screenshotVisible = true);
       });
     } catch (e) {
       if (wasExpanded && mounted) {
-        _expand();
+        _restorePreScreenshotPosition();
       }
     }
   }
 
   void _onScreenshotConfirm(Uint8List bytes) {
-    _capturedScreenshot?.dispose();
-    setState(() {
-      _capturedScreenshot = null;
-      _screenshotMode = false;
-      _pendingScreenshotBytes = bytes;
-    });
-    _expand();
+    _pendingScreenshotBytes = bytes;
+    _dismissScreenshotOverlay();
   }
 
   void _onScreenshotCancel() {
-    _capturedScreenshot?.dispose();
-    setState(() {
-      _capturedScreenshot = null;
-      _screenshotMode = false;
+    _dismissScreenshotOverlay();
+  }
+
+  /// Fades out the screenshot overlay, then removes it and restores the sheet.
+  void _dismissScreenshotOverlay() {
+    // Start the fade-out.
+    setState(() => _screenshotVisible = false);
+
+    // After the fade-out animation completes, tear down the overlay and
+    // animate the sheet back to the pre-screenshot position.
+    Future.delayed(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      _capturedScreenshot?.dispose();
+      setState(() {
+        _capturedScreenshot = null;
+        _screenshotMode = false;
+      });
+      _restorePreScreenshotPosition();
     });
-    _expand();
+  }
+
+  /// Animate back to the sheet position saved before screenshot capture.
+  ///
+  /// Falls back to half screen if nothing was saved (e.g. first screenshot).
+  void _restorePreScreenshotPosition() {
+    final target = _preScreenshotSize ?? _kHalfFraction;
+    _preScreenshotSize = null;
+
+    // Snap to the nearest detent to avoid landing between snap points.
+    final double snapTarget;
+    if (target <= _peekFraction + 0.05) {
+      snapTarget = _kHalfFraction; // Don't restore to peek — show the input
+    } else if (target < (_kHalfFraction + _kFullFraction) / 2) {
+      snapTarget = _kHalfFraction;
+    } else {
+      snapTarget = _kFullFraction;
+    }
+
+    // Defer to next frame — the sheet may not be attached yet after setState
+    // removes the screenshot overlay and re-exposes the draggable sheet.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_sheetController.isAttached) return;
+      _sheetController.animateTo(
+        snapTarget,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    });
   }
 
   @override
@@ -199,82 +296,94 @@ class _VideInAppState extends State<VideInApp>
 
   Widget _buildMainLayout(BuildContext context) {
     final screenHeight = MediaQuery.maybeOf(context)?.size.height ?? 800;
-    final expandedHeight = screenHeight * _kExpandedFraction;
+    _peekFraction = (_kPeekHeight / screenHeight).clamp(0.05, 0.15);
 
     return Stack(
       children: [
-        AnimatedBuilder(
-          animation: _expandCurve,
-          builder: (context, _) {
-            final t = _expandCurve.value;
-            final bottomHeight =
-                _kHandleBarHeight + (expandedHeight - _kHandleBarHeight) * t;
-            final padding = t * _kExpandedPadding;
-            final radius = t * _kAppCornerRadius;
+        // User's app — shrinks as sheet expands
+        Positioned.fill(
+          child: ListenableBuilder(
+            listenable: _sheetController,
+            builder: (context, child) {
+              final screenHeight =
+                  MediaQuery.maybeOf(context)?.size.height ?? 800;
+              final size = _sheetController.isAttached
+                  ? _sheetController.size
+                  : _peekFraction;
 
-            return Container(
-              color: const Color(0xFF111118),
-              child: Column(
-                children: [
-                  // User's app
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: padding,
-                        right: padding,
-                        top: padding,
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(radius),
-                        child: RepaintBoundary(
-                          key: _repaintBoundaryKey,
-                          child: widget.child,
-                        ),
-                      ),
-                    ),
+              // t goes from 0 (peek) to 1 (full)
+              final t =
+                  ((size - _peekFraction) / (_kFullFraction - _peekFraction))
+                      .clamp(0.0, 1.0);
+
+              // Side/top padding and radius scale with t
+              final sidePadding = t * _kExpandedPadding;
+              final radius = t * _kAppCornerRadius;
+
+              // Bottom space = actual sheet height in pixels
+              final sheetPixels = size * screenHeight;
+
+              return Container(
+                color: const Color(0xFF111118),
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: sidePadding,
+                    right: sidePadding,
+                    top: sidePadding,
+                    bottom: sheetPixels,
                   ),
-                  // Dev tools area (bottom)
-                  SizedBox(
-                    height: bottomHeight,
-                    child: _OverlayMaterialShell(
-                      child: Column(
-                        children: [
-                          _HandleBar(
-                            expanded: _expanded,
-                            onToggle: _toggle,
-                            sdkState: _sdkState,
-                          ),
-                          if (t > 0)
-                            Expanded(
-                              child: VideChatPanel(
-                                sdkState: _sdkState,
-                                voiceService: _voiceService,
-                                onScreenshotRequest: _captureScreenshot,
-                                pendingScreenshot: _pendingScreenshotBytes,
-                                onClearScreenshot: () {
-                                  setState(
-                                    () => _pendingScreenshotBytes = null,
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(radius),
+                    child: child!,
                   ),
-                ],
+                ),
+              );
+            },
+            child: RepaintBoundary(
+              key: _repaintBoundaryKey,
+              child: widget.child,
+            ),
+          ),
+        ),
+
+        // Draggable sheet
+        DraggableScrollableSheet(
+          controller: _sheetController,
+          initialChildSize: _peekFraction,
+          minChildSize: _peekFraction,
+          maxChildSize: _kFullFraction,
+          snapSizes: [_peekFraction, _kHalfFraction],
+          snap: true,
+          builder: (context, scrollController) {
+            return _OverlayMaterialShell(
+              child: _SheetContent(
+                sdkState: _sdkState,
+                voiceService: _voiceService,
+                sheetController: _sheetController,
+                scrollController: scrollController,
+                peekFraction: _peekFraction,
+                onScreenshotRequest: _captureScreenshot,
+                pendingScreenshot: _pendingScreenshotBytes,
+                onClearScreenshot: () {
+                  setState(() => _pendingScreenshotBytes = null);
+                },
               ),
             );
           },
         ),
 
-        // Screenshot annotation canvas
+        // Screenshot annotation canvas — fades in/out
         if (_screenshotMode && _capturedScreenshot != null)
           Positioned.fill(
-            child: ScreenshotCanvas(
-              screenshot: _capturedScreenshot!,
-              onConfirm: _onScreenshotConfirm,
-              onCancel: _onScreenshotCancel,
+            child: AnimatedOpacity(
+              opacity: _screenshotVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeInOut,
+              child: ScreenshotCanvas(
+                screenshot: _capturedScreenshot!,
+                onConfirm: _onScreenshotConfirm,
+                onCancel: _onScreenshotCancel,
+              ),
             ),
           ),
       ],
@@ -282,95 +391,310 @@ class _VideInAppState extends State<VideInApp>
   }
 }
 
-/// Bottom handle bar with Vide branding and connection status.
-class _HandleBar extends StatelessWidget {
-  final bool expanded;
-  final VoidCallback onToggle;
+/// Sheet content — switches between peek bar and full chat based on size.
+class _SheetContent extends StatelessWidget {
   final VideSdkState sdkState;
+  final VoiceInputService voiceService;
+  final DraggableScrollableController sheetController;
+  final ScrollController scrollController;
+  final double peekFraction;
+  final VoidCallback? onScreenshotRequest;
+  final Uint8List? pendingScreenshot;
+  final VoidCallback? onClearScreenshot;
 
-  const _HandleBar({
-    required this.expanded,
-    required this.onToggle,
+  const _SheetContent({
     required this.sdkState,
+    required this.voiceService,
+    required this.sheetController,
+    required this.scrollController,
+    required this.peekFraction,
+    this.onScreenshotRequest,
+    this.pendingScreenshot,
+    this.onClearScreenshot,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onToggle,
-      child: SizedBox(
-        height: _kHandleBarHeight,
-        child: Row(
-          children: [
-            const SizedBox(width: 12),
-            // Connection dot
-            ListenableBuilder(
-              listenable: sdkState,
-              builder: (context, _) {
-                final color = switch (sdkState.connectionState) {
-                  VideSdkConnectionState.connected => const Color(0xFF4ADE80),
-                  VideSdkConnectionState.connecting => const Color(0xFFFBBF24),
-                  VideSdkConnectionState.error => const Color(0xFFF87171),
-                  VideSdkConnectionState.disconnected => const Color(
-                    0xFF6B7280,
-                  ),
-                };
-                return Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'vide',
-              style: TextStyle(
-                color: const Color(0xFF9CA3AF),
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.5,
+    return ListenableBuilder(
+      listenable: sheetController,
+      builder: (context, _) {
+        final size =
+            sheetController.isAttached ? sheetController.size : peekFraction;
+
+        // t: 0 at peek, 1 when halfway to half-screen snap.
+        // This gives a smooth fade zone between peek and expanded.
+        final midpoint = peekFraction + (_kHalfFraction - peekFraction) * 0.5;
+        final t =
+            ((size - peekFraction) / (midpoint - peekFraction)).clamp(0.0, 1.0);
+
+        // The sheet's scrollController MUST be attached to a scrollable that
+        // fills the sheet. We use a CustomScrollView so the grab handle and
+        // peek row are part of the same scrollable, and when at the top edge,
+        // further dragging moves the sheet itself.
+        return CustomScrollView(
+          controller: scrollController,
+          slivers: [
+            // Grab handle — always visible
+            const SliverToBoxAdapter(child: _GrabHandle()),
+
+            // Peek status — fades out as sheet expands
+            SliverToBoxAdapter(
+              child: Opacity(
+                opacity: 1.0 - t,
+                child: t < 1.0
+                    ? _PeekStatusRow(sdkState: sdkState)
+                    : const SizedBox.shrink(),
               ),
             ),
-            const Spacer(),
-            AnimatedRotation(
-              turns: expanded ? 0.5 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Icon(
-                Icons.expand_less_rounded,
-                color: const Color(0xFF6B7280),
-                size: 18,
-              ),
+
+            // Chat content — fades in as sheet expands
+            SliverFillRemaining(
+              hasScrollBody: true,
+              child: Opacity(
+                opacity: t,
+                child: t > 0.0
+                    ? IgnorePointer(
+                        ignoring: t < 1.0,
+                        child: VideChatPanel(
+                          sdkState: sdkState,
+                          voiceService: voiceService,
+                          onScreenshotRequest: onScreenshotRequest,
+                          pendingScreenshot: pendingScreenshot,
+                          onClearScreenshot: onClearScreenshot,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+                ),
             ),
-            const SizedBox(width: 12),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// Grab handle pill at the top of the sheet.
+class _GrabHandle extends StatelessWidget {
+  const _GrabHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Container(
+          width: 36,
+          height: 4,
+          decoration: BoxDecoration(
+            color: const Color(0xFF6B7280),
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
       ),
     );
   }
 }
 
+/// Compact status row shown in the peek bar.
+///
+/// Shows connection dot + latest activity (tool name, typing, or message).
+class _PeekStatusRow extends StatelessWidget {
+  final VideSdkState sdkState;
+
+  const _PeekStatusRow({required this.sdkState});
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return ListenableBuilder(
+      listenable: sdkState,
+      builder: (context, _) {
+        final session = sdkState.session;
+        final isProcessing = sdkState.videState?.isProcessing ?? false;
+
+        // Connection dot color
+        final Color dotColor;
+        if (session != null) {
+          dotColor = switch (sdkState.connectionState) {
+            VideSdkConnectionState.connected => videColors.success,
+            VideSdkConnectionState.connecting => videColors.warning,
+            VideSdkConnectionState.error => videColors.error,
+            VideSdkConnectionState.disconnected => videColors.textTertiary,
+          };
+        } else {
+          final reachable = sdkState.serverReachable;
+          dotColor = reachable == null
+              ? videColors.warning
+              : reachable
+                  ? videColors.success
+                  : videColors.error;
+        }
+
+        // Status text + icon
+        final (String label, IconData? icon) = _resolveStatus(
+          session: session,
+          isProcessing: isProcessing,
+        );
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.md,
+            vertical: 4,
+          ),
+          child: Row(
+            children: [
+              // Connection dot
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Status
+              if (icon != null) ...[
+                Icon(icon, size: 14, color: videColors.textSecondary),
+                const SizedBox(width: 6),
+              ],
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: videColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  (String, IconData?) _resolveStatus({
+    required RemoteVideSession? session,
+    required bool isProcessing,
+  }) {
+    if (session == null) {
+      return ('vide', null);
+    }
+
+    final mainAgent = session.state.mainAgent;
+    if (mainAgent == null) {
+      return ('Starting...', null);
+    }
+
+    // Get the latest visible content from the main agent's conversation
+    final conversation = session.getConversation(mainAgent.id);
+    final messages = conversation?.messages ?? [];
+
+    // Always show the most recent concrete activity.
+    // The icon reflects whether the agent is still working or done.
+    final latestTool = _findLatestTool(messages);
+    if (latestTool != null) {
+      final name = toolDisplayName(latestTool.toolName);
+      final subtitle = toolSubtitle(latestTool.toolName, latestTool.toolInput);
+      final display = subtitle != null ? '$name  $subtitle' : name;
+      final IconData icon;
+      if (latestTool.result == null) {
+        // Tool is in progress
+        icon = Icons.play_arrow;
+      } else if (latestTool.isError) {
+        icon = Icons.error_outline;
+      } else if (isProcessing) {
+        // Tool completed but agent is still working (thinking / next step)
+        icon = Icons.play_arrow;
+      } else {
+        icon = Icons.check;
+      }
+      return (display, icon);
+    }
+
+    // No tools — show last text snippet
+    final lastText = _findLatestText(messages);
+    if (lastText != null) {
+      final firstLine = lastText.text.split('\n').first;
+      return (firstLine, isProcessing ? Icons.play_arrow : null);
+    }
+
+    if (isProcessing) {
+      return ('Working...', null);
+    }
+
+    return ('Ready', null);
+  }
+
+  ToolContent? _findLatestTool(List<ConversationEntry> messages) {
+    for (final entry in messages.reversed) {
+      for (final content in entry.content.reversed) {
+        if (content is ToolContent && !isHiddenTool(content)) {
+          return content;
+        }
+      }
+    }
+    return null;
+  }
+
+  TextContent? _findLatestText(List<ConversationEntry> messages) {
+    for (final entry in messages.reversed) {
+      if (entry.role != 'assistant') continue;
+      for (final content in entry.content.reversed) {
+        if (content is TextContent && content.text.isNotEmpty) {
+          return content;
+        }
+      }
+    }
+    return null;
+  }
+}
+
 /// Provides Material infrastructure for widgets outside the user's MaterialApp.
+///
+/// Uses the Vide dark theme (matching vide_mobile) so that all widgets
+/// inside the panel can use `Theme.of(context).extension<VideThemeColors>()!`.
 class _OverlayMaterialShell extends StatelessWidget {
   final Widget child;
   const _OverlayMaterialShell({required this.child});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF6366F1),
-        useMaterial3: true,
-        brightness: Brightness.dark,
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(_kSheetRadius),
       ),
-      home: Scaffold(body: child),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.darkTheme(),
+        // Enable mouse-drag scrolling on desktop so DraggableScrollableSheet
+        // can be dragged with a mouse click on macOS/Windows/Linux.
+        scrollBehavior: const _DesktopDragScrollBehavior(),
+        home: Scaffold(body: child),
+      ),
     );
   }
+}
+
+/// Scroll behavior that allows mouse drag to scroll on desktop platforms.
+///
+/// By default, Flutter only allows touch and stylus to initiate drag-scroll.
+/// This adds [PointerDeviceKind.mouse] so that click-and-drag on macOS /
+/// Windows / Linux drives the [DraggableScrollableSheet].
+class _DesktopDragScrollBehavior extends MaterialScrollBehavior {
+  const _DesktopDragScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.mouse,
+      };
 }
 
 /// Full-screen setup page shown before the server is configured.

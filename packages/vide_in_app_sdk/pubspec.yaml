@@ -10,7 +10,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  vide_client: any
-  vide_interface: any
+  vide_client:
+    path: ../vide_client
+  vide_mobile:
+    path: ../vide_mobile
   speech_to_text: ^7.0.0
   shared_preferences: ^2.2.0
+
+dependency_overrides:
+  vide_interface:
+    path: ../vide_interface

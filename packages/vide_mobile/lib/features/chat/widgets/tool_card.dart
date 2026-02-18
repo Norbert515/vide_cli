@@ -5,6 +5,7 @@ import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
+import 'chat_helpers.dart';
 
 /// Braille spinner for in-progress tool calls.
 class _BrailleSpinner extends StatefulWidget {
@@ -89,8 +90,8 @@ class ToolCard extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = _toolDisplayName(tool.toolName);
-    final subtitle = _toolSubtitle(tool);
+    final displayName = toolDisplayName(tool.toolName);
+    final subtitle = toolSubtitle(tool.toolName, tool.toolInput);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -168,56 +169,6 @@ class ToolCard extends StatelessWidget {
   }
 }
 
-/// Extracts a human-friendly display name from a raw tool name.
-String _toolDisplayName(String toolName) {
-  // Strip MCP prefixes like "mcp__vide-agent__" or "mcp__flutter-runtime__"
-  final mcpPrefix = RegExp(r'^mcp__[^_]+__');
-  final stripped = toolName.replaceFirst(mcpPrefix, '');
-  return stripped;
-}
-
-/// Extracts a contextual subtitle from the tool input.
-String? _toolSubtitle(ToolContent tool) {
-  final input = tool.toolInput;
-  final toolName = _toolDisplayName(tool.toolName);
-
-  switch (toolName) {
-    case 'Read':
-      return input['file_path'] as String?;
-    case 'Edit':
-      return input['file_path'] as String?;
-    case 'Write':
-      return input['file_path'] as String?;
-    case 'Bash':
-      final cmd = input['command'] as String?;
-      return cmd;
-    case 'Grep':
-      final pattern = input['pattern'] as String?;
-      final path = input['path'] as String?;
-      if (pattern != null && path != null) return '"$pattern" in $path';
-      return pattern != null ? '"$pattern"' : null;
-    case 'Glob':
-      return input['pattern'] as String?;
-    case 'WebFetch':
-      return input['url'] as String?;
-    case 'WebSearch':
-      return input['query'] as String?;
-    case 'TodoWrite':
-      return null;
-    case 'Task':
-      return input['description'] as String?;
-    case 'NotebookEdit':
-      return input['notebook_path'] as String?;
-    default:
-      // For unknown tools, try common field names
-      return input['file_path'] as String? ??
-          input['command'] as String? ??
-          input['pattern'] as String? ??
-          input['query'] as String? ??
-          input['description'] as String?;
-  }
-}
-
 /// Full-screen detail view for a tool invocation.
 class ToolDetailScreen extends StatelessWidget {
   final ToolContent tool;
@@ -240,7 +191,7 @@ class ToolDetailScreen extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = _toolDisplayName(tool.toolName);
+    final displayName = toolDisplayName(tool.toolName);
 
     return Scaffold(
       appBar: AppBar(

@@ -26,6 +26,9 @@ class VideSdkState extends ChangeNotifier {
   VideSdkConnectionState _connectionState = VideSdkConnectionState.disconnected;
   String? _errorMessage;
   StreamSubscription<VideEvent>? _eventSubscription;
+  PlanApprovalRequestEvent? _pendingPlanApproval;
+  AskUserQuestionEvent? _pendingAskUserQuestion;
+  final List<PermissionRequestEvent> _pendingPermissions = [];
 
   VideSdkState({String? host, int? port, String? workingDirectory})
     : _host = host,
@@ -44,18 +47,96 @@ class VideSdkState extends ChangeNotifier {
 
   VideSdkConnectionState get connectionState => _connectionState;
   String? get errorMessage => _errorMessage;
+
+  /// A [VideClient] for API calls (filesystem, git, etc.).
+  ///
+  /// Available whenever host and port are configured, regardless of session
+  /// state.
+  VideClient? get client =>
+      _host != null && _port != null ? VideClient(host: _host!, port: _port!) : null;
   RemoteVideSession? get session => _session;
   VideState? get videState => _session?.state;
   bool get hasActiveSession =>
       _session != null && _connectionState == VideSdkConnectionState.connected;
 
+  PlanApprovalRequestEvent? get pendingPlanApproval => _pendingPlanApproval;
+  AskUserQuestionEvent? get pendingAskUserQuestion => _pendingAskUserQuestion;
+  PermissionRequestEvent? get currentPermission => _pendingPermissions.firstOrNull;
+
+  void dequeuePermission() {
+    if (_pendingPermissions.isNotEmpty) {
+      _pendingPermissions.removeAt(0);
+      notifyListeners();
+    }
+  }
+
+  void _removePermissionByRequestId(String requestId) {
+    _pendingPermissions.removeWhere((r) => r.requestId == requestId);
+    notifyListeners();
+  }
+
+  /// Whether the server health check has passed (server is reachable).
+  /// null = not checked yet, true = reachable, false = unreachable.
+  bool? _serverReachable;
+  bool? get serverReachable => _serverReachable;
+
+  /// Sessions from the server filtered to the configured working directory.
+  List<SessionSummary> _sessions = [];
+  List<SessionSummary> get sessions => _sessions;
+  bool _sessionsFetched = false;
+  bool get sessionsFetched => _sessionsFetched;
+
   /// Load persisted configuration from shared preferences.
+  ///
+  /// Also kicks off a background health check if configured.
   Future<void> loadConfig() async {
     final prefs = await SharedPreferences.getInstance();
     _host ??= prefs.getString(_kHostKey);
     _port ??= prefs.getInt(_kPortKey);
     _workingDirectory ??= prefs.getString(_kWorkingDirKey);
     notifyListeners();
+
+    if (isConfigured) {
+      unawaited(checkServerHealth());
+    }
+  }
+
+  /// Check if the configured server is reachable.
+  ///
+  /// If reachable, also fetches the session list for the working directory.
+  Future<void> checkServerHealth() async {
+    if (_host == null || _port == null) return;
+
+    _serverReachable = null;
+    notifyListeners();
+
+    final reachable = await testConnection(host: _host!, port: _port!);
+    _serverReachable = reachable;
+    notifyListeners();
+
+    if (reachable) {
+      unawaited(fetchSessions());
+    }
+  }
+
+  /// Fetch sessions from the server filtered to the configured working directory.
+  Future<void> fetchSessions() async {
+    if (_host == null || _port == null || _workingDirectory == null) return;
+
+    final client = VideClient(host: _host!, port: _port!);
+    try {
+      final all = await client.listSessions();
+      _sessions = all
+          .where((s) =>
+              s.workingDirectory == _workingDirectory &&
+              s.state == 'ready')
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _sessionsFetched = true;
+      notifyListeners();
+    } catch (_) {
+      // Non-critical — leave list empty
+    }
   }
 
   /// Update and persist configuration.
@@ -75,7 +156,10 @@ class VideSdkState extends ChangeNotifier {
 
     // Disconnect any existing session since config changed
     await disconnect();
+    _serverReachable = null;
     notifyListeners();
+
+    unawaited(checkServerHealth());
   }
 
   /// Test connection to a server by checking its health endpoint.
@@ -147,7 +231,28 @@ class VideSdkState extends ChangeNotifier {
 
   void _setupEventListening() {
     _eventSubscription?.cancel();
-    _eventSubscription = _session?.events.listen((_) {
+    _eventSubscription = _session?.events.listen((event) {
+      switch (event) {
+        case PermissionRequestEvent():
+          _pendingPermissions.add(event);
+        case PermissionResolvedEvent(:final requestId):
+          _removePermissionByRequestId(requestId);
+          return; // already notified in helper
+        case PlanApprovalRequestEvent():
+          _pendingPlanApproval = event;
+        case PlanApprovalResolvedEvent(:final requestId):
+          if (_pendingPlanApproval?.requestId == requestId) {
+            _pendingPlanApproval = null;
+          }
+        case AskUserQuestionEvent():
+          _pendingAskUserQuestion = event;
+        case AskUserQuestionResolvedEvent(:final requestId):
+          if (_pendingAskUserQuestion?.requestId == requestId) {
+            _pendingAskUserQuestion = null;
+          }
+        default:
+          break;
+      }
       notifyListeners();
     });
 
@@ -163,8 +268,12 @@ class VideSdkState extends ChangeNotifier {
   }
 
   /// Respond to a permission request.
-  void respondToPermission(String requestId, {required bool allow}) {
-    _session?.respondToPermission(requestId, allow: allow);
+  void respondToPermission(
+    String requestId, {
+    required bool allow,
+    bool remember = false,
+  }) {
+    _session?.respondToPermission(requestId, allow: allow, remember: remember);
   }
 
   /// Respond to a plan approval request.
@@ -178,6 +287,14 @@ class VideSdkState extends ChangeNotifier {
       action: action,
       feedback: feedback,
     );
+  }
+
+  /// Respond to an AskUserQuestion request.
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    _session?.respondToAskUserQuestion(requestId, answers: answers);
   }
 
   /// Abort the current session.
@@ -194,7 +311,13 @@ class VideSdkState extends ChangeNotifier {
     _client = null;
     _connectionState = VideSdkConnectionState.disconnected;
     _errorMessage = null;
+    _pendingPlanApproval = null;
+    _pendingAskUserQuestion = null;
+    _pendingPermissions.clear();
     notifyListeners();
+
+    // Refresh session list so the disconnected session appears under "Recent".
+    unawaited(fetchSessions());
   }
 
   @override

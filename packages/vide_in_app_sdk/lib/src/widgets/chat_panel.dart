@@ -1,12 +1,26 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:vide_client/vide_client.dart';
+import 'package:vide_mobile/core/theme/tokens.dart';
+import 'package:vide_mobile/core/theme/vide_colors.dart';
+import 'package:vide_mobile/features/chat/widgets/chat_helpers.dart';
+import 'package:vide_mobile/features/chat/widgets/tool_card.dart';
+import 'package:vide_mobile/features/chat/widgets/typing_indicator.dart';
+
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:vide_mobile/features/chat/widgets/agent_tab_bar.dart';
+import 'package:vide_mobile/features/chat/widgets/input_bar.dart';
+import 'package:vide_mobile/features/permissions/ask_user_question_sheet.dart';
+import 'package:vide_mobile/features/permissions/permission_sheet.dart';
+import 'package:vide_mobile/features/permissions/plan_approval_sheet.dart';
 
 import '../services/voice_input_service.dart';
 import '../state/sdk_state.dart';
+import 'file_browser.dart';
+import 'git_view.dart';
 
 /// Chat panel for interacting with the Vide AI assistant.
 ///
@@ -38,6 +52,9 @@ class VideChatPanel extends StatefulWidget {
   State<VideChatPanel> createState() => _VideChatPanelState();
 }
 
+/// Which top-level view is active inside the session layout.
+enum _SessionView { chat, files, git }
+
 class _VideChatPanelState extends State<VideChatPanel> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
@@ -48,6 +65,17 @@ class _VideChatPanelState extends State<VideChatPanel> {
   bool _showingConfig = false;
   bool _testingConnection = false;
   _ConnectionTestResult? _testResult;
+  bool _isPlanApprovalSheetShowing = false;
+  bool _isAskUserQuestionSheetShowing = false;
+  bool _isPermissionSheetShowing = false;
+
+  // Top-level session view (chat / files / git)
+  _SessionView _sessionView = _SessionView.chat;
+
+  // Agent tab state
+  int _selectedTabIndex = 0;
+  List<VideAgent> _agents = [];
+  final Map<String, ScrollController> _agentScrollControllers = {};
 
   @override
   void dispose() {
@@ -56,6 +84,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
     _hostController.dispose();
     _portController.dispose();
     _workingDirController.dispose();
+    for (final c in _agentScrollControllers.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -68,7 +99,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
       attachments = [
         VideAttachment(
           type: 'image',
-          content: _bytesToBase64(widget.pendingScreenshot!),
+          content: base64Encode(widget.pendingScreenshot!),
           mimeType: 'image/png',
         ),
       ];
@@ -86,15 +117,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
     _scrollToBottom();
   }
 
-  String _bytesToBase64(Uint8List bytes) {
-    return base64Encode(bytes);
-  }
-
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0, // reversed list: 0 is the bottom
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -128,34 +155,465 @@ class _VideChatPanelState extends State<VideChatPanel> {
       listenable: widget.sdkState,
       builder: (context, _) {
         final hasSession = widget.sdkState.session != null;
+
+        // Sync agent list and scroll controllers
+        final currentAgents = widget.sdkState.session?.state.agents ?? [];
+        if (currentAgents != _agents) {
+          _agents = currentAgents;
+          for (final agent in currentAgents) {
+            _agentScrollControllers.putIfAbsent(
+                agent.id, () => ScrollController());
+          }
+          final agentIds = currentAgents.map((a) => a.id).toSet();
+          final removed = _agentScrollControllers.keys
+              .where((id) => !agentIds.contains(id))
+              .toList();
+          for (final id in removed) {
+            _agentScrollControllers[id]?.dispose();
+            _agentScrollControllers.remove(id);
+          }
+          if (_selectedTabIndex >= _agents.length && _agents.isNotEmpty) {
+            _selectedTabIndex = 0;
+          }
+        }
+
+        final currentPermission = widget.sdkState.currentPermission;
+        if (currentPermission != null && !_isPermissionSheetShowing) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.sdkState.currentPermission != null) {
+              _showPermissionSheet(widget.sdkState.currentPermission!);
+            }
+          });
+        }
+
+        final pendingPlan = widget.sdkState.pendingPlanApproval;
+        if (pendingPlan != null && !_isPlanApprovalSheetShowing) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.sdkState.pendingPlanApproval != null) {
+              _showPlanApprovalSheet(widget.sdkState.pendingPlanApproval!);
+            }
+          });
+        }
+
+        final pendingQuestion = widget.sdkState.pendingAskUserQuestion;
+        if (pendingQuestion != null && !_isAskUserQuestionSheetShowing) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && widget.sdkState.pendingAskUserQuestion != null) {
+              _showAskUserQuestionSheet(
+                  widget.sdkState.pendingAskUserQuestion!);
+            }
+          });
+        }
+
         return Material(
           color: Theme.of(context).colorScheme.surface,
-          child: hasSession || _showingConfig
-              ? _buildSessionLayout(context)
-              : _buildEmptyLayout(context),
+          child: _showingConfig
+              ? _buildConfigLayout(context)
+              : hasSession
+                  ? _buildSessionLayout(context)
+                  : _buildEmptyLayout(context),
         );
       },
     );
   }
 
-  /// Layout when no session: input bar at top, empty space below.
+  // ---------------------------------------------------------------------------
+  // Permission sheet
+  // ---------------------------------------------------------------------------
+
+  void _showPermissionSheet(PermissionRequestEvent request) {
+    if (_isPermissionSheetShowing) return;
+    _isPermissionSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      builder: (context) => PermissionSheet(
+        request: request,
+        onAllow: ({required bool remember}) {
+          widget.sdkState.respondToPermission(
+            request.requestId,
+            allow: true,
+            remember: remember,
+          );
+          widget.sdkState.dequeuePermission();
+          _isPermissionSheetShowing = false;
+          Navigator.of(context).pop();
+        },
+        onDeny: () {
+          widget.sdkState.respondToPermission(
+            request.requestId,
+            allow: false,
+          );
+          widget.sdkState.dequeuePermission();
+          _isPermissionSheetShowing = false;
+          Navigator.of(context).pop();
+        },
+      ),
+    ).whenComplete(() {
+      _isPermissionSheetShowing = false;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Plan approval sheet
+  // ---------------------------------------------------------------------------
+
+  void _showPlanApprovalSheet(PlanApprovalRequestEvent request) {
+    if (_isPlanApprovalSheetShowing) return;
+    _isPlanApprovalSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (context) => PlanApprovalSheet(
+        request: request,
+        onResponse: (action, feedback) {
+          widget.sdkState.respondToPlanApproval(
+            request.requestId,
+            action: action,
+            feedback: feedback,
+          );
+          _isPlanApprovalSheetShowing = false;
+          Navigator.of(context).pop();
+        },
+      ),
+    ).whenComplete(() {
+      _isPlanApprovalSheetShowing = false;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // AskUserQuestion sheet
+  // ---------------------------------------------------------------------------
+
+  void _showAskUserQuestionSheet(AskUserQuestionEvent request) {
+    if (_isAskUserQuestionSheetShowing) return;
+    _isAskUserQuestionSheetShowing = true;
+
+    showModalBottomSheet(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      isScrollControlled: true,
+      builder: (context) => AskUserQuestionSheet(
+        request: request,
+        onSubmit: (answers) {
+          widget.sdkState.respondToAskUserQuestion(
+            request.requestId,
+            answers: answers,
+          );
+          _isAskUserQuestionSheetShowing = false;
+          Navigator.of(context).pop();
+        },
+      ),
+    ).whenComplete(() {
+      _isAskUserQuestionSheetShowing = false;
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Empty layout — welcome screen with centered prompt
+  // ---------------------------------------------------------------------------
+
   Widget _buildEmptyLayout(BuildContext context) {
-    return Column(
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final sessions = widget.sdkState.sessions;
+    final hasSessions = sessions.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: VideSpacing.sm),
+      child: Column(
+        children: [
+          // Top row: settings button
+          Row(
+            children: [
+              const Spacer(),
+              _InputBarButton(
+                icon: Icons.tune_rounded,
+                onTap: () => setState(() => _showingConfig = !_showingConfig),
+                color: videColors.textSecondary,
+                size: 20,
+              ),
+            ],
+          ),
+
+          // Error banner if needed
+          if (widget.sdkState.connectionState == VideSdkConnectionState.error)
+            _buildErrorBanner(context),
+
+          // Content area
+          Expanded(
+            child: hasSessions
+                ? _buildSessionListView(context, sessions)
+                : _buildNewSessionView(context),
+          ),
+
+          // Bottom input bar — compact when sessions exist, big when empty
+          if (hasSessions) ...[
+            if (widget.pendingScreenshot != null)
+              _buildScreenshotPreview(context),
+            _buildCompactNewSessionBar(context),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Full "What can I help with?" view when there are no existing sessions.
+  Widget _buildNewSessionView(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: VideSpacing.lg),
+          Center(
+            child: Text(
+              'What can I help with?',
+              style: TextStyle(
+                color: videColors.textSecondary,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const SizedBox(height: VideSpacing.md),
+          if (widget.pendingScreenshot != null)
+            _buildScreenshotPreview(context),
+          Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: videColors.glassBorder, width: 1),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              children: [
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 120),
+                  child: TextField(
+                    controller: _textController,
+                    decoration: InputDecoration(
+                      hintText: 'Describe what you need...',
+                      hintStyle:
+                          TextStyle(color: colorScheme.onSurfaceVariant),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 8,
+                      ),
+                    ),
+                    style: TextStyle(color: colorScheme.onSurface),
+                    textInputAction: TextInputAction.newline,
+                    keyboardType: TextInputType.multiline,
+                    maxLines: null,
+                    minLines: 3,
+                  ),
+                ),
+                Row(
+                  children: [
+                    _InputBarButton(
+                      icon: Icons.crop_rounded,
+                      onTap: widget.onScreenshotRequest,
+                      color: videColors.textSecondary,
+                      size: 20,
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: _sendMessage,
+                      child: Container(
+                        height: 36,
+                        width: 36,
+                        decoration: BoxDecoration(
+                          color: videColors.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.arrow_upward_rounded,
+                          color: colorScheme.surface,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Session list with swipe-to-delete.
+  Widget _buildSessionListView(
+    BuildContext context,
+    List<SessionSummary> sessions,
+  ) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return ListView(
       children: [
-        // Input bar right at top
-        _buildInputBar(context),
-
-        // Error banner if needed
-        if (widget.sdkState.connectionState == VideSdkConnectionState.error)
-          _buildErrorBanner(context),
-
-        const Spacer(),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.xs,
+            vertical: VideSpacing.xs,
+          ),
+          child: Text(
+            'Recent sessions',
+            style: TextStyle(
+              color: videColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        for (final session in sessions)
+          Dismissible(
+            key: ValueKey(session.sessionId),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 16),
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: videColors.error.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.delete_outline, color: videColors.error, size: 20),
+            ),
+            confirmDismiss: (_) async {
+              return _confirmStopSession(context, session);
+            },
+            onDismissed: (_) {
+              // Already stopped in confirmDismiss
+            },
+            child: _SessionTile(
+              session: session,
+              onTap: () =>
+                  widget.sdkState.connectToSession(session.sessionId),
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+          ),
       ],
     );
   }
 
-  /// Layout when there's an active session or config open.
+  /// Confirm and stop a session. Returns true if dismissed.
+  Future<bool> _confirmStopSession(
+    BuildContext context,
+    SessionSummary session,
+  ) async {
+    final client = widget.sdkState.client;
+    if (client == null) return false;
+
+    try {
+      await client.stopSession(session.sessionId);
+      if (mounted) {
+        await widget.sdkState.fetchSessions();
+      }
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to stop session: $e')),
+        );
+      }
+      return false;
+    }
+  }
+
+  /// Compact single-line input for starting a new session (shown below the
+  /// session list).
+  Widget _buildCompactNewSessionBar(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: VideSpacing.sm, top: VideSpacing.xs),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: videColors.glassBorder, width: 1),
+        ),
+        padding: const EdgeInsets.only(left: 16, right: 4, top: 4, bottom: 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _textController,
+                decoration: InputDecoration(
+                  hintText: 'New session...',
+                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _sendMessage(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: widget.onScreenshotRequest,
+              child: Icon(
+                Icons.crop_rounded,
+                color: videColors.textSecondary,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: _sendMessage,
+              child: Container(
+                height: 32,
+                width: 32,
+                decoration: BoxDecoration(
+                  color: videColors.accent,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.arrow_upward_rounded,
+                  color: colorScheme.surface,
+                  size: 18,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session layout — header + messages + input
+  // ---------------------------------------------------------------------------
+
   Widget _buildSessionLayout(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    // Files / Git views need a VideClient
+    final client = widget.sdkState.client;
+    final workingDir = widget.sdkState.workingDirectory ?? '';
+
     return Column(
       children: [
         _buildHeader(context),
@@ -164,22 +622,172 @@ class _VideChatPanelState extends State<VideChatPanel> {
         if (widget.sdkState.connectionState == VideSdkConnectionState.error)
           _buildErrorBanner(context),
 
-        Expanded(child: _buildMessageList(context)),
+        // View selector: Chat / Files / Git
+        _ViewSwitcher(
+          selected: _sessionView,
+          onSelected: (v) => setState(() => _sessionView = v),
+          videColors: videColors,
+        ),
 
-        if (widget.pendingScreenshot != null) _buildScreenshotPreview(context),
+        // Content area based on selected view
+        Expanded(
+          child: switch (_sessionView) {
+            _SessionView.chat => _buildChatContent(context),
+            _SessionView.files => client != null && workingDir.isNotEmpty
+                ? FileBrowser(
+                    key: ValueKey('files_$workingDir'),
+                    client: client,
+                    workingDirectory: workingDir,
+                  )
+                : Center(
+                    child: Text(
+                      'Not connected',
+                      style: TextStyle(color: videColors.textSecondary),
+                    ),
+                  ),
+            _SessionView.git => client != null && workingDir.isNotEmpty
+                ? GitView(
+                    key: ValueKey('git_$workingDir'),
+                    client: client,
+                    workingDirectory: workingDir,
+                  )
+                : Center(
+                    child: Text(
+                      'Not connected',
+                      style: TextStyle(color: videColors.textSecondary),
+                    ),
+                  ),
+          },
+        ),
 
-        _buildPermissionBanner(context),
-
-        _buildInputBar(context),
+        // Input bar only on chat view
+        if (_sessionView == _SessionView.chat) ...[
+          if (widget.pendingScreenshot != null)
+            _buildScreenshotPreview(context),
+          _buildInputBar(context),
+        ],
       ],
     );
   }
 
+  /// The chat content (agent tabs + message list) — extracted from the old
+  /// _buildSessionLayout so it can be one branch of the view switcher.
+  Widget _buildChatContent(BuildContext context) {
+    return Column(
+      children: [
+        if (_agents.length > 1)
+          LiquidGlassLayer(
+            settings: const LiquidGlassSettings(
+              thickness: 2,
+              refractiveIndex: 1.2,
+              glassColor: Color(0x18FFFFFF),
+              lightAngle: 0.5,
+            ),
+            child: AgentTabBar(
+              agents: _agents,
+              selectedIndex: _selectedTabIndex,
+              onTabSelected: (index) {
+                setState(() => _selectedTabIndex = index);
+              },
+            ),
+          ),
+        Expanded(child: _buildTabContent(context)),
+      ],
+    );
+  }
+
+  Widget _buildTabContent(BuildContext context) {
+    final session = widget.sdkState.session;
+    if (session == null || _agents.isEmpty) {
+      return _buildMessageList(context);
+    }
+
+    final pending = session.pendingPermissionRequest;
+
+    final tabViews = [
+      for (final agent in _agents)
+        _MessageList(
+          agentState: session.conversationState.getAgentState(agent.id),
+          agentId: agent.id,
+          agentStatus: agent.status,
+          agents: _agents,
+          pendingPermission: pending,
+          scrollController:
+              _agentScrollControllers[agent.id] ?? ScrollController(),
+          onAgentTap: (agentId) {
+            final i = _agents.indexWhere((a) => a.id == agentId);
+            if (i >= 0) setState(() => _selectedTabIndex = i);
+          },
+          onToolTap: _openToolDetail,
+        ),
+    ];
+
+    return IndexedStack(
+      index: _selectedTabIndex.clamp(0, tabViews.length - 1),
+      children: tabViews,
+    );
+  }
+
+  void _openToolDetail(ToolContent tool) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ToolDetailScreen(tool: tool),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Settings layout
+  // ---------------------------------------------------------------------------
+
+  Widget _buildConfigLayout(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return Column(
+      children: [
+        // Settings header with back button
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: VideSpacing.sm,
+            vertical: VideSpacing.xs,
+          ),
+          child: Row(
+            children: [
+              _InputBarButton(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => setState(() => _showingConfig = false),
+                color: videColors.textSecondary,
+                size: 20,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Settings',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+
+        // Config form fills the rest
+        Expanded(child: _buildConfigForm(context)),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Session header
+  // ---------------------------------------------------------------------------
+
   Widget _buildHeader(BuildContext context) {
     final state = widget.sdkState;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.md,
+        vertical: VideSpacing.sm,
+      ),
       child: Row(
         children: [
           Expanded(
@@ -189,16 +797,16 @@ class _VideChatPanelState extends State<VideChatPanel> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (state.hasActiveSession && state.videState?.isProcessing == true)
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          const SizedBox(width: 8),
           _InputBarButton(
             icon: Icons.tune_rounded,
             onTap: () => setState(() => _showingConfig = !_showingConfig),
+          ),
+          const SizedBox(width: 4),
+          _InputBarButton(
+            icon: Icons.close_rounded,
+            onTap: () => widget.sdkState.disconnect(),
+            color: videColors.textSecondary,
+            size: 18,
           ),
         ],
       ),
@@ -211,33 +819,42 @@ class _VideChatPanelState extends State<VideChatPanel> {
     return 'Vide Assistant';
   }
 
+  // ---------------------------------------------------------------------------
+  // Error banner
+  // ---------------------------------------------------------------------------
+
   Widget _buildErrorBanner(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final message = widget.sdkState.errorMessage ?? 'Connection failed';
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      margin: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: VideSpacing.xs,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+        color: videColors.errorContainer,
+        borderRadius: VideRadius.smAll,
+        border: Border.all(color: videColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, size: 16, color: Colors.red),
+          Icon(Icons.error_outline, size: 16, color: videColors.error),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
-              style: const TextStyle(fontSize: 12, color: Colors.red),
+              style: TextStyle(fontSize: 12, color: videColors.error),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
           ),
           GestureDetector(
             onTap: () => widget.sdkState.disconnect(),
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.refresh, size: 16, color: Colors.red),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.refresh, size: 16, color: videColors.error),
             ),
           ),
         ],
@@ -245,37 +862,103 @@ class _VideChatPanelState extends State<VideChatPanel> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Message list — flattened render items like vide_mobile
+  // ---------------------------------------------------------------------------
+
   Widget _buildMessageList(BuildContext context) {
-    if (_showingConfig) {
-      return _buildConfigForm(context);
-    }
-
     final session = widget.sdkState.session;
-    if (session == null) {
-      return const SizedBox.shrink();
-    }
+    if (session == null) return const SizedBox.shrink();
 
-    // Get conversation for main agent
     final mainAgent = session.state.mainAgent;
     if (mainAgent == null) return const SizedBox.shrink();
 
     final conversation = session.getConversation(mainAgent.id);
     if (conversation == null) return const SizedBox.shrink();
 
-    final messages = conversation.messages;
+    final agents = session.state.agents;
+    final pending = session.pendingPermissionRequest;
+
+    // Flatten ConversationEntry content blocks into render items
+    final items = <_RenderItem>[];
+    for (final entry in conversation.messages) {
+      for (final content in entry.content) {
+        switch (content) {
+          case TextContent():
+            if (content.text.isNotEmpty) {
+              items.add(_TextRenderItem(entry, content));
+            }
+          case ToolContent():
+            if (!isHiddenTool(content)) {
+              items.add(_ToolRenderItem(entry, content));
+            }
+          case AttachmentContent():
+            break;
+        }
+      }
+    }
+
+    // Hide the last tool card if it's the one awaiting permission —
+    // the permission banner already shows all the tool info.
+    if (pending != null &&
+        pending.agentId == mainAgent.id &&
+        items.isNotEmpty) {
+      final last = items.last;
+      if (last is _ToolRenderItem &&
+          last.tool.isExecuting &&
+          last.tool.toolName == pending.toolName) {
+        items.removeLast();
+      }
+    }
+
+    // Use per-agent status for typing indicator, not global isProcessing
+    final agentStatus = mainAgent.status;
+    final isAgentBusy = agentStatus == VideAgentStatus.working ||
+        agentStatus == VideAgentStatus.waitingForAgent;
+    final showTyping = isAgentBusy;
+    final totalCount = items.length + (showTyping ? 1 : 0);
+
+    if (items.isEmpty && !showTyping) {
+      return const SizedBox.shrink();
+    }
+
     return ListView.builder(
+      reverse: true,
       controller: _scrollController,
-      padding: const EdgeInsets.all(16),
-      itemCount: messages.length,
-      itemBuilder: (context, index) {
-        final entry = messages[index];
-        return _buildConversationEntry(context, entry);
+      padding: const EdgeInsets.symmetric(vertical: VideSpacing.sm),
+      itemCount: totalCount,
+      itemBuilder: (context, reverseIndex) {
+        // In a reversed list, index 0 is the bottom (newest).
+        if (showTyping && reverseIndex == 0) {
+          return const TypingIndicator();
+        }
+        final itemIndex = items.length -
+            1 -
+            (showTyping ? reverseIndex - 1 : reverseIndex);
+        final item = items[itemIndex];
+        switch (item) {
+          case _TextRenderItem(:final entry, :final content):
+            return _MessageBubble(entry: entry, content: content);
+          case _ToolRenderItem(:final tool):
+            if (isSpawnAgentTool(tool)) {
+              return SpawnAgentCard(tool: tool, agents: agents);
+            }
+            if (tool.toolName == 'ExitPlanMode') {
+              return PlanResultIndicator(tool: tool);
+            }
+            return ToolCard(tool: tool);
+        }
       },
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Config form
+  // ---------------------------------------------------------------------------
+
   Widget _buildConfigForm(BuildContext context) {
     final state = widget.sdkState;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
     // Initialize controllers from existing state
     if (_hostController.text.isEmpty && state.host != null) {
@@ -300,51 +983,78 @@ class _VideChatPanelState extends State<VideChatPanel> {
           const SizedBox(height: 4),
           Text(
             'Configure the Vide server connection.',
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade500),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: videColors.textSecondary,
+                ),
           ),
           const SizedBox(height: 20),
 
-          // Host field
-          Text('Host', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _hostController,
-            decoration: InputDecoration(
-              hintText: 'localhost',
-              prefixIcon: const Icon(Icons.computer_outlined, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+          // Host + Port row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Host field
+              Expanded(
+                flex: 3,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Host',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _hostController,
+                      decoration: InputDecoration(
+                        hintText: 'localhost',
+                        prefixIcon:
+                            const Icon(Icons.computer_outlined, size: 20),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.url,
+                      textInputAction: TextInputAction.next,
+                      onChanged: (_) => _clearTestResult(),
+                    ),
+                  ],
+                ),
               ),
-              isDense: true,
-            ),
-            keyboardType: TextInputType.url,
-            textInputAction: TextInputAction.next,
-            onChanged: (_) => _clearTestResult(),
-          ),
-          const SizedBox(height: 16),
-
-          // Port field
-          Text('Port', style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 4),
-          TextField(
-            controller: _portController,
-            decoration: InputDecoration(
-              hintText: '8080',
-              prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 12),
+              // Port field
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Port',
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _portController,
+                      decoration: InputDecoration(
+                        hintText: '8080',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        isDense: true,
+                      ),
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.next,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(5),
+                      ],
+                      onChanged: (_) => _clearTestResult(),
+                    ),
+                  ],
+                ),
               ),
-              isDense: true,
-            ),
-            keyboardType: TextInputType.number,
-            textInputAction: TextInputAction.next,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              LengthLimitingTextInputFormatter(5),
             ],
-            onChanged: (_) => _clearTestResult(),
           ),
           const SizedBox(height: 16),
 
@@ -354,17 +1064,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
             style: Theme.of(context).textTheme.labelMedium,
           ),
           const SizedBox(height: 4),
-          TextField(
+          _WorkingDirectoryField(
             controller: _workingDirController,
-            decoration: InputDecoration(
-              hintText: '/path/to/your/project',
-              prefixIcon: const Icon(Icons.folder_outlined, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              isDense: true,
-            ),
-            textInputAction: TextInputAction.done,
+            hostText: _hostController.text.trim(),
+            portText: _portController.text.trim(),
+            onChanged: _clearTestResult,
           ),
           const SizedBox(height: 20),
 
@@ -462,11 +1166,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
   }
 
   Widget _buildTestResultChip(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final result = _testResult!;
-    final color = result.success ? Colors.green : Colors.red;
-    final icon = result.success
-        ? Icons.check_circle_outline
-        : Icons.error_outline;
+    final color = result.success ? videColors.success : videColors.error;
+    final icon =
+        result.success ? Icons.check_circle_outline : Icons.error_outline;
 
     return Center(
       child: Container(
@@ -497,307 +1201,351 @@ class _VideChatPanelState extends State<VideChatPanel> {
     );
   }
 
-  Widget _buildConversationEntry(
-    BuildContext context,
-    ConversationEntry entry,
-  ) {
-    final isUser = entry.role == 'user';
-    final widgets = <Widget>[];
-
-    for (final content in entry.content) {
-      switch (content) {
-        case TextContent():
-          if (content.text.isEmpty) continue;
-          widgets.add(
-            Align(
-              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.8,
-                ),
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isUser
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: SelectableText(
-                  content.text,
-                  style: TextStyle(
-                    color: isUser
-                        ? Theme.of(context).colorScheme.onPrimary
-                        : Theme.of(context).colorScheme.onSurface,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          );
-
-        case ToolContent():
-          widgets.add(
-            Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Theme.of(context).colorScheme.outlineVariant,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.build_outlined,
-                    size: 16,
-                    color: Theme.of(context).colorScheme.secondary,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      content.toolName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontFamily: 'monospace',
-                        color: Theme.of(context).colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                  if (content.result != null)
-                    Icon(
-                      content.isError
-                          ? Icons.error_outline
-                          : Icons.check_circle_outline,
-                      size: 16,
-                      color: content.isError ? Colors.red : Colors.green,
-                    )
-                  else if (content.isExecuting)
-                    const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                ],
-              ),
-            ),
-          );
-
-        case AttachmentContent():
-          widgets.add(
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.attach_file,
-                    size: 14,
-                    color: Colors.grey.shade500,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${content.attachments.length} attachment(s)',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                  ),
-                ],
-              ),
-            ),
-          );
-      }
-    }
-
-    if (widgets.isEmpty) return const SizedBox.shrink();
-    return Column(
-      crossAxisAlignment: isUser
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
-      children: widgets,
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Screenshot preview
+  // ---------------------------------------------------------------------------
 
   Widget _buildScreenshotPreview(BuildContext context) {
-    return Container(
-      height: 80,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).colorScheme.primary),
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.md,
+        vertical: VideSpacing.xs,
       ),
-      child: Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(11),
-            child: Image.memory(
-              widget.pendingScreenshot!,
-              width: double.infinity,
-              height: 80,
-              fit: BoxFit.cover,
-            ),
-          ),
-          Positioned(
-            top: 4,
-            right: 4,
-            child: GestureDetector(
-              onTap: widget.onClearScreenshot,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: const BoxDecoration(
-                  color: Colors.black54,
-                  shape: BoxShape.circle,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Stack(
+          children: [
+            Container(
+              height: 100,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: videColors.accent.withValues(alpha: 0.5),
                 ),
-                child: const Icon(Icons.close, size: 16, color: Colors.white),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(7),
+                child: Image.memory(
+                  widget.pendingScreenshot!,
+                  height: 100,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPermissionBanner(BuildContext context) {
-    final session = widget.sdkState.session;
-    final pending = session?.pendingPermissionRequest;
-    if (pending == null) return const SizedBox.shrink();
-
-    return Container(
-      margin: const EdgeInsets.all(8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.orange.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.security, size: 18, color: Colors.orange.shade700),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Permission: ${pending.toolName}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.orange.shade900,
-                    fontSize: 13,
+            Positioned(
+              top: 4,
+              right: 4,
+              child: GestureDetector(
+                onTap: widget.onClearScreenshot,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
                   ),
+                  child:
+                      const Icon(Icons.close, size: 14, color: Colors.white),
                 ),
-              ),
-            ],
-          ),
-          if (pending.toolInput.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              _summarizeToolInput(pending.toolInput),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'monospace',
-                color: Colors.orange.shade800,
               ),
             ),
           ],
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () {
-                  widget.sdkState.respondToPermission(
-                    pending.requestId,
-                    allow: false,
-                  );
-                },
-                child: const Text('Deny'),
-              ),
-              const SizedBox(width: 8),
-              FilledButton(
-                onPressed: () {
-                  widget.sdkState.respondToPermission(
-                    pending.requestId,
-                    allow: true,
-                  );
-                },
-                child: const Text('Allow'),
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  String _summarizeToolInput(Map<String, dynamic> input) {
-    if (input.containsKey('command')) return input['command'].toString();
-    if (input.containsKey('file_path')) return input['file_path'].toString();
-    if (input.containsKey('pattern')) return input['pattern'].toString();
-    return input.entries.take(2).map((e) => '${e.key}: ${e.value}').join(', ');
-  }
+  // ---------------------------------------------------------------------------
+  // Input bar — delegates to vide_mobile InputBar for feature parity
+  // ---------------------------------------------------------------------------
 
   Widget _buildInputBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Row(
-        children: [
-          const SizedBox(width: 4),
+    final isProcessing = widget.sdkState.videState?.isProcessing ?? false;
+    final isDisconnected = widget.sdkState.connectionState ==
+        VideSdkConnectionState.disconnected;
+    final enabled = !isProcessing && !isDisconnected;
 
-          // Text field
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              decoration: InputDecoration(
-                hintText: widget.sdkState.hasActiveSession
-                    ? 'Message...'
-                    : 'Ask Vide anything...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                isDense: true,
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _InputBarButton(
-                      icon: Icons.crop_rounded,
-                      onTap: widget.onScreenshotRequest,
-                      size: 20,
-                    ),
-                    _InputBarButton(
-                      icon: Icons.arrow_upward_rounded,
-                      onTap: _sendMessage,
-                      size: 20,
-                    ),
-                  ],
-                ),
-              ),
-              textInputAction: TextInputAction.send,
-              maxLines: 4,
-              minLines: 1,
-              onSubmitted: (_) => _sendMessage(),
-            ),
-          ),
-        ],
+    return InputBar(
+      controller: _textController,
+      enabled: enabled,
+      isLoading: isProcessing,
+      onSend: _sendMessage,
+      onAbort: () => widget.sdkState.abort(),
+    );
+  }
+}
+
+// =============================================================================
+// Render item types for flattened message list
+// =============================================================================
+
+sealed class _RenderItem {}
+
+class _TextRenderItem implements _RenderItem {
+  final ConversationEntry entry;
+  final TextContent content;
+
+  _TextRenderItem(this.entry, this.content);
+}
+
+class _ToolRenderItem implements _RenderItem {
+  final ConversationEntry entry;
+  final ToolContent tool;
+
+  _ToolRenderItem(this.entry, this.tool);
+}
+
+// =============================================================================
+// Per-agent message list — mirrors vide_mobile _MessageList
+// =============================================================================
+
+class _MessageList extends StatelessWidget {
+  final AgentConversationState? agentState;
+  final String agentId;
+  final VideAgentStatus agentStatus;
+  final List<VideAgent> agents;
+  final PermissionRequestEvent? pendingPermission;
+  final ScrollController scrollController;
+  final ValueChanged<String>? onAgentTap;
+  final void Function(ToolContent tool)? onToolTap;
+
+  const _MessageList({
+    required this.agentState,
+    required this.agentId,
+    required this.agentStatus,
+    required this.agents,
+    required this.pendingPermission,
+    required this.scrollController,
+    this.onAgentTap,
+    this.onToolTap,
+  });
+
+  bool get _isAgentBusy =>
+      agentStatus == VideAgentStatus.working ||
+      agentStatus == VideAgentStatus.waitingForAgent;
+
+  @override
+  Widget build(BuildContext context) {
+    final messages = agentState?.messages ?? [];
+
+    if (messages.isEmpty && !_isAgentBusy) {
+      return const Center(
+        child: Text('No messages from this agent yet',
+            style: TextStyle(color: Colors.grey)),
+      );
+    }
+
+    final items = <_RenderItem>[];
+    for (final entry in messages) {
+      for (final content in entry.content) {
+        switch (content) {
+          case TextContent():
+            if (content.text.isNotEmpty) {
+              items.add(_TextRenderItem(entry, content));
+            }
+          case ToolContent():
+            if (!isHiddenTool(content)) {
+              items.add(_ToolRenderItem(entry, content));
+            }
+          case AttachmentContent():
+            break;
+        }
+      }
+    }
+
+    if (pendingPermission != null &&
+        pendingPermission!.agentId == agentId &&
+        items.isNotEmpty) {
+      final last = items.last;
+      if (last is _ToolRenderItem &&
+          last.tool.isExecuting &&
+          last.tool.toolName == pendingPermission!.toolName) {
+        items.removeLast();
+      }
+    }
+
+    final showTyping = _isAgentBusy;
+    final totalCount = items.length + (showTyping ? 1 : 0);
+
+    if (totalCount == 0) return const SizedBox.shrink();
+
+    return SelectionArea(
+      child: ListView.builder(
+        reverse: true,
+        controller: scrollController,
+        padding: const EdgeInsets.symmetric(vertical: VideSpacing.sm),
+        itemCount: totalCount,
+        itemBuilder: (context, reverseIndex) {
+          if (showTyping && reverseIndex == 0) {
+            return const TypingIndicator();
+          }
+          final itemIndex = items.length -
+              1 -
+              (showTyping ? reverseIndex - 1 : reverseIndex);
+          final item = items[itemIndex];
+          switch (item) {
+            case _TextRenderItem(:final entry, :final content):
+              return _MessageBubble(entry: entry, content: content);
+            case _ToolRenderItem(:final tool):
+              if (isSpawnAgentTool(tool)) {
+                return SpawnAgentCard(
+                    tool: tool, agents: agents, onTap: onAgentTap);
+              }
+              if (tool.toolName == 'ExitPlanMode') {
+                return PlanResultIndicator(tool: tool);
+              }
+              return ToolCard(
+                  tool: tool, onTap: () => onToolTap?.call(tool));
+          }
+        },
       ),
     );
   }
 }
+
+// =============================================================================
+// Message bubble — matches vide_mobile MessageBubble
+// =============================================================================
+
+class _MessageBubble extends StatelessWidget {
+  final ConversationEntry entry;
+  final TextContent content;
+
+  const _MessageBubble({required this.entry, required this.content});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = entry.role == 'user';
+    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: VideSpacing.sm,
+        vertical: VideSpacing.xs,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          border: isUser
+              ? Border(
+                  left: BorderSide(color: videColors.accent, width: 3),
+                )
+              : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: isUser
+            ? Text(
+                content.text,
+                style: TextStyle(color: colorScheme.onSurface),
+              )
+            : MarkdownBody(
+                data: content.text,
+                styleSheet: MarkdownStyleSheet(
+                  p: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontSize: 14,
+                  ),
+                  code: TextStyle(
+                    backgroundColor: colorScheme.surfaceContainerHigh,
+                    fontSize: 13,
+                  ),
+                  codeblockDecoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHigh,
+                    borderRadius: VideRadius.smAll,
+                    border: Border.all(
+                      color: colorScheme.outlineVariant,
+                    ),
+                  ),
+                ),
+                selectable: false,
+                softLineBreak: true,
+              ),
+      ),
+    );
+  }
+}
+
+
+
+// =============================================================================
+// Session tile — shown in the empty layout for reconnecting
+// =============================================================================
+
+class _SessionTile extends StatelessWidget {
+  final SessionSummary session;
+  final VoidCallback onTap;
+  final VideThemeColors videColors;
+  final ColorScheme colorScheme;
+
+  const _SessionTile({
+    required this.session,
+    required this.onTap,
+    required this.videColors,
+    required this.colorScheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final timeAgo = _formatTimeAgo(session.createdAt);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: videColors.success,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Session ${session.sessionId.substring(0, 8)}',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              timeAgo,
+              style: TextStyle(
+                color: videColors.textTertiary,
+                fontSize: 11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatTimeAgo(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inMinutes < 1) return 'just now';
+    if (difference.inMinutes < 60) return '${difference.inMinutes}m ago';
+    if (difference.inHours < 24) return '${difference.inHours}h ago';
+    if (difference.inDays < 7) return '${difference.inDays}d ago';
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+  }
+}
+
+// =============================================================================
+// Shared helpers
+// =============================================================================
 
 /// Result of a connection test.
 class _ConnectionTestResult {
@@ -834,3 +1582,434 @@ class _InputBarButton extends StatelessWidget {
     );
   }
 }
+
+// =============================================================================
+// Session view switcher (Chat / Files / Git)
+// =============================================================================
+
+class _ViewSwitcher extends StatelessWidget {
+  final _SessionView selected;
+  final ValueChanged<_SessionView> onSelected;
+  final VideThemeColors videColors;
+
+  const _ViewSwitcher({
+    required this.selected,
+    required this.onSelected,
+    required this.videColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          _ViewTab(
+            icon: Icons.chat_outlined,
+            label: 'Chat',
+            isSelected: selected == _SessionView.chat,
+            onTap: () => onSelected(_SessionView.chat),
+            videColors: videColors,
+          ),
+          const SizedBox(width: 4),
+          _ViewTab(
+            icon: Icons.folder_outlined,
+            label: 'Files',
+            isSelected: selected == _SessionView.files,
+            onTap: () => onSelected(_SessionView.files),
+            videColors: videColors,
+          ),
+          const SizedBox(width: 4),
+          _ViewTab(
+            icon: Icons.commit,
+            label: 'Git',
+            isSelected: selected == _SessionView.git,
+            onTap: () => onSelected(_SessionView.git),
+            videColors: videColors,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewTab extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VideThemeColors videColors;
+
+  const _ViewTab({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.videColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected ? videColors.accent : videColors.textSecondary;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? videColors.accent.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Working directory field with browse button
+// =============================================================================
+
+class _WorkingDirectoryField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hostText;
+  final String portText;
+  final VoidCallback onChanged;
+
+  const _WorkingDirectoryField({
+    required this.controller,
+    required this.hostText,
+    required this.portText,
+    required this.onChanged,
+  });
+
+  bool get _canBrowse {
+    if (hostText.isEmpty || portText.isEmpty) return false;
+    final port = int.tryParse(portText);
+    return port != null && port > 0 && port <= 65535;
+  }
+
+  Future<void> _openFolderPicker(BuildContext context) async {
+    final port = int.parse(portText);
+    final client = VideClient(host: hostText, port: port);
+
+    final selectedPath = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FolderPickerSheet(client: client),
+    );
+
+    if (selectedPath != null) {
+      controller.text = selectedPath;
+      onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: '/path/to/your/project',
+              prefixIcon: const Icon(Icons.folder_outlined, size: 20),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              isDense: true,
+            ),
+            textInputAction: TextInputAction.done,
+            onChanged: (_) => onChanged(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton.filled(
+          onPressed: _canBrowse ? () => _openFolderPicker(context) : null,
+          icon: const Icon(Icons.search, size: 20),
+          tooltip: _canBrowse
+              ? 'Browse server filesystem'
+              : 'Enter host and port first',
+          style: IconButton.styleFrom(
+            minimumSize: const Size(40, 40),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// Folder picker sheet for browsing server filesystem
+// =============================================================================
+
+class FolderPickerSheet extends StatefulWidget {
+  final VideClient client;
+
+  const FolderPickerSheet({super.key, required this.client});
+
+  @override
+  State<FolderPickerSheet> createState() => _FolderPickerSheetState();
+}
+
+class _FolderPickerSheetState extends State<FolderPickerSheet> {
+  String? _currentPath;
+  List<FileEntry> _entries = [];
+  bool _isLoading = true;
+  String? _error;
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
+
+  List<FileEntry> get _filteredEntries {
+    if (_searchQuery.isEmpty) return _entries;
+    final query = _searchQuery.toLowerCase();
+    return _entries.where((e) => e.name.toLowerCase().contains(query)).toList();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDirectory(null);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadDirectory(String? path) async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _searchQuery = '';
+      _searchController.clear();
+    });
+
+    try {
+      final entries = await widget.client.listDirectory(parent: path);
+      final dirs = entries.where((e) => e.isDirectory).toList();
+
+      if (mounted) {
+        setState(() {
+          _currentPath = path ?? _deriveParentPath(entries);
+          _entries = dirs;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  String _deriveParentPath(List<FileEntry> entries) {
+    if (entries.isEmpty) return '/';
+    final firstPath = entries.first.path;
+    final lastSlash = firstPath.lastIndexOf('/');
+    if (lastSlash <= 0) return '/';
+    return firstPath.substring(0, lastSlash);
+  }
+
+  String? get _parentPath {
+    if (_currentPath == null || _currentPath == '/') return null;
+    final lastSlash = _currentPath!.lastIndexOf('/');
+    if (lastSlash <= 0) return '/';
+    return _currentPath!.substring(0, lastSlash);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.3,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(12),
+            ),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Container(
+                  width: 32,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: colorScheme.outlineVariant,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: _parentPath != null
+                          ? () => _loadDirectory(_parentPath)
+                          : null,
+                      child: Icon(
+                        Icons.arrow_upward,
+                        size: 20,
+                        color: _parentPath != null
+                            ? colorScheme.onSurface
+                            : videColors.textTertiary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _currentPath ?? '...',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.tonal(
+                      onPressed: _currentPath != null
+                          ? () => Navigator.of(context).pop(_currentPath)
+                          : null,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text('Select'),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: colorScheme.outlineVariant),
+              // Search
+              if (!_isLoading && _error == null && _entries.isNotEmpty)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search folders...',
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                    ),
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                  ),
+                ),
+              // Directory listing
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _error != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(
+                                _error!,
+                                style: TextStyle(color: videColors.error),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : _filteredEntries.isEmpty
+                            ? Center(
+                                child: Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'No matching folders'
+                                      : 'No subdirectories',
+                                  style: TextStyle(
+                                    color: videColors.textSecondary,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: scrollController,
+                                itemCount: _filteredEntries.length,
+                                itemBuilder: (context, index) {
+                                  final entry = _filteredEntries[index];
+                                  return ListTile(
+                                    leading: Icon(
+                                      Icons.folder_outlined,
+                                      color: videColors.accent,
+                                      size: 20,
+                                    ),
+                                    title: Text(
+                                      entry.name,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    dense: true,
+                                    onTap: () => _loadDirectory(entry.path),
+                                  );
+                                },
+                              ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+

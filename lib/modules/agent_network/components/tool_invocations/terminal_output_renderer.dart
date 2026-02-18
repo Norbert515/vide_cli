@@ -27,6 +27,8 @@ class TerminalOutputRenderer extends StatefulComponent {
 
 class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   bool isExpanded = false;
+  bool isHovered = false;
+  final ScrollController _scrollController = ScrollController();
 
   /// Regex to match ANSI escape sequences (color codes, etc.)
   static final _ansiRegex = RegExp(r'\x1b\[[0-9;]*m');
@@ -88,18 +90,22 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
       );
     }
 
-    return GestureDetector(
-      onTap: () => setState(() => isExpanded = !isExpanded),
-      child: Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Tool header with name and params
-            _buildHeader(),
-            // Terminal output
-            _buildOutput(lines),
-          ],
+    return MouseRegion(
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: GestureDetector(
+        onTap: () => setState(() => isExpanded = !isExpanded),
+        child: Container(
+          padding: EdgeInsets.only(bottom: 1),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tool header with name and params
+              _buildHeader(),
+              // Terminal output
+              _buildOutput(lines),
+            ],
+          ),
         ),
       ),
     );
@@ -148,7 +154,7 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Color(0xFF1E1E1E), // Dark terminal background
+        color: isHovered ? Color(0xFF222222) : Color(0xFF1E1E1E),
       ),
       padding: EdgeInsets.all(1),
       child: Column(
@@ -159,10 +165,17 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
             // Scrollable container for expanded state with many lines
             Container(
               constraints: BoxConstraints(maxHeight: 8),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [for (final line in displayLines) _buildLine(line)],
+              child: Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                thumbColor: Colors.white.withOpacity(0.3),
+                trackColor: Color(0xFF1E1E1E),
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [for (final line in displayLines) _buildLine(line)],
+                  ),
                 ),
               ),
             )
