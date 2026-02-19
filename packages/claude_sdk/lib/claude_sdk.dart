@@ -31,5 +31,6 @@ export 'src/mcp/utils/port_manager.dart';
 // Utils
 export 'src/utils/image_validator.dart';
 
-// Note: ConfidenceServer and ConfidenceUpdate moved to main project at lib/mcp/
-// Note: PermissionServer removed - using hook-based permissions instead
+// Agent SDK Bridge
+export 'src/client/claude_agent_client.dart';
+export 'src/bridge/type_mappers.dart';
