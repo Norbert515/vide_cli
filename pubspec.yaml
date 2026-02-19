@@ -10,6 +10,7 @@ environment:
   sdk: ^3.8.0
 
 workspace:
+  - packages/agent_sdk
   - packages/claude_sdk
   - packages/codex_sdk
   - packages/flutter_runtime_mcp

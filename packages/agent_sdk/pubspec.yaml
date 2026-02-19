@@ -1,0 +1,7 @@
+name: agent_sdk
+description: Generic interface and data model for AI coding agents
+version: 0.1.0
+resolution: workspace
+
+environment:
+  sdk: ^3.8.0
