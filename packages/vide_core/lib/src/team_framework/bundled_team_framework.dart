@@ -817,7 +817,7 @@ short-description: Leads a feature team
 description: Owns a feature end-to-end. Spawns and coordinates their own team. Reports progress to enterprise-lead.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 
@@ -1244,7 +1244,7 @@ short-description: Coordinates work, never writes code
 description: Orchestrator agent. Assesses tasks, clarifies requirements, delegates to sub-agents. Never writes code.
 
 tools: Read, Grep, Glob, Skill
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 
@@ -1300,7 +1300,7 @@ short-description: Organizes teams, coordinates features
 description: Enterprise orchestrator. Breaks work into features, spawns feature teams, coordinates integration. Never does implementation work.
 
 tools: Skill
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 
@@ -2247,7 +2247,7 @@ short-description: Gets things done
 description: General-purpose implementation agent. Does the actual work. Reports back when complete.
 
 tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 
@@ -2349,7 +2349,7 @@ short-description: Routes requests, never does work
 description: Git-aware request router. Never does work. Spawns agents on worktrees, manages merging. Pure delegation.
 
 disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 
@@ -2586,7 +2586,7 @@ short-description: Writes and fixes code
 description: Implementation agent. Writes and edits code. Runs verification before completion.
 
 tools: Read, Write, Edit, Grep, Glob, Bash
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-task-management
 
 model: opus
 

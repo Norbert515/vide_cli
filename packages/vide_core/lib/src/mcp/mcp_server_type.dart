@@ -6,9 +6,6 @@
 sealed class McpServerType {
   const McpServerType();
 
-  /// Git operations MCP server (vide-git)
-  static const git = _BuiltInMcpServer._('vide-git');
-
   /// Agent network MCP server (vide-agent)
   /// Provides tools for spawning agents and inter-agent communication
   static const agent = _BuiltInMcpServer._('vide-agent');

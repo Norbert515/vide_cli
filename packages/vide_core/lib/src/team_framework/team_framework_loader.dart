@@ -261,7 +261,6 @@ class TeamFrameworkLoader {
       final normalized = name.trim().toLowerCase();
       try {
         final serverType = switch (normalized) {
-          'vide-git' || 'git' => McpServerType.git,
           'vide-agent' || 'agent' => McpServerType.agent,
           'vide-task-management' ||
           'task-management' ||

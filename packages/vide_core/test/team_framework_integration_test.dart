@@ -152,7 +152,6 @@ void main() {
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
         expect(config.mcpServers, isNotEmpty);
-        expect(config.mcpServers, contains(McpServerType.git));
         expect(config.mcpServers, contains(McpServerType.taskManagement));
         expect(config.mcpServers, contains(McpServerType.agent));
       });
@@ -162,7 +161,6 @@ void main() {
 
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
-        expect(config.mcpServers, contains(McpServerType.git));
         expect(config.mcpServers, contains(McpServerType.agent));
         expect(config.mcpServers, contains(McpServerType.taskManagement));
       });
@@ -285,14 +283,6 @@ void main() {
     });
 
     group('MCP Server parsing', () {
-      test('parses vide-git correctly', () async {
-        final agents = await loader.loadAgents();
-        final implementer = agents['implementer'];
-
-        expect(implementer, isNotNull);
-        expect(implementer!.mcpServers, contains('vide-git'));
-      });
-
       test('parses flutter-runtime correctly for flutter-tester', () async {
         final agents = await loader.loadAgents();
         final tester = agents['flutter-tester'];

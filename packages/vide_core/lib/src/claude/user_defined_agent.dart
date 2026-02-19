@@ -178,8 +178,6 @@ class UserDefinedAgent {
       parsedMcpServers = mcpServers!.map((serverName) {
         // Check if it's a built-in server
         switch (serverName) {
-          case 'vide-git':
-            return McpServerType.git;
           case 'vide-task-management':
             return McpServerType.taskManagement;
           case 'flutter-runtime':

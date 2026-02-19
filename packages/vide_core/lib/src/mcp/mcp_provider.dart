@@ -2,7 +2,6 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'agent/agent_mcp_server.dart';
 import 'ask_user_question/ask_user_question_server.dart';
-import 'git/git_server.dart';
 import 'knowledge/knowledge_mcp_server.dart';
 import 'mcp_server_type.dart';
 import 'task_management/task_management_server.dart';
@@ -54,7 +53,6 @@ final ProviderFamily<McpServerBase, AgentIdAndMcpServerType>
     genericMcpServerProvider =
     Provider.family<McpServerBase, AgentIdAndMcpServerType>((ref, params) {
       return switch (params.mcpServerType) {
-        McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
         McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
         McpServerType.taskManagement => ref.watch(
           taskManagementServerProvider(params.agentId),
