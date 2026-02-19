@@ -4,7 +4,7 @@
 [![Website](https://img.shields.io/badge/web-vide.dev-blue)](https://vide.dev)
 
 <p align="center">
-<img src="landing/assets/og-image.png" alt="Vide" width="600" />
+<img src="landing/assets/og-image.png" alt="Vide" />
 </p>
 
 <p align="center">
@@ -12,7 +12,7 @@
 <a href="https://github.com/Norbert515/vide_cli"><strong>GitHub</strong></a>
 </p>
 
-**The open source meta-agent for vibe engineering.** Instead of one AI conversation, Vide orchestrates a team of specialized agents that research, implement, review, and test your code -- all working in parallel.
+**The open source agent orchestrator.** Instead of one AI conversation, Vide orchestrates a team of specialized agents that research, implement, review, and test your code -- all working in parallel.
 
 ## Install
 
