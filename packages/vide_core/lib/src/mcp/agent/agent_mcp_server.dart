@@ -112,12 +112,26 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
         final workingDirectory = args['workingDirectory'] as String?;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'spawnAgent: type=$agentType name="$name" caller=$callerAgentId '
+            'workDir=${workingDirectory ?? '(session default)'}',
+            sessionId: networkId,
+          );
+
           final newAgentId = await _networkManager.spawnAgent(
             agentType: agentType,
             name: name,
             initialPrompt: initialPrompt,
             spawnedBy: callerAgentId,
             workingDirectory: workingDirectory,
+          );
+
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'spawnAgent success: newId=$newAgentId type=$agentType name="$name"',
+            sessionId: networkId,
           );
 
           return CallToolResult.fromContent(
@@ -133,6 +147,11 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'spawnAgent failed: type=$agentType name="$name" error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'spawnAgent');
@@ -184,6 +203,14 @@ Use this to coordinate with other agents in the network.''',
         final message = args['message'] as String;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.debug(
+            'AgentMCPServer',
+            'sendMessageToAgent: target=$targetAgentId from=$callerAgentId '
+            '(${message.length} chars)',
+            sessionId: networkId,
+          );
+
           _networkManager.sendMessageToAgent(
             targetAgentId: targetAgentId,
             message: message,
@@ -200,6 +227,11 @@ Use this to coordinate with other agents in the network.''',
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'sendMessageToAgent failed: target=$targetAgentId from=$callerAgentId error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'sendMessageToAgent');
@@ -342,6 +374,14 @@ Any agent can terminate any other agent, including itself.''',
         final reason = args['reason'] as String?;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'terminateAgent: target=$targetAgentId by=$callerAgentId '
+            'reason=${reason ?? '(none)'} self=${targetAgentId == callerAgentId}',
+            sessionId: networkId,
+          );
+
           await _networkManager.terminateAgent(
             targetAgentId: targetAgentId,
             terminatedBy: callerAgentId,
@@ -359,6 +399,11 @@ Any agent can terminate any other agent, including itself.''',
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'terminateAgent failed: target=$targetAgentId by=$callerAgentId error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'terminateAgent');

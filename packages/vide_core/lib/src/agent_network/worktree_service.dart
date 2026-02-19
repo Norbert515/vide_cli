@@ -53,6 +53,11 @@ class WorktreeService {
 
     // Worktree path is set but no longer exists - clear it and fall back to original
     if (worktreePath != null) {
+      VideLogger.instance.warn(
+        'WorktreeService',
+        'Stale worktree path detected (directory missing): $worktreePath — '
+        'falling back to $baseWorkingDirectory',
+      );
       // Schedule async cleanup without blocking
       Future.microtask(() => _clearStaleWorktreePath(worktreePath));
     }
@@ -64,6 +69,11 @@ class WorktreeService {
   Future<void> _clearStaleWorktreePath(String stalePath) async {
     final network = _getCurrentNetwork();
     if (network != null && network.worktreePath == stalePath) {
+      VideLogger.instance.info(
+        'WorktreeService',
+        'Clearing stale worktree path: $stalePath (network=${network.id})',
+        sessionId: network.id,
+      );
       final updated = network.copyWith(
         worktreePath: null,
         clearWorktreePath: true,
@@ -81,6 +91,15 @@ class WorktreeService {
   Future<void> setWorktreePath(String? worktreePath) async {
     final network = _getCurrentNetwork();
     if (network == null) return;
+
+    VideLogger.instance.info(
+      'WorktreeService',
+      'Switching worktree path: '
+      '${network.worktreePath ?? baseWorkingDirectory} -> '
+      '${worktreePath ?? baseWorkingDirectory} '
+      '(${network.agentIds.length} agents to restart)',
+      sessionId: network.id,
+    );
 
     // 1. Abort and remove all existing Claude clients
     for (final agentId in network.agentIds) {
@@ -110,6 +129,12 @@ class WorktreeService {
     // 4. Recreate Claude clients for all agents with new working directory
     // Per-agent workingDirectory overrides take precedence over session worktree
     for (final agentMetadata in updated.agents) {
+      VideLogger.instance.debug(
+        'WorktreeService',
+        'Recreating client for agent=${agentMetadata.id} '
+        '(${agentMetadata.type}, ${agentMetadata.name})',
+        sessionId: updated.id,
+      );
       try {
         final config = await _configResolver.getConfigurationForType(
           agentMetadata.type,

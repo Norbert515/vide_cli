@@ -1,5 +1,6 @@
 import 'package:claude_sdk/claude_sdk.dart';
 
+import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
 import 'agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
@@ -109,6 +110,12 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     String? workingDirectory,
   }) {
     final cwd = workingDirectory ?? _getWorkingDirectory();
+    VideLogger.instance.info(
+      'ClaudeClientFactory',
+      'createSync: agent=$agentId type=$agentType cwd=$cwd '
+      'permissionHandler=${_permissionHandler != null}',
+      sessionId: networkId,
+    );
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
@@ -150,6 +157,11 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     String? workingDirectory,
   }) async {
     final cwd = workingDirectory ?? _getWorkingDirectory();
+    VideLogger.instance.info(
+      'ClaudeClientFactory',
+      'create (async): agent=$agentId type=$agentType cwd=$cwd',
+      sessionId: networkId,
+    );
     final claudeConfig = config.toClaudeConfig(
       workingDirectory: cwd,
       sessionId: agentId.toString(),
@@ -193,6 +205,12 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
     String? workingDirectory,
   }) async {
     final cwd = workingDirectory ?? _getWorkingDirectory();
+    VideLogger.instance.info(
+      'ClaudeClientFactory',
+      'createForked: agent=$agentId type=$agentType '
+      'forkFrom=$resumeSessionId cwd=$cwd',
+      sessionId: networkId,
+    );
 
     // Create config with fork settings
     final baseConfig = config.toClaudeConfig(

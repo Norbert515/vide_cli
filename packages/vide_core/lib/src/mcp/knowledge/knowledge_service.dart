@@ -2,6 +2,8 @@ import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'package:yaml/yaml.dart';
 
+import '../../logging/vide_logger.dart';
+
 /// Service for managing the knowledge base stored in `.claude/knowledge/`.
 ///
 /// The knowledge base is a hierarchical system of markdown documents with
@@ -57,7 +59,10 @@ class KnowledgeService {
             documents.add(doc);
           }
         } catch (e) {
-          // Skip files that can't be parsed
+          VideLogger.instance.warn(
+            'KnowledgeService',
+            'Failed to parse knowledge document: ${entity.path}: $e',
+          );
         }
       }
     }
@@ -127,6 +132,11 @@ class KnowledgeService {
 
     final fullContent = '${frontmatter.toString()}\n# $title\n\n$content';
     await File(fullPath).writeAsString(fullContent);
+
+    VideLogger.instance.info(
+      'KnowledgeService',
+      'Wrote knowledge document: $docPath (type=$type, title="$title")',
+    );
   }
 
   /// Search knowledge documents by keyword
@@ -186,13 +196,20 @@ class KnowledgeService {
             );
           }
         } catch (e) {
-          // Skip files that can't be parsed
+          VideLogger.instance.warn(
+            'KnowledgeService',
+            'Failed to parse document during search: ${entity.path}: $e',
+          );
         }
       }
     }
 
     // Sort by score descending, take top N
     results.sort((a, b) => b.score.compareTo(a.score));
+    VideLogger.instance.debug(
+      'KnowledgeService',
+      'Search for "$query": ${results.length} results (returning top $limit)',
+    );
     return results.take(limit).toList();
   }
 

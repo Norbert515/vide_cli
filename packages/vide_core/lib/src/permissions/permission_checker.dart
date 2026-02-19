@@ -1,4 +1,5 @@
 import '../configuration/claude_settings.dart';
+import '../logging/vide_logger.dart';
 import '../models/permission_mode.dart';
 import '../configuration/local_settings_manager.dart';
 import 'gitignore_matcher.dart';
@@ -168,7 +169,10 @@ class PermissionChecker {
       try {
         _gitignoreMatcher = await GitignoreMatcher.load(cwd);
       } catch (e) {
-        // Ignore gitignore load errors
+        VideLogger.instance.warn(
+          'PermissionChecker',
+          'Failed to load .gitignore for $cwd: $e',
+        );
       }
     }
 
@@ -178,6 +182,10 @@ class PermissionChecker {
         if (filePath.isNotEmpty &&
             _gitignoreMatcher != null &&
             _gitignoreMatcher!.shouldIgnore(filePath)) {
+          VideLogger.instance.info(
+            'PermissionChecker',
+            'Blocked by .gitignore: tool=$toolName path=$filePath',
+          );
           return const PermissionDeny('Blocked by .gitignore');
         }
       }
@@ -187,6 +195,10 @@ class PermissionChecker {
     const hardcodedDenyList = ['mcp__dart__analyze_files'];
 
     if (hardcodedDenyList.contains(toolName)) {
+      VideLogger.instance.info(
+        'PermissionChecker',
+        'Blocked by hardcoded deny list: tool=$toolName',
+      );
       return PermissionDeny(
         'Blocked: $toolName floods context with too much output. Use `dart analyze` via Bash instead.',
       );
@@ -216,6 +228,10 @@ class PermissionChecker {
           input,
           context: {'cwd': cwd},
         )) {
+          VideLogger.instance.info(
+            'PermissionChecker',
+            'Blocked by deny list: tool=$toolName pattern=$pattern',
+          );
           return const PermissionDeny('Blocked by deny list');
         }
       }
@@ -255,6 +271,11 @@ class PermissionChecker {
 
     // Need to ask user - handle based on config
     final inferredPattern = PatternInference.inferPattern(toolName, input);
+    VideLogger.instance.debug(
+      'PermissionChecker',
+      'No auto-approve rule matched: tool=$toolName behavior=${config.askUserBehavior.name} '
+      'pattern=$inferredPattern',
+    );
     return switch (config.askUserBehavior) {
       AskUserBehavior.ask => PermissionAskUser(
         inferredPattern: inferredPattern,

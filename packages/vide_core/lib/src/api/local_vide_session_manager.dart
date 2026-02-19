@@ -81,6 +81,11 @@ class LocalVideSessionManager implements VideSessionManager {
     String? team,
     List<VideAttachment>? attachments,
   }) async {
+    VideLogger.instance.info(
+      'LocalVideSessionManager',
+      'Creating session: workDir=$workingDirectory team=${team ?? 'enterprise'} '
+      'isolated=$_isolateContainers hasMessage=${initialMessage != null}',
+    );
     final sessionContainer = _containerForSession(workingDirectory);
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
 
@@ -120,6 +125,12 @@ class LocalVideSessionManager implements VideSessionManager {
       _sessionContainers[session.id] = sessionContainer;
     }
 
+    VideLogger.instance.info(
+      'LocalVideSessionManager',
+      'Session created: id=${session.id}',
+      sessionId: session.id,
+    );
+
     // Only emit to session list if there's an initial message (active session).
     // Pre-created idle sessions shouldn't appear in the list yet.
     if (initialMessage != null) {
@@ -154,8 +165,19 @@ class LocalVideSessionManager implements VideSessionManager {
     String sessionId, {
     String? workingDirectory,
   }) async {
+    VideLogger.instance.info(
+      'LocalVideSessionManager',
+      'Resuming session: id=$sessionId',
+      sessionId: sessionId,
+    );
+
     // Return existing active session if available.
     if (_activeSessions.containsKey(sessionId)) {
+      VideLogger.instance.debug(
+        'LocalVideSessionManager',
+        'Returning existing active session: id=$sessionId',
+        sessionId: sessionId,
+      );
       return _activeSessions[sessionId]!;
     }
 
@@ -164,6 +186,10 @@ class LocalVideSessionManager implements VideSessionManager {
     final network = networks.where((n) => n.id == sessionId).firstOrNull;
 
     if (network == null) {
+      VideLogger.instance.error(
+        'LocalVideSessionManager',
+        'Session not found for resume: id=$sessionId',
+      );
       throw ArgumentError('Session not found: $sessionId');
     }
 
@@ -232,6 +258,12 @@ class LocalVideSessionManager implements VideSessionManager {
 
   @override
   Future<void> deleteSession(String sessionId) async {
+    VideLogger.instance.info(
+      'LocalVideSessionManager',
+      'Deleting session: id=$sessionId active=${_activeSessions.containsKey(sessionId)}',
+      sessionId: sessionId,
+    );
+
     // Dispose if active.
     final activeSession = _activeSessions.remove(sessionId);
     if (activeSession != null) {
@@ -258,6 +290,11 @@ class LocalVideSessionManager implements VideSessionManager {
 
   @override
   void dispose() {
+    VideLogger.instance.info(
+      'LocalVideSessionManager',
+      'Disposing session manager (${_activeSessions.length} active sessions)',
+    );
+
     // Dispose all active sessions.
     for (final session in _activeSessions.values) {
       session.dispose();

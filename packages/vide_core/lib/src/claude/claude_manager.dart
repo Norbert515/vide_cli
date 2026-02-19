@@ -1,4 +1,5 @@
 import 'package:claude_sdk/claude_sdk.dart';
+import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
 import 'package:riverpod/riverpod.dart';
 
@@ -45,10 +46,18 @@ class ClaudeManagerStateNotifier
   Map<String, ClaudeClient> get clients => state;
 
   void addAgent(String agentId, ClaudeClient client) {
+    VideLogger.instance.debug(
+      'ClaudeManager',
+      'addAgent: id=$agentId (total=${state.length + 1})',
+    );
     state = {...state, agentId: client};
   }
 
   void removeAgent(String agentId) {
+    VideLogger.instance.debug(
+      'ClaudeManager',
+      'removeAgent: id=$agentId (total=${state.length - 1})',
+    );
     state = {...state}..remove(agentId);
   }
 }

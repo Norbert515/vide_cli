@@ -112,6 +112,12 @@ class LocalVideSession implements VideSession {
   }
 
   void _initialize() {
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Initializing session',
+      sessionId: _networkId,
+    );
+
     // Subscribe to network changes to detect agent spawn/terminate
     _subscribeToNetworkChanges();
 
@@ -121,6 +127,11 @@ class LocalVideSession implements VideSession {
       for (final agent in network.agents) {
         _subscribeToAgent(agent);
       }
+      VideLogger.instance.debug(
+        'LocalVideSession',
+        'Subscribed to ${network.agents.length} existing agents',
+        sessionId: _networkId,
+      );
     }
   }
 
@@ -235,8 +246,18 @@ class LocalVideSession implements VideSession {
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     final targetAgent = agentId ?? state.mainAgent?.id;
     if (targetAgent == null) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'sendMessage failed: no agents in session',
+        sessionId: _networkId,
+      );
       throw StateError('No agents in session');
     }
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'sendMessage to agent=$targetAgent (${message.text.length} chars)',
+      sessionId: _networkId,
+    );
 
     // Check if the agent is currently processing. If so, the message will be
     // queued by ClaudeClient and should NOT appear in the chat yet. It will
@@ -308,6 +329,12 @@ class LocalVideSession implements VideSession {
     _checkNotDisposed();
     final pending = _pendingRequests.remove(requestId);
     if (pending is _PendingPermission) {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'Permission response: tool=${pending.toolName} agent=${pending.agentId} '
+        'allow=$allow remember=$remember',
+        sessionId: _networkId,
+      );
       if (remember && allow) {
         _rememberPermission(pending, patternOverride);
       }
@@ -367,6 +394,12 @@ class LocalVideSession implements VideSession {
     _checkNotDisposed();
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return;
+
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Aborting all agents (${network.agents.length} agents)',
+      sessionId: _networkId,
+    );
 
     final clients = _container.read(claudeManagerProvider);
     for (final agent in network.agents) {
@@ -620,6 +653,13 @@ class LocalVideSession implements VideSession {
   Future<void> dispose({bool fireEndTrigger = true}) async {
     if (_disposed) return;
 
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Disposing session (pending requests: ${_pendingRequests.length}, '
+      'agent subscriptions: ${_agentSubscriptions.length})',
+      sessionId: _networkId,
+    );
+
     // Fire onSessionEnd trigger before cleanup (if enabled)
     if (fireEndTrigger) {
       try {
@@ -700,6 +740,11 @@ class LocalVideSession implements VideSession {
   }) async {
     // Skip all permission checks when dangerously-skip-permissions is enabled
     if (_dangerouslySkipPermissions) {
+      VideLogger.instance.debug(
+        'LocalVideSession',
+        'Permission auto-allowed (dangerouslySkipPermissions): tool=$toolName agent=$agentId',
+        sessionId: _networkId,
+      );
       return const claude.PermissionResultAllow();
     }
 
@@ -748,6 +793,11 @@ class LocalVideSession implements VideSession {
         return const claude.PermissionResultAllow();
 
       case PermissionDeny(reason: final reason):
+        VideLogger.instance.info(
+          'LocalVideSession',
+          'Permission denied: tool=$toolName agent=$agentId reason=$reason',
+          sessionId: _networkId,
+        );
         return claude.PermissionResultDeny(message: reason);
 
       case PermissionAskUser(inferredPattern: final inferredPattern):
@@ -756,6 +806,12 @@ class LocalVideSession implements VideSession {
         if (_disposed) {
           return const claude.PermissionResultDeny(message: 'Session disposed');
         }
+
+        VideLogger.instance.info(
+          'LocalVideSession',
+          'Permission ask-user: tool=$toolName agent=$agentId pattern=$inferredPattern',
+          sessionId: _networkId,
+        );
 
         // Need to ask the user - emit event and wait
         final requestId = const Uuid().v4();
@@ -842,7 +898,17 @@ class LocalVideSession implements VideSession {
     required Map<String, dynamic> toolInput,
   }) async {
     try {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'AskUserQuestion from agent=$agentId ($agentName)',
+        sessionId: _networkId,
+      );
       if (_disposed) {
+        VideLogger.instance.warn(
+          'LocalVideSession',
+          'AskUserQuestion rejected: session disposed',
+          sessionId: _networkId,
+        );
         return const claude.PermissionResultDeny(message: 'Session disposed');
       }
 
@@ -907,6 +973,11 @@ class LocalVideSession implements VideSession {
         updatedInput: {...toolInput, 'answers': answers},
       );
     } catch (e) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'AskUserQuestion failed: agent=$agentId error=$e',
+        sessionId: _networkId,
+      );
       return claude.PermissionResultDeny(
         message: 'Failed to process AskUserQuestion: $e',
       );
@@ -921,7 +992,17 @@ class LocalVideSession implements VideSession {
     required Map<String, dynamic> toolInput,
   }) async {
     try {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'ExitPlanMode from agent=$agentId ($agentName)',
+        sessionId: _networkId,
+      );
       if (_disposed) {
+        VideLogger.instance.warn(
+          'LocalVideSession',
+          'ExitPlanMode rejected: session disposed',
+          sessionId: _networkId,
+        );
         return const claude.PermissionResultDeny(message: 'Session disposed');
       }
 
@@ -970,6 +1051,12 @@ class LocalVideSession implements VideSession {
       // Restore to working since the agent will continue processing
       statusNotifier.setStatus(internal.AgentStatus.working);
 
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'Plan approval result: agent=$agentId action=${result.action}',
+        sessionId: _networkId,
+      );
+
       switch (result.action) {
         case 'accept':
           return const claude.PermissionResultAllow();
@@ -983,6 +1070,11 @@ class LocalVideSession implements VideSession {
           );
       }
     } catch (e) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'ExitPlanMode failed: agent=$agentId error=$e',
+        sessionId: _networkId,
+      );
       return claude.PermissionResultDeny(
         message: 'Failed to process ExitPlanMode: $e',
       );
@@ -1106,7 +1198,19 @@ class LocalVideSession implements VideSession {
     if (_agentStates.containsKey(agent.id)) return;
 
     final client = _container.read(claudeProvider(agent.id));
-    if (client == null) return;
+    if (client == null) {
+      VideLogger.instance.warn(
+        'LocalVideSession',
+        'Cannot subscribe to agent=${agent.id} (${agent.name}): no ClaudeClient found',
+        sessionId: _networkId,
+      );
+      return;
+    }
+    VideLogger.instance.debug(
+      'LocalVideSession',
+      'Subscribing to agent=${agent.id} (${agent.name}, type=${agent.type})',
+      sessionId: _networkId,
+    );
 
     _agentStates[agent.id] = _AgentStreamState(
       agentId: agent.id,
