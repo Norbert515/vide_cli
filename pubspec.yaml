@@ -13,6 +13,7 @@ workspace:
   - packages/agent_sdk
   - packages/claude_sdk
   - packages/codex_sdk
+  - packages/gemini_sdk
   - packages/flutter_runtime_mcp
   - packages/moondream_api
   - packages/vide_interface
