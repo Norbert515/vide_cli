@@ -31,3 +31,7 @@ packages/vide_in_app_sdk/example/
 
 # Specs (local design docs)
 specs/
+
+# Landing page
+landing/node_modules/
+.DS_Store

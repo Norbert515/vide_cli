@@ -982,7 +982,7 @@ body {
 }
 
 .hero-subtitle {
-  color: var(--text-bright);
+  color: var(--text-primary);
   font-size: 1rem;
   margin: 0;
   letter-spacing: 0.05em;

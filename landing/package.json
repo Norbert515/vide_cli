@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "name": "vide-landing",
+  "type": "module",
+  "scripts": {
+    "generate-og": "node generate-og.mjs"
+  },
+  "devDependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}
