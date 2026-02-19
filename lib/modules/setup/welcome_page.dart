@@ -271,24 +271,31 @@ class _WelcomePageState extends State<WelcomePage>
   }
 
   Component _buildMainContent(BuildContext context) {
-    final theme = VideTheme.of(context);
+    // Read theme inside a Builder so the preview theme override (applied
+    // by build() above) is visible. Previously the theme was captured from
+    // the outer context before the override was injected.
+    return Builder(
+      builder: (innerContext) {
+        final theme = VideTheme.of(innerContext);
 
-    if (_completing) {
-      return Center(
-        child: Text(
-          'Starting Vide...',
-          style: TextStyle(color: theme.base.outline),
-        ),
-      );
-    }
+        if (_completing) {
+          return Center(
+            child: Text(
+              'Starting Vide...',
+              style: TextStyle(color: theme.base.outline),
+            ),
+          );
+        }
 
-    return VortexBackground(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final availableHeight = constraints.maxHeight.toInt();
-          return Center(child: _buildCard(theme, availableHeight));
-        },
-      ),
+        return VortexBackground(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final availableHeight = constraints.maxHeight.toInt();
+              return Center(child: _buildCard(theme, availableHeight));
+            },
+          ),
+        );
+      },
     );
   }
 

@@ -241,16 +241,20 @@ class _VideAppContent extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    // Navigator at top level so dialogs render on top of everything.
-    // Each page wraps itself with VideScaffold as needed.
-    // HomePage now handles both local and daemon modes.
-    return WelcomeScope(
-      child: SetupScope(
-        child: Navigator(
-          key: _navigatorKey,
-          home: HomePage(),
-          // Disable Navigator's ESC handling - pages handle it
-          popBehavior: PopBehavior(escapeEnabled: false),
+    final theme = TuiTheme.of(context);
+
+    // Fill the entire terminal with the theme background color so we
+    // control the visual experience regardless of the user's terminal theme.
+    return Container(
+      color: theme.background,
+      child: WelcomeScope(
+        child: SetupScope(
+          child: Navigator(
+            key: _navigatorKey,
+            home: HomePage(),
+            // Disable Navigator's ESC handling - pages handle it
+            popBehavior: PopBehavior(escapeEnabled: false),
+          ),
         ),
       ),
     );
