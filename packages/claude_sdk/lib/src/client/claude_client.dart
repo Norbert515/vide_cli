@@ -282,6 +282,20 @@ class ClaudeClientImpl implements ClaudeClient {
     _turnCompleteController.stream.listen((_) {
       _flushQueuedMessage();
     });
+
+    // Monitor process lifecycle for unexpected exits
+    _lifecycleManager.onProcessExited = (exitCode) {
+      stderr.writeln(
+        '[ClaudeClient] Process exited unexpectedly '
+        '(exitCode=$exitCode, session=$sessionId)',
+      );
+      _updateStatus(ClaudeStatus.error);
+    };
+    _lifecycleManager.onStdoutDone = () {
+      stderr.writeln(
+        '[ClaudeClient] stdout stream closed (session=$sessionId)',
+      );
+    };
   }
 
   Future<void> init() async {

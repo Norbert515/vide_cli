@@ -46,6 +46,11 @@ class AgentStatusSyncService {
     _statusSyncSubscriptions[agentId] = client.statusStream.listen((
       claudeStatus,
     ) {
+      VideLogger.instance.debug(
+        'AgentStatusSyncService',
+        'Agent $agentId: received ClaudeStatus.${claudeStatus.name}',
+        sessionId: _networkId,
+      );
       final agentStatusNotifier = _getStatusNotifier(agentId);
       final currentAgentStatus = _getStatus(agentId);
 
@@ -129,6 +134,18 @@ class AgentStatusSyncService {
           );
           break;
       }
+    }, onError: (Object error) {
+      VideLogger.instance.error(
+        'AgentStatusSyncService',
+        'Agent $agentId: statusStream error: $error',
+        sessionId: _networkId,
+      );
+    }, onDone: () {
+      VideLogger.instance.warn(
+        'AgentStatusSyncService',
+        'Agent $agentId: statusStream closed (process may have exited)',
+        sessionId: _networkId,
+      );
     });
   }
 

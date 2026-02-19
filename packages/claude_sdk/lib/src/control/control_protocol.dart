@@ -48,6 +48,12 @@ class ControlProtocol {
   /// Subscription to stdout
   StreamSubscription<String>? _stdoutSubscription;
 
+  /// Called when the stdout stream closes (process exited or pipe broken).
+  void Function()? onStdoutDone;
+
+  /// Called when the stdout stream encounters an error.
+  void Function(Object error)? onStdoutError;
+
   ControlProtocol(this._process);
 
   /// Initialize the control protocol with hooks
@@ -96,7 +102,15 @@ class ControlProtocol {
   void _startListening() {
     _stdoutSubscription = _process.stdout
         .transform(utf8.decoder)
-        .listen(_handleStdoutChunk);
+        .listen(
+          _handleStdoutChunk,
+          onDone: () {
+            onStdoutDone?.call();
+          },
+          onError: (Object error) {
+            onStdoutError?.call(error);
+          },
+        );
   }
 
   /// Handle a chunk of stdout data
