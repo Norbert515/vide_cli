@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
+import 'package:vide_cli/theme/theme.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
 import 'default_renderer.dart';
@@ -124,6 +125,8 @@ class ToolInvocationRouter extends StatelessComponent {
       return SizedBox();
     }
 
+    final theme = VideTheme.of(context);
+
     if (invocation.isError) {
       // Plan was rejected - show rejection with feedback if available
       final reason = invocation.resultContent ?? 'User rejected the plan';
@@ -132,11 +135,11 @@ class ToolInvocationRouter extends StatelessComponent {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('◇ ', style: TextStyle(color: Colors.red)),
+            Text('◇ ', style: TextStyle(color: theme.base.error)),
             Expanded(
               child: Text(
                 'Plan rejected: $reason',
-                style: TextStyle(color: Colors.red),
+                style: TextStyle(color: theme.base.error),
               ),
             ),
           ],
@@ -149,10 +152,10 @@ class ToolInvocationRouter extends StatelessComponent {
       padding: EdgeInsets.symmetric(vertical: 1),
       child: Row(
         children: [
-          Text('◆ ', style: TextStyle(color: Colors.green)),
+          Text('◆ ', style: TextStyle(color: theme.base.success)),
           Text(
             'Plan accepted',
-            style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+            style: TextStyle(color: theme.base.success, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -180,15 +183,17 @@ class ToolInvocationRouter extends StatelessComponent {
         return SizedBox();
       }
 
+      final theme = VideTheme.of(context);
+
       final answers = Map<String, dynamic>.from(decoded);
       if (answers.isEmpty) {
         // User cancelled
         return Row(
           children: [
-            Text('◇ ', style: TextStyle(color: Colors.grey)),
+            Text('◇ ', style: TextStyle(color: theme.base.outline)),
             Text(
               'Question cancelled',
-              style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+              style: TextStyle(color: theme.base.outline, fontStyle: FontStyle.italic),
             ),
           ],
         );
@@ -205,17 +210,17 @@ class ToolInvocationRouter extends StatelessComponent {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('◆ ', style: TextStyle(color: Colors.cyan)),
+                  Text('◆ ', style: TextStyle(color: theme.base.primary)),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(entry.key, style: TextStyle(color: Colors.grey)),
+                        Text(entry.key, style: TextStyle(color: theme.base.outline)),
                         Text(
                           '  ${entry.value}',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: theme.base.onSurface,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

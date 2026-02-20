@@ -19,7 +19,7 @@ class SettingsToggle extends StatelessComponent {
       return Text(
         '[ ]',
         style: TextStyle(
-          color: theme.base.outline.withOpacity(TextOpacity.secondary),
+          color: theme.base.outline,
         ),
       );
     }

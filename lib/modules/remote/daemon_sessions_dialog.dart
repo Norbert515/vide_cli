@@ -202,7 +202,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
               decoration: BoxDecoration(
                 border: BoxBorder(
                   bottom: BorderSide(
-                    color: theme.base.outline.withOpacity(0.3),
+                    color: theme.base.outlineVariant,
                   ),
                 ),
               ),
@@ -249,7 +249,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
               padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
               decoration: BoxDecoration(
                 border: BoxBorder(
-                  top: BorderSide(color: theme.base.outline.withOpacity(0.3)),
+                  top: BorderSide(color: theme.base.outlineVariant),
                 ),
               ),
               child: Text(
@@ -348,7 +348,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
         return Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
           decoration: BoxDecoration(
-            color: isSelected ? theme.base.primary.withOpacity(0.15) : null,
+            color: isSelected ? theme.base.primary.withOpacity(0.25) : null,
           ),
           child: Row(
             children: [

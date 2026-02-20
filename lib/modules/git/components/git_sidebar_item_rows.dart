@@ -5,10 +5,26 @@ import 'package:vide_cli/modules/git/models/git_sidebar_models.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
-/// VS Code-style colors for git status (matching mockup aesthetic).
-const vsCodeStagedColor = Color(0xFF4EC9B0); // Teal/cyan
-const vsCodeModifiedColor = Color(0xFFDCDCAA); // Soft yellow
-const vsCodeAccentColor = Color(0xFFC586C0); // Purple/magenta for git icon
+/// Returns the staged file color appropriate for the theme brightness.
+Color getStagedColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0x2E8B7A) // Dark teal for light bg
+      : const Color(0x4EC9B0); // Bright teal for dark bg
+}
+
+/// Returns the modified file color appropriate for the theme brightness.
+Color getModifiedColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0xB5994D) // Dark goldenrod for light bg
+      : const Color(0xDCDCAA); // Soft yellow for dark bg
+}
+
+/// Returns the git accent color appropriate for the theme brightness.
+Color getAccentColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0x9B4D96) // Dark magenta for light bg
+      : const Color(0xC586C0); // Light magenta for dark bg
+}
 
 /// Returns a colored dot indicator for file status.
 /// ● (filled) for staged/modified, ○ (hollow) for untracked.
@@ -28,9 +44,9 @@ String getStatusDot(String? status) {
 Color getStatusColor(String? status, VideThemeData theme) {
   switch (status) {
     case 'staged':
-      return vsCodeStagedColor;
+      return getStagedColor(theme);
     case 'modified':
-      return vsCodeModifiedColor;
+      return getModifiedColor(theme);
     case 'untracked':
       return theme.base.onSurface.withOpacity(TextOpacity.secondary);
     default:
@@ -202,7 +218,7 @@ Component buildWorktreeHeaderRow({
             ? BoxDecoration(
                 color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
-            : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+            : BoxDecoration(color: theme.base.outlineVariant),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Row(
@@ -214,7 +230,7 @@ Component buildWorktreeHeaderRow({
                 style: TextStyle(
                   color: isCurrentWorktree
                       ? theme.base.primary
-                      : vsCodeAccentColor,
+                      : getAccentColor(theme),
                 ),
               ),
               SizedBox(width: 1),
@@ -233,7 +249,7 @@ Component buildWorktreeHeaderRow({
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(color: vsCodeModifiedColor),
+                  style: TextStyle(color: getModifiedColor(theme)),
                 ),
               // Ahead/behind indicators
               if (gitStatus != null) ...[
@@ -245,7 +261,7 @@ Component buildWorktreeHeaderRow({
                 if (gitStatus.behind > 0)
                   Text(
                     ' ↓${gitStatus.behind}',
-                    style: TextStyle(color: vsCodeModifiedColor),
+                    style: TextStyle(color: getModifiedColor(theme)),
                   ),
               ],
             ],
@@ -391,14 +407,14 @@ Component buildRepoHeaderRow({
             ? BoxDecoration(
                 color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
-            : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+            : BoxDecoration(color: theme.base.outlineVariant),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Row(
             children: [
               Text(expandIcon, style: TextStyle(color: theme.base.onSurface)),
               SizedBox(width: 1),
-              Text('', style: TextStyle(color: vsCodeAccentColor)),
+              Text('', style: TextStyle(color: getAccentColor(theme))),
               SizedBox(width: 1),
               Flexible(
                 flex: 2,
@@ -434,7 +450,7 @@ Component buildRepoHeaderRow({
                 if (status.behind > 0)
                   Text(
                     ' ↓${status.behind}',
-                    style: TextStyle(color: vsCodeModifiedColor),
+                    style: TextStyle(color: getModifiedColor(theme)),
                   ),
                 if (status.ahead > 0)
                   Text(
@@ -446,7 +462,7 @@ Component buildRepoHeaderRow({
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(color: vsCodeModifiedColor),
+                  style: TextStyle(color: getModifiedColor(theme)),
                 ),
             ],
           ),
@@ -465,7 +481,7 @@ Component buildDividerRow({
     padding: EdgeInsets.symmetric(horizontal: 1),
     child: Text(
       '─' * (availableWidth - 2),
-      style: TextStyle(color: theme.base.outline.withOpacity(0.5)),
+      style: TextStyle(color: theme.base.outlineVariant),
     ),
   );
 }

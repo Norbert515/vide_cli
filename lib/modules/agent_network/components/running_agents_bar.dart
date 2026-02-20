@@ -116,7 +116,7 @@ class _RunningAgentBarItemState extends State<_RunningAgentBarItem>
   Color _getIndicatorTextColor(VideAgentStatus status, VideThemeData theme) {
     // Use contrasting text color based on indicator background
     return switch (status) {
-      VideAgentStatus.waitingForAgent => Colors.black,
+      VideAgentStatus.waitingForAgent => theme.base.surface,
       _ => theme.base.onSurface,
     };
   }

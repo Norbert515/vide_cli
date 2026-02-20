@@ -148,9 +148,9 @@ class _PermissionsSectionState extends State<PermissionsSection> {
             Container(
               padding: EdgeInsets.all(2),
               decoration: BoxDecoration(
-                color: theme.base.outline.withOpacity(0.05),
+                color: theme.base.outlineVariant.withOpacity(0.2),
                 border: BoxBorder.all(
-                  color: theme.base.outline.withOpacity(TextOpacity.separator),
+                  color: theme.base.outlineVariant,
                   style: BoxBorderStyle.rounded,
                 ),
               ),

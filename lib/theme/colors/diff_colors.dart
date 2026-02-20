@@ -45,8 +45,8 @@ class VideDiffColors {
 
   /// Light theme diff colors.
   static const VideDiffColors light = VideDiffColors(
-    addedBackground: Color(0xD4EDDA),
-    removedBackground: Color(0xF8D7DA),
+    addedBackground: Color(0xEDF7ED), // very subtle green tint
+    removedBackground: Color(0xFCEDED), // very subtle red tint
     addedPrefix: Color(0x228B22), // forest green
     removedPrefix: Color(0xDC143C), // crimson
     contextPrefix: Color(0x666666),

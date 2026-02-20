@@ -925,7 +925,7 @@ class _GitSidebarState extends State<GitSidebar>
         // Header area matching expanded state (no bottom border)
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+          decoration: BoxDecoration(color: theme.base.outlineVariant),
           child: Center(
             child: Text(
               '›',

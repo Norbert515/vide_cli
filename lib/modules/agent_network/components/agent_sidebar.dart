@@ -253,7 +253,7 @@ class _AgentSidebarState extends State<AgentSidebar>
         SizedBox(height: 1),
         Container(
           padding: EdgeInsets.symmetric(horizontal: 1),
-          decoration: BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+          decoration: BoxDecoration(color: theme.base.outlineVariant),
           child: Center(
             child: Text(
               '≡',
@@ -536,11 +536,11 @@ class _AgentRowItemState extends State<_AgentRowItem>
     );
 
     final bgColor = component.isSelected && component.isFocused
-        ? theme.base.primary.withOpacity(0.15)
+        ? theme.base.primary.withOpacity(0.25)
         : component.isSelectedById
-        ? theme.base.outline.withOpacity(0.1)
+        ? theme.base.outlineVariant.withOpacity(0.4)
         : component.isHovered
-        ? theme.base.outline.withOpacity(0.08)
+        ? theme.base.outlineVariant.withOpacity(0.3)
         : null;
 
     final textColor = component.isSelected && component.isFocused

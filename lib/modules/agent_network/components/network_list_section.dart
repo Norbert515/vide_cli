@@ -147,9 +147,7 @@ class _NetworkListSectionState extends State<NetworkListSection> {
                     Text(
                       '─── ',
                       style: TextStyle(
-                        color: theme.base.outline.withOpacity(
-                          TextOpacity.separator,
-                        ),
+                        color: theme.base.outlineVariant,
                       ),
                     ),
                     Text(

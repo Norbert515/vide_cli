@@ -1,6 +1,5 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
 
 /// Section header with horizontal rules.
 class SectionHeader extends StatelessComponent {
@@ -17,7 +16,7 @@ class SectionHeader extends StatelessComponent {
         Text(
           '─── ',
           style: TextStyle(
-            color: theme.base.outline.withOpacity(TextOpacity.separator),
+            color: theme.base.outlineVariant,
           ),
         ),
         Text(
@@ -31,7 +30,7 @@ class SectionHeader extends StatelessComponent {
           child: Text(
             ' ─────────────────────────────────────────',
             style: TextStyle(
-              color: theme.base.outline.withOpacity(TextOpacity.separator),
+              color: theme.base.outlineVariant,
             ),
             overflow: TextOverflow.clip,
           ),

@@ -1,5 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
+import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 
 /// Dialog for displaying structured multiple-choice questions to the user
@@ -204,57 +205,62 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         }
         return false;
       },
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Tab navigation header for multiple questions
-          if (totalQuestions > 1) ...[
-            _buildTabHeader(totalQuestions),
-            SizedBox(height: 1),
-          ],
+      child: Builder(
+        builder: (context) {
+          final theme = VideTheme.of(context);
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Tab navigation header for multiple questions
+              if (totalQuestions > 1) ...[
+                _buildTabHeader(totalQuestions, theme),
+                SizedBox(height: 1),
+              ],
 
-          // Question text (bold)
-          Text(
-            question.question,
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 1),
+              // Question text (bold)
+              Text(
+                question.question,
+                style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 1),
 
-          // Options with numbers
-          for (int i = 0; i < options.length; i++)
-            _buildOption(i, options[i], question.multiSelect),
+              // Options with numbers
+              for (int i = 0; i < options.length; i++)
+                _buildOption(i, options[i], question.multiSelect, theme),
 
-          // "Type something" option with inline text field
-          _buildTypeSomethingOption(options.length),
+              // "Type something" option with inline text field
+              _buildTypeSomethingOption(options.length, theme),
 
-          SizedBox(height: 1),
+              SizedBox(height: 1),
 
-          // Help text
-          Text(
-            'Enter to select · ${totalQuestions > 1 ? 'Tab/Arrow keys to navigate · ' : ''}Esc to cancel',
-            style: TextStyle(color: Colors.grey),
-          ),
-        ],
+              // Help text
+              Text(
+                'Enter to select · ${totalQuestions > 1 ? 'Tab/Arrow keys to navigate · ' : ''}Esc to cancel',
+                style: TextStyle(color: theme.base.outline),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   /// Build the tab header showing all questions (matches Claude Code style)
-  Component _buildTabHeader(int totalQuestions) {
+  Component _buildTabHeader(int totalQuestions, VideThemeData theme) {
     return Row(
       children: [
-        Text('← ', style: TextStyle(color: Colors.grey)),
+        Text('← ', style: TextStyle(color: theme.base.outline)),
         for (int i = 0; i < totalQuestions; i++) ...[
-          if (i > 0) Text(' ', style: TextStyle(color: Colors.grey)),
-          _buildTabItem(i),
+          if (i > 0) Text(' ', style: TextStyle(color: theme.base.outline)),
+          _buildTabItem(i, theme),
         ],
-        Text(' →', style: TextStyle(color: Colors.grey)),
+        Text(' →', style: TextStyle(color: theme.base.outline)),
       ],
     );
   }
 
-  Component _buildTabItem(int index) {
+  Component _buildTabItem(int index, VideThemeData theme) {
     final question = component.request.questions[index];
     final isActive = index == _currentQuestionIndex;
     final hasAnswer = _answers.containsKey(question.question);
@@ -264,7 +270,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: BoxDecoration(
-        color: isActive ? Color.fromARGB(255, 100, 100, 180) : null,
+        color: isActive ? theme.base.primary.withOpacity(0.3) : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -272,12 +278,12 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
           // Checkbox indicator
           Text(
             hasAnswer ? '✓ ' : '☐ ',
-            style: TextStyle(color: hasAnswer ? Colors.green : Colors.grey),
+            style: TextStyle(color: hasAnswer ? theme.base.success : theme.base.outline),
           ),
           Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.white : Colors.grey,
+              color: isActive ? theme.base.onSurface : theme.base.outline,
               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -290,6 +296,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     int index,
     AskUserQuestionOptionData option,
     bool isMultiSelect,
+    VideThemeData theme,
   ) {
     final isSelected = index == _selectedOptionIndex;
     final isChecked = _multiSelectedIndices.contains(index);
@@ -309,20 +316,20 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
               Text(
                 isSelected ? '› ' : '  ',
                 style: TextStyle(
-                  color: Colors.cyan,
+                  color: theme.base.primary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
 
               // Number
-              Text('${index + 1}. ', style: TextStyle(color: Colors.grey)),
+              Text('${index + 1}. ', style: TextStyle(color: theme.base.outline)),
 
               // Checkbox for multi-select
               if (isMultiSelect)
                 Text(
                   isChecked ? '[✓] ' : '[ ] ',
                   style: TextStyle(
-                    color: isChecked ? Colors.green : Colors.grey,
+                    color: isChecked ? theme.base.success : theme.base.outline,
                     fontWeight: isChecked ? FontWeight.bold : FontWeight.normal,
                   ),
                 ),
@@ -332,7 +339,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
                 child: Text(
                   option.label,
                   style: TextStyle(
-                    color: Colors.white,
+                    color: theme.base.onSurface,
                     fontWeight: isSelected
                         ? FontWeight.bold
                         : FontWeight.normal,
@@ -351,7 +358,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
                 Expanded(
                   child: Text(
                     option.description,
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(color: theme.base.outline),
                   ),
                 ),
               ],
@@ -361,7 +368,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
     );
   }
 
-  Component _buildTypeSomethingOption(int index) {
+  Component _buildTypeSomethingOption(int index, VideThemeData theme) {
     final isSelected = _isTypeSomethingSelected;
 
     return Row(
@@ -369,11 +376,11 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         // Selection indicator
         Text(
           isSelected ? '› ' : '  ',
-          style: TextStyle(color: Colors.cyan, fontWeight: FontWeight.bold),
+          style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
         ),
 
         // Number
-        Text('${index + 1}. ', style: TextStyle(color: Colors.grey)),
+        Text('${index + 1}. ', style: TextStyle(color: theme.base.outline)),
 
         // Either text field when selected, or static text
         if (isSelected)
@@ -386,7 +393,7 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
             ),
           )
         else
-          Text('Type something.', style: TextStyle(color: Colors.grey)),
+          Text('Type something.', style: TextStyle(color: theme.base.outline)),
       ],
     );
   }

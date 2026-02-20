@@ -142,7 +142,7 @@ class _DiffRendererState extends State<DiffRenderer> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Tool header
-          _buildHeader(statusColor, statusIndicator),
+          _buildHeader(context, statusColor, statusIndicator),
 
           // Diff view (with pre-computed syntax highlighting)
           Container(
@@ -157,8 +157,9 @@ class _DiffRendererState extends State<DiffRenderer> {
     );
   }
 
-  Component _buildHeader(Color statusColor, String statusIndicator) {
-    final dim = Colors.white.withOpacity(0.5);
+  Component _buildHeader(BuildContext context, Color statusColor, String statusIndicator) {
+    final theme = VideTheme.of(context);
+    final dim = theme.base.onSurface.withOpacity(0.5);
 
     return Row(
       children: [
@@ -170,7 +171,7 @@ class _DiffRendererState extends State<DiffRenderer> {
         if (component.invocation.parameters.isNotEmpty) ...[
           Text(
             ' \u2192 ',
-            style: TextStyle(color: Colors.white.withOpacity(0.25)),
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.25)),
           ),
           Flexible(
             child: Text(

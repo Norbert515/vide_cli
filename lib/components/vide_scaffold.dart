@@ -230,7 +230,7 @@ class _VideScaffoldState extends State<VideScaffold> {
           ),
         ),
         VerticalDivider(
-          color: theme.base.outline.withOpacity(0.1),
+          color: theme.base.outlineVariant,
           style: DividerStyle.single,
         ),
       ],
@@ -248,7 +248,7 @@ class _VideScaffoldState extends State<VideScaffold> {
     return Row(
       children: [
         VerticalDivider(
-          color: theme.base.outline.withOpacity(0.1),
+          color: theme.base.outlineVariant,
           style: DividerStyle.single,
         ),
         SizedBox(
@@ -352,11 +352,9 @@ class _VideScaffoldState extends State<VideScaffold> {
     final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
-    final outline = theme.base.outline;
-
     return Container(
       decoration: BoxDecoration(
-        border: BoxBorder(bottom: BorderSide(color: outline.withOpacity(0.3))),
+        border: BoxBorder(bottom: BorderSide(color: theme.base.outlineVariant)),
       ),
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Row(

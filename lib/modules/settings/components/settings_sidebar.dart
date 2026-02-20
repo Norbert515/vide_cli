@@ -28,7 +28,7 @@ class SettingsSidebar extends StatelessComponent {
       child: Container(
         decoration: BoxDecoration(
           border: BoxBorder.all(
-            color: theme.base.outline.withOpacity(TextOpacity.separator),
+            color: theme.base.outlineVariant,
             style: BoxBorderStyle.rounded,
           ),
         ),
@@ -44,9 +44,9 @@ class SettingsSidebar extends StatelessComponent {
                     padding: EdgeInsets.only(left: 1, right: 1),
                     decoration: BoxDecoration(
                       color: i == selectedIndex && focused
-                          ? theme.base.primary.withOpacity(0.2)
+                          ? theme.base.primary.withOpacity(0.25)
                           : i == selectedIndex
-                          ? theme.base.outline.withOpacity(0.1)
+                          ? theme.base.outlineVariant.withOpacity(0.4)
                           : null,
                     ),
                     child: Row(
@@ -57,7 +57,7 @@ class SettingsSidebar extends StatelessComponent {
                             color: i == selectedIndex && focused
                                 ? theme.base.primary
                                 : theme.base.outline.withOpacity(
-                                    TextOpacity.tertiary,
+                                    TextOpacity.secondary,
                                   ),
                           ),
                         ),

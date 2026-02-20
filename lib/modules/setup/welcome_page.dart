@@ -445,7 +445,7 @@ class _WelcomePageState extends State<WelcomePage>
     return Text(
       '─' * (_contentWidth),
       style: TextStyle(
-        color: theme.base.outline.withOpacity(TextOpacity.separator),
+        color: theme.base.outlineVariant,
       ),
     );
   }
@@ -726,21 +726,21 @@ class _WelcomePageState extends State<WelcomePage>
         Text(
           '○',
           style: TextStyle(
-            color: theme.base.outline.withOpacity(TextOpacity.disabled),
+            color: theme.base.outlineVariant,
           ),
         ),
         SizedBox(width: 2),
         Text(
           name,
           style: TextStyle(
-            color: theme.base.outline.withOpacity(TextOpacity.disabled),
+            color: theme.base.outlineVariant,
           ),
         ),
         SizedBox(width: 2),
         Text(
           label,
           style: TextStyle(
-            color: theme.base.outline.withOpacity(TextOpacity.disabled),
+            color: theme.base.outlineVariant,
           ),
         ),
       ],

@@ -1,4 +1,5 @@
 import 'package:nocterm/nocterm.dart';
+import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 
 class PermissionDialog extends StatefulComponent {
@@ -130,11 +131,12 @@ class _PermissionDialogState extends State<PermissionDialog> {
 
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: BoxDecoration(
-        border: BoxBorder.all(color: Colors.grey),
-        color: Colors.black,
+        border: BoxBorder.all(color: theme.base.outline),
+        color: theme.base.surface,
       ),
       child: KeyboardListener(
         onKeyEvent: (key) {
@@ -185,7 +187,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
             // Title
             Text(
               'Permission Request',
-              style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+              style: TextStyle(color: theme.base.outline, fontWeight: FontWeight.bold),
             ),
 
             // Agent name (if aggregated)
@@ -193,7 +195,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
               Text(
                 'Agent: ${component.agentName}',
                 style: TextStyle(
-                  color: Colors.cyan,
+                  color: theme.base.primary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -202,36 +204,36 @@ class _PermissionDialogState extends State<PermissionDialog> {
             Text(
               'Tool: ${component.toolName}',
               style: TextStyle(
-                color: Colors.white,
+                color: theme.base.onSurface,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               component.displayAction,
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: theme.base.onSurface),
             ),
 
             // Show inferred pattern if "remember" would be used
             if (component.inferredPattern != null)
               Text(
                 'Pattern: ${component.inferredPattern}',
-                style: TextStyle(color: Colors.yellow),
+                style: TextStyle(color: theme.base.warning),
               ),
 
-            Divider(color: Colors.grey),
+            Divider(color: theme.base.outline),
 
             // List of options
             for (int i = 0; i < _options.length; i++)
-              _buildListItem(i, _options[i]),
+              _buildListItem(i, _options[i], theme),
           ],
         ),
       ),
     );
   }
 
-  Component _buildListItem(int index, _PermissionOption option) {
+  Component _buildListItem(int index, _PermissionOption option, VideThemeData theme) {
     final isSelected = index == _selectedIndex;
-    final color = option.granted ? Colors.green : Colors.red;
+    final color = option.granted ? theme.base.success : theme.base.error;
     final isDenyOption = !option.granted;
 
     return Container(
@@ -245,13 +247,13 @@ class _PermissionDialogState extends State<PermissionDialog> {
           Text(
             option.label,
             style: TextStyle(
-              color: isSelected ? color : Colors.grey,
+              color: isSelected ? color : theme.base.outline,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
           // Show inline text field when deny is selected
           if (isDenyOption && isSelected) ...[
-            Text(': ', style: TextStyle(color: Colors.grey)),
+            Text(': ', style: TextStyle(color: theme.base.outline)),
             Expanded(
               child: TextField(
                 controller: _textController,

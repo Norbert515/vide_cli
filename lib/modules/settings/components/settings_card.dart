@@ -23,7 +23,7 @@ class SettingsCard extends StatelessComponent {
     return Container(
       decoration: BoxDecoration(
         border: BoxBorder.all(
-          color: theme.base.outline.withOpacity(TextOpacity.separator),
+          color: theme.base.outlineVariant,
           style: BoxBorderStyle.rounded,
         ),
         title: BorderTitle(

@@ -79,9 +79,11 @@ class _WelcomeScopeState extends State<WelcomeScope> {
 
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+
     if (_isChecking) {
       return Center(
-        child: Text('Loading...', style: TextStyle(color: Colors.grey)),
+        child: Text('Loading...', style: TextStyle(color: theme.base.outline)),
       );
     }
 
@@ -90,9 +92,9 @@ class _WelcomeScopeState extends State<WelcomeScope> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Error: $_error', style: TextStyle(color: Colors.red)),
+            Text('Error: $_error', style: TextStyle(color: theme.base.error)),
             SizedBox(height: 2),
-            Text('Press Ctrl+C to exit', style: TextStyle(color: Colors.grey)),
+            Text('Press Ctrl+C to exit', style: TextStyle(color: theme.base.outline)),
           ],
         ),
       );

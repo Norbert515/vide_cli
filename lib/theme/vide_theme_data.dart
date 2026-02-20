@@ -85,6 +85,56 @@ class VideThemeData {
     );
   }
 
+  /// Returns a theme-aware [MarkdownStyleSheet] for use with [MarkdownText].
+  ///
+  /// The default [MarkdownStyleSheet.terminal()] uses hardcoded dark-only
+  /// colors (e.g. yellow-on-black for inline code). This getter provides
+  /// colors that adapt to the current theme's brightness.
+  MarkdownStyleSheet get markdownStyleSheet => MarkdownStyleSheet(
+    h1Style: TextStyle(
+      fontWeight: FontWeight.bold,
+      color: base.primary,
+    ),
+    h2Style: TextStyle(
+      fontWeight: FontWeight.bold,
+      color: base.secondary,
+    ),
+    h3Style: TextStyle(
+      fontWeight: FontWeight.bold,
+      color: base.success,
+    ),
+    h4Style: const TextStyle(fontWeight: FontWeight.bold),
+    h5Style: const TextStyle(fontWeight: FontWeight.bold),
+    h6Style: const TextStyle(fontWeight: FontWeight.bold),
+    boldStyle: const TextStyle(fontWeight: FontWeight.bold),
+    italicStyle: const TextStyle(fontStyle: FontStyle.italic),
+    strikethroughStyle: const TextStyle(decoration: TextDecoration.lineThrough),
+    codeStyle: TextStyle(
+      color: base.brightness == Brightness.light
+          ? const Color(0xB5651D) // Dark orange-brown for light backgrounds
+          : Colors.yellow,
+      backgroundColor: base.brightness == Brightness.light
+          ? base.outlineVariant.withOpacity(0.5) // Subtle grey for light bg
+          : base.background,
+    ),
+    codeBlockStyle: TextStyle(
+      color: base.brightness == Brightness.light
+          ? const Color(0x2E7D32) // Dark green for light backgrounds
+          : Colors.green,
+      backgroundColor: base.brightness == Brightness.light
+          ? base.outlineVariant.withOpacity(0.5)
+          : base.background,
+    ),
+    blockquoteStyle: TextStyle(
+      color: base.outline,
+      fontStyle: FontStyle.italic,
+    ),
+    linkStyle: TextStyle(
+      color: base.primary,
+      decoration: TextDecoration.underline,
+    ),
+  );
+
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

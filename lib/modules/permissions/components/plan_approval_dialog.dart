@@ -1,4 +1,5 @@
 import 'package:nocterm/nocterm.dart';
+import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 
 /// Dialog for displaying a plan and allowing the user to accept or reject it.
@@ -115,64 +116,69 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
         }
         return false;
       },
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 1),
-        decoration: BoxDecoration(
-          border: BoxBorder.all(color: Colors.grey),
-          color: Colors.black,
-        ),
-        child: Column(
-          children: [
-            // Title
-            Row(
+      child: Builder(
+        builder: (context) {
+          final theme = VideTheme.of(context);
+          return Container(
+            padding: EdgeInsets.symmetric(horizontal: 1),
+            decoration: BoxDecoration(
+              border: BoxBorder.all(color: theme.base.outline),
+              color: theme.base.surface,
+            ),
+            child: Column(
               children: [
-                Text(
-                  'Plan Review',
-                  style: TextStyle(
-                    color: Colors.cyan,
-                    fontWeight: FontWeight.bold,
+                // Title
+                Row(
+                  children: [
+                    Text(
+                      'Plan Review',
+                      style: TextStyle(
+                        color: theme.base.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Expanded(child: SizedBox()),
+                    Text(
+                      '${planLines.length} lines',
+                      style: TextStyle(color: theme.base.outline),
+                    ),
+                  ],
+                ),
+
+                SizedBox(height: 1),
+
+                // Scrollable plan content
+                Expanded(
+                  child: Scrollbar(
+                    controller: _scrollController,
+                    thumbVisibility: true,
+                    thumbColor: theme.base.primary,
+                    trackColor: theme.base.outlineVariant,
+                    child: ListView(
+                      lazy: false,
+                      controller: _scrollController,
+                      children: [MarkdownText(component.request.planContent, styleSheet: theme.markdownStyleSheet)],
+                    ),
                   ),
                 ),
-                Expanded(child: SizedBox()),
+
+                Divider(color: theme.base.outline),
+
+                // Options
+                _buildListItem(index: 0, label: 'Accept plan', isAccept: true, theme: theme),
+                _buildRejectItem(theme),
+
+                SizedBox(height: 1),
+
+                // Help text
                 Text(
-                  '${planLines.length} lines',
-                  style: TextStyle(color: Colors.grey),
+                  'Enter to select \u00b7 Tab/\u2191\u2193 to switch \u00b7 PgUp/PgDn to scroll \u00b7 Esc to reject',
+                  style: TextStyle(color: theme.base.outline),
                 ),
               ],
             ),
-
-            SizedBox(height: 1),
-
-            // Scrollable plan content
-            Expanded(
-              child: Scrollbar(
-                controller: _scrollController,
-                thumbVisibility: true,
-                thumbColor: Colors.cyan,
-                trackColor: Color.fromARGB(255, 40, 40, 40),
-                child: ListView(
-                  lazy: false,
-                  controller: _scrollController,
-                  children: [MarkdownText(component.request.planContent)],
-                ),
-              ),
-            ),
-
-            Divider(color: Colors.grey),
-
-            // Options
-            _buildListItem(index: 0, label: 'Accept plan', isAccept: true),
-            _buildRejectItem(),
-
-            SizedBox(height: 1),
-
-            // Help text
-            Text(
-              'Enter to select \u00b7 Tab/\u2191\u2193 to switch \u00b7 PgUp/PgDn to scroll \u00b7 Esc to reject',
-              style: TextStyle(color: Colors.grey),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -181,9 +187,10 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
     required int index,
     required String label,
     required bool isAccept,
+    required VideThemeData theme,
   }) {
     final isSelected = index == _selectedOptionIndex;
-    final color = isAccept ? Colors.green : Colors.red;
+    final color = isAccept ? theme.base.success : theme.base.error;
 
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
@@ -196,7 +203,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
           Text(
             label,
             style: TextStyle(
-              color: isSelected ? color : Colors.grey,
+              color: isSelected ? color : theme.base.outline,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -205,7 +212,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
     );
   }
 
-  Component _buildRejectItem() {
+  Component _buildRejectItem(VideThemeData theme) {
     final isSelected = _isRejectSelected;
 
     return Container(
@@ -214,12 +221,12 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
         children: [
           Text(
             isSelected ? '\u2192 ' : '  ',
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            style: TextStyle(color: theme.base.error, fontWeight: FontWeight.bold),
           ),
           if (isSelected) ...[
             Text(
               'Reject: ',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              style: TextStyle(color: theme.base.error, fontWeight: FontWeight.bold),
             ),
             Expanded(
               child: TextField(
@@ -231,7 +238,7 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
               ),
             ),
           ] else
-            Text('Reject with feedback', style: TextStyle(color: Colors.grey)),
+            Text('Reject with feedback', style: TextStyle(color: theme.base.outline)),
         ],
       ),
     );

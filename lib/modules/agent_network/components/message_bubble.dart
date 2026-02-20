@@ -118,11 +118,7 @@ class MessageBubble extends StatelessComponent {
               content.text.toLowerCase().contains('context window') ||
               content.text.toLowerCase().contains('token limit');
 
-          // Add spacing between tool calls and text
-          if (widgets.isNotEmpty) {
-            widgets.add(SizedBox(height: 1));
-          }
-          widgets.add(MarkdownText(content.text));
+          widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
 
           if (isContextFullError) {
             widgets.add(
