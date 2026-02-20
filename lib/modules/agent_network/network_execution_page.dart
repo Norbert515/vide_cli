@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/components/typing_text.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
@@ -12,7 +11,6 @@ import 'package:vide_cli/modules/agent_network/components/message_bubble.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
-import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/permissions/components/plan_approval_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
@@ -36,9 +34,9 @@ class NetworkExecutionPage extends StatefulComponent {
     // Mark session as seen on the daemon (best-effort).
     final daemonState = context.read(daemonConnectionProvider);
     if (daemonState.isConnected) {
-      context.read(daemonConnectionProvider.notifier).markSessionSeen(
-        session.id,
-      );
+      context
+          .read(daemonConnectionProvider.notifier)
+          .markSessionSeen(session.id);
     }
 
     return Navigator.of(context).push<void>(
@@ -58,6 +56,13 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   bool _showQuitWarning = false;
   static const _quitTimeWindow = Duration(seconds: 2);
 
+  /// Tracks whether conversation data has loaded for the main agent.
+  /// For local sessions this is true immediately; for remote sessions
+  /// the WebSocket must deliver history events first.
+  bool _conversationReady = false;
+  StreamSubscription<AgentConversationState>? _conversationReadySub;
+  String? _trackedAgentId;
+
   @override
   void initState() {
     super.initState();
@@ -65,8 +70,31 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     context.read(isOnHomePageProvider.notifier).state = false;
   }
 
+  void _trackConversationReady(VideSession session, String agentId) {
+    if (_trackedAgentId == agentId) return;
+    _conversationReadySub?.cancel();
+    _trackedAgentId = agentId;
+
+    // Check synchronously first
+    final existing = session.getConversation(agentId);
+    if (existing != null) {
+      _conversationReady = true;
+      return;
+    }
+
+    // Subscribe and wait for the first event
+    _conversationReadySub = session.conversationStream(agentId).listen((_) {
+      if (!_conversationReady && mounted) {
+        setState(() => _conversationReady = true);
+      }
+      _conversationReadySub?.cancel();
+      _conversationReadySub = null;
+    });
+  }
+
   @override
   void dispose() {
+    _conversationReadySub?.cancel();
     // Back to home page
     context.read(isOnHomePageProvider.notifier).state = true;
     context.read(sessionSelectionProvider.notifier).clear();
@@ -90,42 +118,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       selectedAgentIdNotifier.state = agentId;
     }
 
-    final session = context.watch(currentVideSessionProvider);
-    final connectionAsync = context.watch(sessionConnectionProvider);
-    // Default to true: local sessions never emit on connectionStateStream,
-    // so valueOrNull stays null. Only remote/pending sessions emit false→true.
-    final isConnected = connectionAsync.valueOrNull ?? true;
-
-    if (session == null || !isConnected) {
-      // Session pending or connecting — show explicit connecting state
-      final theme = VideTheme.of(context);
-      return Expanded(
-        child: Container(
-          decoration: BoxDecoration(title: BorderTitle(text: 'Main')),
-          child: Column(
-            children: [
-              Expanded(child: SizedBox()),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  EnhancedLoadingIndicator(agentId: agentId),
-                  SizedBox(width: 2),
-                  Text(
-                    'Connecting to session...',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+    final session = context.read(currentVideSessionProvider)!;
     return Expanded(
       child: _AgentChat(
         key: ValueKey(agentId),
@@ -184,19 +177,33 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   @override
   Component build(BuildContext context) {
-    // Get session (works for both local and remote modes)
+    // Check connection state before building the full scaffold.
+    // Remote sessions start disconnected while the WebSocket connects.
+    final connectionAsync = context.watch(sessionConnectionProvider);
+    final isConnected = connectionAsync.valueOrNull ?? true;
     final session = context.watch(currentVideSessionProvider);
-    final sessionState = session?.state;
-    final workingDirectory = sessionState?.workingDirectory ?? '';
+
+    if (session == null || !isConnected) {
+      return _buildConnectingScreen(context, label: 'Connecting to session...');
+    }
+
+    final sessionState = session.state;
 
     // Watch for agent changes - this is crucial for remote sessions where
     // agents are populated asynchronously from history/connected events
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final agents = agentsAsync.valueOrNull ?? sessionState?.agents ?? [];
+    final agents = agentsAsync.valueOrNull ?? sessionState.agents;
     final agentIds = agents.map((a) => a.id).toList();
 
-    // Get goal text from session (works for both local and remote modes)
-    final goalText = sessionState?.goal ?? 'Session';
+    // For remote sessions, conversation data loads asynchronously after
+    // the WebSocket connects. Show loading screen until it arrives to
+    // avoid a jarring empty scaffold.
+    if (agentIds.isNotEmpty) {
+      _trackConversationReady(session, agentIds.first);
+      if (!_conversationReady) {
+        return _buildConnectingScreen(context, label: 'Loading conversation...');
+      }
+    }
 
     // Build the main content column
     final content = Container(
@@ -204,32 +211,6 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Display the network goal with session ID and git branch indicator
-          Row(
-            children: [
-              Expanded(
-                child: TypingText(
-                  text: goalText,
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              if (session != null) ...[
-                Text(
-                  session.id.length > 8
-                      ? session.id.substring(0, 8)
-                      : session.id,
-                  style: TextStyle(
-                    color: VideTheme.of(context).base.onSurface.withOpacity(
-                      TextOpacity.tertiary,
-                    ),
-                  ),
-                ),
-                SizedBox(width: 1),
-              ],
-              GitBranchIndicator(repoPath: workingDirectory),
-            ],
-          ),
-          Divider(),
           if (agentIds.isEmpty)
             Center(child: Text('No agents'))
           else
@@ -238,21 +219,34 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       ),
     );
 
-    return VideScaffold(
-      child: PermissionScope(
-        child: Focusable(
-          focused: true,
-          onKeyEvent: (event) {
-            // Ctrl+C: Show quit warning (double press to quit)
-            if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-              _handleCtrlC();
-              return true;
-            }
+    final innerContent = PermissionScope(
+      child: Focusable(
+        focused: true,
+        onKeyEvent: (event) {
+          // Ctrl+C: Show quit warning (double press to quit)
+          if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
+            _handleCtrlC();
+            return true;
+          }
 
-            return false;
-          },
-          child: MouseRegion(child: content),
-        ),
+          return false;
+        },
+        child: MouseRegion(child: content),
+      ),
+    );
+
+    return VideScaffold(child: innerContent);
+  }
+
+  /// Full-screen loading state shown while connecting to a remote session
+  /// or waiting for conversation history to load.
+  Component _buildConnectingScreen(BuildContext context, {required String label}) {
+    final theme = VideTheme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(color: theme.base.surface),
+      child: Center(
+        child: _LoadingIndicator(label: label),
       ),
     );
   }
@@ -298,6 +292,7 @@ class _AgentChatState extends State<_AgentChat> {
       _queuedMessage = queuedMessage;
       _model = model;
     });
+    context.read(currentModelProvider.notifier).state = model;
   }
 
   @override
@@ -330,6 +325,7 @@ class _AgentChatState extends State<_AgentChat> {
     // Listen to model updates
     _modelSubscription = session.modelStream(component.agentId).listen((model) {
       setState(() => _model = model);
+      context.read(currentModelProvider.notifier).state = model;
     });
 
     unawaited(_loadInitialAgentRuntimeMetadata(session));
@@ -598,15 +594,41 @@ class _AgentChatState extends State<_AgentChat> {
   /// and can miss the initial status event on broadcast streams.
   bool get _isAgentWorking => _conversation?.isProcessing ?? false;
 
+  /// Groups consecutive tool-only assistant entries into single display items.
+  /// Returns a list where each element is either a single [ConversationEntry]
+  /// or a list of consecutive tool-only entries to be rendered in one box.
+  List<Object> _groupMessages(List<ConversationEntry> messages) {
+    final items = <Object>[];
+    List<ConversationEntry>? currentToolGroup;
+
+    for (final message in messages) {
+      if (MessageBubble.isToolOnlyEntry(message)) {
+        currentToolGroup ??= [];
+        currentToolGroup.add(message);
+      } else {
+        if (currentToolGroup != null) {
+          items.add(currentToolGroup);
+          currentToolGroup = null;
+        }
+        items.add(message);
+      }
+    }
+    if (currentToolGroup != null) {
+      items.add(currentToolGroup);
+    }
+    return items;
+  }
+
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
     final todos = _getLatestTodos();
     final hasTodos = todos != null && todos.isNotEmpty;
     final filteredMessages = _getFilteredMessages();
+    final groupedItems = _groupMessages(filteredMessages);
 
-    // Total items = todos (if any) + filtered messages
-    final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
+    // Total items = todos (if any) + grouped items
+    final itemCount = (hasTodos ? 1 : 0) + groupedItems.length;
 
     return SelectionArea(
       onSelectionCompleted: ClipboardManager.copy,
@@ -622,16 +644,37 @@ class _AgentChatState extends State<_AgentChat> {
             return TodoListComponent(todos: todos);
           }
 
-          // Adjust index for messages (subtract 1 if todos exist)
-          final messageIndex = hasTodos ? index - 1 : index;
-          final message = filteredMessages[messageIndex];
+          final itemIndex = hasTodos ? index - 1 : index;
+          final item = groupedItems[itemIndex];
           final session = context.read(currentVideSessionProvider);
+          final workingDir = session?.state.workingDirectory ?? '';
+
+          // Grouped tool-only entries: render all together without borders
+          if (item is List<ConversationEntry>) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final entry in item)
+                  MessageBubble(
+                    key: ValueKey(entry.hashCode),
+                    entry: entry,
+                    networkId: component.networkId,
+                    agentId: component.agentId,
+                    workingDirectory: workingDir,
+                    sentAttachments: _sentAttachments,
+                  ),
+              ],
+            );
+          }
+
+          // Single entry (text + tools, user message, etc.)
+          final message = item as ConversationEntry;
           return MessageBubble(
             key: ValueKey(message.hashCode),
             entry: message,
             networkId: component.networkId,
             agentId: component.agentId,
-            workingDirectory: session?.state.workingDirectory ?? '',
+            workingDirectory: workingDir,
             sentAttachments: _sentAttachments,
           );
         },
@@ -654,7 +697,11 @@ class _AgentChatState extends State<_AgentChat> {
             // Messages area (hidden when plan approval is active to give it
             // the full Expanded space for scrolling)
             if (currentPlanApproval == null)
-              Expanded(child: _buildMessageList(context)),
+              Expanded(
+                child: _conversation == null
+                    ? Center(child: EnhancedLoadingIndicator())
+                    : _buildMessageList(context),
+              ),
 
             // Plan approval dialog takes the Expanded slot when active
             if (currentPlanApproval != null)
@@ -705,6 +752,71 @@ class _AgentChatState extends State<_AgentChat> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Minimal centered loading indicator with braille spinner and label.
+class _LoadingIndicator extends StatefulComponent {
+  final String label;
+
+  const _LoadingIndicator({required this.label});
+
+  @override
+  State<_LoadingIndicator> createState() => _LoadingIndicatorState();
+}
+
+class _LoadingIndicatorState extends State<_LoadingIndicator>
+    with TickerProviderStateMixin {
+  static const _frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+  late AnimationController _controller;
+
+  int get _frameIndex =>
+      (_controller.value * _frames.length).floor() % _frames.length;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )
+      ..addListener(() => setState(() {}))
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+    final dim = theme.base.onSurface.withOpacity(TextOpacity.secondary);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'VIDE',
+          style: TextStyle(
+            color: theme.base.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        SizedBox(height: 1),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_frames[_frameIndex], style: TextStyle(color: dim)),
+            SizedBox(width: 1),
+            Text(component.label, style: TextStyle(color: dim)),
+          ],
+        ),
+      ],
     );
   }
 }

@@ -329,7 +329,7 @@ void main() {
       test('has placeholder main agent initially', () {
         expect(session.isPending, isTrue);
         expect(session.state.mainAgent, isNotNull);
-        expect(session.state.mainAgent!.name, equals('Connecting...'));
+        expect(session.state.mainAgent!.name, equals('Main'));
       });
 
       // Note: Tests that call completePending are skipped because they attempt
@@ -341,7 +341,7 @@ void main() {
 
         expect(session.isPending, isFalse);
         expect(session.creationError, equals('Connection refused'));
-        expect(session.state.mainAgent!.name, equals('Error'));
+        expect(session.state.mainAgent!.name, equals('Connection failed'));
       });
 
       // completePending callback test removed - triggers WebSocket connection

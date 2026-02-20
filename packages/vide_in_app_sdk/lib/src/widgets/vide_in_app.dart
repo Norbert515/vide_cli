@@ -347,6 +347,13 @@ class _VideInAppState extends State<VideInApp> {
         ),
 
         // Draggable sheet
+        //
+        // IMPORTANT: Do NOT wrap the sheet builder in _OverlayMaterialShell
+        // (which uses MaterialApp + Scaffold). A nested MaterialApp creates a
+        // separate gesture arena that swallows touch-drag events on mobile,
+        // preventing the DraggableScrollableSheet from being dragged.
+        // Instead we use _SheetThemeShell — a lightweight Theme + Material
+        // wrapper that provides theming without breaking gestures.
         DraggableScrollableSheet(
           controller: _sheetController,
           initialChildSize: _peekFraction,
@@ -355,7 +362,7 @@ class _VideInAppState extends State<VideInApp> {
           snapSizes: [_peekFraction, _kHalfFraction],
           snap: true,
           builder: (context, scrollController) {
-            return _OverlayMaterialShell(
+            return _SheetThemeShell(
               child: _SheetContent(
                 sdkState: _sdkState,
                 voiceService: _voiceService,
@@ -676,6 +683,48 @@ class _OverlayMaterialShell extends StatelessWidget {
         // can be dragged with a mouse click on macOS/Windows/Linux.
         scrollBehavior: const _DesktopDragScrollBehavior(),
         home: Scaffold(body: child),
+      ),
+    );
+  }
+}
+
+/// Lightweight theme wrapper for the draggable sheet content.
+///
+/// Unlike [_OverlayMaterialShell] (which uses a full MaterialApp + Scaffold),
+/// this only provides theming via [Theme] + [Material]. This avoids creating
+/// a nested gesture arena that would swallow touch-drag events and break the
+/// [DraggableScrollableSheet] on mobile.
+///
+/// The [ScrollConfiguration] enables mouse-drag scrolling on desktop.
+class _SheetThemeShell extends StatelessWidget {
+  final Widget child;
+  const _SheetThemeShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppTheme.darkTheme();
+
+    // Use Theme + Scaffold directly instead of MaterialApp.
+    //
+    // MaterialApp creates a Navigator with ModalRoutes whose barriers can
+    // intercept touch-drag gestures on mobile, preventing the outer
+    // DraggableScrollableSheet from being dragged.
+    //
+    // Scaffold provides ScaffoldMessenger (for SnackBars). For
+    // showModalBottomSheet, the sheet content widgets should use
+    // showModalBottomSheet from a context that has a Navigator — but since
+    // we're inside VideInApp (which is inside the user's MaterialApp), we
+    // can use the outer navigator via Navigator.of(context, rootNavigator: true).
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(_kSheetRadius),
+      ),
+      child: Theme(
+        data: theme,
+        child: ScrollConfiguration(
+          behavior: const _DesktopDragScrollBehavior(),
+          child: Scaffold(body: child),
+        ),
       ),
     );
   }

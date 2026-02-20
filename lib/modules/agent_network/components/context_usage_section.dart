@@ -49,10 +49,8 @@ class ContextUsageSection extends StatelessComponent {
     // Only show context usage when it's getting full (>= 60%)
     final showContextUsage = isCautionZone;
 
-    // If nothing to show (no model, no context warning, no cost), return empty
-    if (model == null &&
-        !showContextUsage &&
-        (conv == null || conv.totalCostUsd <= 0)) {
+    // Only render when there's a context warning to show
+    if (!showContextUsage) {
       return SizedBox();
     }
 
@@ -60,28 +58,14 @@ class ContextUsageSection extends StatelessComponent {
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Row(
         children: [
-          // Show model name
-          if (model != null) ...[
-            Text(
-              formatModelName(model!),
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
+          ContextUsageIndicator(usedTokens: usedTokens),
+          SizedBox(width: 1),
+          Text(
+            'context',
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
-          ],
-
-          // Context usage indicator (only when >= caution threshold)
-          if (showContextUsage) ...[
-            if (model != null) SizedBox(width: 1),
-            ContextUsageIndicator(usedTokens: usedTokens),
-            SizedBox(width: 1),
-            Text(
-              'context',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-          ],
+          ),
 
           // Show /compact hint when in warning zone
           if (isWarningZone) ...[

@@ -894,25 +894,22 @@ class _GitSidebarState extends State<GitSidebar>
         _handleKeyEvent(event, context, navigableItems);
         return true;
       },
-      child: Container(
-        decoration: BoxDecoration(color: theme.base.surface),
-        child: ClipRect(
-          child: SizedBox(
-            width: _currentWidth,
-            child: isCollapsed
-                ? _buildCollapsedIndicator(theme)
-                : OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minWidth: _expandedWidth,
-                    maxWidth: _expandedWidth,
-                    child: _buildExpandedContent(
-                      context,
-                      theme,
-                      gitStatus,
-                      navigableItems,
-                    ),
+      child: ClipRect(
+        child: SizedBox(
+          width: _currentWidth,
+          child: isCollapsed
+              ? _buildCollapsedIndicator(theme)
+              : OverflowBox(
+                  alignment: Alignment.topLeft,
+                  minWidth: _expandedWidth,
+                  maxWidth: _expandedWidth,
+                  child: _buildExpandedContent(
+                    context,
+                    theme,
+                    gitStatus,
+                    navigableItems,
                   ),
-          ),
+                ),
         ),
       ),
     );

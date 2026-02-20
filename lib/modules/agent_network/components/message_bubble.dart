@@ -26,6 +26,19 @@ class MessageBubble extends StatelessComponent {
     super.key,
   });
 
+  /// Returns true if an entry is an assistant message containing only tool
+  /// calls (no meaningful text). Used by the message list to group consecutive
+  /// tool-only entries into a single bordered container.
+  static bool isToolOnlyEntry(ConversationEntry entry) {
+    if (entry.role != 'assistant') return false;
+    for (final content in entry.content) {
+      if (content is TextContent && content.text.trim().isNotEmpty) {
+        return false;
+      }
+    }
+    return entry.content.any((c) => c is ToolContent);
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -53,9 +66,23 @@ class MessageBubble extends StatelessComponent {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '> ${entry.text}',
-            style: TextStyle(color: theme.base.onSurface),
+          Container(
+            decoration: BoxDecoration(
+              color: theme.base.primary.withOpacity(0.05),
+            ),
+            padding: EdgeInsets.symmetric(horizontal: 1),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
+                Expanded(
+                  child: Text(
+                    entry.text,
+                    style: TextStyle(color: theme.base.onSurface),
+                  ),
+                ),
+              ],
+            ),
           ),
           if (attachments != null && attachments.isNotEmpty)
             for (final attachment in attachments)
@@ -74,16 +101,27 @@ class MessageBubble extends StatelessComponent {
 
   Component _buildAssistantMessage(BuildContext context, VideThemeData theme) {
     final widgets = <Component>[];
+    final pendingTools = <Component>[];
+
+    void flushToolGroup() {
+      if (pendingTools.isEmpty) return;
+      widgets.addAll(pendingTools);
+      pendingTools.clear();
+    }
 
     for (final content in entry.content) {
       if (content is TextContent) {
+        flushToolGroup();
         if (content.text.isNotEmpty) {
-          // Check for context-full errors and add helpful hint
           final isContextFullError =
               content.text.toLowerCase().contains('prompt is too long') ||
               content.text.toLowerCase().contains('context window') ||
               content.text.toLowerCase().contains('token limit');
 
+          // Add spacing between tool calls and text
+          if (widgets.isNotEmpty) {
+            widgets.add(SizedBox(height: 1));
+          }
           widgets.add(MarkdownText(content.text));
 
           if (isContextFullError) {
@@ -99,7 +137,6 @@ class MessageBubble extends StatelessComponent {
           }
         }
       } else if (content is ToolContent) {
-        // Bridge to claude_sdk ToolInvocation for rendering
         final toolCall = ToolUseResponse(
           id: content.toolUseId,
           timestamp: DateTime.now(),
@@ -117,13 +154,12 @@ class MessageBubble extends StatelessComponent {
               )
             : null;
 
-        // Use factory method to create typed invocation
         final invocation = ConversationMessage.createTypedInvocation(
           toolCall,
           toolResult,
         );
 
-        widgets.add(
+        pendingTools.add(
           ToolInvocationRouter(
             key: ValueKey(content.toolUseId),
             invocation: invocation,
@@ -134,6 +170,7 @@ class MessageBubble extends StatelessComponent {
         );
       }
     }
+    flushToolGroup();
 
     // Show loading indicator if streaming with no content yet
     if (widgets.isEmpty && entry.isStreaming) {

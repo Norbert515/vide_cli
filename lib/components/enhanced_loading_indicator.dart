@@ -176,6 +176,7 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     final displayText = _getDisplayText(claudeStatus);
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Braille spinner
         Text(

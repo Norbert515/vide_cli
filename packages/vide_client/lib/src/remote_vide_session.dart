@@ -237,14 +237,15 @@ class RemoteVideSession implements VideSession {
     : _sessionId = const Uuid().v4(),
       _isPending = true {
     _eventController.stream.listen(_conversationState.handleEvent);
-    // Pre-populate with a placeholder main agent
+    // Pre-populate with a placeholder main agent shown while connecting.
     final placeholderId = const Uuid().v4();
     _mainAgentId = placeholderId;
     _agents[placeholderId] = _RemoteAgentInfo(
       id: placeholderId,
       type: 'main',
-      name: 'Connecting...',
+      name: 'Main',
     );
+    _agentStatuses[placeholderId] = VideAgentStatus.working;
   }
 
   /// Complete a pending session with an actual transport session.
@@ -282,8 +283,9 @@ class RemoteVideSession implements VideSession {
       _agents[_mainAgentId!] = _RemoteAgentInfo(
         id: _mainAgentId!,
         type: 'main',
-        name: 'Error',
+        name: 'Connection failed',
       );
+      _agentStatuses[_mainAgentId!] = VideAgentStatus.idle;
     }
 
     // Notify listeners

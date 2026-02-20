@@ -14,7 +14,9 @@ final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
   // Import is deferred to avoid circular dependency — the provider watches
   // daemonConnectionProvider which lives in the remote module.
   // This provider is overridden with the concrete implementation in main.dart.
-  throw UnimplementedError('videSessionManagerProvider must be overridden in main.dart');
+  throw UnimplementedError(
+    'videSessionManagerProvider must be overridden in main.dart',
+  );
 });
 
 /// Unified TUI session selection state.
@@ -47,9 +49,10 @@ class SessionSelectionNotifier extends StateNotifier<SessionSelectionState> {
 }
 
 /// Single source of truth for TUI session selection.
-final sessionSelectionProvider = StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
-  (ref) => SessionSelectionNotifier(),
-);
+final sessionSelectionProvider =
+    StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
+      (ref) => SessionSelectionNotifier(),
+    );
 
 /// Provider that triggers rebuilds when the selected session connection changes.
 ///
@@ -141,3 +144,9 @@ final pendingSessionProvider = StateProvider<VideSession?>((ref) => null);
 /// When null, no agent is selected.
 /// Used by AgentSidebar for keyboard navigation and selection.
 final selectedAgentIdProvider = StateProvider<String?>((ref) => null);
+
+/// Provider for the currently displayed model name (e.g. "opus", "sonnet").
+///
+/// Updated by the active chat view when the model stream emits.
+/// Read by the scaffold bottom bar to display the model inline.
+final currentModelProvider = StateProvider<String?>((ref) => null);

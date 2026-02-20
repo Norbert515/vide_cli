@@ -130,14 +130,14 @@ class _DiffRendererState extends State<DiffRenderer> {
       );
     }
 
-    // Determine status color
+    final theme = VideTheme.of(context);
     final statusColor = component.invocation.isError
-        ? Colors.red
-        : Colors.green;
-    final statusIndicator = component.invocation.isError ? '●' : '●';
+        ? theme.status.error
+        : theme.status.completed;
+    final statusIndicator = '●';
 
-    return Container(
-      padding: EdgeInsets.only(bottom: 1),
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -158,28 +158,28 @@ class _DiffRendererState extends State<DiffRenderer> {
   }
 
   Component _buildHeader(Color statusColor, String statusIndicator) {
-    final params = component.invocation.parameters;
+    final dim = Colors.white.withOpacity(0.5);
 
     return Row(
       children: [
-        // Status indicator
-        Text(statusIndicator, style: TextStyle(color: statusColor)),
-        SizedBox(width: 1),
-        // Tool name
+        Text('$statusIndicator ', style: TextStyle(color: statusColor)),
         Text(
           component.invocation.displayName,
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: dim, fontWeight: FontWeight.bold),
         ),
-        if (params.isNotEmpty) ...[
+        if (component.invocation.parameters.isNotEmpty) ...[
+          Text(
+            ' \u2192 ',
+            style: TextStyle(color: Colors.white.withOpacity(0.25)),
+          ),
           Flexible(
             child: Text(
-              '(${_getParameterPreview()}',
-              style: TextStyle(color: Colors.white.withOpacity(0.5)),
-              overflow: TextOverflow.ellipsis,
+              _getParameterValue(),
+              style: TextStyle(color: dim),
               maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Text(')', style: TextStyle(color: Colors.white.withOpacity(0.5))),
         ],
       ],
     );
@@ -283,19 +283,26 @@ class _DiffRendererState extends State<DiffRenderer> {
     return lines;
   }
 
-  String _getParameterPreview() {
+  String _getParameterValue() {
     final params = component.invocation.parameters;
     if (params.isEmpty) return '';
 
-    final firstKey = params.keys.first;
-    final value = params[firstKey];
-    String valueStr = value.toString();
-
-    // Format file paths
-    if (firstKey == 'file_path') {
-      valueStr = _formatFilePath(valueStr);
+    // Prefer meaningful keys
+    for (final key in ['file_path', 'pattern', 'command', 'query', 'url']) {
+      if (params.containsKey(key)) {
+        String valueStr = params[key].toString();
+        if (key == 'file_path') {
+          if (component.invocation is FileOperationToolInvocation) {
+            final typed = component.invocation as FileOperationToolInvocation;
+            valueStr = typed.getRelativePath(component.workingDirectory);
+          } else {
+            valueStr = _formatFilePath(valueStr);
+          }
+        }
+        return valueStr;
+      }
     }
 
-    return '$firstKey: $valueStr';
+    return params.values.first.toString();
   }
 }

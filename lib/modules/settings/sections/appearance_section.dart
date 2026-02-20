@@ -6,7 +6,7 @@ import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
 import 'package:vide_cli/modules/settings/components/settings_card.dart';
 import 'package:vide_cli/modules/setup/theme_selector.dart';
 
-/// Appearance settings content (theme selection) wrapped in a Theme card.
+/// Appearance settings content (theme selection).
 class AppearanceSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -24,7 +24,6 @@ class AppearanceSection extends StatefulComponent {
 class _AppearanceSectionState extends State<AppearanceSection> {
   int _selectedIndex = 0;
 
-  // We add 'auto' as the first option
   int get _totalOptions => ThemeOption.all.length + 1; // +1 for auto
 
   @override
@@ -81,7 +80,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       themeId = ThemeOption.all[_selectedIndex - 1].id;
     }
 
-    // Save and apply the theme immediately
     context.read(themeSettingProvider.notifier).state = themeId;
     final configManager = context.read(videConfigManagerProvider);
     configManager.setTheme(themeId);
@@ -105,7 +103,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Auto option
-                  _ThemeListItem(
+                  _RadioListItem(
                     displayName: 'Auto',
                     description: 'Match terminal',
                     isSelected: component.focused && _selectedIndex == 0,
@@ -118,7 +116,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
 
                   // Theme options
                   for (int i = 0; i < ThemeOption.all.length; i++)
-                    _ThemeListItem(
+                    _RadioListItem(
                       displayName: ThemeOption.all[i].displayName,
                       description: ThemeOption.all[i].description,
                       isSelected: component.focused && _selectedIndex == i + 1,
@@ -138,15 +136,15 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   }
 }
 
-/// Individual theme item in the list - compact single-line format.
-class _ThemeListItem extends StatelessComponent {
+/// Individual radio item in a settings list - compact single-line format.
+class _RadioListItem extends StatelessComponent {
   final String displayName;
   final String description;
   final bool isSelected;
   final bool isCurrent;
   final VoidCallback onTap;
 
-  const _ThemeListItem({
+  const _RadioListItem({
     required this.displayName,
     required this.description,
     required this.isSelected,

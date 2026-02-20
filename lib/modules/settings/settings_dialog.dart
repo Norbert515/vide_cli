@@ -133,8 +133,10 @@ class _SettingsDialogState extends State<SettingsDialog> {
     if (_sidebarFocused) {
       return _handleSidebarNavigation(event);
     }
-    // Content sections handle their own key events via their Focusable
-    return false;
+    // When content is focused, absorb all key events to prevent them
+    // from escaping the dialog (which would navigate the underlying page).
+    // Content sections handle their own behavior via their own Focusable.
+    return true;
   }
 
   /// Returns true if the event was handled.

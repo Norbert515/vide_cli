@@ -31,7 +31,8 @@ class AgentSidebar extends StatefulComponent {
   State<AgentSidebar> createState() => _AgentSidebarState();
 }
 
-class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderStateMixin {
+class _AgentSidebarState extends State<AgentSidebar>
+    with SingleTickerProviderStateMixin {
   int _selectedIndex = 1;
   int? _hoveredIndex;
   final _scrollController = ScrollController();
@@ -47,10 +48,15 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _currentWidth = component.expanded ? component.width.toDouble() : _collapsedWidth;
+    _currentWidth = component.expanded
+        ? component.width.toDouble()
+        : _collapsedWidth;
 
     // Initialize animation controller
-    _animationController = AnimationController(duration: _animationDuration, vsync: this);
+    _animationController = AnimationController(
+      duration: _animationDuration,
+      vsync: this,
+    );
     _widthAnimation = Tween<double>(
       begin: _currentWidth,
       end: _currentWidth,
@@ -67,7 +73,9 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
     super.didUpdateComponent(old);
     // Animate based on expanded state
     if (component.expanded != old.expanded) {
-      _animateToWidth(component.expanded ? component.width.toDouble() : _collapsedWidth);
+      _animateToWidth(
+        component.expanded ? component.width.toDouble() : _collapsedWidth,
+      );
     }
   }
 
@@ -91,7 +99,7 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
     final items = <_SidebarItem>[];
     if (spawnedAgents.isEmpty) return items;
 
-    items.add(_SidebarItem.header('Active Agents'));
+    items.add(_SidebarItem.header('Agents'));
 
     // Group agents by their parent ID
     final childrenOf = <String?, List<VideAgent>>{};
@@ -106,7 +114,13 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
         final agent = children[i];
         final isLast = i == children.length - 1;
         final myAncestorIsLast = [...ancestorIsLast, isLast];
-        items.add(_SidebarItem.agent(agent, depth: depth, ancestorIsLast: myAncestorIsLast));
+        items.add(
+          _SidebarItem.agent(
+            agent,
+            depth: depth,
+            ancestorIsLast: myAncestorIsLast,
+          ),
+        );
         walk(agent.id, depth + 1, myAncestorIsLast);
       }
     }
@@ -115,10 +129,15 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
 
     // If the tree walk didn't place all agents (e.g. orphans whose parent was
     // already terminated), append them at root level.
-    final placed = items.where((i) => !i.isHeader).map((i) => i.agent!.id).toSet();
+    final placed = items
+        .where((i) => !i.isHeader)
+        .map((i) => i.agent!.id)
+        .toSet();
     for (final agent in spawnedAgents) {
       if (!placed.contains(agent.id)) {
-        items.add(_SidebarItem.agent(agent, depth: 0, ancestorIsLast: const [false]));
+        items.add(
+          _SidebarItem.agent(agent, depth: 0, ancestorIsLast: const [false]),
+        );
       }
     }
 
@@ -138,25 +157,36 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
 
     // Find current position in selectable items
     final currentSelectableIndex = selectableIndices.indexOf(_selectedIndex);
-    final effectiveIndex = currentSelectableIndex == -1 ? 0 : currentSelectableIndex;
+    final effectiveIndex = currentSelectableIndex == -1
+        ? 0
+        : currentSelectableIndex;
 
     if (event.logicalKey == LogicalKey.escape) {
       component.onExitRight?.call();
     } else if (event.logicalKey == LogicalKey.arrowRight) {
       component.onExitRight?.call();
-    } else if (event.logicalKey == LogicalKey.arrowUp || event.logicalKey == LogicalKey.keyK) {
+    } else if (event.logicalKey == LogicalKey.arrowUp ||
+        event.logicalKey == LogicalKey.keyK) {
       setState(() {
-        final newIndex = (effectiveIndex - 1).clamp(0, selectableIndices.length - 1);
+        final newIndex = (effectiveIndex - 1).clamp(
+          0,
+          selectableIndices.length - 1,
+        );
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
-    } else if (event.logicalKey == LogicalKey.arrowDown || event.logicalKey == LogicalKey.keyJ) {
+    } else if (event.logicalKey == LogicalKey.arrowDown ||
+        event.logicalKey == LogicalKey.keyJ) {
       setState(() {
-        final newIndex = (effectiveIndex + 1).clamp(0, selectableIndices.length - 1);
+        final newIndex = (effectiveIndex + 1).clamp(
+          0,
+          selectableIndices.length - 1,
+        );
         _selectedIndex = selectableIndices[newIndex];
         _scrollController.ensureIndexVisible(index: _selectedIndex);
       });
-    } else if (event.logicalKey == LogicalKey.enter || event.logicalKey == LogicalKey.space) {
+    } else if (event.logicalKey == LogicalKey.enter ||
+        event.logicalKey == LogicalKey.space) {
       if (_selectedIndex < items.length) {
         final item = items[_selectedIndex];
         if (item.agent != null) {
@@ -178,14 +208,16 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
     // whenever agents are spawned or terminated.
     final session = context.watch(currentVideSessionProvider);
     final agentsAsync = context.watch(videSessionAgentsProvider);
-    final spawnedAgents = agentsAsync.valueOrNull ?? session?.state.agents ?? [];
+    final spawnedAgents =
+        agentsAsync.valueOrNull ?? session?.state.agents ?? [];
 
     // Auto-select first agent if none selected
     final currentSelectedId = context.read(selectedAgentIdProvider);
     if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
       // Schedule the state update for after build
       Future.microtask(() {
-        context.read(selectedAgentIdProvider.notifier).state = spawnedAgents.first.id;
+        context.read(selectedAgentIdProvider.notifier).state =
+            spawnedAgents.first.id;
       });
     }
 
@@ -198,20 +230,17 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
         _handleKeyEvent(event, items);
         return true;
       },
-      child: Container(
-        decoration: BoxDecoration(color: theme.base.surface),
-        child: ClipRect(
-          child: SizedBox(
-            width: _currentWidth,
-            child: isCollapsed
-                ? _buildCollapsedIndicator(theme)
-                : OverflowBox(
-                    alignment: Alignment.topLeft,
-                    minWidth: component.width.toDouble(),
-                    maxWidth: component.width.toDouble(),
-                    child: _buildExpandedContent(context, theme, spawnedAgents),
-                  ),
-          ),
+      child: ClipRect(
+        child: SizedBox(
+          width: _currentWidth,
+          child: isCollapsed
+              ? _buildCollapsedIndicator(theme)
+              : OverflowBox(
+                  alignment: Alignment.topLeft,
+                  minWidth: component.width.toDouble(),
+                  maxWidth: component.width.toDouble(),
+                  child: _buildExpandedContent(context, theme, spawnedAgents),
+                ),
         ),
       ),
     );
@@ -228,7 +257,10 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
           child: Center(
             child: Text(
               '≡',
-              style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: theme.base.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
@@ -237,7 +269,11 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
     );
   }
 
-  Component _buildExpandedContent(BuildContext context, VideThemeData theme, List<VideAgent> spawnedAgents) {
+  Component _buildExpandedContent(
+    BuildContext context,
+    VideThemeData theme,
+    List<VideAgent> spawnedAgents,
+  ) {
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
     // Build items
@@ -281,26 +317,6 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
                 ),
               ),
             ),
-            // Footer with navigation hint
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                border: BoxBorder(top: BorderSide(color: theme.base.outline.withOpacity(TextOpacity.separator))),
-              ),
-              child: Row(
-                children: [
-                  if (component.focused) ...[
-                    Text('↑↓', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary))),
-                    Text(' nav ', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
-                    Text('→', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.secondary))),
-                    Text(' exit', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
-                  ] else ...[
-                    Text('←', style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.disabled))),
-                    Text(' focus', style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.disabled))),
-                  ],
-                ],
-              ),
-            ),
           ],
         );
       },
@@ -313,7 +329,10 @@ class _AgentSidebarState extends State<AgentSidebar> with SingleTickerProviderSt
       padding: EdgeInsets.only(top: 1),
       child: Text(
         title,
-        style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary), fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -380,19 +399,35 @@ class _AgentRowItem extends StatefulComponent {
   State<_AgentRowItem> createState() => _AgentRowItemState();
 }
 
-class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderStateMixin {
-  static const _spinnerFrames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+class _AgentRowItemState extends State<_AgentRowItem>
+    with SingleTickerProviderStateMixin {
+  static const _spinnerFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
 
   late AnimationController _spinnerController;
   VideAgentStatus? _lastStatus;
 
-  int get _spinnerIndex => (_spinnerController.value * _spinnerFrames.length).floor() % _spinnerFrames.length;
+  int get _spinnerIndex =>
+      (_spinnerController.value * _spinnerFrames.length).floor() %
+      _spinnerFrames.length;
 
   @override
   void initState() {
     super.initState();
-    _spinnerController = AnimationController(duration: const Duration(seconds: 1), vsync: this)
-      ..addListener(() => setState(() {}));
+    _spinnerController = AnimationController(
+      duration: const Duration(seconds: 1),
+      vsync: this,
+    )..addListener(() => setState(() {}));
   }
 
   @override
@@ -442,8 +477,12 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
   ///
   /// Returns a record with separate tree-line and connector parts so they
   /// can be styled independently (tree lines dim, connector colored).
-  ({String treeLine, String connector}) _buildTreePrefix(int depth, List<bool> ancestorIsLast) {
-    if (depth == 0) return (treeLine: '', connector: '  '); // root agents: simple indent
+  ({String treeLine, String connector}) _buildTreePrefix(
+    int depth,
+    List<bool> ancestorIsLast,
+  ) {
+    if (depth == 0)
+      return (treeLine: '', connector: '  '); // root agents: simple indent
 
     final buffer = StringBuffer();
     // For ancestor levels between root (index 0) and current, draw
@@ -478,16 +517,23 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
     final statusIndicator = _getStatusIndicator(actualStatus);
 
     // Build tree prefix from depth and ancestor info
-    final (:treeLine, :connector) = _buildTreePrefix(component.depth, component.ancestorIsLast);
+    final (:treeLine, :connector) = _buildTreePrefix(
+      component.depth,
+      component.ancestorIsLast,
+    );
 
     // Build agent name with optional task
     String displayName = component.agent.name;
-    if (component.agent.taskName != null && component.agent.taskName!.isNotEmpty) {
+    if (component.agent.taskName != null &&
+        component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
     // Account for tree prefix width + status indicator + spacing in truncation
     final prefixWidth = treeLine.length + connector.length;
-    displayName = _truncateText(displayName, component.availableWidth - prefixWidth - 4);
+    displayName = _truncateText(
+      displayName,
+      component.availableWidth - prefixWidth - 4,
+    );
 
     final bgColor = component.isSelected && component.isFocused
         ? theme.base.primary.withOpacity(0.15)
@@ -516,21 +562,36 @@ class _AgentRowItemState extends State<_AgentRowItem> with SingleTickerProviderS
               if (treeLine.isNotEmpty || connector.isNotEmpty)
                 Text(
                   '$treeLine$connector',
-                  style: TextStyle(color: theme.base.outline.withOpacity(TextOpacity.tertiary)),
+                  style: TextStyle(
+                    color: theme.base.outline.withOpacity(TextOpacity.tertiary),
+                  ),
                 ),
               // Status indicator (colored)
-              Text('$statusIndicator ', style: TextStyle(color: actualStatusColor)),
+              Text(
+                '$statusIndicator ',
+                style: TextStyle(color: actualStatusColor),
+              ),
               // Agent name
               Expanded(
                 child: Text(
                   displayName,
-                  style: TextStyle(color: textColor, fontWeight: component.isSelectedById ? FontWeight.bold : null),
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: component.isSelectedById
+                        ? FontWeight.bold
+                        : null,
+                  ),
                   maxLines: 1,
                 ),
               ),
               // View indicator for currently viewed agent
               if (component.isSelectedById)
-                Text('◀', style: TextStyle(color: theme.base.primary.withOpacity(TextOpacity.tertiary))),
+                Text(
+                  '◀',
+                  style: TextStyle(
+                    color: theme.base.primary.withOpacity(TextOpacity.tertiary),
+                  ),
+                ),
             ],
           ),
         ),
@@ -552,12 +613,15 @@ class _SidebarItem {
   final List<bool> ancestorIsLast;
 
   _SidebarItem.header(this.headerText)
-      : agent = null,
-        isHeader = true,
-        depth = 0,
-        ancestorIsLast = const [];
+    : agent = null,
+      isHeader = true,
+      depth = 0,
+      ancestorIsLast = const [];
 
-  _SidebarItem.agent(this.agent, {this.depth = 0, this.ancestorIsLast = const []})
-      : headerText = null,
-        isHeader = false;
+  _SidebarItem.agent(
+    this.agent, {
+    this.depth = 0,
+    this.ancestorIsLast = const [],
+  }) : headerText = null,
+       isHeader = false;
 }

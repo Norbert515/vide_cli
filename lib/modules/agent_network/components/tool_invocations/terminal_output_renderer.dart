@@ -1,6 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:path/path.dart' as p;
 import 'default_renderer.dart';
@@ -90,54 +90,45 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
       );
     }
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
-      child: GestureDetector(
-        onTap: () => setState(() => isExpanded = !isExpanded),
-        child: Container(
-          padding: EdgeInsets.only(bottom: 1),
+    final theme = VideTheme.of(context);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 1),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => isHovered = true),
+        onExit: (_) => setState(() => isHovered = false),
+        child: GestureDetector(
+          onTap: () => setState(() => isExpanded = !isExpanded),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Tool header with name and params
-              _buildHeader(),
-              // Terminal output
-              _buildOutput(lines),
-            ],
+            children: [_buildHeader(theme), _buildOutput(lines, theme)],
           ),
         ),
       ),
     );
   }
 
-  Component _buildHeader() {
-    final statusColor = _getStatusColor();
+  Component _buildHeader(VideThemeData theme) {
+    final statusColor = _getStatusColor(theme);
+    final dim = theme.base.onSurface.withOpacity(0.5);
     return Row(
       children: [
-        // Status indicator
-        Text('●', style: TextStyle(color: statusColor)),
-        SizedBox(width: 1),
-        // Tool name
+        Text('\u25cf ', style: TextStyle(color: statusColor)),
         Text(
           component.invocation.displayName,
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: dim, fontWeight: FontWeight.bold),
         ),
         if (component.invocation.parameters.isNotEmpty) ...[
+          Text(
+            ' \u2192 ',
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.25)),
+          ),
           Flexible(
             child: Text(
-              '(${_getParameterPreview()}',
-              style: TextStyle(
-                color: Colors.white.withOpacity(TextOpacity.tertiary),
-              ),
-              overflow: TextOverflow.ellipsis,
+              _getParameterValue(),
+              style: TextStyle(color: dim),
               maxLines: 1,
-            ),
-          ),
-          Text(
-            ')',
-            style: TextStyle(
-              color: Colors.white.withOpacity(TextOpacity.tertiary),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -145,17 +136,20 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
     );
   }
 
-  Component _buildOutput(List<String> lines) {
+  Component _buildOutput(List<String> lines, VideThemeData theme) {
     // Show last 3 lines when collapsed (so user sees most recent output)
     final displayLines = isExpanded
         ? lines
         : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
     final hasMore = lines.length > 3;
 
+    final bgColor = isHovered
+        ? theme.base.surface.withOpacity(0.8)
+        : theme.base.surface.withOpacity(0.5);
+    final dimText = theme.base.onSurface.withOpacity(0.4);
+
     return Container(
-      decoration: BoxDecoration(
-        color: isHovered ? Color(0xFF222222) : Color(0xFF1E1E1E),
-      ),
+      decoration: BoxDecoration(color: bgColor),
       padding: EdgeInsets.all(1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,77 +162,72 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
               child: Scrollbar(
                 controller: _scrollController,
                 thumbVisibility: true,
-                thumbColor: Colors.white.withOpacity(0.3),
-                trackColor: Color(0xFF1E1E1E),
+                thumbColor: theme.base.onSurface.withOpacity(0.3),
+                trackColor: bgColor,
                 child: SingleChildScrollView(
                   controller: _scrollController,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [for (final line in displayLines) _buildLine(line)],
+                    children: [
+                      for (final line in displayLines) _buildLine(line, theme),
+                    ],
                   ),
                 ),
               ),
             )
           else
             // Direct render for collapsed or small expanded state
-            for (final line in displayLines) _buildLine(line),
+            for (final line in displayLines) _buildLine(line, theme),
 
           // Show line count if collapsed with more lines
           if (!isExpanded && hasMore)
-            Text(
-              '(${lines.length} total)',
-              style: TextStyle(color: Colors.white.withOpacity(0.4)),
-            ),
+            Text('(${lines.length} total)', style: TextStyle(color: dimText)),
 
           // Show line count if expanded and exceeds 8 lines
           if (isExpanded && lines.length > 8)
-            Text(
-              '(${lines.length} total)',
-              style: TextStyle(color: Colors.white.withOpacity(0.4)),
-            ),
+            Text('(${lines.length} total)', style: TextStyle(color: dimText)),
         ],
       ),
     );
   }
 
-  Component _buildLine(String line) {
+  Component _buildLine(String line, VideThemeData theme) {
     return Text(
       _stripAnsi(line),
-      style: TextStyle(
-        color: Color(0xFFD4D4D4), // Terminal text color
-      ),
+      style: TextStyle(color: theme.base.onSurface.withOpacity(0.7)),
     );
   }
 
-  Color _getStatusColor() {
+  Color _getStatusColor(VideThemeData theme) {
     if (!component.invocation.hasResult) {
-      return Color(0xFFE5C07B); // Yellow - pending
+      return theme.status.inProgress;
     }
     return component.invocation.isError
-        ? Color(0xFFE06C75) // Red - error
-        : Color(0xFF98C379); // Green - success
+        ? theme.status.error
+        : theme.status.completed;
   }
 
-  String _getParameterPreview() {
+  String _getParameterValue() {
     final params = component.invocation.parameters;
     if (params.isEmpty) return '';
 
-    final firstKey = params.keys.first;
-    final value = params[firstKey];
-    String valueStr = value.toString();
-
-    // Format file paths
-    if (firstKey == 'file_path') {
-      // Use typed invocation for file path formatting if available
-      if (component.invocation is FileOperationToolInvocation) {
-        final typed = component.invocation as FileOperationToolInvocation;
-        valueStr = typed.getRelativePath(component.workingDirectory);
-      } else {
-        valueStr = _formatFilePath(valueStr);
+    // Prefer meaningful keys
+    for (final key in ['file_path', 'pattern', 'command', 'query', 'url']) {
+      if (params.containsKey(key)) {
+        String valueStr = params[key].toString();
+        if (key == 'file_path') {
+          if (component.invocation is FileOperationToolInvocation) {
+            final typed = component.invocation as FileOperationToolInvocation;
+            valueStr = typed.getRelativePath(component.workingDirectory);
+          } else {
+            valueStr = _formatFilePath(valueStr);
+          }
+        }
+        return valueStr;
       }
     }
 
-    return '$firstKey: $valueStr';
+    return params.values.first.toString();
   }
 
   String _formatFilePath(String filePath) {

@@ -12,10 +12,14 @@ import 'package:vide_cli/main.dart'
         currentRepoPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
+import 'package:vide_cli/modules/agent_network/components/context_usage_section.dart';
 import 'package:vide_cli/modules/git/git_sidebar.dart';
+import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
 import 'package:vide_cli/components/version_indicator.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
+import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Provider to expose the current sidebar width for pages to read.
@@ -93,6 +97,7 @@ class _VideScaffoldState extends State<VideScaffold> {
 
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
     final sidebarFocused = context.watch(sidebarFocusProvider);
     final gitSidebarFocused = context.watch(gitSidebarFocusProvider);
     final gitSidebarEnabled = context.watch(gitSidebarEnabledProvider);
@@ -136,14 +141,16 @@ class _VideScaffoldState extends State<VideScaffold> {
         context.read(sidebarWidthProvider.notifier).state =
             effectiveSidebarWidth;
 
-        // Standard Row layout - left sidebar + main content + right sidebar
-        // This component should be used INSIDE the Navigator, so dialogs
-        // rendered by Navigator.showDialog will overlay everything.
-        final mainLayout = Row(
+        final panelRow = Row(
           children: [
-            // Left sidebar (hidden on home page)
+            // Left sidebar with thin divider
             if (showSidebars)
-              _buildLeftSidebar(context, effectiveSidebarWidth, sidebarFocused),
+              _buildLeftSidebar(
+                context,
+                theme,
+                effectiveSidebarWidth,
+                sidebarFocused,
+              ),
 
             // Main content area
             Expanded(
@@ -155,24 +162,23 @@ class _VideScaffoldState extends State<VideScaffold> {
                       child: component.child,
                     ),
                   ),
-                  // Bottom bar with version indicator
-                  Padding(
-                    padding: EdgeInsets.only(left: 1, right: 1, bottom: 1),
-                    child: Row(
-                      children: [
-                        Expanded(child: SizedBox()),
-                        VersionIndicator(),
-                      ],
-                    ),
+                  // Navigation breadcrumb + version
+                  _buildBottomBar(
+                    context,
+                    theme,
+                    sidebarFocused,
+                    gitSidebarFocused,
+                    showSidebars && showGitSidebar,
                   ),
                 ],
               ),
             ),
 
-            // Right sidebar - Git status (hidden on home page, or if disabled/not git repo)
+            // Right sidebar with thin divider
             if (showSidebars && showGitSidebar)
               _buildRightSidebar(
                 context,
+                theme,
                 effectiveGitSidebarWidth,
                 gitSidebarFocused,
                 repoPath,
@@ -180,89 +186,206 @@ class _VideScaffoldState extends State<VideScaffold> {
           ],
         );
 
-        return Stack(
+        final mainLayout = Column(
           children: [
-            // Main layout: sidebar + content + git sidebar
-            mainLayout,
-
-            // Toast notifications (stays in Stack as it doesn't need keyboard focus)
-            const ToastOverlay(),
+            if (showSidebars) _buildTitleBar(context, theme, repoPath),
+            Expanded(child: panelRow),
           ],
         );
+
+        return Stack(children: [mainLayout, const ToastOverlay()]);
       },
     );
   }
 
   Component _buildLeftSidebar(
     BuildContext context,
+    VideThemeData theme,
     double width,
     bool focused,
   ) {
-    return SizedBox(
-      width: width,
-      child: ClipRect(
-        child: OverflowBox(
-          alignment: Alignment.topLeft,
-          minWidth: component.sidebarWidth,
-          maxWidth: component.sidebarWidth,
-          child: AgentSidebar(
-            width: component.sidebarWidth.toInt(),
-            focused: focused,
-            expanded: true,
-            onExitRight: () {
-              context.read(sidebarFocusProvider.notifier).state = false;
-            },
-            onSelectAgent: (agentId) {
-              context.read(selectedAgentIdProvider.notifier).state = agentId;
-              context.read(sidebarFocusProvider.notifier).state = false;
-            },
+    return Row(
+      children: [
+        SizedBox(
+          width: width - 1, // Reserve 1 col for the divider
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topLeft,
+              minWidth: component.sidebarWidth - 1,
+              maxWidth: component.sidebarWidth - 1,
+              child: AgentSidebar(
+                width: (component.sidebarWidth - 1).toInt(),
+                focused: focused,
+                expanded: true,
+                onExitRight: () {
+                  context.read(sidebarFocusProvider.notifier).state = false;
+                },
+                onSelectAgent: (agentId) {
+                  context.read(selectedAgentIdProvider.notifier).state =
+                      agentId;
+                  context.read(sidebarFocusProvider.notifier).state = false;
+                },
+              ),
+            ),
           ),
         ),
-      ),
+        VerticalDivider(
+          color: theme.base.outline.withOpacity(0.1),
+          style: DividerStyle.single,
+        ),
+      ],
     );
   }
 
   Component _buildRightSidebar(
     BuildContext context,
+    VideThemeData theme,
     double width,
     bool focused,
     String repoPath,
   ) {
     final session = context.read(currentVideSessionProvider);
-    return SizedBox(
-      width: width,
-      child: ClipRect(
-        child: OverflowBox(
-          alignment: Alignment.topRight,
-          minWidth: component.gitSidebarWidth,
-          maxWidth: component.gitSidebarWidth,
-          child: GitSidebar(
-            width: component.gitSidebarWidth.toInt(),
-            focused: focused,
-            expanded: true,
-            repoPath: repoPath,
-            onExitLeft: () {
-              // Left arrow from git sidebar - unfocus (go back to main content)
-              context.read(gitSidebarFocusProvider.notifier).state = false;
-            },
-            onSendMessage: (message) {
-              // Send message to current agent's chat
-              final selectedAgentId = context.read(selectedAgentIdProvider);
-              if (selectedAgentId != null) {
-                session?.sendMessage(
-                  VideMessage(text: message),
-                  agentId: selectedAgentId,
-                );
-              }
-            },
-            onSwitchWorktree: (path) async {
-              // Update the repo path override and session's worktree path
-              context.read(repoPathOverrideProvider.notifier).state = path;
-              final session = context.read(currentVideSessionProvider);
-              await session?.setWorktreePath(path);
-            },
+    return Row(
+      children: [
+        VerticalDivider(
+          color: theme.base.outline.withOpacity(0.1),
+          style: DividerStyle.single,
+        ),
+        SizedBox(
+          width: width - 1, // Reserve 1 col for the divider
+          child: ClipRect(
+            child: OverflowBox(
+              alignment: Alignment.topRight,
+              minWidth: component.gitSidebarWidth - 1,
+              maxWidth: component.gitSidebarWidth - 1,
+              child: GitSidebar(
+                width: (component.gitSidebarWidth - 1).toInt(),
+                focused: focused,
+                expanded: true,
+                repoPath: repoPath,
+                onExitLeft: () {
+                  context.read(gitSidebarFocusProvider.notifier).state = false;
+                },
+                onSendMessage: (message) {
+                  final selectedAgentId = context.read(selectedAgentIdProvider);
+                  if (selectedAgentId != null) {
+                    session?.sendMessage(
+                      VideMessage(text: message),
+                      agentId: selectedAgentId,
+                    );
+                  }
+                },
+                onSwitchWorktree: (path) async {
+                  context.read(repoPathOverrideProvider.notifier).state = path;
+                  final session = context.read(currentVideSessionProvider);
+                  await session?.setWorktreePath(path);
+                },
+              ),
+            ),
           ),
         ),
+      ],
+    );
+  }
+
+  Component _buildBottomBar(
+    BuildContext context,
+    VideThemeData theme,
+    bool sidebarFocused,
+    bool gitSidebarFocused,
+    bool hasRightSidebar,
+  ) {
+    final primary = theme.base.primary;
+    final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
+    final chatFocused = !sidebarFocused && !gitSidebarFocused;
+    final model = context.watch(currentModelProvider);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Row(
+        children: [
+          if (model != null) ...[
+            Text(
+              ContextUsageSection.formatModelName(model),
+              style: TextStyle(color: dimmer),
+            ),
+            Text('  ', style: TextStyle(color: dimmer)),
+          ],
+          Text(
+            '\u2190 agents',
+            style: TextStyle(
+              color: sidebarFocused ? primary : dimmer,
+              fontWeight: sidebarFocused ? FontWeight.bold : null,
+            ),
+          ),
+          Expanded(child: SizedBox()),
+          Text(
+            'chat',
+            style: TextStyle(
+              color: chatFocused ? primary : dimmer,
+              fontWeight: chatFocused ? FontWeight.bold : null,
+            ),
+          ),
+          Expanded(child: SizedBox()),
+          if (hasRightSidebar)
+            Text(
+              'git \u2192',
+              style: TextStyle(
+                color: gitSidebarFocused ? primary : dimmer,
+                fontWeight: gitSidebarFocused ? FontWeight.bold : null,
+              ),
+            )
+          else
+            VersionIndicator(),
+        ],
+      ),
+    );
+  }
+
+  Component _buildTitleBar(
+    BuildContext context,
+    VideThemeData theme,
+    String repoPath,
+  ) {
+    final session = context.watch(currentVideSessionProvider);
+    final goalAsync = context.watch(sessionGoalStreamProvider);
+    final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
+    final primary = theme.base.primary;
+    final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
+    final outline = theme.base.outline;
+
+    return Container(
+      decoration: BoxDecoration(
+        border: BoxBorder(bottom: BorderSide(color: outline.withOpacity(0.3))),
+      ),
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: Row(
+        children: [
+          Text(
+            'VIDE',
+            style: TextStyle(color: primary, fontWeight: FontWeight.bold),
+          ),
+          Text(' \u2502 ', style: TextStyle(color: dimmer)),
+          Expanded(
+            child: Text(
+              goalText,
+              style: TextStyle(
+                color: theme.base.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (session != null) ...[
+            Text(
+              session.id.length > 8 ? session.id.substring(0, 8) : session.id,
+              style: TextStyle(color: dimmer),
+            ),
+            Text(' \u2502 ', style: TextStyle(color: dimmer)),
+          ],
+          GitBranchIndicator(repoPath: repoPath),
+        ],
       ),
     );
   }

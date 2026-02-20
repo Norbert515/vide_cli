@@ -146,12 +146,14 @@ Future<void> main(
       // Core configuration for vide_core. This is the single override that
       // replaces individual provider overrides for working directory, config
       // manager, permission handler, and skip-permissions flag.
-      videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-        workingDirectory: Directory.current.path,
-        configManager: VideConfigManager(),
-        permissionHandler: _tuiPermissionHandler,
-        dangerouslySkipPermissions: dangerouslySkipPermissions,
-      )),
+      videCoreConfigProvider.overrideWithValue(
+        VideCoreConfig(
+          workingDirectory: Directory.current.path,
+          configManager: VideConfigManager(),
+          permissionHandler: _tuiPermissionHandler,
+          dangerouslySkipPermissions: dangerouslySkipPermissions,
+        ),
+      ),
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
