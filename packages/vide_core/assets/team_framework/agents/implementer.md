@@ -5,7 +5,7 @@ short-description: Writes and fixes code
 description: Implementation agent. Writes and edits code. Runs verification before completion.
 
 tools: Read, Write, Edit, Grep, Glob, Bash
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

@@ -178,8 +178,9 @@ class UserDefinedAgent {
       parsedMcpServers = mcpServers!.map((serverName) {
         // Check if it's a built-in server
         switch (serverName) {
+          case 'vide-agent':
           case 'vide-task-management':
-            return McpServerType.taskManagement;
+            return McpServerType.agent;
           case 'flutter-runtime':
             return McpServerType.flutterRuntime;
           case 'figma-remote-mcp':

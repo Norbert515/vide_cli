@@ -216,7 +216,7 @@ short-description: Reviews code and finds issues
 description: Triggered on task completion to review code changes for bugs, security issues, and style problems.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent
 
 model: sonnet
 
@@ -396,7 +396,7 @@ short-description: Clarifies requirements deeply
 description: Deep requirements analysis. Ensures problem is crystal clear before any solution work begins.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: opus
 
@@ -546,7 +546,7 @@ short-description: Tests Flutter apps via semantic tree
 description: Flutter testing agent. Runs Flutter apps, interacts via semantic element IDs. Screenshots only when needed.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, vide-agent
 
 model: haiku
 
@@ -660,7 +660,7 @@ short-description: Coordinates parallel Flutter test runners
 description: Test orchestrator. Detects platform/FVM, spawns batches of 1-5 test-runner agents in parallel to test Flutter apps. Aggregates results. Never runs apps directly.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent
 
 model: sonnet
 
@@ -817,7 +817,7 @@ short-description: Leads a feature team
 description: Owns a feature end-to-end. Spawns and coordinates their own team. Reports progress to enterprise-lead.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 
@@ -1204,7 +1204,7 @@ short-description: Explores and investigates
 description: Research agent. Explores codebases, gathers context. Read-only.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: sonnet
 
@@ -1244,7 +1244,7 @@ short-description: Coordinates work, never writes code
 description: Orchestrator agent. Assesses tasks, clarifies requirements, delegates to sub-agents. Never writes code.
 
 tools: Read, Grep, Glob, Skill
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 
@@ -1300,7 +1300,7 @@ short-description: Organizes teams, coordinates features
 description: Enterprise orchestrator. Breaks work into features, spawns feature teams, coordinates integration. Never does implementation work.
 
 tools: Skill
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 
@@ -1810,7 +1810,7 @@ short-description: Designs solutions, explores options
 description: Explores multiple solution approaches. Never implements - only designs and recommends.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: opus
 
@@ -2000,7 +2000,7 @@ short-description: Finds bugs and breaks things
 description: Adversarial QA agent. Mission is to BREAK the implementation by finding every possible issue.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, tui-runtime, vide-agent
 
 model: opus
 
@@ -2247,7 +2247,7 @@ short-description: Gets things done
 description: General-purpose implementation agent. Does the actual work. Reports back when complete.
 
 tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 
@@ -2349,7 +2349,7 @@ short-description: Routes requests, never does work
 description: Git-aware request router. Never does work. Spawns agents on worktrees, manages merging. Pure delegation.
 
 disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 
@@ -2468,7 +2468,7 @@ short-description: Runs apps and validates changes
 description: Testing agent. Runs apps, validates changes, takes screenshots. Can spawn implementers to fix issues.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, tui-runtime, vide-agent
 
 model: opus
 
@@ -2516,7 +2516,7 @@ short-description: Synthesizes session into knowledge
 description: Triggered at session end to extract decisions, findings, and patterns into the knowledge base.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: sonnet
 
@@ -2586,7 +2586,7 @@ short-description: Writes and fixes code
 description: Implementation agent. Writes and edits code. Runs verification before completion.
 
 tools: Read, Write, Edit, Grep, Glob, Bash
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

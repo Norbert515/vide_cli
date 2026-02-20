@@ -5,7 +5,7 @@ short-description: Tests Flutter apps via semantic tree
 description: Flutter testing agent. Runs Flutter apps, interacts via semantic element IDs. Screenshots only when needed.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, vide-agent
 
 model: haiku
 

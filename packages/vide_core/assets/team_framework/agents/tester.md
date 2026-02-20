@@ -5,7 +5,7 @@ short-description: Runs apps and validates changes
 description: Testing agent. Runs apps, validates changes, takes screenshots. Can spawn implementers to fix issues.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, tui-runtime, vide-agent
 
 model: opus
 

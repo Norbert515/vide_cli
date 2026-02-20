@@ -5,7 +5,7 @@ short-description: Finds bugs and breaks things
 description: Adversarial QA agent. Mission is to BREAK the implementation by finding every possible issue.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: flutter-runtime, tui-runtime, vide-agent, vide-task-management
+mcpServers: flutter-runtime, tui-runtime, vide-agent
 
 model: opus
 

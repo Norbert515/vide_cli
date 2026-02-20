@@ -12,6 +12,8 @@ import '../../../core/theme/vide_colors.dart';
 bool isHiddenTool(ToolContent tool) {
   final name = tool.toolName;
   if (name == 'EnterPlanMode' ||
+      name == 'mcp__vide-agent__setTaskName' ||
+      name == 'mcp__vide-agent__setAgentTaskName' ||
       name == 'mcp__vide-task-management__setTaskName' ||
       name == 'mcp__vide-task-management__setAgentTaskName' ||
       name == 'mcp__vide-agent__setAgentStatus' ||

@@ -5,7 +5,7 @@ short-description: Leads a feature team
 description: Owns a feature end-to-end. Spawns and coordinates their own team. Reports progress to enterprise-lead.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

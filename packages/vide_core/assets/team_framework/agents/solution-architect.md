@@ -5,7 +5,7 @@ short-description: Designs solutions, explores options
 description: Explores multiple solution approaches. Never implements - only designs and recommends.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: opus
 

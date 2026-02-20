@@ -5,7 +5,7 @@ short-description: Coordinates work, never writes code
 description: Orchestrator agent. Assesses tasks, clarifies requirements, delegates to sub-agents. Never writes code.
 
 tools: Read, Grep, Glob, Skill
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

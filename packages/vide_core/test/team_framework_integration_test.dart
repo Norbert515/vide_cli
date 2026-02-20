@@ -152,7 +152,8 @@ void main() {
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
         expect(config.mcpServers, isNotEmpty);
-        expect(config.mcpServers, contains(McpServerType.taskManagement));
+        // Task management tools are now part of vide-agent, so both
+        // vide-agent and vide-task-management map to McpServerType.agent
         expect(config.mcpServers, contains(McpServerType.agent));
       });
 
@@ -162,7 +163,6 @@ void main() {
         expect(config, isNotNull);
         expect(config!.mcpServers, isNotNull);
         expect(config.mcpServers, contains(McpServerType.agent));
-        expect(config.mcpServers, contains(McpServerType.taskManagement));
       });
 
       test('tools are correctly parsed from agent definition', () async {

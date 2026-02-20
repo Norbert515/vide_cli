@@ -5,7 +5,7 @@ short-description: Reviews code and finds issues
 description: Triggered on task completion to review code changes for bugs, security issues, and style problems.
 
 tools: Read, Grep, Glob, Bash
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent
 
 model: sonnet
 

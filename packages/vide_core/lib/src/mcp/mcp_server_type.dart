@@ -7,11 +7,8 @@ sealed class McpServerType {
   const McpServerType();
 
   /// Agent network MCP server (vide-agent)
-  /// Provides tools for spawning agents and inter-agent communication
+  /// Provides tools for spawning agents, inter-agent communication, and task management
   static const agent = _BuiltInMcpServer._('vide-agent');
-
-  /// Task management MCP server (vide-task-management)
-  static const taskManagement = _BuiltInMcpServer._('vide-task-management');
 
   /// Ask user question MCP server (vide-ask-user-question)
   /// Provides structured multiple-choice questions to users

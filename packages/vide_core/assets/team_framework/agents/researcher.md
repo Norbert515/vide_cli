@@ -5,7 +5,7 @@ short-description: Explores and investigates
 description: Research agent. Explores codebases, gathers context. Read-only.
 
 tools: Read, Grep, Glob, WebSearch, WebFetch
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: sonnet
 

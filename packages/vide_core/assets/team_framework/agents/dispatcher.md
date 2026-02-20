@@ -5,7 +5,7 @@ short-description: Routes requests, never does work
 description: Git-aware request router. Never does work. Spawns agents on worktrees, manages merging. Pure delegation.
 
 disallowedTools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch, Task
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

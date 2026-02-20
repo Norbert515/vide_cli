@@ -92,7 +92,9 @@ class ToolInvocationRouter extends StatelessComponent {
 
   /// Tools that should not be rendered at all (have their own UI or are internal)
   bool _isHiddenTool() {
-    if (invocation.toolName == 'mcp__vide-task-management__setTaskName' ||
+    if (invocation.toolName == 'mcp__vide-agent__setTaskName' ||
+        invocation.toolName == 'mcp__vide-agent__setAgentTaskName' ||
+        invocation.toolName == 'mcp__vide-task-management__setTaskName' ||
         invocation.toolName == 'mcp__vide-task-management__setAgentTaskName' ||
         invocation.toolName == 'mcp__vide-agent__setAgentStatus' ||
         invocation.toolName == 'TodoWrite' ||

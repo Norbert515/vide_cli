@@ -5,7 +5,7 @@ short-description: Gets things done
 description: General-purpose implementation agent. Does the actual work. Reports back when complete.
 
 tools: Read, Write, Edit, Grep, Glob, Bash, WebSearch, WebFetch
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

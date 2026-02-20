@@ -5,7 +5,7 @@ short-description: Coordinates parallel Flutter test runners
 description: Test orchestrator. Detects platform/FVM, spawns batches of 1-5 test-runner agents in parallel to test Flutter apps. Aggregates results. Never runs apps directly.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-task-management
+mcpServers: vide-agent
 
 model: sonnet
 

@@ -5,7 +5,7 @@ short-description: Synthesizes session into knowledge
 description: Triggered at session end to extract decisions, findings, and patterns into the knowledge base.
 
 tools: Read, Grep, Glob
-mcpServers: vide-agent, vide-knowledge, vide-task-management
+mcpServers: vide-agent, vide-knowledge
 
 model: sonnet
 

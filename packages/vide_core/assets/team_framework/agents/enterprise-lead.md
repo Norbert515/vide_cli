@@ -5,7 +5,7 @@ short-description: Organizes teams, coordinates features
 description: Enterprise orchestrator. Breaks work into features, spawns feature teams, coordinates integration. Never does implementation work.
 
 tools: Skill
-mcpServers: vide-agent, vide-git, vide-task-management
+mcpServers: vide-agent, vide-git
 
 model: opus
 

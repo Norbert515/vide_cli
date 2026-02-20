@@ -261,17 +261,21 @@ class TeamFrameworkLoader {
       final normalized = name.trim().toLowerCase();
       try {
         final serverType = switch (normalized) {
-          'vide-agent' || 'agent' => McpServerType.agent,
+          'vide-agent' ||
+          'agent' ||
+          // Task management tools are now part of vide-agent
           'vide-task-management' ||
           'task-management' ||
-          'task_management' => McpServerType.taskManagement,
+          'task_management' => McpServerType.agent,
           'flutter-runtime' || 'flutterruntime' => McpServerType.flutterRuntime,
           'vide-knowledge' || 'knowledge' => McpServerType.knowledge,
           _ => null,
         };
 
         if (serverType != null) {
-          servers.add(serverType);
+          if (!servers.contains(serverType)) {
+            servers.add(serverType);
+          }
         } else {
           VideLogger.instance.warn('TeamFrameworkLoader', 'Unknown MCP server type "$name"');
         }
