@@ -111,12 +111,8 @@ class MessageBubble extends StatelessComponent {
 
     for (final content in entry.content) {
       if (content is TextContent) {
-        final hadTools = pendingTools.isNotEmpty;
         flushToolGroup();
         if (content.text.isNotEmpty) {
-          if (hadTools) {
-            widgets.add(SizedBox(height: 1));
-          }
           final isContextFullError =
               content.text.toLowerCase().contains('prompt is too long') ||
               content.text.toLowerCase().contains('context window') ||
