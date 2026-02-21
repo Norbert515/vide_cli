@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart';
 
 import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
@@ -10,9 +10,9 @@ import '../models/agent_status.dart';
 import 'agent_status_manager.dart';
 import '../team_framework/trigger_service.dart';
 
-/// Manages synchronization between Claude client status streams and agent status.
+/// Manages synchronization between agent client status streams and agent status.
 ///
-/// Listens to Claude status changes and automatically updates agent status
+/// Listens to processing status changes and automatically updates agent status
 /// (e.g., setting to idle when a turn completes). Also fires the
 /// onAllAgentsIdle trigger when all non-triggered agents become idle.
 class AgentStatusSyncService {
@@ -30,55 +30,55 @@ class AgentStatusSyncService {
   final AgentStatus Function(AgentId) _getStatus;
   final TriggerService Function() _getTriggerService;
   final AgentNetwork? Function() _getCurrentNetwork;
-  final Map<AgentId, StreamSubscription<ClaudeStatus>>
+  final Map<AgentId, StreamSubscription<AgentProcessingStatus>>
   _statusSyncSubscriptions = {};
 
   String? get _networkId => _getCurrentNetwork()?.id;
 
-  /// Set up status sync for an agent's Claude client.
+  /// Set up status sync for an agent's client.
   ///
-  /// Listens to the Claude status stream and automatically updates
+  /// Listens to the processing status stream and automatically updates
   /// the agent status to idle when the turn completes.
-  void setupStatusSync(AgentId agentId, ClaudeClient client) {
+  void setupStatusSync(AgentId agentId, AgentClient client) {
     // Cancel any existing subscription
     _statusSyncSubscriptions[agentId]?.cancel();
 
     _statusSyncSubscriptions[agentId] = client.statusStream.listen((
-      claudeStatus,
+      processingStatus,
     ) {
       VideLogger.instance.debug(
         'AgentStatusSyncService',
-        'Agent $agentId: received ClaudeStatus.${claudeStatus.name}',
+        'Agent $agentId: received AgentProcessingStatus.${processingStatus.name}',
         sessionId: _networkId,
       );
       final agentStatusNotifier = _getStatusNotifier(agentId);
       final currentAgentStatus = _getStatus(agentId);
 
-      switch (claudeStatus) {
-        case ClaudeStatus.processing:
-        case ClaudeStatus.thinking:
-        case ClaudeStatus.responding:
-          // Claude is working, set agent status to working
+      switch (processingStatus) {
+        case AgentProcessingStatus.processing:
+        case AgentProcessingStatus.thinking:
+        case AgentProcessingStatus.responding:
+          // Agent is working, set agent status to working
           if (currentAgentStatus != AgentStatus.working) {
             VideLogger.instance.debug(
               'AgentStatusSyncService',
-              'Agent $agentId: ClaudeStatus.${claudeStatus.name} -> setting working (was ${currentAgentStatus.name})',
+              'Agent $agentId: AgentProcessingStatus.${processingStatus.name} -> setting working (was ${currentAgentStatus.name})',
               sessionId: _networkId,
             );
             agentStatusNotifier.setStatus(AgentStatus.working);
           }
           break;
-        case ClaudeStatus.ready:
-          // Claude's turn is truly complete.
+        case AgentProcessingStatus.ready:
+          // Agent's turn is truly complete.
           // Only react to 'ready' (not 'completed') because 'completed' is
-          // emitted by the CLI's StatusResponse for every response end,
-          // including compaction. 'ready' is only emitted by ClaudeClient
-          // when turnComplete is true, so it correctly skips compaction.
+          // emitted for every response end, including compaction. 'ready' is
+          // only emitted when turnComplete is true, so it correctly skips
+          // compaction.
           if (currentAgentStatus == AgentStatus.working) {
             final effectiveStatus = effectiveIdleStatus(agentId);
             VideLogger.instance.debug(
               'AgentStatusSyncService',
-              'Agent $agentId: ClaudeStatus.ready -> setting ${effectiveStatus.name} (was working)',
+              'Agent $agentId: AgentProcessingStatus.ready -> setting ${effectiveStatus.name} (was working)',
               sessionId: _networkId,
             );
             agentStatusNotifier.setStatus(effectiveStatus);
@@ -91,28 +91,28 @@ class AgentStatusSyncService {
           } else {
             VideLogger.instance.debug(
               'AgentStatusSyncService',
-              'Agent $agentId: ClaudeStatus.ready ignored (status is ${currentAgentStatus.name}, not working)',
+              'Agent $agentId: AgentProcessingStatus.ready ignored (status is ${currentAgentStatus.name}, not working)',
               sessionId: _networkId,
             );
           }
           break;
-        case ClaudeStatus.completed:
+        case AgentProcessingStatus.completed:
           // 'completed' means a response finished, but NOT necessarily
           // the turn. During compaction, 'completed' fires but the turn
           // continues. We ignore it here and wait for 'ready' instead.
           VideLogger.instance.debug(
             'AgentStatusSyncService',
-            'Agent $agentId: ClaudeStatus.completed ignored (waiting for ready)',
+            'Agent $agentId: AgentProcessingStatus.completed ignored (waiting for ready)',
             sessionId: _networkId,
           );
           break;
-        case ClaudeStatus.error:
+        case AgentProcessingStatus.error:
           // On error, set to idle so triggers can fire
           if (currentAgentStatus == AgentStatus.working) {
             final effectiveStatus = effectiveIdleStatus(agentId);
             VideLogger.instance.debug(
               'AgentStatusSyncService',
-              'Agent $agentId: ClaudeStatus.error -> setting ${effectiveStatus.name} (was ${currentAgentStatus.name})',
+              'Agent $agentId: AgentProcessingStatus.error -> setting ${effectiveStatus.name} (was ${currentAgentStatus.name})',
               sessionId: _networkId,
             );
             agentStatusNotifier.setStatus(effectiveStatus);
@@ -122,14 +122,14 @@ class AgentStatusSyncService {
             checkAllAgentsIdle();
           }
           break;
-        case ClaudeStatus.unknown:
+        case AgentProcessingStatus.unknown:
           // 'unknown' means a status string we don't recognize — often
           // caused by unhandled system message subtypes during compaction.
           // Do NOT set idle here; the agent is likely still working.
           // Only 'ready' (true turn completion) should transition to idle.
           VideLogger.instance.warn(
             'AgentStatusSyncService',
-            'Agent $agentId: ClaudeStatus.unknown ignored (was ${currentAgentStatus.name}) — likely unrecognized system message during compaction',
+            'Agent $agentId: AgentProcessingStatus.unknown ignored (was ${currentAgentStatus.name}) — likely unrecognized system message during compaction',
             sessionId: _networkId,
           );
           break;

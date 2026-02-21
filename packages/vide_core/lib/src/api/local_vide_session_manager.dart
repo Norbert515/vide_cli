@@ -12,7 +12,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart' show Attachment, Message;
+import 'package:agent_sdk/agent_sdk.dart' show AgentMessage, AgentAttachment;
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_interface/vide_interface.dart';
 
@@ -89,11 +89,11 @@ class LocalVideSessionManager implements VideSessionManager {
     final sessionContainer = _containerForSession(workingDirectory);
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
 
-    // Build claude message only if initialMessage provided.
-    Message? claudeMessage;
+    // Build agent message only if initialMessage provided.
+    AgentMessage? agentMessage;
     if (initialMessage != null) {
-      final claudeAttachments = attachments?.map((a) {
-        return Attachment(
+      final agentAttachments = attachments?.map((a) {
+        return AgentAttachment(
           type: a.type,
           path: a.filePath,
           content: a.content,
@@ -101,14 +101,14 @@ class LocalVideSessionManager implements VideSessionManager {
         );
       }).toList();
 
-      claudeMessage = Message(
+      agentMessage = AgentMessage(
         text: initialMessage,
-        attachments: claudeAttachments,
+        attachments: agentAttachments,
       );
     }
 
     final network = await manager.startNew(
-      claudeMessage,
+      agentMessage,
       workingDirectory: workingDirectory,
       permissionMode: permissionMode,
       team: team ?? 'enterprise',

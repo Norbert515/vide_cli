@@ -7,7 +7,7 @@
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 
@@ -16,7 +16,7 @@ import 'package:vide_core/src/claude/claude_manager.dart';
 import 'package:vide_core/src/agent_network/agent_status_manager.dart';
 import 'package:vide_core/src/configuration/working_dir_provider.dart';
 
-import 'helpers/mock_claude_client.dart' as mock;
+import 'helpers/mock_agent_client.dart';
 
 void main() {
   group('Trigger E2E Tests', () {
@@ -32,14 +32,14 @@ void main() {
       container.dispose();
     });
 
-    test('Status sync: ClaudeStatus changes should update AgentStatus', () async {
+    test('Status sync: AgentProcessingStatus changes should update AgentStatus', () async {
       // Create a mock client
-      final mockClient = mock.MockClaudeClient();
+      final mockClient = MockAgentClient();
       const agentId = 'test-agent-1';
 
-      // Add to claude manager
+      // Add to agent client manager
       container
-          .read(claudeManagerProvider.notifier)
+          .read(agentClientManagerProvider.notifier)
           .addAgent(agentId, mockClient);
 
       // Get the agent status notifier
@@ -54,33 +54,33 @@ void main() {
 
       // Now let's manually set up the status sync like AgentNetworkManager does
       // This simulates what happens when an agent is added to the network
-      late StreamSubscription<ClaudeStatus> subscription;
-      subscription = mockClient.statusStream.listen((claudeStatus) {
+      late StreamSubscription<AgentProcessingStatus> subscription;
+      subscription = mockClient.statusStream.listen((processingStatus) {
         final currentAgentStatus = container.read(agentStatusProvider(agentId));
 
-        switch (claudeStatus) {
-          case ClaudeStatus.processing:
-          case ClaudeStatus.thinking:
-          case ClaudeStatus.responding:
+        switch (processingStatus) {
+          case AgentProcessingStatus.processing:
+          case AgentProcessingStatus.thinking:
+          case AgentProcessingStatus.responding:
             if (currentAgentStatus != AgentStatus.working) {
               statusNotifier.setStatus(AgentStatus.working);
             }
             break;
-          case ClaudeStatus.ready:
+          case AgentProcessingStatus.ready:
             // Only 'ready' signals a true turn completion.
             // 'completed' is ignored because it also fires during
             // compaction when the turn is not actually done.
             if (currentAgentStatus == AgentStatus.working) {
-              print('[Test] Claude ready, setting status to idle');
+              print('[Test] Agent ready, setting status to idle');
               statusNotifier.setStatus(AgentStatus.idle);
             }
             break;
-          case ClaudeStatus.completed:
+          case AgentProcessingStatus.completed:
             // Ignored — 'completed' fires for every response end,
             // including compaction. Wait for 'ready' instead.
             break;
-          case ClaudeStatus.error:
-          case ClaudeStatus.unknown:
+          case AgentProcessingStatus.error:
+          case AgentProcessingStatus.unknown:
             if (currentAgentStatus == AgentStatus.working) {
               statusNotifier.setStatus(AgentStatus.idle);
             }
@@ -88,36 +88,36 @@ void main() {
         }
       });
 
-      // Simulate Claude processing
+      // Simulate agent processing
       print('Emitting processing...');
-      mockClient.emitStatus(ClaudeStatus.processing);
+      mockClient.emitStatus(AgentProcessingStatus.processing);
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));
       expect(status, equals(AgentStatus.working));
       print('Status after processing: $status');
 
-      // Simulate Claude thinking
+      // Simulate agent thinking
       print('Emitting thinking...');
-      mockClient.emitStatus(ClaudeStatus.thinking);
+      mockClient.emitStatus(AgentProcessingStatus.thinking);
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));
       expect(status, equals(AgentStatus.working));
       print('Status after thinking: $status');
 
-      // Simulate Claude responding
+      // Simulate agent responding
       print('Emitting responding...');
-      mockClient.emitStatus(ClaudeStatus.responding);
+      mockClient.emitStatus(AgentProcessingStatus.responding);
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));
       expect(status, equals(AgentStatus.working));
       print('Status after responding: $status');
 
-      // Simulate Claude completing a response (not turn-complete)
+      // Simulate agent completing a response (not turn-complete)
       print('Emitting completed...');
-      mockClient.emitStatus(ClaudeStatus.completed);
+      mockClient.emitStatus(AgentProcessingStatus.completed);
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));
@@ -128,9 +128,9 @@ void main() {
       );
       print('Status after completed: $status');
 
-      // Simulate Claude becoming ready (turn truly complete)
+      // Simulate agent becoming ready (turn truly complete)
       print('Emitting ready...');
-      mockClient.emitStatus(ClaudeStatus.ready);
+      mockClient.emitStatus(AgentProcessingStatus.ready);
       await Future.delayed(Duration(milliseconds: 50));
 
       status = container.read(agentStatusProvider(agentId));

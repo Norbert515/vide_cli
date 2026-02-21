@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -72,11 +73,11 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     'Unscrambling quantum eggs',
   ];
 
-  /// Status-specific messages shown when we know Claude's actual state
+  /// Status-specific messages shown when we know the agent's actual state
   static const _statusMessages = {
-    ClaudeStatus.processing: 'Processing',
-    ClaudeStatus.thinking: 'Thinking',
-    ClaudeStatus.responding: 'Responding',
+    AgentProcessingStatus.processing: 'Processing',
+    AgentProcessingStatus.thinking: 'Thinking',
+    AgentProcessingStatus.responding: 'Responding',
   };
 
   static final _brailleFrames = [
@@ -145,9 +146,9 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     super.dispose();
   }
 
-  /// Get the display text based on Claude's status.
+  /// Get the display text based on the agent's processing status.
   /// Shows status prefix when available, otherwise just the fun activity.
-  String _getDisplayText(ClaudeStatus? status) {
+  String _getDisplayText(AgentProcessingStatus? status) {
     final activity = _activities[_activityIndex];
 
     // If we have a meaningful status, show it as a prefix
@@ -164,16 +165,16 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     final theme = VideTheme.of(context);
     final braille = _brailleFrames[_frameIndex];
 
-    // Get Claude status if agent ID is provided
-    ClaudeStatus? claudeStatus;
+    // Get agent processing status if agent ID is provided
+    AgentProcessingStatus? processingStatus;
     if (component.agentId != null) {
       final statusAsync = context.watch(
-        claudeStatusProvider(component.agentId!),
+        agentProcessingStatusProvider(component.agentId!),
       );
-      claudeStatus = statusAsync.valueOrNull;
+      processingStatus = statusAsync.valueOrNull;
     }
 
-    final displayText = _getDisplayText(claudeStatus);
+    final displayText = _getDisplayText(processingStatus);
 
     return Row(
       mainAxisSize: MainAxisSize.min,

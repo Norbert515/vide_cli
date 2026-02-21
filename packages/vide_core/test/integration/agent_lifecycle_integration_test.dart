@@ -1,25 +1,24 @@
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:test/test.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_core/src/claude/claude_manager.dart';
-import '../helpers/mock_claude_client.dart';
+import '../helpers/mock_agent_client.dart';
 
 /// Integration tests for Agent lifecycle components working together.
 ///
 /// Tests the interaction between:
 /// - AgentStatusManager (status tracking)
-/// - ClaudeManager (client management)
+/// - AgentClientManager (client management)
 /// - AgentNetwork (network model)
-/// - MockClaudeClient (simulated Claude interaction)
+/// - MockAgentClient (simulated agent interaction)
 void main() {
   group('Agent Lifecycle Integration', () {
     late ProviderContainer container;
-    late MockClaudeClientFactory clientFactory;
+    late MockAgentClientFactory clientFactory;
 
     setUp(() {
       container = ProviderContainer();
-      clientFactory = MockClaudeClientFactory();
+      clientFactory = MockAgentClientFactory();
     });
 
     tearDown(() {
@@ -87,16 +86,16 @@ void main() {
       });
     });
 
-    group('ClaudeManager with mock clients', () {
+    group('AgentClientManager with mock clients', () {
       test('adding and removing clients works correctly', () {
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         final client1 = clientFactory.getClient('agent-1');
         final client2 = clientFactory.getClient('agent-2');
 
         manager.addAgent('agent-1', client1);
         manager.addAgent('agent-2', client2);
 
-        final state = container.read(claudeManagerProvider);
+        final state = container.read(agentClientManagerProvider);
         expect(state.containsKey('agent-1'), isTrue);
         expect(state.containsKey('agent-2'), isTrue);
         expect(state['agent-1'], same(client1));
@@ -104,28 +103,28 @@ void main() {
 
         manager.removeAgent('agent-1');
 
-        final updatedState = container.read(claudeManagerProvider);
+        final updatedState = container.read(agentClientManagerProvider);
         expect(updatedState.containsKey('agent-1'), isFalse);
         expect(updatedState.containsKey('agent-2'), isTrue);
       });
 
       test('family provider returns correct client for agent', () {
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         final client = clientFactory.getClient('my-agent');
 
         manager.addAgent('my-agent', client);
 
-        final retrieved = container.read(claudeProvider('my-agent'));
+        final retrieved = container.read(agentClientProvider('my-agent'));
         expect(retrieved, same(client));
       });
     });
 
-    group('MockClaudeClient message flow', () {
+    group('MockAgentClient message flow', () {
       test('sending messages adds to sent list', () {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(claude.Message.text('Hello'));
-        client.sendMessage(claude.Message.text('World'));
+        client.sendMessage(const AgentMessage.text('Hello'));
+        client.sendMessage(const AgentMessage.text('World'));
 
         expect(client.sentMessages.length, 2);
         expect(client.sentMessages[0].text, 'Hello');
@@ -136,10 +135,10 @@ void main() {
         final client = clientFactory.getClient('test-agent');
 
         // Listen to conversation stream
-        final conversations = <claude.Conversation>[];
+        final conversations = <AgentConversation>[];
         final subscription = client.conversation.listen(conversations.add);
 
-        client.sendMessage(claude.Message.text('Question?'));
+        client.sendMessage(const AgentMessage.text('Question?'));
         client.simulateTextResponse('Answer!');
 
         // Allow stream to propagate
@@ -148,10 +147,10 @@ void main() {
 
         expect(conversations.length, 2);
         expect(conversations.last.messages.length, 2);
-        expect(conversations.last.messages.first.role, claude.MessageRole.user);
+        expect(conversations.last.messages.first.role, AgentMessageRole.user);
         expect(
           conversations.last.messages.last.role,
-          claude.MessageRole.assistant,
+          AgentMessageRole.assistant,
         );
       });
 
@@ -173,7 +172,7 @@ void main() {
       test('reset clears state for reuse', () async {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(claude.Message.text('Test'));
+        client.sendMessage(const AgentMessage.text('Test'));
         await client.abort();
 
         expect(client.sentMessages.isNotEmpty, isTrue);
@@ -250,7 +249,7 @@ void main() {
     group('Full agent conversation simulation', () {
       test('simulates complete agent interaction', () async {
         final client = clientFactory.getClient('main-agent');
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         manager.addAgent('main-agent', client);
 
         // Set agent as working
@@ -259,7 +258,7 @@ void main() {
             .setStatus(AgentStatus.working);
 
         // Send user message
-        client.sendMessage(claude.Message.text('Implement feature X'));
+        client.sendMessage(const AgentMessage.text('Implement feature X'));
 
         // Simulate Claude thinking and responding
         client.simulateTextResponse('I will implement feature X by...');

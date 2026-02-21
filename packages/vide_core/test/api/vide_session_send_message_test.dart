@@ -1,7 +1,7 @@
 /// Tests for LocalVideSession.sendMessage() edge cases and behavior.
 library;
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart' as agent_sdk;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 
@@ -25,7 +25,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // Session emits a user event directly AND _handleConversation emits
-      // another one when MockClaudeClient adds the message to its conversation.
+      // another one when MockAgentClient adds the message to its conversation.
       // At minimum one user message event with the right content.
       final userMsgs = events
           .whereType<MessageEvent>()
@@ -35,7 +35,7 @@ void main() {
       expect(userMsgs.first.content, equals('Hello'));
       expect(userMsgs.first.agentId, equals(h.agentId));
 
-      // Should forward to MockClaudeClient
+      // Should forward to MockAgentClient
       expect(h.mockClient.sentMessages, hasLength(1));
       expect(h.mockClient.sentMessages.first.text, equals('Hello'));
     });
@@ -58,7 +58,7 @@ void main() {
 
     test('queued messages do NOT emit user event', () async {
       h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
       expect(h.mockClient.currentConversation.isProcessing, isTrue);
 
@@ -79,7 +79,7 @@ void main() {
 
     test('queued messages are stored in client', () async {
       h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
 
       h.session.sendMessage(VideMessage(text: 'Queued!'));
@@ -107,7 +107,7 @@ void main() {
           .read(agentStatusProvider(h.agentId).notifier)
           .setStatus(AgentStatus.working);
       h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
 
       final events = h.collectEvents();

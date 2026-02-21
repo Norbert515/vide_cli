@@ -1,5 +1,5 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:path/path.dart' as p;
 import 'shared/code_diff.dart';
@@ -10,7 +10,7 @@ import 'package:vide_cli/theme/theme.dart';
 /// Renderer for Write/Edit/MultiEdit tool invocations with successful results.
 /// Shows code diffs with syntax highlighting.
 class DiffRenderer extends StatefulComponent {
-  final ToolInvocation invocation;
+  final AgentToolInvocation invocation;
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -44,15 +44,13 @@ class _DiffRendererState extends State<DiffRenderer> {
   void initState() {
     super.initState();
 
-    // Get the file path and language from typed invocation
-    if (component.invocation is WriteToolInvocation) {
-      final typed = component.invocation as WriteToolInvocation;
-      _cachedFormattedPath = typed.getRelativePath(component.workingDirectory);
-      _language = SyntaxHighlighter.detectLanguage(typed.filePath);
-    } else if (component.invocation is EditToolInvocation) {
-      final typed = component.invocation as EditToolInvocation;
-      _cachedFormattedPath = typed.getRelativePath(component.workingDirectory);
-      _language = SyntaxHighlighter.detectLanguage(typed.filePath);
+    final fileOp = component.invocation is AgentFileOperationToolInvocation
+        ? component.invocation as AgentFileOperationToolInvocation
+        : null;
+    final filePath = fileOp?.filePath;
+    if (filePath != null && filePath.isNotEmpty) {
+      _cachedFormattedPath = _formatFilePath(filePath);
+      _language = SyntaxHighlighter.detectLanguage(filePath);
     } else {
       _cachedFormattedPath = null;
       _language = null;
@@ -199,20 +197,20 @@ class _DiffRendererState extends State<DiffRenderer> {
   }
 
   List<DiffLine> _createDiffLines() {
-    if (component.invocation is WriteToolInvocation) {
-      final typed = component.invocation as WriteToolInvocation;
-      return _parseWriteToolResult(typed);
-    } else if (component.invocation is EditToolInvocation) {
-      final typed = component.invocation as EditToolInvocation;
-      return _parseEditResult(typed);
+    final invocation = component.invocation;
+
+    if (invocation is AgentWriteToolInvocation) {
+      return _parseWriteToolResult(invocation.content);
+    } else if (invocation is AgentEditToolInvocation) {
+      return _parseEditResult(invocation.oldString, invocation.newString);
     }
 
     return [];
   }
 
-  List<DiffLine> _parseWriteToolResult(WriteToolInvocation invocation) {
+  List<DiffLine> _parseWriteToolResult(String content) {
     // For Write tool, show all lines as added
-    final lines = invocation.content.split('\n');
+    final lines = content.split('\n');
     return List.generate(
       lines.length,
       (i) => DiffLine(
@@ -223,7 +221,7 @@ class _DiffRendererState extends State<DiffRenderer> {
     );
   }
 
-  List<DiffLine> _parseEditResult(EditToolInvocation invocation) {
+  List<DiffLine> _parseEditResult(String oldString, String newString) {
     final lines = <DiffLine>[];
     final resultContent = component.invocation.resultContent ?? '';
 
@@ -235,11 +233,11 @@ class _DiffRendererState extends State<DiffRenderer> {
     final resultLines = resultContent.split('\n');
 
     // Use Sets for O(1) lookup instead of O(n) list iteration
-    final oldSet = invocation.oldString
+    final oldSet = oldString
         .split('\n')
         .map((l) => l.trim())
         .toSet();
-    final newSet = invocation.newString
+    final newSet = newString
         .split('\n')
         .map((l) => l.trim())
         .toSet();
@@ -285,22 +283,17 @@ class _DiffRendererState extends State<DiffRenderer> {
   }
 
   String _getParameterValue() {
-    final params = component.invocation.parameters;
+    final invocation = component.invocation;
+    if (invocation is AgentFileOperationToolInvocation) {
+      return _formatFilePath(invocation.filePath);
+    }
+
+    final params = invocation.parameters;
     if (params.isEmpty) return '';
 
-    // Prefer meaningful keys
-    for (final key in ['file_path', 'pattern', 'command', 'query', 'url']) {
+    for (final key in ['pattern', 'command', 'query', 'url']) {
       if (params.containsKey(key)) {
-        String valueStr = params[key].toString();
-        if (key == 'file_path') {
-          if (component.invocation is FileOperationToolInvocation) {
-            final typed = component.invocation as FileOperationToolInvocation;
-            valueStr = typed.getRelativePath(component.workingDirectory);
-          } else {
-            valueStr = _formatFilePath(valueStr);
-          }
-        }
-        return valueStr;
+        return params[key].toString();
       }
     }
 

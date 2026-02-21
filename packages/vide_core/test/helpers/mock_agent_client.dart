@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'package:claude_sdk/claude_sdk.dart';
 
-/// A mock ClaudeClient for testing that doesn't spawn real processes.
-class MockClaudeClient implements ClaudeClient {
-  MockClaudeClient({
+import 'package:agent_sdk/agent_sdk.dart';
+
+/// A mock AgentClient for testing that doesn't spawn real processes.
+class MockAgentClient implements AgentClient {
+  MockAgentClient({
     String? sessionId,
     this.workingDirectory = '/mock/working/dir',
   }) : sessionId =
@@ -15,19 +16,18 @@ class MockClaudeClient implements ClaudeClient {
   @override
   final String workingDirectory;
 
-  @override
-  void Function(MetaResponse response)? onMetaResponseReceived;
-
-  final List<Message> sentMessages = [];
-  final _conversationController = StreamController<Conversation>.broadcast();
+  final List<AgentMessage> sentMessages = [];
+  final _conversationController =
+      StreamController<AgentConversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
-  final _statusController = StreamController<ClaudeStatus>.broadcast();
+  final _statusController =
+      StreamController<AgentProcessingStatus>.broadcast();
   final _queuedMessageController = StreamController<String?>.broadcast();
-  final _initDataController = StreamController<MetaResponse>.broadcast();
-  Conversation _currentConversation = Conversation.empty();
+  final _initDataController = StreamController<AgentInitData>.broadcast();
+  AgentConversation _currentConversation = AgentConversation.empty();
   String? _queuedMessageText;
-  ClaudeStatus _currentStatus = ClaudeStatus.ready;
-  MetaResponse? _initData;
+  AgentProcessingStatus _currentStatus = AgentProcessingStatus.ready;
+  AgentInitData? _initData;
   bool _isAborted = false;
   bool _isClosed = false;
 
@@ -35,28 +35,29 @@ class MockClaudeClient implements ClaudeClient {
   bool get isClosed => _isClosed;
 
   @override
-  Stream<Conversation> get conversation => _conversationController.stream;
+  Stream<AgentConversation> get conversation =>
+      _conversationController.stream;
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;
 
   @override
-  Stream<ClaudeStatus> get statusStream => _statusController.stream;
+  Stream<AgentProcessingStatus> get statusStream => _statusController.stream;
 
   @override
-  ClaudeStatus get currentStatus => _currentStatus;
+  AgentProcessingStatus get currentStatus => _currentStatus;
 
   @override
-  Stream<MetaResponse> get initDataStream => _initDataController.stream;
+  Stream<AgentInitData> get initDataStream => _initDataController.stream;
 
   @override
-  MetaResponse? get initData => _initData;
+  AgentInitData? get initData => _initData;
 
   @override
   Future<void> get initialized => Future.value();
 
   @override
-  Conversation get currentConversation => _currentConversation;
+  AgentConversation get currentConversation => _currentConversation;
 
   @override
   Stream<String?> get queuedMessage => _queuedMessageController.stream;
@@ -71,10 +72,10 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
-  void sendMessage(Message message) {
+  void sendMessage(AgentMessage message) {
     if (message.text.trim().isEmpty) return;
 
-    // Match real ClaudeClient behavior: queue if processing
+    // Match real AgentClient behavior: queue if processing
     if (_currentConversation.isProcessing) {
       if (_queuedMessageText == null) {
         _queuedMessageText = message.text;
@@ -88,7 +89,7 @@ class MockClaudeClient implements ClaudeClient {
     sentMessages.add(message);
 
     // Simulate adding the message to conversation
-    final userMessage = ConversationMessage.user(content: message.text);
+    final userMessage = AgentConversationMessage.user(content: message.text);
     _currentConversation = _currentConversation.addMessage(userMessage);
     _conversationController.add(_currentConversation);
   }
@@ -96,46 +97,6 @@ class MockClaudeClient implements ClaudeClient {
   @override
   Future<void> abort() async {
     _isAborted = true;
-  }
-
-  @override
-  Future<void> setPermissionMode(String mode) async {
-    // Mock implementation - no-op
-  }
-
-  @override
-  Future<McpStatusResponse> getMcpStatus() async {
-    return const McpStatusResponse(servers: []);
-  }
-
-  @override
-  Future<SetModelResponse> setModel(String model) async {
-    return SetModelResponse(model: model);
-  }
-
-  @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
-    int maxTokens,
-  ) async {
-    return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
-  }
-
-  @override
-  Future<void> setMcpServers(
-    List<McpServerConfig> servers, {
-    bool replace = false,
-  }) async {
-    // Mock implementation - no-op
-  }
-
-  @override
-  Future<void> interrupt() async {
-    await abort();
-  }
-
-  @override
-  Future<void> rewindFiles(String userMessageId) async {
-    // Mock implementation - no-op
   }
 
   @override
@@ -150,19 +111,43 @@ class MockClaudeClient implements ClaudeClient {
 
   @override
   Future<void> clearConversation() async {
-    _currentConversation = Conversation.empty();
+    _currentConversation = AgentConversation.empty();
     _conversationController.add(_currentConversation);
   }
 
   @override
-  T? getMcpServer<T extends McpServerBase>(String name) => null;
+  T? getMcpServer<T>(String name) => null;
 
-  /// Simulate receiving an assistant text response
+  @override
+  void injectToolResult(AgentToolResultResponse toolResult) {
+    if (_currentConversation.messages.isEmpty) return;
+
+    final lastIndex = _currentConversation.messages.length - 1;
+    final lastMessage = _currentConversation.messages[lastIndex];
+
+    if (lastMessage.role != AgentMessageRole.assistant) return;
+
+    final updatedMessage = lastMessage.copyWith(
+      responses: [...lastMessage.responses, toolResult],
+    );
+
+    final updatedMessages = [..._currentConversation.messages];
+    updatedMessages[lastIndex] = updatedMessage;
+
+    _currentConversation = _currentConversation.copyWith(
+      messages: updatedMessages,
+    );
+    _conversationController.add(_currentConversation);
+  }
+
+  // ── Simulation helpers ──────────────────────────────────────
+
+  /// Simulate receiving an assistant text response.
   void simulateTextResponse(String text) {
-    final assistantMessage = ConversationMessage.assistant(
+    final assistantMessage = AgentConversationMessage.assistant(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       responses: [
-        TextResponse(
+        AgentTextResponse(
           id: 'text-${DateTime.now().microsecondsSinceEpoch}',
           timestamp: DateTime.now(),
           content: text,
@@ -174,27 +159,27 @@ class MockClaudeClient implements ClaudeClient {
     _conversationController.add(_currentConversation);
   }
 
-  /// Simulate a turn completion
+  /// Simulate a turn completion.
   void simulateTurnComplete() {
     _turnCompleteController.add(null);
   }
 
-  /// Emit a status change (for testing status sync)
-  void emitStatus(ClaudeStatus status) {
+  /// Emit a status change (for testing status sync).
+  void emitStatus(AgentProcessingStatus status) {
     _currentStatus = status;
     _statusController.add(status);
   }
 
-  /// Set the conversation state (e.g. to simulate processing)
-  void setConversationState(ConversationState state) {
+  /// Set the conversation state (e.g. to simulate processing).
+  void setConversationState(AgentConversationState state) {
     _currentConversation = _currentConversation.withState(state);
     _conversationController.add(_currentConversation);
   }
 
   /// Simulate an assistant message with tool use and result responses.
   ///
-  /// This creates a complete assistant turn with text, tool call, and tool result
-  /// all in one message - matching how claude_sdk delivers tool interactions.
+  /// Creates a complete assistant turn with text, tool call, and tool result
+  /// all in one message - matching how agent_sdk delivers tool interactions.
   void simulateAssistantWithToolCall({
     required String text,
     required String toolName,
@@ -207,18 +192,18 @@ class MockClaudeClient implements ClaudeClient {
     final useId = toolUseId ?? 'tool-use-$id';
     final now = DateTime.now();
 
-    final assistantMessage = ConversationMessage.assistant(
+    final assistantMessage = AgentConversationMessage.assistant(
       id: id,
       responses: [
-        TextResponse(id: 'text-$id', timestamp: now, content: text),
-        ToolUseResponse(
+        AgentTextResponse(id: 'text-$id', timestamp: now, content: text),
+        AgentToolUseResponse(
           id: 'tooluse-$id',
           timestamp: now,
           toolName: toolName,
           parameters: toolInput,
           toolUseId: useId,
         ),
-        ToolResultResponse(
+        AgentToolResultResponse(
           id: 'toolresult-$id',
           timestamp: now,
           toolUseId: useId,
@@ -239,10 +224,10 @@ class MockClaudeClient implements ClaudeClient {
   void simulateStreamingText(String text, {bool createNew = false}) {
     if (_currentConversation.messages.isEmpty || createNew) {
       final id = DateTime.now().microsecondsSinceEpoch.toString();
-      final assistantMessage = ConversationMessage.assistant(
+      final assistantMessage = AgentConversationMessage.assistant(
         id: id,
         responses: [
-          TextResponse(
+          AgentTextResponse(
             id: 'text-$id',
             timestamp: DateTime.now(),
             content: text,
@@ -252,7 +237,7 @@ class MockClaudeClient implements ClaudeClient {
       );
       _currentConversation = _currentConversation
           .addMessage(assistantMessage)
-          .withState(ConversationState.receivingResponse);
+          .withState(AgentConversationState.receivingResponse);
       _conversationController.add(_currentConversation);
       return;
     }
@@ -260,7 +245,7 @@ class MockClaudeClient implements ClaudeClient {
     final lastIndex = _currentConversation.messages.length - 1;
     final lastMessage = _currentConversation.messages[lastIndex];
 
-    if (lastMessage.role != MessageRole.assistant) {
+    if (lastMessage.role != AgentMessageRole.assistant) {
       simulateStreamingText(text, createNew: true);
       return;
     }
@@ -270,7 +255,7 @@ class MockClaudeClient implements ClaudeClient {
     final updatedMessage = lastMessage.copyWith(
       content: newContent,
       responses: [
-        TextResponse(
+        AgentTextResponse(
           id: 'text-${DateTime.now().microsecondsSinceEpoch}',
           timestamp: DateTime.now(),
           content: newContent,
@@ -287,8 +272,6 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   /// Simulate adding a tool use response to the last assistant message.
-  ///
-  /// Used to test tool event ordering when tools arrive after text.
   void simulateToolUseOnLastMessage({
     required String toolName,
     required Map<String, dynamic> parameters,
@@ -297,13 +280,13 @@ class MockClaudeClient implements ClaudeClient {
     if (_currentConversation.messages.isEmpty) return;
     final lastIndex = _currentConversation.messages.length - 1;
     final lastMessage = _currentConversation.messages[lastIndex];
-    if (lastMessage.role != MessageRole.assistant) return;
+    if (lastMessage.role != AgentMessageRole.assistant) return;
 
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     final updatedMessage = lastMessage.copyWith(
       responses: [
         ...lastMessage.responses,
-        ToolUseResponse(
+        AgentToolUseResponse(
           id: 'tooluse-$id',
           timestamp: DateTime.now(),
           toolName: toolName,
@@ -321,77 +304,53 @@ class MockClaudeClient implements ClaudeClient {
     _conversationController.add(_currentConversation);
   }
 
-  /// Set the conversation error state
+  /// Set the conversation error state.
   void simulateError(String error) {
     _currentConversation = _currentConversation.withError(error);
     _conversationController.add(_currentConversation);
   }
 
-  /// Simulate the conversation going idle after processing
+  /// Simulate the conversation going idle after processing.
   void simulateIdle() {
     _currentConversation = _currentConversation.withState(
-      ConversationState.idle,
+      AgentConversationState.idle,
     );
     _conversationController.add(_currentConversation);
   }
 
-  /// Set the init data (for model testing)
-  void setInitData(MetaResponse data) {
+  /// Set the init data (for model testing).
+  void setInitData(AgentInitData data) {
     _initData = data;
     _initDataController.add(data);
   }
 
-  /// Reset the mock for reuse
+  /// Reset the mock for reuse.
   void reset() {
     sentMessages.clear();
-    _currentConversation = Conversation.empty();
+    _currentConversation = AgentConversation.empty();
     _isAborted = false;
     _isClosed = false;
   }
-
-  @override
-  void injectToolResult(ToolResultResponse toolResult) {
-    // Find the last assistant message and add the tool result to it
-    if (_currentConversation.messages.isEmpty) return;
-
-    final lastIndex = _currentConversation.messages.length - 1;
-    final lastMessage = _currentConversation.messages[lastIndex];
-
-    if (lastMessage.role != MessageRole.assistant) return;
-
-    // Add the tool result to the responses
-    final updatedMessage = lastMessage.copyWith(
-      responses: [...lastMessage.responses, toolResult],
-    );
-
-    final updatedMessages = [..._currentConversation.messages];
-    updatedMessages[lastIndex] = updatedMessage;
-
-    _currentConversation = _currentConversation.copyWith(
-      messages: updatedMessages,
-    );
-    _conversationController.add(_currentConversation);
-  }
 }
 
-/// A mock factory for creating MockClaudeClients
-class MockClaudeClientFactory {
-  final Map<String, MockClaudeClient> _clients = {};
+/// A mock factory for creating MockAgentClients.
+class MockAgentClientFactory {
+  final Map<String, MockAgentClient> _clients = {};
 
-  /// Get or create a client for the given agent ID
-  MockClaudeClient getClient(String agentId) {
+  /// Get or create a client for the given agent ID.
+  MockAgentClient getClient(String agentId) {
     return _clients.putIfAbsent(
       agentId,
-      () => MockClaudeClient(sessionId: agentId),
+      () => MockAgentClient(sessionId: agentId),
     );
   }
 
-  /// Check if a client exists
+  /// Check if a client exists.
   bool hasClient(String agentId) => _clients.containsKey(agentId);
 
-  /// Get all created clients
-  Map<String, MockClaudeClient> get clients => Map.unmodifiable(_clients);
+  /// Get all created clients.
+  Map<String, MockAgentClient> get clients => Map.unmodifiable(_clients);
 
-  /// Clear all clients
+  /// Clear all clients.
   void clear() => _clients.clear();
 }

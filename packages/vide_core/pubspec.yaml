@@ -35,6 +35,8 @@ assets:
   - assets/team_framework/etiquette/
 
 dev_dependencies:
+  agent_sdk:
+    path: ../agent_sdk
   build_runner: ^2.4.6
   freezed: ^2.4.5
   json_serializable: ^6.7.1

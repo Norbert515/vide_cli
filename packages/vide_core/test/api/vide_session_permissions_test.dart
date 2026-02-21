@@ -7,7 +7,7 @@ library;
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 
@@ -256,7 +256,7 @@ void main() {
       'permission callback after dispose returns deny immediately',
       () async {
         // First get a callback, then dispose, then invoke callback
-        final callback = h.session.createClaudePermissionCallback(
+        final callback = h.session.createAgentPermissionCallback(
           agentId: h.agentId,
           agentName: 'Main Agent',
           agentType: 'main',
@@ -269,9 +269,9 @@ void main() {
         // before creating the completer.
         final result = await callback('Bash', {
           'command': 'after dispose',
-        }, claude.ToolPermissionContext());
+        }, AgentPermissionContext());
 
-        expect(result, isA<claude.PermissionResultDeny>());
+        expect(result, isA<AgentPermissionDeny>());
       },
     );
 
@@ -335,7 +335,7 @@ void main() {
     test('AskUserQuestion tool emits event and waits for response', () async {
       final events = h.collectEvents();
 
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -354,7 +354,7 @@ void main() {
             ],
           },
         ],
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
 
       await Future<void>.delayed(Duration.zero);
 
@@ -371,14 +371,14 @@ void main() {
       );
 
       final result = await resultFuture;
-      expect(result, isA<claude.PermissionResultAllow>());
-      final allow = result as claude.PermissionResultAllow;
+      expect(result, isA<AgentPermissionAllow>());
+      final allow = result as AgentPermissionAllow;
       expect(allow.updatedInput, isNotNull);
       expect(allow.updatedInput!['answers'], equals({'0': 'Red'}));
     });
 
     test('AskUserQuestion with empty questions auto-allows', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -387,13 +387,13 @@ void main() {
 
       final result = await callback('AskUserQuestion', {
         'questions': [],
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
 
-      expect(result, isA<claude.PermissionResultAllow>());
+      expect(result, isA<AgentPermissionAllow>());
     });
 
     test('AskUserQuestion with null questions auto-allows', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -403,14 +403,14 @@ void main() {
       final result = await callback(
         'AskUserQuestion',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
-      expect(result, isA<claude.PermissionResultAllow>());
+      expect(result, isA<AgentPermissionAllow>());
     });
 
     test('dispose while AskUserQuestion pending completes with error', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -427,7 +427,7 @@ void main() {
             ],
           },
         ],
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
 
       await Future<void>.delayed(Duration.zero);
 
@@ -436,7 +436,7 @@ void main() {
 
       final result = await resultFuture;
       // The handler catches the StateError from the disposed completer and returns Deny
-      expect(result, isA<claude.PermissionResultDeny>());
+      expect(result, isA<AgentPermissionDeny>());
     });
   });
 
@@ -453,7 +453,7 @@ void main() {
     test('ExitPlanMode emits PlanApprovalRequestEvent', () async {
       final events = h.collectEvents();
 
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -463,7 +463,7 @@ void main() {
       final resultFuture = callback(
         'ExitPlanMode',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -479,13 +479,13 @@ void main() {
       );
 
       final result = await resultFuture;
-      expect(result, isA<claude.PermissionResultAllow>());
+      expect(result, isA<AgentPermissionAllow>());
     });
 
     test('ExitPlanMode rejection returns deny with feedback', () async {
       final events = h.collectEvents();
 
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -495,7 +495,7 @@ void main() {
       final resultFuture = callback(
         'ExitPlanMode',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -508,9 +508,9 @@ void main() {
       );
 
       final result = await resultFuture;
-      expect(result, isA<claude.PermissionResultDeny>());
+      expect(result, isA<AgentPermissionDeny>());
       expect(
-        (result as claude.PermissionResultDeny).message,
+        (result as AgentPermissionDeny).message,
         equals('Needs more detail'),
       );
     });
@@ -518,7 +518,7 @@ void main() {
     test('ExitPlanMode emits PlanApprovalResolvedEvent on response', () async {
       final events = h.collectEvents();
 
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -528,7 +528,7 @@ void main() {
       final resultFuture = callback(
         'ExitPlanMode',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -547,7 +547,7 @@ void main() {
     });
 
     test('ExitPlanMode after dispose returns deny immediately', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -559,18 +559,18 @@ void main() {
       final result = await callback(
         'ExitPlanMode',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
-      expect(result, isA<claude.PermissionResultDeny>());
+      expect(result, isA<AgentPermissionDeny>());
       expect(
-        (result as claude.PermissionResultDeny).message,
+        (result as AgentPermissionDeny).message,
         contains('Session disposed'),
       );
     });
 
     test('dispose while ExitPlanMode pending resolves with reject', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -580,7 +580,7 @@ void main() {
       final resultFuture = callback(
         'ExitPlanMode',
         {},
-        claude.ToolPermissionContext(),
+        AgentPermissionContext(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -590,7 +590,7 @@ void main() {
       // The pending plan approval gets completed with 'reject' on dispose
       final result = await resultFuture;
       // ExitPlanMode handler catches the reject and returns deny
-      expect(result, isA<claude.PermissionResultDeny>());
+      expect(result, isA<AgentPermissionDeny>());
     });
 
     test('respondToPlanApproval with unknown requestId is a no-op', () {
@@ -601,7 +601,7 @@ void main() {
     test('ExitPlanMode with allowedPrompts passes them through', () async {
       final events = h.collectEvents();
 
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -612,7 +612,7 @@ void main() {
         'allowedPrompts': [
           {'tool': 'Bash', 'prompt': 'run tests'},
         ],
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
 
       await Future<void>.delayed(Duration.zero);
       final planEvent = events.whereType<PlanApprovalRequestEvent>().first;

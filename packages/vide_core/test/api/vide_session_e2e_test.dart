@@ -11,7 +11,7 @@ library;
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart' hide AgentConversationState;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_core/src/agent_network/agent_network_manager.dart';
@@ -160,7 +160,7 @@ void main() {
       'user message → permission request → approve → agent continues',
       () async {
         final events = h.collectEvents();
-        final callback = h.session.createClaudePermissionCallback(
+        final callback = h.session.createAgentPermissionCallback(
           agentId: h.agentId,
           agentName: 'Main Agent',
           agentType: 'main',
@@ -175,7 +175,7 @@ void main() {
         final permFuture = callback('Write', {
           'file_path': '/project/lib/utils.dart',
           'content': 'fixed!',
-        }, claude.ToolPermissionContext());
+        }, AgentPermissionContext());
 
         // Wait for the async permission check to emit the event.
         // checkPermission() is async (reads settings from disk), so we need
@@ -197,7 +197,7 @@ void main() {
         );
 
         final result = await permFuture;
-        expect(result, isA<claude.PermissionResultAllow>());
+        expect(result, isA<AgentPermissionAllow>());
 
         // Verify permission resolved event
         final resolvedEvents = events
@@ -210,7 +210,7 @@ void main() {
 
     test('user message → permission → deny → agent receives denial', () async {
       final events = h.collectEvents();
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -222,7 +222,7 @@ void main() {
 
       final permFuture = callback('Bash', {
         'command': 'rm -rf test/',
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
 
       // Wait for async permission check
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -235,9 +235,9 @@ void main() {
       );
 
       final result = await permFuture;
-      expect(result, isA<claude.PermissionResultDeny>());
+      expect(result, isA<AgentPermissionDeny>());
       expect(
-        (result as claude.PermissionResultDeny).message,
+        (result as AgentPermissionDeny).message,
         equals('That is dangerous!'),
       );
     });
@@ -445,7 +445,7 @@ void main() {
 
     test('full AskUserQuestion flow: question → answer → continue', () async {
       final events = h.collectEvents();
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -469,7 +469,7 @@ void main() {
             ],
           },
         ],
-      }, claude.ToolPermissionContext());
+      }, AgentPermissionContext());
       await Future<void>.delayed(Duration.zero);
 
       // Verify question event was emitted
@@ -487,8 +487,8 @@ void main() {
       );
 
       final result = await askFuture;
-      expect(result, isA<claude.PermissionResultAllow>());
-      final allow = result as claude.PermissionResultAllow;
+      expect(result, isA<AgentPermissionAllow>());
+      final allow = result as AgentPermissionAllow;
       expect(allow.updatedInput!['answers'], equals({'0': 'Flutter'}));
 
       // Agent continues with the chosen framework
@@ -600,7 +600,7 @@ void main() {
     });
 
     test('multiple permission requests + dispose cleans up all', () async {
-      final callback = h.session.createClaudePermissionCallback(
+      final callback = h.session.createAgentPermissionCallback(
         agentId: h.agentId,
         agentName: 'Main Agent',
         agentType: 'main',
@@ -608,12 +608,12 @@ void main() {
       );
 
       // Fire off several permission requests
-      final futures = <Future<claude.PermissionResult>>[];
+      final futures = <Future<AgentPermissionResult>>[];
       for (var i = 0; i < 5; i++) {
         futures.add(
           callback('Bash', {
             'command': 'cmd-$i',
-          }, claude.ToolPermissionContext()),
+          }, AgentPermissionContext()),
         );
       }
       await Future<void>.delayed(Duration.zero);
@@ -623,7 +623,7 @@ void main() {
 
       final results = await Future.wait(futures);
       for (final result in results) {
-        expect(result, isA<claude.PermissionResultDeny>());
+        expect(result, isA<AgentPermissionDeny>());
       }
     });
   });

@@ -1,12 +1,12 @@
 /// LocalVideSession - In-process session implementation.
 ///
 /// This provides the concrete local implementation of [VideSession],
-/// wrapping Riverpod providers and claude_sdk types.
+/// wrapping Riverpod providers and agent_sdk types.
 library;
 
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart' hide AgentConversationState;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vide_interface/vide_interface.dart';
@@ -260,9 +260,9 @@ class LocalVideSession implements VideSession {
     );
 
     // Check if the agent is currently processing. If so, the message will be
-    // queued by ClaudeClient and should NOT appear in the chat yet. It will
+    // queued by the client and should NOT appear in the chat yet. It will
     // be emitted when the queue is flushed and the message is actually sent.
-    final client = _container.read(claudeProvider(targetAgent));
+    final client = _container.read(agentClientProvider(targetAgent));
     final willBeQueued = client?.currentConversation.isProcessing ?? false;
 
     if (!willBeQueued) {
@@ -273,24 +273,24 @@ class LocalVideSession implements VideSession {
       );
     }
 
-    // Convert VideMessage to claude_sdk.Message
-    final claudeAttachments = message.attachments?.map((a) {
-      return claude.Attachment(
+    // Convert VideMessage to AgentMessage
+    final agentAttachments = message.attachments?.map((a) {
+      return AgentAttachment(
         type: a.type,
         path: a.filePath,
         content: a.content,
         mimeType: a.mimeType,
       );
     }).toList();
-    final claudeMessage = claude.Message(
+    final agentMessage = AgentMessage(
       text: message.text,
-      attachments: claudeAttachments,
+      attachments: agentAttachments,
     );
-    manager.sendMessage(targetAgent, claudeMessage);
+    manager.sendMessage(targetAgent, agentMessage);
 
     // Optimization: Set status to working immediately for instant UI feedback.
-    // AgentStatusSyncService will also set this when ClaudeClient emits
-    // ClaudeStatus.processing, but that has network latency. Skip for queued
+    // AgentStatusSyncService will also set this when AgentClient emits
+    // AgentProcessingStatus.processing, but that has network latency. Skip for queued
     // messages since the agent is already working.
     if (!willBeQueued) {
       final statusNotifier = _container.read(
@@ -340,10 +340,10 @@ class LocalVideSession implements VideSession {
       }
 
       if (allow) {
-        pending.completer.complete(const claude.PermissionResultAllow());
+        pending.completer.complete(const AgentPermissionAllow());
       } else {
         pending.completer.complete(
-          claude.PermissionResultDeny(message: message ?? 'Permission denied'),
+          AgentPermissionDeny(message: message ?? 'Permission denied'),
         );
       }
 
@@ -401,7 +401,7 @@ class LocalVideSession implements VideSession {
       sessionId: _networkId,
     );
 
-    final clients = _container.read(claudeManagerProvider);
+    final clients = _container.read(agentClientManagerProvider);
     for (final agent in network.agents) {
       final client = clients[agent.id];
       if (client != null) {
@@ -413,7 +413,7 @@ class LocalVideSession implements VideSession {
   @override
   Future<void> abortAgent(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     if (client != null) {
       await client.abort();
     }
@@ -425,7 +425,7 @@ class LocalVideSession implements VideSession {
     final targetId = agentId ?? state.mainAgent?.id;
     if (targetId == null) return;
 
-    final client = _container.read(claudeProvider(targetId));
+    final client = _container.read(agentClientProvider(targetId));
     await client?.clearConversation();
   }
 
@@ -511,35 +511,35 @@ class LocalVideSession implements VideSession {
   @override
   Future<String?> getQueuedMessage(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     return client?.currentQueuedMessage;
   }
 
   @override
   Stream<String?> queuedMessageStream(String agentId) {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     return client?.queuedMessage ?? const Stream.empty();
   }
 
   @override
   Future<void> clearQueuedMessage(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     client?.clearQueuedMessage();
   }
 
   @override
   Future<String?> getModel(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     return client?.initData?.model;
   }
 
   @override
   Stream<String?> modelStream(String agentId) {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     if (client == null) return Stream.value(null);
     return client.initDataStream.map((meta) => meta.model);
   }
@@ -622,14 +622,13 @@ class LocalVideSession implements VideSession {
     required String cwd,
     String? permissionMode,
   }) {
-    // Return a VideCanUseToolCallback that wraps the internal claude_sdk permission logic
+    // Return a VideCanUseToolCallback that wraps the internal permission logic
     return (
       String toolName,
       Map<String, dynamic> input,
       VidePermissionContext context,
     ) async {
-      // Delegate to the internal implementation which uses claude_sdk types
-      final claudeResult = await _createPermissionCallbackInternal(
+      final result = await _createPermissionCallbackInternal(
         agentId: agentId,
         agentName: agentName,
         agentType: agentType,
@@ -638,11 +637,11 @@ class LocalVideSession implements VideSession {
         toolName: toolName,
         input: input,
       );
-      // Convert claude_sdk PermissionResult to VidePermissionResult
-      return switch (claudeResult) {
-        claude.PermissionResultAllow(:final updatedInput) =>
+      // Convert AgentPermissionResult to VidePermissionResult
+      return switch (result) {
+        AgentPermissionAllow(:final updatedInput) =>
           VidePermissionAllow(updatedInput: updatedInput),
-        claude.PermissionResultDeny(:final message) => VidePermissionDeny(
+        AgentPermissionDeny(:final message) => VidePermissionDeny(
           message: message,
         ),
       };
@@ -728,8 +727,8 @@ class LocalVideSession implements VideSession {
     return config.configManager.readGlobalSettings().dangerouslySkipPermissions;
   }
 
-  /// Internal permission callback implementation using claude_sdk types.
-  Future<claude.PermissionResult> _createPermissionCallbackInternal({
+  /// Internal permission callback implementation using agent_sdk types.
+  Future<AgentPermissionResult> _createPermissionCallbackInternal({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -745,16 +744,16 @@ class LocalVideSession implements VideSession {
         'Permission auto-allowed (dangerouslySkipPermissions): tool=$toolName agent=$agentId',
         sessionId: _networkId,
       );
-      return const claude.PermissionResultAllow();
+      return const AgentPermissionAllow();
     }
 
     // NOTE: AskUserQuestion and ExitPlanMode are not permission checks, but
-    // they're handled here because the claude_sdk permission callback is the
-    // only hook available to intercept tool calls before execution. These tools
-    // require user interaction (answering questions / approving plans), so we
-    // "hijack" the permission callback to pause execution, emit a UI event,
-    // and resume once the user responds. The result is smuggled back via
-    // PermissionResultAllow(updatedInput: ...) for AskUserQuestion.
+    // they're handled here because the permission callback is the only hook
+    // available to intercept tool calls before execution. These tools require
+    // user interaction (answering questions / approving plans), so we "hijack"
+    // the permission callback to pause execution, emit a UI event, and resume
+    // once the user responds. The result is smuggled back via
+    // AgentPermissionAllow(updatedInput: ...) for AskUserQuestion.
 
     if (toolName == 'AskUserQuestion') {
       return _handleAskUserQuestion(
@@ -790,7 +789,7 @@ class LocalVideSession implements VideSession {
     // Handle the result from PermissionChecker
     switch (checkResult) {
       case PermissionAllow():
-        return const claude.PermissionResultAllow();
+        return const AgentPermissionAllow();
 
       case PermissionDeny(reason: final reason):
         VideLogger.instance.info(
@@ -798,13 +797,13 @@ class LocalVideSession implements VideSession {
           'Permission denied: tool=$toolName agent=$agentId reason=$reason',
           sessionId: _networkId,
         );
-        return claude.PermissionResultDeny(message: reason);
+        return AgentPermissionDeny(message: reason);
 
       case PermissionAskUser(inferredPattern: final inferredPattern):
         // Guard against disposed session — if dispose() already ran, deny
         // immediately to avoid orphaned completers that never resolve.
         if (_disposed) {
-          return const claude.PermissionResultDeny(message: 'Session disposed');
+          return const AgentPermissionDeny(message: 'Session disposed');
         }
 
         VideLogger.instance.info(
@@ -815,7 +814,7 @@ class LocalVideSession implements VideSession {
 
         // Need to ask the user - emit event and wait
         final requestId = const Uuid().v4();
-        final completer = Completer<claude.PermissionResult>();
+        final completer = Completer<AgentPermissionResult>();
         final taskName = _taskNameFor(agentId);
         _pendingRequests[requestId] = _PendingPermission(
           completer: completer,
@@ -853,7 +852,7 @@ class LocalVideSession implements VideSession {
         try {
           return await completer.future;
         } catch (e) {
-          return claude.PermissionResultDeny(message: 'Error: $e');
+          return AgentPermissionDeny(message: 'Error: $e');
         } finally {
           _pendingRequests.remove(requestId);
           // Restore to working since the agent will continue processing
@@ -862,11 +861,11 @@ class LocalVideSession implements VideSession {
     }
   }
 
-  /// Also expose a claude_sdk-native permission callback for internal use.
+  /// Expose a permission callback using agent_sdk types for internal use.
   ///
-  /// This is used by the agent network manager which still operates with
-  /// claude_sdk types internally.
-  claude.CanUseToolCallback createClaudePermissionCallback({
+  /// This is used by the permission handler which delegates to the session
+  /// for permission checking.
+  AgentCanUseToolCallback createAgentPermissionCallback({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -876,7 +875,7 @@ class LocalVideSession implements VideSession {
     return (
       String toolName,
       Map<String, dynamic> input,
-      claude.ToolPermissionContext context,
+      AgentPermissionContext context,
     ) async {
       return _createPermissionCallbackInternal(
         agentId: agentId,
@@ -890,7 +889,7 @@ class LocalVideSession implements VideSession {
     };
   }
 
-  Future<claude.PermissionResult> _handleAskUserQuestion({
+  Future<AgentPermissionResult> _handleAskUserQuestion({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -909,13 +908,13 @@ class LocalVideSession implements VideSession {
           'AskUserQuestion rejected: session disposed',
           sessionId: _networkId,
         );
-        return const claude.PermissionResultDeny(message: 'Session disposed');
+        return const AgentPermissionDeny(message: 'Session disposed');
       }
 
       // Parse questions from tool input
       final questionsJson = toolInput['questions'] as List<dynamic>?;
       if (questionsJson == null || questionsJson.isEmpty) {
-        return const claude.PermissionResultAllow();
+        return const AgentPermissionAllow();
       }
 
       // Convert to event data format
@@ -969,7 +968,7 @@ class LocalVideSession implements VideSession {
       // Restore to working since the agent will continue processing
       statusNotifier.setStatus(internal.AgentStatus.working);
 
-      return claude.PermissionResultAllow(
+      return AgentPermissionAllow(
         updatedInput: {...toolInput, 'answers': answers},
       );
     } catch (e) {
@@ -978,13 +977,13 @@ class LocalVideSession implements VideSession {
         'AskUserQuestion failed: agent=$agentId error=$e',
         sessionId: _networkId,
       );
-      return claude.PermissionResultDeny(
+      return AgentPermissionDeny(
         message: 'Failed to process AskUserQuestion: $e',
       );
     }
   }
 
-  Future<claude.PermissionResult> _handleExitPlanMode({
+  Future<AgentPermissionResult> _handleExitPlanMode({
     required String agentId,
     required String? agentName,
     required String? agentType,
@@ -1003,12 +1002,12 @@ class LocalVideSession implements VideSession {
           'ExitPlanMode rejected: session disposed',
           sessionId: _networkId,
         );
-        return const claude.PermissionResultDeny(message: 'Session disposed');
+        return const AgentPermissionDeny(message: 'Session disposed');
       }
 
       // Extract plan content from the agent's conversation.
       // The plan is the last assistant text message before ExitPlanMode was called.
-      final client = _container.read(claudeProvider(agentId));
+      final client = _container.read(agentClientProvider(agentId));
       final planContent = _extractPlanContent(client?.currentConversation);
 
       // Extract allowedPrompts from tool input
@@ -1059,13 +1058,13 @@ class LocalVideSession implements VideSession {
 
       switch (result.action) {
         case 'accept':
-          return const claude.PermissionResultAllow();
+          return const AgentPermissionAllow();
         case 'reject':
-          return claude.PermissionResultDeny(
+          return AgentPermissionDeny(
             message: result.feedback ?? 'User rejected the plan',
           );
         default:
-          return const claude.PermissionResultDeny(
+          return const AgentPermissionDeny(
             message: 'Unknown plan approval action',
           );
       }
@@ -1075,7 +1074,7 @@ class LocalVideSession implements VideSession {
         'ExitPlanMode failed: agent=$agentId error=$e',
         sessionId: _networkId,
       );
-      return claude.PermissionResultDeny(
+      return AgentPermissionDeny(
         message: 'Failed to process ExitPlanMode: $e',
       );
     }
@@ -1088,18 +1087,18 @@ class LocalVideSession implements VideSession {
   /// message for a Write tool invocation targeting a `.claude/plans/` directory
   /// and extract the file content.
   /// Falls back to the last assistant text if no plan file write is found.
-  String _extractPlanContent(claude.Conversation? conversation) {
+  String _extractPlanContent(AgentConversation? conversation) {
     if (conversation == null) return '(No plan content available)';
 
     // Find the last assistant message (the current turn where ExitPlanMode is called)
     final lastAssistantMessage = conversation.messages.reversed
-        .where((m) => m.role == claude.MessageRole.assistant)
+        .where((m) => m.role == AgentMessageRole.assistant)
         .firstOrNull;
 
     if (lastAssistantMessage != null) {
       // Search within this turn for a Write tool targeting .claude/plans/
       for (final response in lastAssistantMessage.responses.reversed) {
-        if (response is claude.ToolUseResponse &&
+        if (response is AgentToolUseResponse &&
             response.toolName == 'Write') {
           final filePath = response.parameters['file_path'] as String?;
           final content = response.parameters['content'] as String?;
@@ -1197,11 +1196,11 @@ class LocalVideSession implements VideSession {
   void _subscribeToAgent(AgentMetadata agent) {
     if (_agentStates.containsKey(agent.id)) return;
 
-    final client = _container.read(claudeProvider(agent.id));
+    final client = _container.read(agentClientProvider(agent.id));
     if (client == null) {
       VideLogger.instance.warn(
         'LocalVideSession',
-        'Cannot subscribe to agent=${agent.id} (${agent.name}): no ClaudeClient found',
+        'Cannot subscribe to agent=${agent.id} (${agent.name}): no AgentClient found',
         sessionId: _networkId,
       );
       return;
@@ -1344,7 +1343,7 @@ class LocalVideSession implements VideSession {
 
   void _handleConversation(
     AgentMetadata agent,
-    claude.Conversation conversation,
+    AgentConversation conversation,
   ) {
     if (conversation.messages.isEmpty) return;
 
@@ -1374,7 +1373,7 @@ class LocalVideSession implements VideSession {
               agentName: agent.name,
               taskName: taskName,
               eventId: eventId,
-              role: message.role == claude.MessageRole.user
+              role: message.role == AgentMessageRole.user
                   ? 'user'
                   : 'assistant',
               content: message.content,
@@ -1407,7 +1406,7 @@ class LocalVideSession implements VideSession {
               agentName: agent.name,
               taskName: taskName,
               eventId: eventId,
-              role: latestMessage.role == claude.MessageRole.user
+              role: latestMessage.role == AgentMessageRole.user
                   ? 'user'
                   : 'assistant',
               content: delta,
@@ -1440,7 +1439,7 @@ class LocalVideSession implements VideSession {
 
   void _emitToolEvents(
     AgentMetadata agent,
-    claude.ConversationMessage message,
+    AgentConversationMessage message,
     _AgentStreamState state, {
     required String? taskName,
   }) {
@@ -1449,7 +1448,7 @@ class LocalVideSession implements VideSession {
 
     for (int i = startIndex; i < responses.length; i++) {
       final response = responses[i];
-      if (response is claude.ToolUseResponse) {
+      if (response is AgentToolUseResponse) {
         // Finalize any streaming text block before emitting tool events.
         // Without this, the event stream has incorrect ordering where
         // ToolUseEvent arrives before the preceding MessageEvent is
@@ -1485,7 +1484,7 @@ class LocalVideSession implements VideSession {
             toolInput: response.parameters,
           ),
         );
-      } else if (response is claude.ToolResultResponse) {
+      } else if (response is AgentToolResultResponse) {
         final toolName =
             state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
         _emit(
@@ -1545,7 +1544,7 @@ sealed class _PendingRequest {
 
 /// A pending permission request with its completer and agent metadata.
 class _PendingPermission extends _PendingRequest {
-  final Completer<claude.PermissionResult> completer;
+  final Completer<AgentPermissionResult> completer;
   final String agentId;
   final String agentType;
   final String? agentName;
@@ -1571,7 +1570,7 @@ class _PendingPermission extends _PendingRequest {
   void onDispose() {
     if (!completer.isCompleted) {
       completer.complete(
-        const claude.PermissionResultDeny(message: 'Session disposed'),
+        const AgentPermissionDeny(message: 'Session disposed'),
       );
     }
   }
