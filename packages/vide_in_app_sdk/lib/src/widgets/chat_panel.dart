@@ -19,8 +19,6 @@ import 'package:vide_mobile/features/permissions/plan_approval_sheet.dart';
 
 import '../services/voice_input_service.dart';
 import '../state/sdk_state.dart';
-import 'file_browser.dart';
-import 'git_view.dart';
 
 /// Chat panel for interacting with the Vide AI assistant.
 ///
@@ -52,9 +50,6 @@ class VideChatPanel extends StatefulWidget {
   State<VideChatPanel> createState() => _VideChatPanelState();
 }
 
-/// Which top-level view is active inside the session layout.
-enum _SessionView { chat, files, git }
-
 class _VideChatPanelState extends State<VideChatPanel> {
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
@@ -68,9 +63,6 @@ class _VideChatPanelState extends State<VideChatPanel> {
   bool _isPlanApprovalSheetShowing = false;
   bool _isAskUserQuestionSheetShowing = false;
   bool _isPermissionSheetShowing = false;
-
-  // Top-level session view (chat / files / git)
-  _SessionView _sessionView = _SessionView.chat;
 
   // Agent tab state
   int _selectedTabIndex = 0;
@@ -229,7 +221,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
       context: context,
       isDismissible: false,
       enableDrag: false,
-      builder: (context) => PermissionSheet(
+      builder: (sheetContext) => PermissionSheet(
         request: request,
         onAllow: ({required bool remember}) {
           widget.sdkState.respondToPermission(
@@ -237,22 +229,19 @@ class _VideChatPanelState extends State<VideChatPanel> {
             allow: true,
             remember: remember,
           );
-          widget.sdkState.dequeuePermission();
-          _isPermissionSheetShowing = false;
-          Navigator.of(context).pop();
+          Navigator.of(sheetContext).pop();
         },
         onDeny: () {
           widget.sdkState.respondToPermission(
             request.requestId,
             allow: false,
           );
-          widget.sdkState.dequeuePermission();
-          _isPermissionSheetShowing = false;
-          Navigator.of(context).pop();
+          Navigator.of(sheetContext).pop();
         },
       ),
     ).whenComplete(() {
       _isPermissionSheetShowing = false;
+      widget.sdkState.dequeuePermission();
     });
   }
 
@@ -269,7 +258,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
       isDismissible: false,
       enableDrag: false,
       isScrollControlled: true,
-      builder: (context) => PlanApprovalSheet(
+      builder: (sheetContext) => PlanApprovalSheet(
         request: request,
         onResponse: (action, feedback) {
           widget.sdkState.respondToPlanApproval(
@@ -277,8 +266,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
             action: action,
             feedback: feedback,
           );
+          widget.sdkState.clearPendingPlanApproval();
           _isPlanApprovalSheetShowing = false;
-          Navigator.of(context).pop();
+          Navigator.of(sheetContext).pop();
         },
       ),
     ).whenComplete(() {
@@ -299,15 +289,16 @@ class _VideChatPanelState extends State<VideChatPanel> {
       isDismissible: false,
       enableDrag: false,
       isScrollControlled: true,
-      builder: (context) => AskUserQuestionSheet(
+      builder: (sheetContext) => AskUserQuestionSheet(
         request: request,
         onSubmit: (answers) {
           widget.sdkState.respondToAskUserQuestion(
             request.requestId,
             answers: answers,
           );
+          widget.sdkState.clearPendingAskUserQuestion();
           _isAskUserQuestionSheetShowing = false;
-          Navigator.of(context).pop();
+          Navigator.of(sheetContext).pop();
         },
       ),
     ).whenComplete(() {
@@ -320,121 +311,129 @@ class _VideChatPanelState extends State<VideChatPanel> {
   // ---------------------------------------------------------------------------
 
   Widget _buildEmptyLayout(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final colorScheme = Theme.of(context).colorScheme;
     final sessions = widget.sdkState.sessions;
     final hasSessions = sessions.isNotEmpty;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: VideSpacing.sm),
-      child: Column(
-        children: [
-          // Top row: settings button
-          Row(
-            children: [
-              const Spacer(),
-              _InputBarButton(
-                icon: Icons.tune_rounded,
-                onTap: () => setState(() => _showingConfig = !_showingConfig),
-                color: videColors.textSecondary,
-                size: 20,
+    return Column(
+      children: [
+        // Error banner if needed
+        if (widget.sdkState.connectionState == VideSdkConnectionState.error)
+          _buildErrorBanner(context),
+
+        // Content area
+        Expanded(
+          child: hasSessions
+              ? _buildSessionListView(context, sessions)
+              : _buildWelcomeView(context),
+        ),
+
+        // Bottom input + settings
+        if (widget.pendingScreenshot != null)
+          _buildScreenshotPreview(context),
+        _buildBottomInput(context),
+      ],
+    );
+  }
+
+  /// Centered welcome view when there are no sessions.
+  Widget _buildWelcomeView(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.smart_toy_outlined,
+              size: 48,
+              color: videColors.accent.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'What can I help with?',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
               ),
-            ],
-          ),
-
-          // Error banner if needed
-          if (widget.sdkState.connectionState == VideSdkConnectionState.error)
-            _buildErrorBanner(context),
-
-          // Content area
-          Expanded(
-            child: hasSessions
-                ? _buildSessionListView(context, sessions)
-                : _buildNewSessionView(context),
-          ),
-
-          // Bottom input bar — compact when sessions exist, big when empty
-          if (hasSessions) ...[
-            if (widget.pendingScreenshot != null)
-              _buildScreenshotPreview(context),
-            _buildCompactNewSessionBar(context),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Describe a task, ask a question, or\nattach a screenshot to get started.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: videColors.textSecondary,
+                fontSize: 14,
+                height: 1.4,
+              ),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
 
-  /// Full "What can I help with?" view when there are no existing sessions.
-  Widget _buildNewSessionView(BuildContext context) {
+  /// Bottom input bar used on empty layout — works for both new and existing
+  /// sessions.
+  Widget _buildBottomInput(BuildContext context) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final colorScheme = Theme.of(context).colorScheme;
 
-    return SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: VideSpacing.lg),
-          Center(
-            child: Text(
-              'What can I help with?',
-              style: TextStyle(
-                color: videColors.textSecondary,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-          const SizedBox(height: VideSpacing.md),
-          if (widget.pendingScreenshot != null)
-            _buildScreenshotPreview(context),
-          Container(
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: videColors.glassBorder, width: 1),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Column(
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 120),
-                  child: TextField(
-                    controller: _textController,
-                    decoration: InputDecoration(
-                      hintText: 'Describe what you need...',
-                      hintStyle:
-                          TextStyle(color: colorScheme.onSurfaceVariant),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      filled: false,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 8,
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHigh,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                padding: const EdgeInsets.only(
+                    left: 16, right: 4, top: 4, bottom: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        decoration: InputDecoration(
+                          hintText: 'Ask anything...',
+                          hintStyle:
+                              TextStyle(color: colorScheme.onSurfaceVariant),
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          filled: false,
+                          isDense: true,
+                          contentPadding:
+                              const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        style: TextStyle(
+                            color: colorScheme.onSurface, fontSize: 15),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
-                    style: TextStyle(color: colorScheme.onSurface),
-                    textInputAction: TextInputAction.newline,
-                    keyboardType: TextInputType.multiline,
-                    maxLines: null,
-                    minLines: 3,
-                  ),
-                ),
-                Row(
-                  children: [
-                    _InputBarButton(
-                      icon: Icons.crop_rounded,
+                    GestureDetector(
                       onTap: widget.onScreenshotRequest,
-                      color: videColors.textSecondary,
-                      size: 20,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.crop_rounded,
+                          color: videColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
                     ),
-                    const Spacer(),
                     GestureDetector(
                       onTap: _sendMessage,
                       child: Container(
-                        height: 36,
-                        width: 36,
+                        height: 34,
+                        width: 34,
                         decoration: BoxDecoration(
                           color: videColors.accent,
                           shape: BoxShape.circle,
@@ -442,16 +441,33 @@ class _VideChatPanelState extends State<VideChatPanel> {
                         child: Icon(
                           Icons.arrow_upward_rounded,
                           color: colorScheme.surface,
-                          size: 20,
+                          size: 18,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => setState(() => _showingConfig = !_showingConfig),
+              child: Container(
+                height: 42,
+                width: 42,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.tune_rounded,
+                  color: videColors.textSecondary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -465,18 +481,17 @@ class _VideChatPanelState extends State<VideChatPanel> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: VideSpacing.xs,
-            vertical: VideSpacing.xs,
-          ),
+          padding: const EdgeInsets.only(left: 4, bottom: 12, top: 4),
           child: Text(
-            'Recent sessions',
+            'RECENT SESSIONS',
             style: TextStyle(
               color: videColors.textSecondary,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
             ),
           ),
         ),
@@ -487,19 +502,18 @@ class _VideChatPanelState extends State<VideChatPanel> {
             background: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 16),
-              margin: const EdgeInsets.symmetric(vertical: 2),
+              margin: const EdgeInsets.only(bottom: 6),
               decoration: BoxDecoration(
-                color: videColors.error.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(10),
+                color: videColors.error.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.delete_outline, color: videColors.error, size: 20),
+              child: Icon(Icons.delete_outline,
+                  color: videColors.error, size: 20),
             ),
             confirmDismiss: (_) async {
               return _confirmStopSession(context, session);
             },
-            onDismissed: (_) {
-              // Already stopped in confirmDismiss
-            },
+            onDismissed: (_) {},
             child: _SessionTile(
               session: session,
               onTap: () =>
@@ -536,84 +550,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
     }
   }
 
-  /// Compact single-line input for starting a new session (shown below the
-  /// session list).
-  Widget _buildCompactNewSessionBar(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: VideSpacing.sm, top: VideSpacing.xs),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: videColors.glassBorder, width: 1),
-        ),
-        padding: const EdgeInsets.only(left: 16, right: 4, top: 4, bottom: 4),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                decoration: InputDecoration(
-                  hintText: 'New session...',
-                  hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  filled: false,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                ),
-                style: TextStyle(color: colorScheme.onSurface, fontSize: 14),
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: widget.onScreenshotRequest,
-              child: Icon(
-                Icons.crop_rounded,
-                color: videColors.textSecondary,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: _sendMessage,
-              child: Container(
-                height: 32,
-                width: 32,
-                decoration: BoxDecoration(
-                  color: videColors.accent,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  Icons.arrow_upward_rounded,
-                  color: colorScheme.surface,
-                  size: 18,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // Session layout — header + messages + input
   // ---------------------------------------------------------------------------
 
   Widget _buildSessionLayout(BuildContext context) {
-    final videColors = Theme.of(context).extension<VideThemeColors>()!;
-
-    // Files / Git views need a VideClient
-    final client = widget.sdkState.client;
-    final workingDir = widget.sdkState.workingDirectory ?? '';
-
     return Column(
       children: [
         _buildHeader(context),
@@ -622,50 +563,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
         if (widget.sdkState.connectionState == VideSdkConnectionState.error)
           _buildErrorBanner(context),
 
-        // View selector: Chat / Files / Git
-        _ViewSwitcher(
-          selected: _sessionView,
-          onSelected: (v) => setState(() => _sessionView = v),
-          videColors: videColors,
-        ),
+        Expanded(child: _buildChatContent(context)),
 
-        // Content area based on selected view
-        Expanded(
-          child: switch (_sessionView) {
-            _SessionView.chat => _buildChatContent(context),
-            _SessionView.files => client != null && workingDir.isNotEmpty
-                ? FileBrowser(
-                    key: ValueKey('files_$workingDir'),
-                    client: client,
-                    workingDirectory: workingDir,
-                  )
-                : Center(
-                    child: Text(
-                      'Not connected',
-                      style: TextStyle(color: videColors.textSecondary),
-                    ),
-                  ),
-            _SessionView.git => client != null && workingDir.isNotEmpty
-                ? GitView(
-                    key: ValueKey('git_$workingDir'),
-                    client: client,
-                    workingDirectory: workingDir,
-                  )
-                : Center(
-                    child: Text(
-                      'Not connected',
-                      style: TextStyle(color: videColors.textSecondary),
-                    ),
-                  ),
-          },
-        ),
-
-        // Input bar only on chat view
-        if (_sessionView == _SessionView.chat) ...[
-          if (widget.pendingScreenshot != null)
-            _buildScreenshotPreview(context),
-          _buildInputBar(context),
-        ],
+        if (widget.pendingScreenshot != null)
+          _buildScreenshotPreview(context),
+        _buildInputBar(context),
       ],
     );
   }
@@ -1488,44 +1390,63 @@ class _SessionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final timeAgo = _formatTimeAgo(session.createdAt);
+    final shortId = session.sessionId.length >= 8
+        ? session.sessionId.substring(0, 8)
+        : session.sessionId;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
           children: [
             Container(
-              width: 8,
-              height: 8,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
-                color: videColors.success,
-                shape: BoxShape.circle,
+                color: videColors.accent.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                Icons.smart_toy_outlined,
+                size: 16,
+                color: videColors.accent,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                'Session ${session.sessionId.substring(0, 8)}',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Session $shortId',
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    timeAgo,
+                    style: TextStyle(
+                      color: videColors.textTertiary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
-            Text(
-              timeAgo,
-              style: TextStyle(
-                color: videColors.textTertiary,
-                fontSize: 11,
-              ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: videColors.textTertiary,
             ),
           ],
         ),
@@ -1578,116 +1499,6 @@ class _InputBarButton extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(icon, color: color, size: size),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Session view switcher (Chat / Files / Git)
-// =============================================================================
-
-class _ViewSwitcher extends StatelessWidget {
-  final _SessionView selected;
-  final ValueChanged<_SessionView> onSelected;
-  final VideThemeColors videColors;
-
-  const _ViewSwitcher({
-    required this.selected,
-    required this.onSelected,
-    required this.videColors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          _ViewTab(
-            icon: Icons.chat_outlined,
-            label: 'Chat',
-            isSelected: selected == _SessionView.chat,
-            onTap: () => onSelected(_SessionView.chat),
-            videColors: videColors,
-          ),
-          const SizedBox(width: 4),
-          _ViewTab(
-            icon: Icons.folder_outlined,
-            label: 'Files',
-            isSelected: selected == _SessionView.files,
-            onTap: () => onSelected(_SessionView.files),
-            videColors: videColors,
-          ),
-          const SizedBox(width: 4),
-          _ViewTab(
-            icon: Icons.commit,
-            label: 'Git',
-            isSelected: selected == _SessionView.git,
-            onTap: () => onSelected(_SessionView.git),
-            videColors: videColors,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ViewTab extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final VideThemeColors videColors;
-
-  const _ViewTab({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    required this.videColors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isSelected ? videColors.accent : videColors.textSecondary;
-
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? videColors.accent.withValues(alpha: 0.1)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: color,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

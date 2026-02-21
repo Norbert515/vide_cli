@@ -63,6 +63,16 @@ class VideSdkState extends ChangeNotifier {
   AskUserQuestionEvent? get pendingAskUserQuestion => _pendingAskUserQuestion;
   PermissionRequestEvent? get currentPermission => _pendingPermissions.firstOrNull;
 
+  void clearPendingPlanApproval() {
+    _pendingPlanApproval = null;
+    notifyListeners();
+  }
+
+  void clearPendingAskUserQuestion() {
+    _pendingAskUserQuestion = null;
+    notifyListeners();
+  }
+
   void dequeuePermission() {
     if (_pendingPermissions.isNotEmpty) {
       _pendingPermissions.removeAt(0);

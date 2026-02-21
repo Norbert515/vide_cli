@@ -3,55 +3,34 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:vide_client/vide_client.dart';
 
 import 'package:vide_mobile/core/theme/app_theme.dart';
-import 'package:vide_mobile/core/theme/tokens.dart';
 import 'package:vide_mobile/core/theme/vide_colors.dart';
-import 'package:vide_mobile/features/chat/widgets/chat_helpers.dart';
 
 import '../services/screenshot_service.dart';
 import '../services/voice_input_service.dart';
 import '../state/sdk_state.dart';
 import 'chat_panel.dart';
+import 'file_browser.dart';
+import 'git_view.dart';
 import 'screenshot_canvas.dart';
 
-/// Height of the peek bar (handle + status row).
-const _kPeekHeight = 72.0;
-
-/// Max padding around the user's app when the sheet is fully expanded.
-const _kExpandedPadding = 8.0;
-
-/// Max corner radius for the user's app when the sheet is fully expanded.
-const _kAppCornerRadius = 16.0;
-
-/// Half-screen snap fraction.
-const _kHalfFraction = 0.5;
-
-/// Full-screen snap fraction.
-const _kFullFraction = 0.95;
-
-/// Top corner radius for the sheet surface.
-const _kSheetRadius = 16.0;
+/// The top-level tabs.
+enum _VideTab { agent, app, tools, project }
 
 /// Embeds your Flutter app inside the Vide dev environment.
 ///
-/// A compact peek bar is always visible at the bottom showing the latest
-/// activity. Drag up to half screen for the full chat, or full screen for
-/// maximum space. The user's app scales down smoothly as the sheet expands.
+/// A small tab bar sits above the app with three tabs:
+/// - **Agent**: Chat with the AI assistant
+/// - **App**: Your actual Flutter app
+/// - **Project**: Files and Git browser
 ///
 /// ```dart
 /// VideInApp(
 ///   child: MaterialApp(home: MyHomePage()),
 /// )
-/// ```
-///
-/// Programmatic control:
-/// ```dart
-/// VideInApp.of(context).show();   // expand to half
-/// VideInApp.of(context).hide();   // collapse to peek
-/// VideInApp.of(context).toggle(); // toggle peek <-> half
 /// ```
 class VideInApp extends StatefulWidget {
   final Widget child;
@@ -77,9 +56,9 @@ class VideInAppController {
 
   VideInAppController._(this._state);
 
-  void show() => _state._animateToHalf();
-  void hide() => _state._animateToPeek();
-  void toggle() => _state._toggle();
+  void showAgent() => _state._selectTab(_VideTab.agent);
+  void showApp() => _state._selectTab(_VideTab.app);
+  void showProject() => _state._selectTab(_VideTab.project);
   Future<void> captureScreenshot() => _state._captureScreenshot();
   VideSdkState get sdkState => _state._sdkState;
 }
@@ -89,22 +68,15 @@ class _VideInAppState extends State<VideInApp> {
   late final ScreenshotService _screenshotService;
   late final VoiceInputService _voiceService;
   late final VideInAppController _controller;
-  late final DraggableScrollableController _sheetController;
 
   final GlobalKey _repaintBoundaryKey = GlobalKey();
+
+  _VideTab _selectedTab = _VideTab.app;
 
   bool _screenshotMode = false;
   ui.Image? _capturedScreenshot;
   Uint8List? _pendingScreenshotBytes;
-
-  /// Sheet size saved before entering screenshot mode, so we can restore it.
-  double? _preScreenshotSize;
-
-  /// Controls the fade animation for the screenshot overlay.
   bool _screenshotVisible = false;
-
-  /// Cached peek fraction — computed from screen height in build.
-  double _peekFraction = 0.1;
 
   @override
   void initState() {
@@ -117,86 +89,26 @@ class _VideInAppState extends State<VideInApp> {
     );
     _voiceService = VoiceInputService();
     _controller = VideInAppController._(this);
-    _sheetController = DraggableScrollableController();
-
-    // Auto-expand once config is loaded so the initial prompt is visible.
-    _sdkState.addListener(_autoExpandOnConfigured);
-  }
-
-  void _autoExpandOnConfigured() {
-    if (_sdkState.isConfigured) {
-      _sdkState.removeListener(_autoExpandOnConfigured);
-      // Wait for layout so _sheetController is attached
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _animateToHalf();
-      });
-    }
   }
 
   @override
   void dispose() {
-    _sdkState.removeListener(_autoExpandOnConfigured);
-    _sheetController.dispose();
     _sdkState.dispose();
     _voiceService.dispose();
     _capturedScreenshot?.dispose();
     super.dispose();
   }
 
-  void _animateToPeek() {
-    if (_sheetController.isAttached) {
-      _sheetController.animateTo(
-        _peekFraction,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
+  void _selectTab(_VideTab tab) {
+    setState(() => _selectedTab = tab);
   }
-
-  void _animateToHalf() {
-    if (_sheetController.isAttached) {
-      _sheetController.animateTo(
-        _kHalfFraction,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
-  void _animateToFull() {
-    if (_sheetController.isAttached) {
-      _sheetController.animateTo(
-        _kFullFraction,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
-    }
-  }
-
-  void _toggle() {
-    if (!_sheetController.isAttached) return;
-    final size = _sheetController.size;
-    if (size > _peekFraction + 0.05) {
-      _animateToPeek();
-    } else {
-      _animateToHalf();
-    }
-  }
-
-  bool get _isExpanded =>
-      _sheetController.isAttached &&
-      _sheetController.size > _peekFraction + 0.05;
 
   Future<void> _captureScreenshot() async {
-    // Remember where the sheet was so we can restore after confirm/cancel.
-    _preScreenshotSize =
-        _sheetController.isAttached ? _sheetController.size : null;
-
-    final wasExpanded = _isExpanded;
-    if (wasExpanded) {
-      _animateToPeek();
-      // Wait for the collapse animation to finish before capturing.
-      await Future.delayed(const Duration(milliseconds: 350));
+    // Switch to app tab so we capture the app, not the chat.
+    final previousTab = _selectedTab;
+    if (_selectedTab != _VideTab.app) {
+      setState(() => _selectedTab = _VideTab.app);
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
     if (!mounted) return;
@@ -204,7 +116,6 @@ class _VideInAppState extends State<VideInApp> {
     try {
       final image = await _screenshotService.capture();
       if (!mounted) return;
-      // Show the overlay (opacity 0) then trigger fade-in next frame.
       setState(() {
         _capturedScreenshot = image;
         _screenshotMode = true;
@@ -214,8 +125,8 @@ class _VideInAppState extends State<VideInApp> {
         if (mounted) setState(() => _screenshotVisible = true);
       });
     } catch (e) {
-      if (wasExpanded && mounted) {
-        _restorePreScreenshotPosition();
+      if (mounted && previousTab != _VideTab.app) {
+        setState(() => _selectedTab = previousTab);
       }
     }
   }
@@ -229,50 +140,18 @@ class _VideInAppState extends State<VideInApp> {
     _dismissScreenshotOverlay();
   }
 
-  /// Fades out the screenshot overlay, then removes it and restores the sheet.
   void _dismissScreenshotOverlay() {
-    // Start the fade-out.
     setState(() => _screenshotVisible = false);
 
-    // After the fade-out animation completes, tear down the overlay and
-    // animate the sheet back to the pre-screenshot position.
     Future.delayed(const Duration(milliseconds: 250), () {
       if (!mounted) return;
       _capturedScreenshot?.dispose();
       setState(() {
         _capturedScreenshot = null;
         _screenshotMode = false;
+        // Switch back to agent tab so user can type about the screenshot
+        _selectedTab = _VideTab.agent;
       });
-      _restorePreScreenshotPosition();
-    });
-  }
-
-  /// Animate back to the sheet position saved before screenshot capture.
-  ///
-  /// Falls back to half screen if nothing was saved (e.g. first screenshot).
-  void _restorePreScreenshotPosition() {
-    final target = _preScreenshotSize ?? _kHalfFraction;
-    _preScreenshotSize = null;
-
-    // Snap to the nearest detent to avoid landing between snap points.
-    final double snapTarget;
-    if (target <= _peekFraction + 0.05) {
-      snapTarget = _kHalfFraction; // Don't restore to peek — show the input
-    } else if (target < (_kHalfFraction + _kFullFraction) / 2) {
-      snapTarget = _kHalfFraction;
-    } else {
-      snapTarget = _kFullFraction;
-    }
-
-    // Defer to next frame — the sheet may not be attached yet after setState
-    // removes the screenshot overlay and re-exposes the draggable sheet.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_sheetController.isAttached) return;
-      _sheetController.animateTo(
-        snapTarget,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
-      );
     });
   }
 
@@ -284,457 +163,718 @@ class _VideInAppState extends State<VideInApp> {
         listenable: _sdkState,
         builder: (context, _) {
           if (!_sdkState.isConfigured) {
-            return _OverlayMaterialShell(
+            return _MaterialShell(
               child: _SetupScreen(sdkState: _sdkState),
             );
           }
-          return _buildMainLayout(context);
+          return _buildTabLayout(context);
         },
       ),
     );
   }
 
-  Widget _buildMainLayout(BuildContext context) {
-    final screenHeight = MediaQuery.maybeOf(context)?.size.height ?? 800;
-    _peekFraction = (_kPeekHeight / screenHeight).clamp(0.05, 0.15);
+  Widget _buildTabLayout(BuildContext context) {
+    // Auto-switch to Agent tab when there are pending permissions/approvals
+    // so the user sees them (sheets are shown inside the Agent tab's Navigator).
+    final hasPendingInteraction = _sdkState.currentPermission != null ||
+        _sdkState.pendingPlanApproval != null ||
+        _sdkState.pendingAskUserQuestion != null;
+    if (hasPendingInteraction && _selectedTab != _VideTab.agent) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _selectedTab != _VideTab.agent) {
+          setState(() => _selectedTab = _VideTab.agent);
+        }
+      });
+    }
 
-    return Stack(
-      children: [
-        // User's app — shrinks as sheet expands
-        Positioned.fill(
-          child: ListenableBuilder(
-            listenable: _sheetController,
-            builder: (context, child) {
-              final screenHeight =
-                  MediaQuery.maybeOf(context)?.size.height ?? 800;
-              final size = _sheetController.isAttached
-                  ? _sheetController.size
-                  : _peekFraction;
+    return _MaterialShell(
+      child: Column(
+        children: [
+          // Tab bar
+          _VideTabBar(
+            selectedTab: _selectedTab,
+            onTabSelected: (tab) => setState(() => _selectedTab = tab),
+            sdkState: _sdkState,
+          ),
 
-              // t goes from 0 (peek) to 1 (full)
-              final t =
-                  ((size - _peekFraction) / (_kFullFraction - _peekFraction))
-                      .clamp(0.0, 1.0);
-
-              // Side/top padding and radius scale with t
-              final sidePadding = t * _kExpandedPadding;
-              final radius = t * _kAppCornerRadius;
-
-              // Bottom space = actual sheet height in pixels
-              final sheetPixels = size * screenHeight;
-
-              return Container(
-                color: const Color(0xFF111118),
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    left: sidePadding,
-                    right: sidePadding,
-                    top: sidePadding,
-                    bottom: sheetPixels,
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(radius),
-                    child: child!,
+          // Content
+          Expanded(
+            child: Stack(
+              children: [
+                // Keep all tabs alive with Offstage so state is preserved
+                Offstage(
+                  offstage: _selectedTab != _VideTab.agent,
+                  child: VideChatPanel(
+                    sdkState: _sdkState,
+                    voiceService: _voiceService,
+                    onScreenshotRequest: _captureScreenshot,
+                    pendingScreenshot: _pendingScreenshotBytes,
+                    onClearScreenshot: () {
+                      setState(() => _pendingScreenshotBytes = null);
+                    },
                   ),
                 ),
-              );
-            },
-            child: RepaintBoundary(
-              key: _repaintBoundaryKey,
-              child: widget.child,
+                Offstage(
+                  offstage: _selectedTab != _VideTab.app,
+                  child: RepaintBoundary(
+                    key: _repaintBoundaryKey,
+                    child: widget.child,
+                  ),
+                ),
+                Offstage(
+                  offstage: _selectedTab != _VideTab.tools,
+                  child: const _ToolsView(),
+                ),
+                Offstage(
+                  offstage: _selectedTab != _VideTab.project,
+                  child: _ProjectView(sdkState: _sdkState),
+                ),
+
+                // Screenshot overlay
+                if (_screenshotMode && _capturedScreenshot != null)
+                  Positioned.fill(
+                    child: AnimatedOpacity(
+                      opacity: _screenshotVisible ? 1.0 : 0.0,
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeInOut,
+                      child: ScreenshotCanvas(
+                        screenshot: _capturedScreenshot!,
+                        onConfirm: _onScreenshotConfirm,
+                        onCancel: _onScreenshotCancel,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Tab bar
+// =============================================================================
+
+class _VideTabBar extends StatelessWidget {
+  final _VideTab selectedTab;
+  final ValueChanged<_VideTab> onTabSelected;
+  final VideSdkState sdkState;
+
+  const _VideTabBar({
+    required this.selectedTab,
+    required this.onTabSelected,
+    required this.sdkState,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      color: colorScheme.surface,
+      padding: EdgeInsets.only(
+        top: MediaQuery.of(context).padding.top,
+      ),
+      child: Container(
+        height: 40,
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+              width: 0.5,
             ),
           ),
         ),
-
-        // Draggable sheet
-        //
-        // IMPORTANT: Do NOT wrap the sheet builder in _OverlayMaterialShell
-        // (which uses MaterialApp + Scaffold). A nested MaterialApp creates a
-        // separate gesture arena that swallows touch-drag events on mobile,
-        // preventing the DraggableScrollableSheet from being dragged.
-        // Instead we use _SheetThemeShell — a lightweight Theme + Material
-        // wrapper that provides theming without breaking gestures.
-        DraggableScrollableSheet(
-          controller: _sheetController,
-          initialChildSize: _peekFraction,
-          minChildSize: _peekFraction,
-          maxChildSize: _kFullFraction,
-          snapSizes: [_peekFraction, _kHalfFraction],
-          snap: true,
-          builder: (context, scrollController) {
-            return _SheetThemeShell(
-              child: _SheetContent(
-                sdkState: _sdkState,
-                voiceService: _voiceService,
-                sheetController: _sheetController,
-                scrollController: scrollController,
-                peekFraction: _peekFraction,
-                onScreenshotRequest: _captureScreenshot,
-                pendingScreenshot: _pendingScreenshotBytes,
-                onClearScreenshot: () {
-                  setState(() => _pendingScreenshotBytes = null);
-                },
-              ),
-            );
-          },
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _TabItem(
+              label: 'Agent',
+              icon: Icons.smart_toy_outlined,
+              isSelected: selectedTab == _VideTab.agent,
+              onTap: () => onTabSelected(_VideTab.agent),
+              videColors: videColors,
+              trailing: _buildAgentIndicator(context),
+            ),
+            _TabItem(
+              label: 'App',
+              icon: Icons.phone_iphone_outlined,
+              isSelected: selectedTab == _VideTab.app,
+              onTap: () => onTabSelected(_VideTab.app),
+              videColors: videColors,
+            ),
+            _TabItem(
+              label: 'Tools',
+              icon: Icons.handyman_outlined,
+              isSelected: selectedTab == _VideTab.tools,
+              onTap: () => onTabSelected(_VideTab.tools),
+              videColors: videColors,
+            ),
+            _TabItem(
+              label: 'Project',
+              icon: Icons.folder_outlined,
+              isSelected: selectedTab == _VideTab.project,
+              onTap: () => onTabSelected(_VideTab.project),
+              videColors: videColors,
+            ),
+          ],
         ),
+      ),
+    );
+  }
 
-        // Screenshot annotation canvas — fades in/out
-        if (_screenshotMode && _capturedScreenshot != null)
-          Positioned.fill(
-            child: AnimatedOpacity(
-              opacity: _screenshotVisible ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 250),
-              curve: Curves.easeInOut,
-              child: ScreenshotCanvas(
-                screenshot: _capturedScreenshot!,
-                onConfirm: _onScreenshotConfirm,
-                onCancel: _onScreenshotCancel,
+  Widget? _buildAgentIndicator(BuildContext context) {
+    return ListenableBuilder(
+      listenable: sdkState,
+      builder: (context, _) {
+        final isProcessing = sdkState.videState?.isProcessing ?? false;
+        if (!isProcessing) return const SizedBox.shrink();
+
+        final videColors = Theme.of(context).extension<VideThemeColors>()!;
+        return Container(
+          width: 6,
+          height: 6,
+          margin: const EdgeInsets.only(left: 4),
+          decoration: BoxDecoration(
+            color: videColors.accent,
+            shape: BoxShape.circle,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TabItem extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VideThemeColors videColors;
+  final Widget? trailing;
+
+  const _TabItem({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    required this.videColors,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isSelected ? videColors.accent : videColors.textSecondary;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? videColors.accent : Colors.transparent,
+              width: 2,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: color,
+              ),
+            ),
+            if (trailing != null) trailing!,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Project view (Files + Git)
+// =============================================================================
+
+class _ProjectView extends StatefulWidget {
+  final VideSdkState sdkState;
+
+  const _ProjectView({required this.sdkState});
+
+  @override
+  State<_ProjectView> createState() => _ProjectViewState();
+}
+
+enum _ProjectSection { files, git }
+
+class _ProjectViewState extends State<_ProjectView> {
+  _ProjectSection _section = _ProjectSection.files;
+
+  @override
+  Widget build(BuildContext context) {
+    final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
+    final client = widget.sdkState.client;
+    final workingDir = widget.sdkState.workingDirectory ?? '';
+
+    return Column(
+      children: [
+        // Files / Git sub-tabs
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                width: 0.5,
               ),
             ),
           ),
+          child: Row(
+            children: [
+              _SubTab(
+                label: 'Files',
+                icon: Icons.folder_outlined,
+                isSelected: _section == _ProjectSection.files,
+                onTap: () => setState(() => _section = _ProjectSection.files),
+                videColors: videColors,
+              ),
+              const SizedBox(width: 4),
+              _SubTab(
+                label: 'Git',
+                icon: Icons.commit,
+                isSelected: _section == _ProjectSection.git,
+                onTap: () => setState(() => _section = _ProjectSection.git),
+                videColors: videColors,
+              ),
+            ],
+          ),
+        ),
+
+        // Content
+        Expanded(
+          child: client != null && workingDir.isNotEmpty
+              ? _section == _ProjectSection.files
+                  ? FileBrowser(
+                      key: ValueKey('files_$workingDir'),
+                      client: client,
+                      workingDirectory: workingDir,
+                    )
+                  : GitView(
+                      key: ValueKey('git_$workingDir'),
+                      client: client,
+                      workingDirectory: workingDir,
+                    )
+              : Center(
+                  child: Text(
+                    'Not connected',
+                    style: TextStyle(color: videColors.textSecondary),
+                  ),
+                ),
+        ),
       ],
     );
   }
 }
 
-/// Sheet content — switches between peek bar and full chat based on size.
-class _SheetContent extends StatelessWidget {
-  final VideSdkState sdkState;
-  final VoiceInputService voiceService;
-  final DraggableScrollableController sheetController;
-  final ScrollController scrollController;
-  final double peekFraction;
-  final VoidCallback? onScreenshotRequest;
-  final Uint8List? pendingScreenshot;
-  final VoidCallback? onClearScreenshot;
+class _SubTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VideThemeColors videColors;
 
-  const _SheetContent({
-    required this.sdkState,
-    required this.voiceService,
-    required this.sheetController,
-    required this.scrollController,
-    required this.peekFraction,
-    this.onScreenshotRequest,
-    this.pendingScreenshot,
-    this.onClearScreenshot,
+  const _SubTab({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.onTap,
+    required this.videColors,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: sheetController,
-      builder: (context, _) {
-        final size =
-            sheetController.isAttached ? sheetController.size : peekFraction;
+    final color = isSelected ? videColors.accent : videColors.textSecondary;
 
-        // t: 0 at peek, 1 when halfway to half-screen snap.
-        // This gives a smooth fade zone between peek and expanded.
-        final midpoint = peekFraction + (_kHalfFraction - peekFraction) * 0.5;
-        final t =
-            ((size - peekFraction) / (midpoint - peekFraction)).clamp(0.0, 1.0);
-
-        // The sheet's scrollController MUST be attached to a scrollable that
-        // fills the sheet. We use a CustomScrollView so the grab handle and
-        // peek row are part of the same scrollable, and when at the top edge,
-        // further dragging moves the sheet itself.
-        return CustomScrollView(
-          controller: scrollController,
-          slivers: [
-            // Grab handle — always visible
-            const SliverToBoxAdapter(child: _GrabHandle()),
-
-            // Peek status — fades out as sheet expands
-            SliverToBoxAdapter(
-              child: Opacity(
-                opacity: 1.0 - t,
-                child: t < 1.0
-                    ? _PeekStatusRow(sdkState: sdkState)
-                    : const SizedBox.shrink(),
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? videColors.accent.withValues(alpha: 0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                color: color,
               ),
             ),
-
-            // Chat content — fades in as sheet expands
-            SliverFillRemaining(
-              hasScrollBody: true,
-              child: Opacity(
-                opacity: t,
-                child: t > 0.0
-                    ? IgnorePointer(
-                        ignoring: t < 1.0,
-                        child: VideChatPanel(
-                          sdkState: sdkState,
-                          voiceService: voiceService,
-                          onScreenshotRequest: onScreenshotRequest,
-                          pendingScreenshot: pendingScreenshot,
-                          onClearScreenshot: onClearScreenshot,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-                ),
-            ),
           ],
-        );
-      },
-    );
-  }
-}
-
-/// Grab handle pill at the top of the sheet.
-class _GrabHandle extends StatelessWidget {
-  const _GrabHandle();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Container(
-          width: 36,
-          height: 4,
-          decoration: BoxDecoration(
-            color: const Color(0xFF6B7280),
-            borderRadius: BorderRadius.circular(2),
-          ),
         ),
       ),
     );
   }
 }
 
-/// Compact status row shown in the peek bar.
-///
-/// Shows connection dot + latest activity (tool name, typing, or message).
-class _PeekStatusRow extends StatelessWidget {
-  final VideSdkState sdkState;
+// =============================================================================
+// Tools view — developer utilities
+// =============================================================================
 
-  const _PeekStatusRow({required this.sdkState});
+class _ToolsView extends StatelessWidget {
+  const _ToolsView();
 
   @override
   Widget build(BuildContext context) {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
+    final colorScheme = Theme.of(context).colorScheme;
 
-    return ListenableBuilder(
-      listenable: sdkState,
-      builder: (context, _) {
-        final session = sdkState.session;
-        final isProcessing = sdkState.videState?.isProcessing ?? false;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _ToolSection(
+          title: 'Inspect',
+          videColors: videColors,
+          children: [
+            _ToolTile(
+              icon: Icons.account_tree_outlined,
+              title: 'Widget Tree',
+              subtitle: 'Dump widget tree to console',
+              onTap: () => debugDumpApp(),
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToolTile(
+              icon: Icons.layers_outlined,
+              title: 'Layer Tree',
+              subtitle: 'Dump layer tree to console',
+              onTap: () => debugDumpLayerTree(),
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToolTile(
+              icon: Icons.format_paint_outlined,
+              title: 'Render Tree',
+              subtitle: 'Dump render tree to console',
+              onTap: () => debugDumpRenderTree(),
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _ToolSection(
+          title: 'Overlay',
+          videColors: videColors,
+          children: [
+            _ToggleToolTile(
+              icon: Icons.grid_4x4_outlined,
+              title: 'Show Layout Bounds',
+              subtitle: 'Visualize widget boundaries',
+              valueGetter: () => debugPaintSizeEnabled,
+              onChanged: (v) {
+                debugPaintSizeEnabled = v;
+                // Force a repaint
+                WidgetsBinding.instance.renderViews.first.markNeedsPaint();
+              },
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToggleToolTile(
+              icon: Icons.format_paint,
+              title: 'Show Paint Baselines',
+              subtitle: 'Visualize text baselines',
+              valueGetter: () => debugPaintBaselinesEnabled,
+              onChanged: (v) {
+                debugPaintBaselinesEnabled = v;
+                WidgetsBinding.instance.renderViews.first.markNeedsPaint();
+              },
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToggleToolTile(
+              icon: Icons.touch_app_outlined,
+              title: 'Show Pointer Areas',
+              subtitle: 'Visualize hit test regions',
+              valueGetter: () => debugPaintPointersEnabled,
+              onChanged: (v) {
+                debugPaintPointersEnabled = v;
+                WidgetsBinding.instance.renderViews.first.markNeedsPaint();
+              },
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToggleToolTile(
+              icon: Icons.palette_outlined,
+              title: 'Show Repaint Rainbow',
+              subtitle: 'Color regions on repaint',
+              valueGetter: () => debugRepaintRainbowEnabled,
+              onChanged: (v) {
+                debugRepaintRainbowEnabled = v;
+                WidgetsBinding.instance.renderViews.first.markNeedsPaint();
+              },
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _ToolSection(
+          title: 'Performance',
+          videColors: videColors,
+          children: [
+            _ToggleToolTile(
+              icon: Icons.speed_outlined,
+              title: 'Performance Overlay',
+              subtitle: 'Show GPU/UI thread timings',
+              valueGetter: () =>
+                  WidgetsApp.showPerformanceOverlayOverride,
+              onChanged: (v) {
+                WidgetsApp.showPerformanceOverlayOverride = v;
+                (context as Element).markNeedsBuild();
+              },
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+            _ToolTile(
+              icon: Icons.timer_outlined,
+              title: 'Dump Semantics',
+              subtitle: 'Dump semantics tree to console',
+              onTap: () => debugDumpSemanticsTree(),
+              videColors: videColors,
+              colorScheme: colorScheme,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
-        // Connection dot color
-        final Color dotColor;
-        if (session != null) {
-          dotColor = switch (sdkState.connectionState) {
-            VideSdkConnectionState.connected => videColors.success,
-            VideSdkConnectionState.connecting => videColors.warning,
-            VideSdkConnectionState.error => videColors.error,
-            VideSdkConnectionState.disconnected => videColors.textTertiary,
-          };
-        } else {
-          final reachable = sdkState.serverReachable;
-          dotColor = reachable == null
-              ? videColors.warning
-              : reachable
-                  ? videColors.success
-                  : videColors.error;
-        }
+class _ToolSection extends StatelessWidget {
+  final String title;
+  final VideThemeColors videColors;
+  final List<Widget> children;
 
-        // Status text + icon
-        final (String label, IconData? icon) = _resolveStatus(
-          session: session,
-          isProcessing: isProcessing,
-        );
+  const _ToolSection({
+    required this.title,
+    required this.videColors,
+    required this.children,
+  });
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: VideSpacing.md,
-            vertical: 4,
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              color: videColors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
           ),
-          child: Row(
-            children: [
-              // Connection dot
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: dotColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Status
-              if (icon != null) ...[
-                Icon(icon, size: 14, color: videColors.textSecondary),
-                const SizedBox(width: 6),
-              ],
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: videColors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+        ),
+        ...children,
+      ],
+    );
+  }
+}
+
+class _ToolTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final VideThemeColors videColors;
+  final ColorScheme colorScheme;
+
+  const _ToolTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.videColors,
+    required this.colorScheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 2),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: videColors.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: videColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  (String, IconData?) _resolveStatus({
-    required RemoteVideSession? session,
-    required bool isProcessing,
-  }) {
-    if (session == null) {
-      return ('vide', null);
-    }
-
-    final mainAgent = session.state.mainAgent;
-    if (mainAgent == null) {
-      return ('Starting...', null);
-    }
-
-    // Get the latest visible content from the main agent's conversation
-    final conversation = session.getConversation(mainAgent.id);
-    final messages = conversation?.messages ?? [];
-
-    // Always show the most recent concrete activity.
-    // The icon reflects whether the agent is still working or done.
-    final latestTool = _findLatestTool(messages);
-    if (latestTool != null) {
-      final name = toolDisplayName(latestTool.toolName);
-      final subtitle = toolSubtitle(latestTool.toolName, latestTool.toolInput);
-      final display = subtitle != null ? '$name  $subtitle' : name;
-      final IconData icon;
-      if (latestTool.result == null) {
-        // Tool is in progress
-        icon = Icons.play_arrow;
-      } else if (latestTool.isError) {
-        icon = Icons.error_outline;
-      } else if (isProcessing) {
-        // Tool completed but agent is still working (thinking / next step)
-        icon = Icons.play_arrow;
-      } else {
-        icon = Icons.check;
-      }
-      return (display, icon);
-    }
-
-    // No tools — show last text snippet
-    final lastText = _findLatestText(messages);
-    if (lastText != null) {
-      final firstLine = lastText.text.split('\n').first;
-      return (firstLine, isProcessing ? Icons.play_arrow : null);
-    }
-
-    if (isProcessing) {
-      return ('Working...', null);
-    }
-
-    return ('Ready', null);
-  }
-
-  ToolContent? _findLatestTool(List<ConversationEntry> messages) {
-    for (final entry in messages.reversed) {
-      for (final content in entry.content.reversed) {
-        if (content is ToolContent && !isHiddenTool(content)) {
-          return content;
-        }
-      }
-    }
-    return null;
-  }
-
-  TextContent? _findLatestText(List<ConversationEntry> messages) {
-    for (final entry in messages.reversed) {
-      if (entry.role != 'assistant') continue;
-      for (final content in entry.content.reversed) {
-        if (content is TextContent && content.text.isNotEmpty) {
-          return content;
-        }
-      }
-    }
-    return null;
-  }
-}
-
-/// Provides Material infrastructure for widgets outside the user's MaterialApp.
-///
-/// Uses the Vide dark theme (matching vide_mobile) so that all widgets
-/// inside the panel can use `Theme.of(context).extension<VideThemeColors>()!`.
-class _OverlayMaterialShell extends StatelessWidget {
-  final Widget child;
-  const _OverlayMaterialShell({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(
-        top: Radius.circular(_kSheetRadius),
-      ),
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.darkTheme(),
-        // Enable mouse-drag scrolling on desktop so DraggableScrollableSheet
-        // can be dragged with a mouse click on macOS/Windows/Linux.
-        scrollBehavior: const _DesktopDragScrollBehavior(),
-        home: Scaffold(body: child),
-      ),
-    );
-  }
-}
-
-/// Lightweight theme wrapper for the draggable sheet content.
-///
-/// Unlike [_OverlayMaterialShell] (which uses a full MaterialApp + Scaffold),
-/// this only provides theming via [Theme] + [Material]. This avoids creating
-/// a nested gesture arena that would swallow touch-drag events and break the
-/// [DraggableScrollableSheet] on mobile.
-///
-/// The [ScrollConfiguration] enables mouse-drag scrolling on desktop.
-class _SheetThemeShell extends StatelessWidget {
-  final Widget child;
-  const _SheetThemeShell({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = AppTheme.darkTheme();
-
-    // Use Theme + Scaffold directly instead of MaterialApp.
-    //
-    // MaterialApp creates a Navigator with ModalRoutes whose barriers can
-    // intercept touch-drag gestures on mobile, preventing the outer
-    // DraggableScrollableSheet from being dragged.
-    //
-    // Scaffold provides ScaffoldMessenger (for SnackBars). For
-    // showModalBottomSheet, the sheet content widgets should use
-    // showModalBottomSheet from a context that has a Navigator — but since
-    // we're inside VideInApp (which is inside the user's MaterialApp), we
-    // can use the outer navigator via Navigator.of(context, rootNavigator: true).
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(
-        top: Radius.circular(_kSheetRadius),
-      ),
-      child: Theme(
-        data: theme,
-        child: ScrollConfiguration(
-          behavior: const _DesktopDragScrollBehavior(),
-          child: Scaffold(body: child),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: videColors.textTertiary,
+            ),
+          ],
         ),
       ),
+    );
+  }
+}
+
+class _ToggleToolTile extends StatefulWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool Function() valueGetter;
+  final ValueChanged<bool> onChanged;
+  final VideThemeColors videColors;
+  final ColorScheme colorScheme;
+
+  const _ToggleToolTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.valueGetter,
+    required this.onChanged,
+    required this.videColors,
+    required this.colorScheme,
+  });
+
+  @override
+  State<_ToggleToolTile> createState() => _ToggleToolTileState();
+}
+
+class _ToggleToolTileState extends State<_ToggleToolTile> {
+  @override
+  Widget build(BuildContext context) {
+    final isOn = widget.valueGetter();
+
+    return GestureDetector(
+      onTap: () {
+        widget.onChanged(!isOn);
+        setState(() {});
+      },
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        margin: const EdgeInsets.only(bottom: 2),
+        decoration: BoxDecoration(
+          color: widget.colorScheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: [
+            Icon(widget.icon, size: 20, color: widget.videColors.accent),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.title,
+                    style: TextStyle(
+                      color: widget.colorScheme.onSurface,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  Text(
+                    widget.subtitle,
+                    style: TextStyle(
+                      color: widget.videColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: isOn,
+              onChanged: (v) {
+                widget.onChanged(v);
+                setState(() {});
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Material shell — provides theme, localizations, overlay for all Vide UI
+// =============================================================================
+
+class _MaterialShell extends StatelessWidget {
+  final Widget child;
+  const _MaterialShell({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.darkTheme(),
+      scrollBehavior: const _DesktopDragScrollBehavior(),
+      home: Scaffold(body: child),
     );
   }
 }
 
 /// Scroll behavior that allows mouse drag to scroll on desktop platforms.
-///
-/// By default, Flutter only allows touch and stylus to initiate drag-scroll.
-/// This adds [PointerDeviceKind.mouse] so that click-and-drag on macOS /
-/// Windows / Linux drives the [DraggableScrollableSheet].
 class _DesktopDragScrollBehavior extends MaterialScrollBehavior {
   const _DesktopDragScrollBehavior();
 
@@ -746,7 +886,10 @@ class _DesktopDragScrollBehavior extends MaterialScrollBehavior {
       };
 }
 
-/// Full-screen setup page shown before the server is configured.
+// =============================================================================
+// Setup screen
+// =============================================================================
+
 class _SetupScreen extends StatefulWidget {
   final VideSdkState sdkState;
 
