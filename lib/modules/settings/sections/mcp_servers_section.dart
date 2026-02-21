@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -49,12 +50,28 @@ class _McpServersSectionState extends State<McpServersSection> {
     final mainAgentId = session.state.mainAgent?.id;
     if (mainAgentId == null) return;
 
-    final client = context.read(claudeProvider(mainAgentId));
-    if (client == null) return;
+    final client = context.read(agentClientProvider(mainAgentId));
+    if (client == null || client is! McpConfigurable) return;
 
     try {
       await client.initialized;
-      final status = await client.getMcpStatus();
+      final agentStatus = await (client as McpConfigurable).getMcpStatus();
+      // Convert AgentMcpStatusInfo → McpStatusResponse for settings display
+      final status = McpStatusResponse(
+        servers: agentStatus.servers
+            .map(
+              (s) => McpServerStatusInfo(
+                name: s.name,
+                status: switch (s.status) {
+                  'connected' => McpServerStatus.connected,
+                  'failed' => McpServerStatus.failed,
+                  'connecting' => McpServerStatus.connecting,
+                  _ => McpServerStatus.disconnected,
+                },
+              ),
+            )
+            .toList(),
+      );
       if (mounted) {
         setState(() => _mcpStatus = status);
       }

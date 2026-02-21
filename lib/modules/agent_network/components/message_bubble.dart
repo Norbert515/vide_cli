@@ -1,5 +1,5 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart' hide MessageRole;
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
@@ -142,26 +142,24 @@ class MessageBubble extends StatelessComponent {
           }
         }
       } else if (content is ToolContent) {
-        final toolCall = ToolUseResponse(
-          id: content.toolUseId,
-          timestamp: DateTime.now(),
-          toolName: content.toolName,
-          parameters: content.toolInput,
-          toolUseId: content.toolUseId,
-        );
-        final toolResult = content.result != null
-            ? ToolResultResponse(
-                id: content.toolUseId,
-                timestamp: DateTime.now(),
-                toolUseId: content.toolUseId,
-                content: content.result!,
-                isError: content.isError,
-              )
-            : null;
-
-        final invocation = ConversationMessage.createTypedInvocation(
-          toolCall,
-          toolResult,
+        final now = DateTime.now();
+        final invocation = AgentToolInvocation.createTyped(
+          toolCall: AgentToolUseResponse(
+            id: content.toolUseId,
+            timestamp: now,
+            toolName: content.toolName,
+            parameters: content.toolInput,
+            toolUseId: content.toolUseId,
+          ),
+          toolResult: content.result != null
+              ? AgentToolResultResponse(
+                  id: content.toolUseId,
+                  timestamp: now,
+                  toolUseId: content.toolUseId,
+                  content: content.result!,
+                  isError: content.isError,
+                )
+              : null,
         );
 
         pendingTools.add(

@@ -1,5 +1,5 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:path/path.dart' as p;
@@ -8,7 +8,7 @@ import 'default_renderer.dart';
 /// Renderer for terminal/bash output tool invocations.
 /// Shows collapsed preview (last 3 lines) by default, expandable to full output (max 8 lines).
 class TerminalOutputRenderer extends StatefulComponent {
-  final ToolInvocation invocation;
+  final AgentToolInvocation invocation;
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -208,22 +208,17 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   }
 
   String _getParameterValue() {
-    final params = component.invocation.parameters;
+    final invocation = component.invocation;
+    if (invocation is AgentFileOperationToolInvocation) {
+      return _formatFilePath(invocation.filePath);
+    }
+
+    final params = invocation.parameters;
     if (params.isEmpty) return '';
 
-    // Prefer meaningful keys
-    for (final key in ['file_path', 'pattern', 'command', 'query', 'url']) {
+    for (final key in ['pattern', 'command', 'query', 'url']) {
       if (params.containsKey(key)) {
-        String valueStr = params[key].toString();
-        if (key == 'file_path') {
-          if (component.invocation is FileOperationToolInvocation) {
-            final typed = component.invocation as FileOperationToolInvocation;
-            valueStr = typed.getRelativePath(component.workingDirectory);
-          } else {
-            valueStr = _formatFilePath(valueStr);
-          }
-        }
-        return valueStr;
+        return params[key].toString();
       }
     }
 

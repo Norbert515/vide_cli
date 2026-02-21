@@ -41,7 +41,11 @@ export 'src/agent_network/agent_network_persistence_manager.dart';
 // Claude
 // =============================================================================
 export 'src/claude/claude_manager.dart'
-    show claudeStatusProvider, claudeProvider;
+    show
+        agentClientProvider,
+        agentProcessingStatusProvider,
+        agentClientManagerProvider,
+        AgentClientManagerStateNotifier;
 
 // =============================================================================
 // Permissions
@@ -98,6 +102,5 @@ export 'package:claude_sdk/claude_sdk.dart'
         McpServerStatus,
         McpStatusResponse,
         McpServerStatusInfo,
-        ClaudeStatus,
         ClaudeSettingsManager,
         ProcessManager;

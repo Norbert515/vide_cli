@@ -17,11 +17,11 @@ import '../claude/claude_manager.dart';
 class WorktreeService {
   WorktreeService({
     required this.baseWorkingDirectory,
-    required ClaudeManagerStateNotifier claudeManager,
+    required AgentClientManagerStateNotifier claudeManager,
     required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
-    required ClaudeClientFactory clientFactory,
+    required AgentClientFactory clientFactory,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
   }) : _claudeManager = claudeManager,
@@ -33,11 +33,11 @@ class WorktreeService {
        _configResolver = configResolver;
 
   final String baseWorkingDirectory;
-  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentClientManagerStateNotifier _claudeManager;
   final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
-  final ClaudeClientFactory _clientFactory;
+  final AgentClientFactory _clientFactory;
   final AgentStatusSyncService _statusSyncService;
   final AgentConfigResolver _configResolver;
 
@@ -86,7 +86,7 @@ class WorktreeService {
   /// Set worktree path for the current session.
   ///
   /// This will restart all agents so they use the new working directory.
-  /// Agent conversation history is cleared since Claude CLI cannot change
+  /// Agent conversation history is cleared since the agent CLI cannot change
   /// its working directory mid-session.
   Future<void> setWorktreePath(String? worktreePath) async {
     final network = _getCurrentNetwork();
@@ -101,7 +101,7 @@ class WorktreeService {
       sessionId: network.id,
     );
 
-    // 1. Abort and remove all existing Claude clients
+    // 1. Abort and remove all existing agent clients
     for (final agentId in network.agentIds) {
       final client = _claudeManager.clients[agentId];
       if (client != null) {
@@ -126,7 +126,7 @@ class WorktreeService {
     // 3. Update state first so effectiveWorkingDirectory returns new path
     _updateState(updated);
 
-    // 4. Recreate Claude clients for all agents with new working directory
+    // 4. Recreate agent clients for all agents with new working directory
     // Per-agent workingDirectory overrides take precedence over session worktree
     for (final agentMetadata in updated.agents) {
       VideLogger.instance.debug(

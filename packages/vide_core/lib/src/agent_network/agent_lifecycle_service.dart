@@ -1,4 +1,4 @@
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:uuid/uuid.dart';
 
 import '../claude/agent_configuration.dart';
@@ -21,15 +21,15 @@ import '../team_framework/team_framework_loader.dart';
 /// and AgentConfigResolver for configuration loading.
 class AgentLifecycleService {
   AgentLifecycleService({
-    required ClaudeManagerStateNotifier claudeManager,
+    required AgentClientManagerStateNotifier claudeManager,
     required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
-    required ClaudeClientFactory clientFactory,
+    required AgentClientFactory clientFactory,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
     required TeamFrameworkLoader teamFrameworkLoader,
-    required void Function(AgentId, Message) sendMessage,
+    required void Function(AgentId, AgentMessage) sendMessage,
     required Future<void> Function(AgentId, String) updateAgentSessionId,
   }) : _claudeManager = claudeManager,
        _persistenceManager = persistenceManager,
@@ -42,15 +42,15 @@ class AgentLifecycleService {
        _sendMessage = sendMessage,
        _updateAgentSessionId = updateAgentSessionId;
 
-  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentClientManagerStateNotifier _claudeManager;
   final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
-  final ClaudeClientFactory _clientFactory;
+  final AgentClientFactory _clientFactory;
   final AgentStatusSyncService _statusSyncService;
   final AgentConfigResolver _configResolver;
   final TeamFrameworkLoader _teamFrameworkLoader;
-  final void Function(AgentId, Message) _sendMessage;
+  final void Function(AgentId, AgentMessage) _sendMessage;
   final Future<void> Function(AgentId, String) _updateAgentSessionId;
 
   /// Add a new agent to the current network.
@@ -178,7 +178,7 @@ SPAWNED BY AGENT: $spawnedBy — Extract this agent ID and save it. You will nee
 $initialPrompt''';
 
     // Send initial message to the new agent
-    _sendMessage(newAgentId, Message.text(contextualPrompt));
+    _sendMessage(newAgentId, AgentMessage.text(contextualPrompt));
 
     VideLogger.instance.info(
       'AgentLifecycleService',
@@ -213,7 +213,7 @@ $initialPrompt''';
       throw Exception('Cannot terminate the last agent');
     }
 
-    // Get and abort the ClaudeClient
+    // Get and abort the AgentClient
     final client = _claudeManager.clients[targetAgentId];
     if (client != null) {
       await client.abort();
@@ -222,7 +222,7 @@ $initialPrompt''';
     // Clean up status sync subscription
     _statusSyncService.cleanupStatusSync(targetAgentId);
 
-    // Remove from ClaudeManager
+    // Remove from manager
     _claudeManager.removeAgent(targetAgentId);
 
     // Remove from network agents list
@@ -282,10 +282,10 @@ $initialPrompt''';
       throw Exception('Agent not found: $sourceAgentId');
     }
 
-    // Get source agent's Claude client to get the session ID
+    // Get source agent's client to get the session ID
     final sourceClient = _claudeManager.clients[sourceAgentId];
     if (sourceClient == null) {
-      throw Exception('No Claude client found for agent: $sourceAgentId');
+      throw Exception('No AgentClient found for agent: $sourceAgentId');
     }
 
     // Generate new agent ID (which will also be the new session ID)
@@ -307,7 +307,7 @@ $initialPrompt''';
       createdAt: DateTime.now(),
     );
 
-    // Create the Claude client with fork configuration
+    // Create the agent client with fork configuration.
     final client = await _clientFactory.createForked(
       agentId: newAgentId,
       config: config,
@@ -321,11 +321,11 @@ $initialPrompt''';
     // Set up status sync for the forked agent
     _statusSyncService.setupStatusSync(newAgentId, client);
 
-    // Listen for MetaResponse to capture the actual session ID from Claude
+    // Listen for init data to capture the actual session ID
     client.initDataStream.first.then(
-      (metaResponse) {
-        if (metaResponse.sessionId != null) {
-          _updateAgentSessionId(newAgentId, metaResponse.sessionId!);
+      (initData) {
+        if (initData.sessionId != null) {
+          _updateAgentSessionId(newAgentId, initData.sessionId!);
         }
       },
       onError: (Object e) {

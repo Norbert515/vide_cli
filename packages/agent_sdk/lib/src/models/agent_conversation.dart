@@ -1,5 +1,6 @@
 import 'agent_message.dart';
 import 'agent_response.dart';
+import 'agent_tool_invocation.dart';
 import 'token_usage.dart';
 
 /// The state of a conversation with an agent.
@@ -36,12 +37,92 @@ class AgentToolInvocation {
 
   const AgentToolInvocation({required this.toolCall, this.toolResult});
 
+  /// Creates a typed [AgentToolInvocation] subclass based on the tool name.
+  ///
+  /// Returns [AgentWriteToolInvocation] for Write/NotebookEdit,
+  /// [AgentEditToolInvocation] for Edit/MultiEdit,
+  /// [AgentFileOperationToolInvocation] for Read/Glob/Grep,
+  /// or the base [AgentToolInvocation] for unknown tools.
+  static AgentToolInvocation createTyped({
+    required AgentToolUseResponse toolCall,
+    AgentToolResultResponse? toolResult,
+  }) {
+    final name = toolCall.toolName.toLowerCase();
+    final params = toolCall.parameters;
+
+    switch (name) {
+      case 'write':
+      case 'notebookedit':
+        return AgentWriteToolInvocation(
+          toolCall: toolCall,
+          toolResult: toolResult,
+          filePath: params['file_path'] as String? ??
+              params['notebook_path'] as String? ??
+              '',
+          content: params['content'] as String? ??
+              params['new_source'] as String? ??
+              '',
+        );
+      case 'edit':
+      case 'multiedit':
+        return AgentEditToolInvocation(
+          toolCall: toolCall,
+          toolResult: toolResult,
+          filePath: params['file_path'] as String? ?? '',
+          oldString: params['old_string'] as String? ?? '',
+          newString: params['new_string'] as String? ?? '',
+          replaceAll: params['replace_all'] as bool? ?? false,
+        );
+      case 'read':
+      case 'glob':
+      case 'grep':
+        return AgentFileOperationToolInvocation(
+          toolCall: toolCall,
+          toolResult: toolResult,
+          filePath: params['file_path'] as String? ??
+              params['pattern'] as String? ??
+              '',
+        );
+      default:
+        return AgentToolInvocation(toolCall: toolCall, toolResult: toolResult);
+    }
+  }
+
   bool get hasResult => toolResult != null;
   bool get isComplete => toolResult != null;
   bool get isError => toolResult?.isError ?? false;
   String get toolName => toolCall.toolName;
   Map<String, dynamic> get parameters => toolCall.parameters;
   String? get resultContent => toolResult?.content;
+
+  /// Returns a user-friendly display name for the tool.
+  ///
+  /// For MCP tools (format: `mcp__server-name__toolName`):
+  /// - Formats as "Server Name: toolName"
+  ///
+  /// For non-MCP tools: returns the tool name as-is.
+  String get displayName {
+    if (!toolName.startsWith('mcp__')) {
+      return toolName;
+    }
+
+    // Parse: mcp__server-name__toolName
+    final parts = toolName.substring(5).split('__');
+    if (parts.length < 2) return toolName;
+
+    final serverName = parts[0];
+    final tool = parts.sublist(1).join('__');
+
+    final formattedServer = serverName
+        .split('-')
+        .map(
+          (word) =>
+              word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : '',
+        )
+        .join(' ');
+
+    return '$formattedServer: $tool';
+  }
 }
 
 /// A single message in an agent conversation.
@@ -58,6 +139,12 @@ class AgentConversationMessage {
   final List<AgentAttachment>? attachments;
   final AgentMessageType messageType;
 
+  /// Whether this message is a compact summary injected after context compaction.
+  final bool isCompactSummary;
+
+  /// Whether this message is only visible in the transcript (not sent to the model).
+  final bool isVisibleInTranscriptOnly;
+
   const AgentConversationMessage({
     required this.id,
     required this.role,
@@ -70,6 +157,8 @@ class AgentConversationMessage {
     this.tokenUsage,
     this.attachments,
     this.messageType = AgentMessageType.assistantText,
+    this.isCompactSummary = false,
+    this.isVisibleInTranscriptOnly = false,
   });
 
   /// Creates a user message.
@@ -176,6 +265,10 @@ class AgentConversationMessage {
   }
 
   /// Groups tool calls with their corresponding results.
+  ///
+  /// Returns typed subclasses ([AgentWriteToolInvocation],
+  /// [AgentEditToolInvocation], [AgentFileOperationToolInvocation])
+  /// for recognized tools.
   List<AgentToolInvocation> get toolInvocations {
     final invocations = <AgentToolInvocation>[];
     final toolCalls = <String, AgentToolUseResponse>{};
@@ -185,13 +278,18 @@ class AgentConversationMessage {
         if (response.toolUseId != null) {
           toolCalls[response.toolUseId!] = response;
         } else {
-          invocations.add(AgentToolInvocation(toolCall: response));
+          invocations.add(
+            AgentToolInvocation.createTyped(toolCall: response),
+          );
         }
       } else if (response is AgentToolResultResponse) {
         final call = toolCalls[response.toolUseId];
         if (call != null) {
           invocations.add(
-            AgentToolInvocation(toolCall: call, toolResult: response),
+            AgentToolInvocation.createTyped(
+              toolCall: call,
+              toolResult: response,
+            ),
           );
           toolCalls.remove(response.toolUseId);
         }
@@ -200,7 +298,7 @@ class AgentConversationMessage {
 
     // Add remaining tool calls without results
     for (final call in toolCalls.values) {
-      invocations.add(AgentToolInvocation(toolCall: call));
+      invocations.add(AgentToolInvocation.createTyped(toolCall: call));
     }
 
     return invocations;
@@ -223,6 +321,8 @@ class AgentConversationMessage {
     TokenUsage? tokenUsage,
     List<AgentAttachment>? attachments,
     AgentMessageType? messageType,
+    bool? isCompactSummary,
+    bool? isVisibleInTranscriptOnly,
   }) {
     return AgentConversationMessage(
       id: id ?? this.id,
@@ -236,6 +336,8 @@ class AgentConversationMessage {
       tokenUsage: tokenUsage ?? this.tokenUsage,
       attachments: attachments ?? this.attachments,
       messageType: messageType ?? this.messageType,
+      isCompactSummary: isCompactSummary ?? this.isCompactSummary,
+      isVisibleInTranscriptOnly: isVisibleInTranscriptOnly ?? this.isVisibleInTranscriptOnly,
     );
   }
 }

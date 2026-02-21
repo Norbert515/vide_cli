@@ -1,13 +1,12 @@
 import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart' as agent_sdk;
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_core/src/agent_network/agent_network_manager.dart';
-import 'package:vide_core/src/claude/claude_manager.dart';
 
-import '../helpers/mock_claude_client.dart';
+import '../helpers/mock_agent_client.dart';
 import '../helpers/mock_vide_config_manager.dart';
 
 void main() {
@@ -15,7 +14,7 @@ void main() {
     late Directory tempDir;
     late MockVideConfigManager configManager;
     late ProviderContainer container;
-    late MockClaudeClient mockClient;
+    late MockAgentClient mockClient;
     late LocalVideSession session;
 
     const agentId = 'main-agent';
@@ -36,9 +35,9 @@ void main() {
       );
 
       // Set up mock client and register it
-      mockClient = MockClaudeClient(sessionId: agentId);
+      mockClient = MockAgentClient(sessionId: agentId);
       container
-          .read(claudeManagerProvider.notifier)
+          .read(agentClientManagerProvider.notifier)
           .addAgent(agentId, mockClient);
 
       // Set up a network with one agent
@@ -75,7 +74,7 @@ void main() {
     test('queued messages should NOT appear in chat events', () async {
       // Put agent in processing state so messages will be queued
       mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
       expect(mockClient.currentConversation.isProcessing, isTrue);
 
@@ -138,7 +137,7 @@ void main() {
 
         // Put agent in processing state
         mockClient.setConversationState(
-          claude.ConversationState.receivingResponse,
+          agent_sdk.AgentConversationState.receivingResponse,
         );
 
         // Collect status events

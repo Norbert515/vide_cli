@@ -1,4 +1,5 @@
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart';
+import 'package:claude_sdk/claude_sdk.dart' show McpServerBase;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -52,7 +53,7 @@ final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
       final config = ref.watch(videCoreConfigProvider);
       return AgentNetworkManager(
         workingDirectory: config.workingDirectory,
-        claudeManager: ref.read(claudeManagerProvider.notifier),
+        claudeManager: ref.read(agentClientManagerProvider.notifier),
         persistenceManager: ref.read(agentNetworkPersistenceManagerProvider),
         getTriggerService: () => ref.read(triggerServiceProvider),
         createMcpServer: (agentId, type, projectPath) => ref.read(
@@ -77,7 +78,7 @@ final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
 class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   AgentNetworkManager({
     required this.workingDirectory,
-    required ClaudeManagerStateNotifier claudeManager,
+    required AgentClientManagerStateNotifier claudeManager,
     required AgentNetworkPersistenceManager persistenceManager,
     required TriggerService Function() getTriggerService,
     required McpServerBase Function(AgentId, McpServerType, String) createMcpServer,
@@ -91,7 +92,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
        _getTriggerService = getTriggerService,
        _getStatusNotifier = getStatusNotifier,
        super(AgentNetworkState()) {
-    _clientFactory = ClaudeClientFactoryImpl(
+    _clientFactory = ClaudeAgentClientFactory(
       getWorkingDirectory: () => effectiveWorkingDirectory,
       configManager: configManager,
       getDangerouslySkipPermissions: getDangerouslySkipPermissions,
@@ -136,11 +137,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }
 
   final String workingDirectory;
-  final ClaudeManagerStateNotifier _claudeManager;
+  final AgentClientManagerStateNotifier _claudeManager;
   final AgentNetworkPersistenceManager _persistenceManager;
   final TriggerService Function() _getTriggerService;
   final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
-  late final ClaudeClientFactory _clientFactory;
+  late final AgentClientFactory _clientFactory;
   late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;
   late final AgentConfigResolver _configResolver;
@@ -173,7 +174,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// Determines which agent personalities are used for each role.
   /// Defaults to 'enterprise'.
   Future<AgentNetwork> startNew(
-    Message? initialMessage, {
+    AgentMessage? initialMessage, {
     String? workingDirectory,
     String? permissionMode,
     String team = 'enterprise',
@@ -223,7 +224,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Create client synchronously - initialization happens in background
     // The client queues messages until ready, enabling instant navigation
-    final mainAgentClaudeClient = _clientFactory.createSync(
+    final mainAgentClient = _clientFactory.createSync(
       agentId: mainAgentId,
       config: leadConfig,
       networkId: networkId,
@@ -257,10 +258,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Set state IMMEDIATELY so UI can navigate right away
     state = AgentNetworkState(currentNetwork: network);
 
-    _claudeManager.addAgent(mainAgentId, mainAgentClaudeClient);
+    _claudeManager.addAgent(mainAgentId, mainAgentClient);
 
     // Set up status sync to auto-update agent status when turn completes
-    _statusSyncService.setupStatusSync(mainAgentId, mainAgentClaudeClient);
+    _statusSyncService.setupStatusSync(mainAgentId, mainAgentClient);
 
     // Track analytics
     BashboardService.conversationStarted();
@@ -276,9 +277,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Send the initial message - it will be queued until client is ready
     if (initialMessage != null) {
-      mainAgentClaudeClient.sendMessage(initialMessage);
+      mainAgentClient.sendMessage(initialMessage);
       // Set status to working immediately so the UI shows activity
-      // during CLI startup (before ClaudeStatus.processing arrives)
+      // during CLI startup (before AgentProcessingStatus.processing arrives)
       _getStatusNotifier(mainAgentId).setStatus(AgentStatus.working);
     }
 
@@ -329,7 +330,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Persist in background - UI already has the data
     await _persistenceManager.saveNetwork(updatedNetwork);
 
-    // Recreate ClaudeClients for each agent in the network
+    // Recreate agent clients for each agent in the network
     for (final agentMetadata in updatedNetwork.agents) {
       try {
         final config = await _configResolver.getConfigurationForType(
@@ -505,12 +506,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     return _worktreeService.setWorktreePath(worktreePath);
   }
 
-  void sendMessage(AgentId agentId, Message message) {
+  void sendMessage(AgentId agentId, AgentMessage message) {
     final client = _claudeManager.clients[agentId];
     if (client == null) {
       VideLogger.instance.error(
         'AgentNetworkManager',
-        'No ClaudeClient found for agent: $agentId',
+        'No AgentClient found for agent: $agentId',
         sessionId: state.currentNetwork?.id,
       );
       return;
@@ -549,8 +550,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// Terminate an agent and remove it from the network.
   ///
   /// This will:
-  /// 1. Abort the agent's ClaudeClient
-  /// 2. Remove the agent from the ClaudeManager
+  /// 1. Abort the agent's client
+  /// 2. Remove the agent from the client manager
   /// 3. Remove the agent from the network's agents list
   /// 4. Persist the updated network
   ///
@@ -600,7 +601,7 @@ AGENT MESSAGE DELIVERY — The following message was delivered by the agent syst
 $message''';
 
     // Send the message - fire and forget
-    targetClient.sendMessage(Message.text(contextualMessage));
+    targetClient.sendMessage(AgentMessage.text(contextualMessage));
 
     VideLogger.instance.debug(
       'AgentNetworkManager',

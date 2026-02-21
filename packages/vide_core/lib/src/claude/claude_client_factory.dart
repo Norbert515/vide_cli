@@ -1,3 +1,4 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:claude_sdk/claude_sdk.dart';
 
 import '../logging/vide_logger.dart';
@@ -7,19 +8,19 @@ import '../mcp/mcp_server_type.dart';
 import '../permissions/permission_provider.dart';
 import '../configuration/vide_config_manager.dart';
 
-/// Factory for creating ClaudeClient instances with proper configuration.
+/// Factory for creating AgentClient instances with proper configuration.
 ///
 /// This separates client creation from network orchestration, making
 /// AgentNetworkManager focused on agent lifecycle management.
-abstract class ClaudeClientFactory {
-  /// Creates a ClaudeClient synchronously with background initialization.
+abstract class AgentClientFactory {
+  /// Creates an AgentClient synchronously with background initialization.
   /// The client will be usable immediately but may queue messages until init completes.
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
   /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   /// [workingDirectory] is an optional override for the working directory.
   /// If null, uses the session's effective working directory.
-  ClaudeClient createSync({
+  AgentClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
@@ -27,13 +28,13 @@ abstract class ClaudeClientFactory {
     String? workingDirectory,
   });
 
-  /// Creates a ClaudeClient asynchronously, waiting for full initialization.
+  /// Creates an AgentClient asynchronously, waiting for full initialization.
   ///
   /// [networkId] is the ID of the agent network (session ID in REST API).
   /// [agentType] is the type of agent (e.g., 'main', 'implementation').
   /// [workingDirectory] is an optional override for the working directory.
   /// If null, uses the session's effective working directory.
-  Future<ClaudeClient> create({
+  Future<AgentClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
@@ -41,7 +42,7 @@ abstract class ClaudeClientFactory {
     String? workingDirectory,
   });
 
-  /// Creates a ClaudeClient by forking an existing session.
+  /// Creates an AgentClient by forking an existing session.
   ///
   /// Uses Claude Code's native --fork-session capability to branch the conversation.
   /// The new client will have the full conversation history from the source session.
@@ -51,29 +52,32 @@ abstract class ClaudeClientFactory {
   /// [networkId] - The ID of the agent network
   /// [agentType] - The type of agent (e.g., 'main', 'implementation')
   /// [resumeSessionId] - The session ID to fork from
-  /// [sourceConversation] - The conversation from the source agent (for immediate UI display)
+  /// [sourceConversation] - The conversation from the source agent (for immediate UI display).
   /// [workingDirectory] - Optional override for the working directory.
   /// If null, uses the session's effective working directory.
-  Future<ClaudeClient> createForked({
+  Future<AgentClient> createForked({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
     required String resumeSessionId,
-    Conversation? sourceConversation,
+    AgentConversation? sourceConversation,
     String? workingDirectory,
   });
 }
 
-/// Default implementation of ClaudeClientFactory.
-class ClaudeClientFactoryImpl implements ClaudeClientFactory {
+/// Claude-specific implementation of AgentClientFactory.
+///
+/// Creates ClaudeClient instances internally and wraps them in
+/// ClaudeAgentClient to expose the AgentClient interface.
+class ClaudeAgentClientFactory implements AgentClientFactory {
   final String Function() _getWorkingDirectory;
   final VideConfigManager _configManager;
   final bool Function() _getDangerouslySkipPermissions;
   final McpServerBase Function(AgentId agentId, McpServerType type, String projectPath) _createMcpServer;
   final PermissionHandler? _permissionHandler;
 
-  ClaudeClientFactoryImpl({
+  ClaudeAgentClientFactory({
     required String Function() getWorkingDirectory,
     required VideConfigManager configManager,
     required bool Function() getDangerouslySkipPermissions,
@@ -102,7 +106,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   }
 
   @override
-  ClaudeClient createSync({
+  AgentClient createSync({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
@@ -111,7 +115,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   }) {
     final cwd = workingDirectory ?? _getWorkingDirectory();
     VideLogger.instance.info(
-      'ClaudeClientFactory',
+      'AgentClientFactory',
       'createSync: agent=$agentId type=$agentType cwd=$cwd '
       'permissionHandler=${_permissionHandler != null}',
       sessionId: networkId,
@@ -139,17 +143,17 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       permissionMode: config.permissionMode,
     );
 
-    final client = ClaudeClient.createNonBlocking(
+    final claudeClient = ClaudeClient.createNonBlocking(
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
     );
 
-    return client;
+    return ClaudeAgentClient(claudeClient);
   }
 
   @override
-  Future<ClaudeClient> create({
+  Future<AgentClient> create({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
@@ -158,7 +162,7 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
   }) async {
     final cwd = workingDirectory ?? _getWorkingDirectory();
     VideLogger.instance.info(
-      'ClaudeClientFactory',
+      'AgentClientFactory',
       'create (async): agent=$agentId type=$agentType cwd=$cwd',
       sessionId: networkId,
     );
@@ -185,28 +189,28 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       permissionMode: config.permissionMode,
     );
 
-    final client = await ClaudeClient.create(
+    final claudeClient = await ClaudeClient.create(
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
     );
 
-    return client;
+    return ClaudeAgentClient(claudeClient);
   }
 
   @override
-  Future<ClaudeClient> createForked({
+  Future<AgentClient> createForked({
     required AgentId agentId,
     required AgentConfiguration config,
     String? networkId,
     String? agentType,
     required String resumeSessionId,
-    Conversation? sourceConversation,
+    AgentConversation? sourceConversation,
     String? workingDirectory,
   }) async {
     final cwd = workingDirectory ?? _getWorkingDirectory();
     VideLogger.instance.info(
-      'ClaudeClientFactory',
+      'AgentClientFactory',
       'createForked: agent=$agentId type=$agentType '
       'forkFrom=$resumeSessionId cwd=$cwd',
       sessionId: networkId,
@@ -244,19 +248,22 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
 
     // Use createNonBlocking to avoid hanging on init
     // Pass sourceConversation so the forked agent shows the same history immediately
-    final client = ClaudeClient.createNonBlocking(
+    final claudeClient = ClaudeClient.createNonBlocking(
       config: claudeConfig,
       mcpServers: mcpServers,
       canUseTool: canUseTool,
-      initialConversation: sourceConversation,
+      initialConversation: sourceConversation != null
+          ? AgentConversationMapper.toClaude(sourceConversation)
+          : null,
     );
 
-    return client;
+    return ClaudeAgentClient(claudeClient);
   }
 
   /// Creates a permission callback for the given agent context.
   ///
-  /// Uses the PermissionHandler for late session binding if available.
+  /// Gets an [AgentCanUseToolCallback] from the [PermissionHandler] and
+  /// bridges it to the claude_sdk [CanUseToolCallback] type.
   CanUseToolCallback? _createPermissionCallback({
     required String cwd,
     required AgentId agentId,
@@ -270,12 +277,19 @@ class ClaudeClientFactoryImpl implements ClaudeClientFactory {
       return null;
     }
 
-    return handler.createCallback(
+    final agentCallback = handler.createCallback(
       cwd: cwd,
       agentId: agentId,
       agentName: agentName,
       agentType: agentType,
       permissionMode: permissionMode,
     );
+
+    // Bridge from AgentCanUseToolCallback to claude_sdk CanUseToolCallback
+    return (String toolName, Map<String, dynamic> input, ToolPermissionContext context) async {
+      final agentContext = AgentPermissionContextMapper.fromClaude(context);
+      final agentResult = await agentCallback(toolName, input, agentContext);
+      return AgentPermissionMapper.toClaude(agentResult);
+    };
   }
 }

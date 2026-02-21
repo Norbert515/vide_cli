@@ -3,20 +3,18 @@ import 'dart:io';
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_core/src/agent_network/agent_network_manager.dart';
-import 'package:vide_core/src/claude/claude_manager.dart';
-
-import 'mock_claude_client.dart';
+import 'mock_agent_client.dart';
 import 'mock_vide_config_manager.dart';
 
 /// Standard test harness for LocalVideSession tests.
 ///
 /// Provides a fully wired session with a single main agent backed by
-/// a [MockClaudeClient]. Call [dispose] in tearDown.
+/// a [MockAgentClient]. Call [dispose] in tearDown.
 class SessionTestHarness {
   late Directory tempDir;
   late MockVideConfigManager configManager;
   late ProviderContainer container;
-  late MockClaudeClient mockClient;
+  late MockAgentClient mockClient;
   late LocalVideSession session;
 
   final String agentId;
@@ -43,9 +41,9 @@ class SessionTestHarness {
       ],
     );
 
-    mockClient = MockClaudeClient(sessionId: agentId);
+    mockClient = MockAgentClient(sessionId: agentId);
     container
-        .read(claudeManagerProvider.notifier)
+        .read(agentClientManagerProvider.notifier)
         .addAgent(agentId, mockClient);
 
     final manager = container.read(agentNetworkManagerProvider.notifier);
@@ -71,15 +69,15 @@ class SessionTestHarness {
     );
   }
 
-  /// Add a second agent to the network with its own MockClaudeClient.
-  MockClaudeClient addAgent({
+  /// Add a second agent to the network with its own MockAgentClient.
+  MockAgentClient addAgent({
     required String id,
     String name = 'Sub Agent',
     String type = 'implementation',
     String? spawnedBy,
   }) {
-    final client = MockClaudeClient(sessionId: id);
-    container.read(claudeManagerProvider.notifier).addAgent(id, client);
+    final client = MockAgentClient(sessionId: id);
+    container.read(agentClientManagerProvider.notifier).addAgent(id, client);
 
     final manager = container.read(agentNetworkManagerProvider.notifier);
     final network = manager.state.currentNetwork!;

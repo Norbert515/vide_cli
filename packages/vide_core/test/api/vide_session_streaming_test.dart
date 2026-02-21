@@ -5,7 +5,7 @@
 /// and emit proper turn-complete events.
 library;
 
-import 'package:claude_sdk/claude_sdk.dart' as claude;
+import 'package:agent_sdk/agent_sdk.dart' as agent_sdk;
 import 'package:test/test.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_core/src/agent_network/agent_network_manager.dart';
@@ -204,7 +204,7 @@ void main() {
       () async {
         final events = h.collectEvents();
 
-        // When sendMessage is called, MockClaudeClient adds a user message
+        // When sendMessage is called, MockAgentClient adds a user message
         // to the conversation and notifies. The session should detect it.
         h.session.sendMessage(VideMessage(text: 'From user'));
         await Future<void>.delayed(Duration.zero);
@@ -353,7 +353,7 @@ void main() {
 
     test('clearQueuedMessage clears queued text', () async {
       h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
       h.session.sendMessage(VideMessage(text: 'queued'));
       await Future<void>.delayed(Duration.zero);
@@ -369,7 +369,7 @@ void main() {
       h.session.queuedMessageStream(h.agentId).listen(messages.add);
 
       h.mockClient.setConversationState(
-        claude.ConversationState.receivingResponse,
+        agent_sdk.AgentConversationState.receivingResponse,
       );
 
       // Queue a message

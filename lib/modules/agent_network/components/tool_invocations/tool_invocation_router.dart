@@ -1,7 +1,7 @@
 import 'dart:convert';
 
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
 import 'package:vide_cli/theme/theme.dart';
 import 'terminal_output_renderer.dart';
@@ -16,7 +16,7 @@ import 'default_renderer.dart';
 /// - Write/Edit/MultiEdit (successful) → DiffRenderer
 /// - All other tools → DefaultRenderer
 class ToolInvocationRouter extends StatelessComponent {
-  final ToolInvocation invocation;
+  final AgentToolInvocation invocation;
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -105,9 +105,9 @@ class ToolInvocationRouter extends StatelessComponent {
 
     // Hide the Write tool when it writes to Claude's plans directory
     // (the plan content is shown in the PlanApprovalDialog instead)
-    if (invocation.toolName == 'Write') {
-      final filePath = invocation.parameters['file_path'] as String?;
-      if (filePath != null && filePath.contains('.claude/plans/')) {
+    final inv = invocation;
+    if (inv is AgentWriteToolInvocation) {
+      if (inv.filePath.contains('.claude/plans/')) {
         return true;
       }
     }

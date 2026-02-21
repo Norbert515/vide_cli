@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_interface/vide_interface.dart';
 
@@ -17,7 +17,7 @@ import '../configuration/vide_core_config.dart';
 /// Example:
 /// ```dart
 /// final handler = PermissionHandler();
-/// // ... create network with ClaudeClient using handler.createCallback()
+/// // ... create network with AgentClient using handler.createCallback()
 /// final session = VideSession.create(...);
 /// handler.setSession(session);  // Register this session's agents
 /// ```
@@ -95,7 +95,7 @@ class PermissionHandler {
   /// The callback uses late binding - when invoked, it resolves the session by
   /// [agentId] from sessions previously registered via [setSession].
   /// If no matching session is found, auto-allows.
-  CanUseToolCallback createCallback({
+  AgentCanUseToolCallback createCallback({
     required String cwd,
     required AgentId agentId,
     required String? agentName,
@@ -115,13 +115,13 @@ class PermissionHandler {
           '(agentId: $agentIdValue)',
         );
         // Auto-allow as fallback (production safety)
-        return const PermissionResultAllow();
+        return const AgentPermissionAllow();
       }
 
-      // For LocalVideSession, use the internal claude_sdk permission callback
+      // For LocalVideSession, use the agent_sdk permission callback
       // directly to avoid unnecessary conversions.
       if (session is LocalVideSession) {
-        final callback = session.createClaudePermissionCallback(
+        final callback = session.createAgentPermissionCallback(
           agentId: agentIdValue,
           agentName: agentName,
           agentType: agentType,
@@ -145,10 +145,10 @@ class PermissionHandler {
         VidePermissionContext(),
       );
       return switch (videResult) {
-        VidePermissionAllow(:final updatedInput) => PermissionResultAllow(
+        VidePermissionAllow(:final updatedInput) => AgentPermissionAllow(
           updatedInput: updatedInput,
         ),
-        VidePermissionDeny(:final message) => PermissionResultDeny(
+        VidePermissionDeny(:final message) => AgentPermissionDeny(
           message: message,
         ),
       };

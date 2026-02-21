@@ -1,20 +1,11 @@
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
-import 'package:vide_core/src/claude/claude_manager.dart';
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:vide_core/vide_core.dart';
 
-/// A minimal mock ClaudeClient for testing
-class MockClaudeClient implements ClaudeClient {
-  final String testId;
-
-  MockClaudeClient(this.testId);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
+import '../helpers/mock_agent_client.dart';
 
 void main() {
-  group('ClaudeManagerStateNotifier', () {
+  group('AgentClientManagerStateNotifier', () {
     late ProviderContainer container;
 
     setUp(() {
@@ -26,89 +17,89 @@ void main() {
     });
 
     test('initial state is empty map', () {
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
 
       expect(clients, isEmpty);
     });
 
     test('addAgent adds client to map', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client = MockClaudeClient('test-1');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client = MockAgentClient(sessionId: 'test-1');
 
       notifier.addAgent('agent-1', client);
 
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
       expect(clients['agent-1'], client);
     });
 
     test('addAgent can add multiple clients', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client1 = MockClaudeClient('test-1');
-      final client2 = MockClaudeClient('test-2');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client1 = MockAgentClient(sessionId: 'test-1');
+      final client2 = MockAgentClient(sessionId: 'test-2');
 
       notifier.addAgent('agent-1', client1);
       notifier.addAgent('agent-2', client2);
 
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
       expect(clients.length, 2);
       expect(clients['agent-1'], client1);
       expect(clients['agent-2'], client2);
     });
 
     test('addAgent replaces existing client for same agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client1 = MockClaudeClient('original');
-      final client2 = MockClaudeClient('replacement');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client1 = MockAgentClient(sessionId: 'original');
+      final client2 = MockAgentClient(sessionId: 'replacement');
 
       notifier.addAgent('agent-1', client1);
       notifier.addAgent('agent-1', client2);
 
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
       expect(clients['agent-1'], client2);
       expect(clients.length, 1);
     });
 
     test('removeAgent removes client from map', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client = MockClaudeClient('test-1');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client = MockAgentClient(sessionId: 'test-1');
 
       notifier.addAgent('agent-1', client);
       notifier.removeAgent('agent-1');
 
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
       expect(clients['agent-1'], isNull);
       expect(clients, isEmpty);
     });
 
     test('removeAgent is safe for non-existent agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
+      final notifier = container.read(agentClientManagerProvider.notifier);
 
       // Should not throw
       notifier.removeAgent('non-existent');
 
-      final clients = container.read(claudeManagerProvider);
+      final clients = container.read(agentClientManagerProvider);
       expect(clients, isEmpty);
     });
 
     test('notifies listeners on add', () {
       var notificationCount = 0;
 
-      container.listen(claudeManagerProvider, (previous, next) {
+      container.listen(agentClientManagerProvider, (previous, next) {
         notificationCount++;
       });
 
-      final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      notifier.addAgent('agent-1', MockAgentClient(sessionId: 'test'));
 
       expect(notificationCount, 1);
     });
 
     test('notifies listeners on remove', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      notifier.addAgent('agent-1', MockClaudeClient('test'));
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      notifier.addAgent('agent-1', MockAgentClient(sessionId: 'test'));
 
       var notificationCount = 0;
-      container.listen(claudeManagerProvider, (previous, next) {
+      container.listen(agentClientManagerProvider, (previous, next) {
         notificationCount++;
       });
 
@@ -118,7 +109,7 @@ void main() {
     });
   });
 
-  group('claudeProvider', () {
+  group('agentClientProvider', () {
     late ProviderContainer container;
 
     setUp(() {
@@ -130,45 +121,45 @@ void main() {
     });
 
     test('returns client for agent', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client = MockClaudeClient('test');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client = MockAgentClient(sessionId: 'test');
       notifier.addAgent('agent-1', client);
 
-      final retrieved = container.read(claudeProvider('agent-1'));
+      final retrieved = container.read(agentClientProvider('agent-1'));
 
       expect(retrieved, client);
     });
 
     test('returns null for non-existent agent', () {
-      final retrieved = container.read(claudeProvider('non-existent'));
+      final retrieved = container.read(agentClientProvider('non-existent'));
 
       expect(retrieved, isNull);
     });
 
     test('reflects client when added', () {
       // Initially null
-      expect(container.read(claudeProvider('agent-1')), isNull);
+      expect(container.read(agentClientProvider('agent-1')), isNull);
 
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client = MockClaudeClient('test');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client = MockAgentClient(sessionId: 'test');
       notifier.addAgent('agent-1', client);
 
       // Now should return the client
-      expect(container.read(claudeProvider('agent-1')), same(client));
+      expect(container.read(agentClientProvider('agent-1')), same(client));
     });
 
     test('reflects removal when client is removed', () {
-      final notifier = container.read(claudeManagerProvider.notifier);
-      final client = MockClaudeClient('test');
+      final notifier = container.read(agentClientManagerProvider.notifier);
+      final client = MockAgentClient(sessionId: 'test');
       notifier.addAgent('agent-1', client);
 
       // Verify client is present
-      expect(container.read(claudeProvider('agent-1')), same(client));
+      expect(container.read(agentClientProvider('agent-1')), same(client));
 
       notifier.removeAgent('agent-1');
 
       // Now should be null
-      expect(container.read(claudeProvider('agent-1')), isNull);
+      expect(container.read(agentClientProvider('agent-1')), isNull);
     });
   });
 }

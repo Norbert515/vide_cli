@@ -32,6 +32,7 @@ dependencies:
       url: https://github.com/Norbert515/nocterm.git
       ref: v0.5.1
       path: packages/nocterm_riverpod
+  agent_sdk: any
   args: ^2.4.0
   claude_sdk: any
   flutter_runtime_mcp: any
