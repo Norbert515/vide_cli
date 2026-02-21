@@ -105,14 +105,23 @@ class MessageBubble extends StatelessComponent {
 
     void flushToolGroup() {
       if (pendingTools.isEmpty) return;
+      // Add spacing between preceding text and this tool group
+      if (widgets.isNotEmpty) {
+        widgets.add(SizedBox(height: 1));
+      }
       widgets.addAll(pendingTools);
       pendingTools.clear();
     }
 
     for (final content in entry.content) {
       if (content is TextContent) {
+        final hadTools = pendingTools.isNotEmpty;
         flushToolGroup();
         if (content.text.isNotEmpty) {
+          // Add spacing between preceding tools and this text
+          if (hadTools && widgets.isNotEmpty) {
+            widgets.add(SizedBox(height: 1));
+          }
           final isContextFullError =
               content.text.toLowerCase().contains('prompt is too long') ||
               content.text.toLowerCase().contains('context window') ||
