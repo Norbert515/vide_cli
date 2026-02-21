@@ -18,7 +18,7 @@ import 'git_view.dart';
 import 'screenshot_canvas.dart';
 
 /// The top-level tabs.
-enum _VideTab { agent, app, tools, project }
+enum _VideTab { agent, app, tools, project, setup }
 
 /// Embeds your Flutter app inside the Vide dev environment.
 ///
@@ -162,11 +162,6 @@ class _VideInAppState extends State<VideInApp> {
       child: ListenableBuilder(
         listenable: _sdkState,
         builder: (context, _) {
-          if (!_sdkState.isConfigured) {
-            return _MaterialShell(
-              child: _SetupScreen(sdkState: _sdkState),
-            );
-          }
           return _buildTabLayout(context);
         },
       ),
@@ -174,6 +169,26 @@ class _VideInAppState extends State<VideInApp> {
   }
 
   Widget _buildTabLayout(BuildContext context) {
+    // Auto-switch to Setup tab when not configured and on a tab that needs it.
+    if (!_sdkState.isConfigured &&
+        _selectedTab != _VideTab.app &&
+        _selectedTab != _VideTab.setup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_sdkState.isConfigured) {
+          setState(() => _selectedTab = _VideTab.setup);
+        }
+      });
+    }
+
+    // Auto-switch away from Setup tab once configured.
+    if (_sdkState.isConfigured && _selectedTab == _VideTab.setup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _sdkState.isConfigured) {
+          setState(() => _selectedTab = _VideTab.agent);
+        }
+      });
+    }
+
     // Auto-switch to Agent tab when there are pending permissions/approvals
     // so the user sees them (sheets are shown inside the Agent tab's Navigator).
     final hasPendingInteraction = _sdkState.currentPermission != null ||
@@ -228,6 +243,10 @@ class _VideInAppState extends State<VideInApp> {
                 Offstage(
                   offstage: _selectedTab != _VideTab.project,
                   child: _ProjectView(sdkState: _sdkState),
+                ),
+                Offstage(
+                  offstage: _selectedTab != _VideTab.setup,
+                  child: _SetupScreen(sdkState: _sdkState),
                 ),
 
                 // Screenshot overlay
@@ -320,6 +339,14 @@ class _VideTabBar extends StatelessWidget {
               onTap: () => onTabSelected(_VideTab.project),
               videColors: videColors,
             ),
+            if (!sdkState.isConfigured)
+              _TabItem(
+                label: 'Setup',
+                icon: Icons.settings_outlined,
+                isSelected: selectedTab == _VideTab.setup,
+                onTap: () => onTabSelected(_VideTab.setup),
+                videColors: videColors,
+              ),
           ],
         ),
       ),
@@ -982,128 +1009,105 @@ class _SetupScreenState extends State<_SetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.code,
-                        size: 48,
-                        color: Theme.of(context).colorScheme.primary,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Text(
+                  'Connect to your Vide server',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Vide',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Connect to your Vide server to get started.',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Host
+              Text('Host', style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _hostController,
+                decoration: InputDecoration(
+                  hintText: 'localhost',
+                  prefixIcon: const Icon(Icons.computer_outlined, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  isDense: true,
                 ),
-                const SizedBox(height: 36),
-
-                // Host
-                Text('Host', style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _hostController,
-                  decoration: InputDecoration(
-                    hintText: 'localhost',
-                    prefixIcon: const Icon(Icons.computer_outlined, size: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    isDense: true,
+                keyboardType: TextInputType.url,
+                textInputAction: TextInputAction.next,
+                onChanged: (_) => _clearResult(),
+              ),
+              const SizedBox(height: 16),
+              // Port
+              Text('Port', style: Theme.of(context).textTheme.labelMedium),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _portController,
+                decoration: InputDecoration(
+                  hintText: '8080',
+                  prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  keyboardType: TextInputType.url,
-                  textInputAction: TextInputAction.next,
-                  onChanged: (_) => _clearResult(),
+                  isDense: true,
                 ),
-                const SizedBox(height: 16),
-
-                // Port
-                Text('Port', style: Theme.of(context).textTheme.labelMedium),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _portController,
-                  decoration: InputDecoration(
-                    hintText: '8080',
-                    prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    isDense: true,
-                  ),
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.next,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(5),
-                  ],
-                  onChanged: (_) => _clearResult(),
-                ),
-                const SizedBox(height: 16),
-
-                // Working directory
-                Text(
-                  'Working Directory',
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                const SizedBox(height: 4),
-                TextField(
-                  controller: _workingDirController,
-                  decoration: InputDecoration(
-                    hintText: '/path/to/your/project',
-                    prefixIcon: const Icon(Icons.folder_outlined, size: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    isDense: true,
-                  ),
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _testAndSave(),
-                ),
-                const SizedBox(height: 24),
-
-                if (_testResult != null) ...[
-                  _buildResultChip(context),
-                  const SizedBox(height: 16),
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(5),
                 ],
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: _testing ? null : _testAndSave,
-                    icon: _testing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.link),
-                    label: Text(_testing ? 'Testing...' : 'Test & Connect'),
+                onChanged: (_) => _clearResult(),
+              ),
+              const SizedBox(height: 16),
+              // Working directory
+              Text(
+                'Working Directory',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 4),
+              TextField(
+                controller: _workingDirController,
+                decoration: InputDecoration(
+                  hintText: '/path/to/your/project',
+                  prefixIcon: const Icon(Icons.folder_outlined, size: 20),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  isDense: true,
                 ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _testAndSave(),
+              ),
+              const SizedBox(height: 24),
+              if (_testResult != null) ...[
+                _buildResultChip(context),
+                const SizedBox(height: 16),
               ],
-            ),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: FilledButton.icon(
+                  onPressed: _testing ? null : _testAndSave,
+                  icon: _testing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.link),
+                  label: Text(_testing ? 'Testing...' : 'Test & Connect'),
+                ),
+              ),
+            ],
           ),
         ),
       ),
