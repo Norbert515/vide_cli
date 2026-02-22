@@ -666,22 +666,19 @@ class _AgentChatState extends State<_AgentChat> {
 
           // Grouped tool-only entries: render all together without borders
           if (item is List<ConversationEntry>) {
-            return Padding(
-              padding: EdgeInsets.symmetric(vertical: 1),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final entry in item)
-                    MessageBubble(
-                      key: ValueKey(entry.hashCode),
-                      entry: entry,
-                      networkId: component.networkId,
-                      agentId: component.agentId,
-                      workingDirectory: workingDir,
-                      sentAttachments: _sentAttachments,
-                    ),
-                ],
-              ),
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final entry in item)
+                  MessageBubble(
+                    key: ValueKey(entry.hashCode),
+                    entry: entry,
+                    networkId: component.networkId,
+                    agentId: component.agentId,
+                    workingDirectory: workingDir,
+                    sentAttachments: _sentAttachments,
+                  ),
+              ],
             );
           }
 
