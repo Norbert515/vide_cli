@@ -295,48 +295,12 @@ class _VideScaffoldState extends State<VideScaffold> {
     bool gitSidebarFocused,
     bool hasRightSidebar,
   ) {
-    final primary = theme.base.primary;
-    final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
-    final chatFocused = !sidebarFocused && !gitSidebarFocused;
-    final model = context.watch(currentModelProvider);
-
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Row(
         children: [
-          if (model != null) ...[
-            Text(
-              ContextUsageSection.formatModelName(model),
-              style: TextStyle(color: dimmer),
-            ),
-            Text('  ', style: TextStyle(color: dimmer)),
-          ],
-          Text(
-            '\u2190 agents',
-            style: TextStyle(
-              color: sidebarFocused ? primary : dimmer,
-              fontWeight: sidebarFocused ? FontWeight.bold : null,
-            ),
-          ),
           Expanded(child: SizedBox()),
-          Text(
-            'chat',
-            style: TextStyle(
-              color: chatFocused ? primary : dimmer,
-              fontWeight: chatFocused ? FontWeight.bold : null,
-            ),
-          ),
-          Expanded(child: SizedBox()),
-          if (hasRightSidebar)
-            Text(
-              'git \u2192',
-              style: TextStyle(
-                color: gitSidebarFocused ? primary : dimmer,
-                fontWeight: gitSidebarFocused ? FontWeight.bold : null,
-              ),
-            )
-          else
-            VersionIndicator(),
+          VersionIndicator(),
         ],
       ),
     );
@@ -352,6 +316,7 @@ class _VideScaffoldState extends State<VideScaffold> {
     final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
+    final model = context.watch(currentModelProvider);
     return Container(
       decoration: BoxDecoration(
         border: BoxBorder(bottom: BorderSide(color: theme.base.outlineVariant)),
@@ -363,6 +328,13 @@ class _VideScaffoldState extends State<VideScaffold> {
             'VIDE',
             style: TextStyle(color: primary, fontWeight: FontWeight.bold),
           ),
+          if (model != null) ...[
+            Text(' ', style: TextStyle(color: dimmer)),
+            Text(
+              ContextUsageSection.formatModelName(model),
+              style: TextStyle(color: dimmer),
+            ),
+          ],
           Text(' \u2502 ', style: TextStyle(color: dimmer)),
           Expanded(
             child: Text(
