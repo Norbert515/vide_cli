@@ -4,6 +4,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart' show GitService;
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/syntax_highlighter.dart';
+import 'package:vide_cli/components/scrollbar_with_markers.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
 /// Component that displays a file preview with syntax highlighting.
@@ -350,11 +351,12 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         Expanded(
           child: SelectionArea(
             onSelectionCompleted: ClipboardManager.copy,
-            child: Scrollbar(
+            child: ScrollbarWithMarkers(
               controller: _scrollController,
               thumbVisibility: true,
               thumbColor: theme.base.primary,
               trackColor: theme.base.surface,
+              markers: _buildScrollbarMarkers(lines.length, theme),
               child: ListView(
                 lazy: false,
                 controller: _scrollController,
@@ -373,6 +375,25 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         ),
       ],
     );
+  }
+
+  /// Converts [_lineChanges] into [ScrollbarMarker]s for the scrollbar.
+  List<ScrollbarMarker> _buildScrollbarMarkers(
+    int totalLines,
+    VideThemeData theme,
+  ) {
+    return _lineChanges.entries.map((entry) {
+      final color = switch (entry.value) {
+        _LineChangeType.added => theme.base.success,
+        _LineChangeType.modified => theme.base.warning,
+        _LineChangeType.unchanged => theme.base.onSurface,
+      };
+      return ScrollbarMarker(
+        position: entry.key - 1, // convert from 1-indexed to 0-indexed
+        totalPositions: totalLines,
+        color: color,
+      );
+    }).toList();
   }
 
   /// Builds the gutter column for a line (change indicator + line number).
