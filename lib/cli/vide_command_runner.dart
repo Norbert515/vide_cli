@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
+import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'package:vide_cli/cli/connect_command.dart';
 import 'package:vide_cli/cli/daemon_command.dart';
 import 'package:vide_cli/cli/session_server_command.dart';
@@ -32,7 +33,12 @@ class VideCommandRunner extends CommandRunner<void> {
         negatable: false,
         help: 'Force local session mode (ignore daemon setting)',
       )
-      ..addFlag('daemon', negatable: false, help: 'Force daemon session mode');
+      ..addFlag('daemon', negatable: false, help: 'Force daemon session mode')
+      ..addFlag(
+        'flutter-mcp',
+        negatable: false,
+        help: 'Run as a standalone Flutter MCP server (stdio mode)',
+      );
 
     addCommand(DaemonCommand());
     addCommand(ConnectCommand());
@@ -44,6 +50,7 @@ class VideCommandRunner extends CommandRunner<void> {
 
 EXAMPLES:
     vide                                   Launch interactive TUI
+    vide --flutter-mcp                     Run Flutter MCP server (stdio)
     vide daemon start                      Start daemon on port 8080
     vide daemon start --port 9000          Start daemon on port 9000
     vide daemon start --detach             Start daemon in background
@@ -68,6 +75,11 @@ SAFETY:
   Future<void> runCommand(ArgResults topLevelResults) async {
     if (topLevelResults['version'] as bool) {
       print('vide $videVersion');
+      return;
+    }
+
+    if (topLevelResults['flutter-mcp'] as bool) {
+      await FlutterRuntimeServer().startStdio();
       return;
     }
 
