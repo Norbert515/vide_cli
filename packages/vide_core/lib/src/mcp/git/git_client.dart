@@ -29,6 +29,7 @@ class GitClient {
       'status',
       '--porcelain=v1',
       '--branch',
+      '-u',
     ]);
     return _parseGitStatus(output, workingDirectory ?? Directory.current.path);
   }
@@ -513,11 +514,7 @@ class GitClient {
         if (status[1] == 'M') {
           modified.add(file);
         } else if (status == '??') {
-          // Don't expand directories - just show the directory name
-          // Expanding with listSync is expensive and blocks the UI
-          untracked.add(
-            file.endsWith('/') ? file.substring(0, file.length - 1) : file,
-          );
+          untracked.add(file);
         }
       }
     }

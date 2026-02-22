@@ -87,6 +87,24 @@ void main() {
         expect(status.untrackedFiles, contains('new_file.txt'));
       });
 
+      test('detects individual files inside untracked directories', () async {
+        final subDir = Directory('${tempDir.path}/new_folder');
+        await subDir.create();
+        await File('${subDir.path}/file_a.txt').writeAsString('a');
+        await File('${subDir.path}/file_b.txt').writeAsString('b');
+
+        final status = await gitClient.status();
+
+        expect(status.hasChanges, isTrue);
+        expect(
+          status.untrackedFiles,
+          containsAll(['new_folder/file_a.txt', 'new_folder/file_b.txt']),
+        );
+        // Should NOT contain the directory itself
+        expect(status.untrackedFiles, isNot(contains('new_folder')));
+        expect(status.untrackedFiles, isNot(contains('new_folder/')));
+      });
+
       test('detects modified files', () async {
         if (!commitWorks) {
           markTestSkipped('Git commit not available in this environment');
