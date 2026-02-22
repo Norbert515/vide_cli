@@ -438,6 +438,12 @@ class _AgentChatState extends State<_AgentChat> {
       showSettingsDialog: () async {
         await SettingsPopup.show(context);
       },
+      showSessionLogs: () {
+        final sessionId = session?.id;
+        if (sessionId == null) return;
+        final logPath = VideLogger.instance.sessionLogPath(sessionId);
+        context.read(filePreviewPathProvider.notifier).state = logPath;
+      },
     );
 
     final result = await dispatcher.dispatch(commandInput, commandContext);

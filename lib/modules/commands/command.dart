@@ -39,6 +39,7 @@ class CommandContext {
     this.isLastAgent = false,
     this.showGitPopup,
     this.showSettingsDialog,
+    this.showSessionLogs,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -89,6 +90,10 @@ class CommandContext {
   /// Returns a Future that completes when the dialog is closed.
   /// Used by /settings command.
   final Future<void> Function()? showSettingsDialog;
+
+  /// Callback to open the current session's log file in the file viewer.
+  /// Used by /logs command.
+  final void Function()? showSessionLogs;
 }
 
 /// Base interface for all slash commands.
