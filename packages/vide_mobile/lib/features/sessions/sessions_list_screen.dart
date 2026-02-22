@@ -393,9 +393,8 @@ class _SessionCard extends ConsumerWidget {
                       remoteSession?.state.goal ??
                           'Session ${session.sessionId.substring(0, 8)}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: hasUnseen
-                                ? FontWeight.w700
-                                : FontWeight.w600,
+                            fontWeight:
+                                hasUnseen ? FontWeight.w700 : FontWeight.w600,
                           ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -487,8 +486,7 @@ class _SessionCard extends ConsumerWidget {
                     final connectedCount = ref
                         .watch(serverRegistryProvider)
                         .values
-                        .where(
-                            (s) => s.status == ServerHealthStatus.connected)
+                        .where((s) => s.status == ServerHealthStatus.connected)
                         .length;
                     if (connectedCount <= 1) return const SizedBox.shrink();
 

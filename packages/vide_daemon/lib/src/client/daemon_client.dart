@@ -25,9 +25,7 @@ class DaemonClient {
   String get _baseUrl => 'http://$host:$port';
   String get _wsUrl => 'ws://$host:$port';
 
-  Map<String, String> get _headers => {
-    'Content-Type': 'application/json',
-  };
+  Map<String, String> get _headers => {'Content-Type': 'application/json'};
 
   /// Check if the daemon is running and healthy.
   Future<bool> isHealthy() async {

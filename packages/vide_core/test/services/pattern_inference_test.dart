@@ -212,9 +212,7 @@ void main() {
       test('skips cd and sleep together', () {
         final result = PatternInference.inferPattern(
           'Bash',
-          BashToolInput(
-            command: 'cd /project && sleep 2 && dart pub get',
-          ),
+          BashToolInput(command: 'cd /project && sleep 2 && dart pub get'),
         );
         expect(result, equals('Bash(dart pub get *)'));
       });

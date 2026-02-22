@@ -13,12 +13,7 @@ class SectionHeader extends StatelessComponent {
 
     return Row(
       children: [
-        Text(
-          '─── ',
-          style: TextStyle(
-            color: theme.base.outlineVariant,
-          ),
-        ),
+        Text('─── ', style: TextStyle(color: theme.base.outlineVariant)),
         Text(
           title,
           style: TextStyle(
@@ -29,9 +24,7 @@ class SectionHeader extends StatelessComponent {
         Expanded(
           child: Text(
             ' ─────────────────────────────────────────',
-            style: TextStyle(
-              color: theme.base.outlineVariant,
-            ),
+            style: TextStyle(color: theme.base.outlineVariant),
             overflow: TextOverflow.clip,
           ),
         ),

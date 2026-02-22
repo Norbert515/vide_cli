@@ -12,6 +12,9 @@ enum AgentProcessingStatus {
   /// Agent is generating output.
   responding,
 
+  /// Agent is compacting the conversation context.
+  compacting,
+
   /// Agent finished the current operation.
   completed,
 

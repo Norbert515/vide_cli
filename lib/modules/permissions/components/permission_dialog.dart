@@ -187,7 +187,10 @@ class _PermissionDialogState extends State<PermissionDialog> {
             // Title
             Text(
               'Permission Request',
-              style: TextStyle(color: theme.base.outline, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: theme.base.outline,
+                fontWeight: FontWeight.bold,
+              ),
             ),
 
             // Agent name (if aggregated)
@@ -231,7 +234,11 @@ class _PermissionDialogState extends State<PermissionDialog> {
     );
   }
 
-  Component _buildListItem(int index, _PermissionOption option, VideThemeData theme) {
+  Component _buildListItem(
+    int index,
+    _PermissionOption option,
+    VideThemeData theme,
+  ) {
     final isSelected = index == _selectedIndex;
     final color = option.granted ? theme.base.success : theme.base.error;
     final isDenyOption = !option.granted;

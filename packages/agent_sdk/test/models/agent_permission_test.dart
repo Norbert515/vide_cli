@@ -10,9 +10,7 @@ void main() {
     });
 
     test('constructs with updatedInput', () {
-      const result = AgentPermissionAllow(
-        updatedInput: {'key': 'value'},
-      );
+      const result = AgentPermissionAllow(updatedInput: {'key': 'value'});
       expect(result.updatedInput, {'key': 'value'});
       expect(result.updatedPermissions, isNull);
     });
@@ -46,10 +44,7 @@ void main() {
     });
 
     test('constructs with interrupt', () {
-      const result = AgentPermissionDeny(
-        message: 'Stop',
-        interrupt: true,
-      );
+      const result = AgentPermissionDeny(message: 'Stop', interrupt: true);
       expect(result.message, 'Stop');
       expect(result.interrupt, true);
     });
@@ -71,9 +66,7 @@ void main() {
     });
 
     test('pattern matching works for Deny', () {
-      const AgentPermissionResult result = AgentPermissionDeny(
-        message: 'no',
-      );
+      const AgentPermissionResult result = AgentPermissionDeny(message: 'no');
       final label = switch (result) {
         AgentPermissionAllow() => 'allow',
         AgentPermissionDeny() => 'deny',
@@ -112,24 +105,32 @@ void main() {
   });
 
   group('AgentCanUseToolCallback', () {
-    test('typedef is callable and returns Future<AgentPermissionResult>', () async {
-      final AgentCanUseToolCallback callback = (
-        String toolName,
-        Map<String, dynamic> input,
-        AgentPermissionContext context,
-      ) async {
-        if (toolName == 'Bash') {
-          return const AgentPermissionDeny(message: 'blocked');
-        }
-        return const AgentPermissionAllow();
-      };
+    test(
+      'typedef is callable and returns Future<AgentPermissionResult>',
+      () async {
+        final AgentCanUseToolCallback callback =
+            (
+              String toolName,
+              Map<String, dynamic> input,
+              AgentPermissionContext context,
+            ) async {
+              if (toolName == 'Bash') {
+                return const AgentPermissionDeny(message: 'blocked');
+              }
+              return const AgentPermissionAllow();
+            };
 
-      final allow = await callback('Read', {}, const AgentPermissionContext());
-      expect(allow, isA<AgentPermissionAllow>());
+        final allow = await callback(
+          'Read',
+          {},
+          const AgentPermissionContext(),
+        );
+        expect(allow, isA<AgentPermissionAllow>());
 
-      final deny = await callback('Bash', {}, const AgentPermissionContext());
-      expect(deny, isA<AgentPermissionDeny>());
-      expect((deny as AgentPermissionDeny).message, 'blocked');
-    });
+        final deny = await callback('Bash', {}, const AgentPermissionContext());
+        expect(deny, isA<AgentPermissionDeny>());
+        expect((deny as AgentPermissionDeny).message, 'blocked');
+      },
+    );
   });
 }

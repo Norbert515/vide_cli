@@ -45,7 +45,7 @@ class AgentNetworkState {
 }
 
 final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
-    agentNetworkManagerProvider =
+agentNetworkManagerProvider =
     StateNotifierProvider<AgentNetworkManager, AgentNetworkState>((ref) {
       final config = ref.watch(videCoreConfigProvider);
 
@@ -64,11 +64,13 @@ final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
         clientFactory = CodexAgentClientFactory(
           getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
           createMcpServer: (agentId, type, projectPath) => ref.read(
-            genericMcpServerProvider(AgentIdAndMcpServerType(
-              agentId: agentId,
-              mcpServerType: type,
-              projectPath: projectPath,
-            )),
+            genericMcpServerProvider(
+              AgentIdAndMcpServerType(
+                agentId: agentId,
+                mcpServerType: type,
+                projectPath: projectPath,
+              ),
+            ),
           ),
         );
       } else {
@@ -78,11 +80,13 @@ final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
           getDangerouslySkipPermissions: () =>
               config.dangerouslySkipPermissions,
           createMcpServer: (agentId, type, projectPath) => ref.read(
-            genericMcpServerProvider(AgentIdAndMcpServerType(
-              agentId: agentId,
-              mcpServerType: type,
-              projectPath: projectPath,
-            )),
+            genericMcpServerProvider(
+              AgentIdAndMcpServerType(
+                agentId: agentId,
+                mcpServerType: type,
+                projectPath: projectPath,
+              ),
+            ),
           ),
           permissionHandler: config.permissionHandler,
         );
@@ -199,7 +203,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   }) async {
     final networkId = const Uuid().v4();
     VideLogger.instance.startSession(networkId);
-    VideLogger.instance.info('AgentNetworkManager', 'Starting new network', sessionId: networkId);
+    VideLogger.instance.info(
+      'AgentNetworkManager',
+      'Starting new network',
+      sessionId: networkId,
+    );
 
     // Increment task counter for "Task X" naming
     _taskCounter++;
@@ -289,7 +297,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       try {
         await _persistenceManager.saveNetwork(network);
       } catch (e) {
-        VideLogger.instance.error('AgentNetworkManager', 'Error saving network: $e', sessionId: networkId);
+        VideLogger.instance.error(
+          'AgentNetworkManager',
+          'Error saving network: $e',
+          sessionId: networkId,
+        );
       }
     }();
 
@@ -312,7 +324,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         );
         await triggerService.fire(context);
       } catch (e) {
-        VideLogger.instance.error('AgentNetworkManager', 'Error firing onSessionStart trigger: $e', sessionId: networkId);
+        VideLogger.instance.error(
+          'AgentNetworkManager',
+          'Error firing onSessionStart trigger: $e',
+          sessionId: networkId,
+        );
       }
     }();
 
@@ -322,7 +338,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// Resume an existing agent network
   Future<void> resume(AgentNetwork network) async {
     VideLogger.instance.startSession(network.id);
-    VideLogger.instance.info('AgentNetworkManager', 'Resuming network', sessionId: network.id);
+    VideLogger.instance.info(
+      'AgentNetworkManager',
+      'Resuming network',
+      sessionId: network.id,
+    );
 
     // Check if the saved team exists, fall back to 'enterprise' if not
     var effectiveTeam = network.team;
@@ -671,7 +691,10 @@ $message''';
   Future<AgentId?> fireSessionEndTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      VideLogger.instance.warn('AgentNetworkManager', 'No active network for onSessionEnd trigger');
+      VideLogger.instance.warn(
+        'AgentNetworkManager',
+        'No active network for onSessionEnd trigger',
+      );
       return null;
     }
 
@@ -684,7 +707,11 @@ $message''';
       );
       return await triggerService.fire(context);
     } catch (e) {
-      VideLogger.instance.error('AgentNetworkManager', 'Error firing onSessionEnd trigger: $e', sessionId: network.id);
+      VideLogger.instance.error(
+        'AgentNetworkManager',
+        'Error firing onSessionEnd trigger: $e',
+        sessionId: network.id,
+      );
       return null;
     }
   }
@@ -699,7 +726,10 @@ $message''';
   Future<AgentId?> fireAllAgentsIdleTrigger() async {
     final network = state.currentNetwork;
     if (network == null) {
-      VideLogger.instance.warn('AgentNetworkManager', 'No active network for onAllAgentsIdle trigger');
+      VideLogger.instance.warn(
+        'AgentNetworkManager',
+        'No active network for onAllAgentsIdle trigger',
+      );
       return null;
     }
 
@@ -712,7 +742,11 @@ $message''';
       );
       return await triggerService.fire(context);
     } catch (e) {
-      VideLogger.instance.error('AgentNetworkManager', 'Error firing onAllAgentsIdle trigger: $e', sessionId: network.id);
+      VideLogger.instance.error(
+        'AgentNetworkManager',
+        'Error firing onAllAgentsIdle trigger: $e',
+        sessionId: network.id,
+      );
       return null;
     }
   }

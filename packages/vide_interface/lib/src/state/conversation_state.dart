@@ -355,18 +355,15 @@ class ConversationStateManager {
       if (event.role == 'assistant' && state.messages.isNotEmpty) {
         final prev = state.messages.last;
         if (prev.role == 'assistant') {
-          final contentList =
-              List<ConversationContent>.from(prev.content);
+          final contentList = List<ConversationContent>.from(prev.content);
           if (event.content.isNotEmpty) {
             contentList.add(
-              TextContent(
-                text: event.content,
-                isStreaming: event.isPartial,
-              ),
+              TextContent(text: event.content, isStreaming: event.isPartial),
             );
           }
-          state.messages[state.messages.length - 1] =
-              prev.copyWith(content: contentList);
+          state.messages[state.messages.length - 1] = prev.copyWith(
+            content: contentList,
+          );
           _notifyChange(event.agentId);
           return;
         }
@@ -422,8 +419,9 @@ class ConversationStateManager {
     final contentList = List<ConversationContent>.from(lastMessage.content);
 
     // Append or update ThinkingContent
-    final lastThinkingIndex =
-        contentList.lastIndexWhere((c) => c is ThinkingContent);
+    final lastThinkingIndex = contentList.lastIndexWhere(
+      (c) => c is ThinkingContent,
+    );
     if (lastThinkingIndex >= 0) {
       final existing = contentList[lastThinkingIndex] as ThinkingContent;
       contentList[lastThinkingIndex] = existing.copyWith(

@@ -110,10 +110,7 @@ class DaemonSessionSeenEvent extends DaemonEvent {
   final String sessionId;
   final DateTime lastSeenAt;
 
-  DaemonSessionSeenEvent({
-    required this.sessionId,
-    required this.lastSeenAt,
-  });
+  DaemonSessionSeenEvent({required this.sessionId, required this.lastSeenAt});
 
   factory DaemonSessionSeenEvent.fromJson(Map<String, dynamic> json) {
     return DaemonSessionSeenEvent(

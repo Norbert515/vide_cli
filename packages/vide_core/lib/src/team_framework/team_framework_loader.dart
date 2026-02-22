@@ -191,7 +191,10 @@ class TeamFrameworkLoader {
   }) async {
     final agent = await getAgent(agentName);
     if (agent == null) {
-      VideLogger.instance.warn('TeamFrameworkLoader', 'Agent "$agentName" not found in team framework');
+      VideLogger.instance.warn(
+        'TeamFrameworkLoader',
+        'Agent "$agentName" not found in team framework',
+      );
       return null;
     }
 
@@ -277,10 +280,16 @@ class TeamFrameworkLoader {
             servers.add(serverType);
           }
         } else {
-          VideLogger.instance.warn('TeamFrameworkLoader', 'Unknown MCP server type "$name"');
+          VideLogger.instance.warn(
+            'TeamFrameworkLoader',
+            'Unknown MCP server type "$name"',
+          );
         }
       } catch (e) {
-        VideLogger.instance.error('TeamFrameworkLoader', 'Error parsing MCP server "$name": $e');
+        VideLogger.instance.error(
+          'TeamFrameworkLoader',
+          'Error parsing MCP server "$name": $e',
+        );
       }
     }
 
@@ -405,7 +414,10 @@ $agentsList
         final name = getName(definition);
         results[name] = definition;
       } catch (e) {
-        VideLogger.instance.error('TeamFrameworkLoader', 'Error loading bundled ${entry.key}: $e');
+        VideLogger.instance.error(
+          'TeamFrameworkLoader',
+          'Error loading bundled ${entry.key}: $e',
+        );
       }
     }
   }
@@ -434,11 +446,17 @@ $agentsList
           results[name] = definition;
         } catch (e) {
           // Log but continue loading other files
-          VideLogger.instance.error('TeamFrameworkLoader', 'Error loading $source ${path.basename(file.path)}: $e');
+          VideLogger.instance.error(
+            'TeamFrameworkLoader',
+            'Error loading $source ${path.basename(file.path)}: $e',
+          );
         }
       }
     } catch (e) {
-      VideLogger.instance.error('TeamFrameworkLoader', 'Error scanning directory $dirPath: $e');
+      VideLogger.instance.error(
+        'TeamFrameworkLoader',
+        'Error scanning directory $dirPath: $e',
+      );
     }
   }
 

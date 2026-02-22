@@ -26,7 +26,8 @@ class CodexAgentClientFactory implements AgentClientFactory {
     AgentId agentId,
     McpServerType type,
     String projectPath,
-  ) _createMcpServer;
+  )
+  _createMcpServer;
 
   CodexAgentClientFactory({
     required String Function() getWorkingDirectory,
@@ -34,7 +35,8 @@ class CodexAgentClientFactory implements AgentClientFactory {
       AgentId agentId,
       McpServerType type,
       String projectPath,
-    ) createMcpServer,
+    )
+    createMcpServer,
   }) : _getWorkingDirectory = getWorkingDirectory,
        _createMcpServer = createMcpServer;
 
@@ -57,7 +59,8 @@ class CodexAgentClientFactory implements AgentClientFactory {
     );
     final codexConfig = _buildConfig(config, agentId, cwd);
 
-    final mcpServers = config.mcpServers
+    final mcpServers =
+        config.mcpServers
             ?.map((server) => _createMcpServer(agentId, server, cwd))
             .toList() ??
         [];
@@ -89,7 +92,8 @@ class CodexAgentClientFactory implements AgentClientFactory {
     );
     final codexConfig = _buildConfig(config, agentId, cwd);
 
-    final mcpServers = config.mcpServers
+    final mcpServers =
+        config.mcpServers
             ?.map((server) => _createMcpServer(agentId, server, cwd))
             .toList() ??
         [];

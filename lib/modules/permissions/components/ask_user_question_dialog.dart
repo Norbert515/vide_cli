@@ -221,7 +221,10 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
               // Question text (bold)
               Text(
                 question.question,
-                style: TextStyle(color: theme.base.onSurface, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: theme.base.onSurface,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               SizedBox(height: 1),
 
@@ -278,7 +281,9 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
           // Checkbox indicator
           Text(
             hasAnswer ? '✓ ' : '☐ ',
-            style: TextStyle(color: hasAnswer ? theme.base.success : theme.base.outline),
+            style: TextStyle(
+              color: hasAnswer ? theme.base.success : theme.base.outline,
+            ),
           ),
           Text(
             label,
@@ -322,7 +327,10 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
               ),
 
               // Number
-              Text('${index + 1}. ', style: TextStyle(color: theme.base.outline)),
+              Text(
+                '${index + 1}. ',
+                style: TextStyle(color: theme.base.outline),
+              ),
 
               // Checkbox for multi-select
               if (isMultiSelect)
@@ -376,7 +384,10 @@ class _AskUserQuestionDialogState extends State<AskUserQuestionDialog> {
         // Selection indicator
         Text(
           isSelected ? '› ' : '  ',
-          style: TextStyle(color: theme.base.primary, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: theme.base.primary,
+            fontWeight: FontWeight.bold,
+          ),
         ),
 
         // Number

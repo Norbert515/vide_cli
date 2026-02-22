@@ -37,7 +37,10 @@ class LocalSettingsManager {
       final json = jsonDecode(content) as Map<String, dynamic>;
       return ClaudeSettings.fromJson(json);
     } catch (e) {
-      VideLogger.instance.error('LocalSettingsManager', 'Error reading settings: $e');
+      VideLogger.instance.error(
+        'LocalSettingsManager',
+        'Error reading settings: $e',
+      );
       return ClaudeSettings.defaults();
     }
   }

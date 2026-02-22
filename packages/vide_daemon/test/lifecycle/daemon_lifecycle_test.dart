@@ -19,10 +19,7 @@ void main() {
         DaemonLifecycle.shellEscape('/usr/local/bin/vide'),
         '/usr/local/bin/vide',
       );
-      expect(
-        DaemonLifecycle.shellEscape('/tmp/daemon.log'),
-        '/tmp/daemon.log',
-      );
+      expect(DaemonLifecycle.shellEscape('/tmp/daemon.log'), '/tmp/daemon.log');
       expect(DaemonLifecycle.shellEscape('127.0.0.1:8080'), '127.0.0.1:8080');
     });
 
@@ -34,45 +31,27 @@ void main() {
     });
 
     test('escapes single quotes within strings', () {
-      expect(
-        DaemonLifecycle.shellEscape("it's"),
-        "'it'\\''s'",
-      );
+      expect(DaemonLifecycle.shellEscape("it's"), "'it'\\''s'");
     });
 
     test('quotes strings with dollar signs (prevents variable expansion)', () {
-      expect(
-        DaemonLifecycle.shellEscape(r'$HOME/path'),
-        "'\$HOME/path'",
-      );
+      expect(DaemonLifecycle.shellEscape(r'$HOME/path'), "'\$HOME/path'");
     });
 
     test('quotes strings with backticks (prevents command substitution)', () {
-      expect(
-        DaemonLifecycle.shellEscape('`whoami`'),
-        "'`whoami`'",
-      );
+      expect(DaemonLifecycle.shellEscape('`whoami`'), "'`whoami`'");
     });
 
     test('quotes strings with semicolons (prevents command chaining)', () {
-      expect(
-        DaemonLifecycle.shellEscape('foo; rm -rf /'),
-        "'foo; rm -rf /'",
-      );
+      expect(DaemonLifecycle.shellEscape('foo; rm -rf /'), "'foo; rm -rf /'");
     });
 
     test('quotes strings with pipes', () {
-      expect(
-        DaemonLifecycle.shellEscape('foo | bar'),
-        "'foo | bar'",
-      );
+      expect(DaemonLifecycle.shellEscape('foo | bar'), "'foo | bar'");
     });
 
     test('quotes strings with newlines', () {
-      expect(
-        DaemonLifecycle.shellEscape('line1\nline2'),
-        "'line1\nline2'",
-      );
+      expect(DaemonLifecycle.shellEscape('line1\nline2'), "'line1\nline2'");
     });
 
     test('handles complex injection attempts', () {

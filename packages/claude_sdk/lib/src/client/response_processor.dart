@@ -9,9 +9,13 @@ class ProcessResult {
   /// Whether the turn is complete (assistant finished responding).
   final bool turnComplete;
 
+  /// Whether context compaction just started (stop_reason was 'compaction').
+  final bool isCompacting;
+
   ProcessResult({
     required this.updatedConversation,
     required this.turnComplete,
+    this.isCompacting = false,
   });
 }
 
@@ -189,11 +193,9 @@ class ResponseProcessor {
 
     updatedConversation = updatedConversation.copyWith(
       totalInputTokens:
-          currentConversation.totalInputTokens +
-          (response.inputTokens ?? 0),
+          currentConversation.totalInputTokens + (response.inputTokens ?? 0),
       totalOutputTokens:
-          currentConversation.totalOutputTokens +
-          (response.outputTokens ?? 0),
+          currentConversation.totalOutputTokens + (response.outputTokens ?? 0),
       totalCacheReadInputTokens:
           currentConversation.totalCacheReadInputTokens +
           (response.cacheReadInputTokens ?? 0),
@@ -207,6 +209,7 @@ class ResponseProcessor {
     return ProcessResult(
       updatedConversation: updatedConversation,
       turnComplete: !isCompaction,
+      isCompacting: isCompaction,
     );
   }
 

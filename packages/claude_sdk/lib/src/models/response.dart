@@ -180,10 +180,10 @@ sealed class ClaudeResponse {
               return ToolUseResponse.fromAssistantMessage(json);
             }
             if (firstContent['type'] == 'thinking') {
-              final thinkingText =
-                  firstContent['thinking'] as String? ?? '';
+              final thinkingText = firstContent['thinking'] as String? ?? '';
               return ThinkingResponse(
-                id: firstContent['id'] ??
+                id:
+                    firstContent['id'] ??
                     json['uuid'] ??
                     DateTime.now().millisecondsSinceEpoch.toString(),
                 timestamp: DateTime.now(),
@@ -1122,6 +1122,7 @@ enum ClaudeStatus {
   processing,
   thinking,
   responding,
+  compacting,
   completed,
   error,
   unknown;

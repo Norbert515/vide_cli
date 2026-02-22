@@ -20,23 +20,22 @@ final agentClientProvider = Provider.family<AgentClient?, AgentId>((
 /// [AgentStatusSyncService] bridges AgentProcessingStatus →
 /// [agentStatusProvider] automatically, so consumers should never need to
 /// derive agent status from this stream.
-final agentProcessingStatusProvider = StreamProvider.family<
-  AgentProcessingStatus,
-  AgentId
->((ref, agentId) {
-  final client = ref.watch(agentClientProvider(agentId));
-  if (client == null) {
-    return Stream.value(AgentProcessingStatus.ready);
-  }
-  return client.statusStream;
-});
+final agentProcessingStatusProvider =
+    StreamProvider.family<AgentProcessingStatus, AgentId>((ref, agentId) {
+      final client = ref.watch(agentClientProvider(agentId));
+      if (client == null) {
+        return Stream.value(AgentProcessingStatus.ready);
+      }
+      return client.statusStream;
+    });
 
-final agentClientManagerProvider = StateNotifierProvider<
-  AgentClientManagerStateNotifier,
-  Map<String, AgentClient>
->((ref) {
-  return AgentClientManagerStateNotifier();
-});
+final agentClientManagerProvider =
+    StateNotifierProvider<
+      AgentClientManagerStateNotifier,
+      Map<String, AgentClient>
+    >((ref) {
+      return AgentClientManagerStateNotifier();
+    });
 
 class AgentClientManagerStateNotifier
     extends StateNotifier<Map<String, AgentClient>> {

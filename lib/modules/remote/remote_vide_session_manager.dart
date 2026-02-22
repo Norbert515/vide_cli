@@ -64,9 +64,7 @@ class RemoteVideSessionManager implements VideSessionManager {
     List<VideAttachment>? attachments,
   }) async {
     if (initialMessage == null) {
-      throw ArgumentError(
-        'initialMessage is required for remote sessions',
-      );
+      throw ArgumentError('initialMessage is required for remote sessions');
     }
 
     // Use optimistic creation — returns immediately with a pending session.

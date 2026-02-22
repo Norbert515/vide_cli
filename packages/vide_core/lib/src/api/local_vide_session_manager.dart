@@ -63,12 +63,14 @@ class LocalVideSessionManager implements VideSessionManager {
 
     return ProviderContainer(
       overrides: [
-        videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-          workingDirectory: workingDirectory,
-          configManager: config.configManager,
-          permissionHandler: _permissionHandler,
-          dangerouslySkipPermissions: config.dangerouslySkipPermissions,
-        )),
+        videCoreConfigProvider.overrideWithValue(
+          VideCoreConfig(
+            workingDirectory: workingDirectory,
+            configManager: config.configManager,
+            permissionHandler: _permissionHandler,
+            dangerouslySkipPermissions: config.dangerouslySkipPermissions,
+          ),
+        ),
       ],
     );
   }
@@ -84,7 +86,7 @@ class LocalVideSessionManager implements VideSessionManager {
     VideLogger.instance.info(
       'LocalVideSessionManager',
       'Creating session: workDir=$workingDirectory team=${team ?? 'enterprise'} '
-      'isolated=$_isolateContainers hasMessage=${initialMessage != null}',
+          'isolated=$_isolateContainers hasMessage=${initialMessage != null}',
     );
     final sessionContainer = _containerForSession(workingDirectory);
     final manager = sessionContainer.read(agentNetworkManagerProvider.notifier);
@@ -319,7 +321,10 @@ class LocalVideSessionManager implements VideSessionManager {
         }
       },
       onError: (Object e) {
-        VideLogger.instance.error('LocalVideSessionManager', 'Error listing sessions: $e');
+        VideLogger.instance.error(
+          'LocalVideSessionManager',
+          'Error listing sessions: $e',
+        );
       },
     );
   }

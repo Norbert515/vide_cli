@@ -16,12 +16,7 @@ class SettingsToggle extends StatelessComponent {
     if (value) {
       return Text('[✓]', style: TextStyle(color: theme.base.primary));
     } else {
-      return Text(
-        '[ ]',
-        style: TextStyle(
-          color: theme.base.outline,
-        ),
-      );
+      return Text('[ ]', style: TextStyle(color: theme.base.outline));
     }
   }
 }

@@ -141,10 +141,7 @@ void main() {
     });
 
     test('handles missing parameters gracefully', () {
-      final toolCall = _makeToolCall(
-        toolName: 'Write',
-        parameters: {},
-      );
+      final toolCall = _makeToolCall(toolName: 'Write', parameters: {});
 
       final result = AgentToolInvocation.createTyped(toolCall: toolCall);
 
@@ -192,8 +189,9 @@ void main() {
         toolName: 'Write',
         parameters: {'file_path': '/test', 'content': 'line1\nline2\nline3'},
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentWriteToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentWriteToolInvocation;
 
       expect(invocation.getLineCount(), 3);
     });
@@ -203,8 +201,9 @@ void main() {
         toolName: 'Write',
         parameters: {'file_path': '/test', 'content': ''},
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentWriteToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentWriteToolInvocation;
 
       expect(invocation.getLineCount(), 0);
     });
@@ -220,8 +219,9 @@ void main() {
           'new_string': 'bar',
         },
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentEditToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentEditToolInvocation;
 
       expect(invocation.hasChanges(), true);
     });
@@ -235,8 +235,9 @@ void main() {
           'new_string': 'same',
         },
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentEditToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentEditToolInvocation;
 
       expect(invocation.hasChanges(), false);
     });
@@ -250,8 +251,9 @@ void main() {
           'new_string': 'x\ny',
         },
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentEditToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentEditToolInvocation;
 
       expect(invocation.getOldLineCount(), 3);
       expect(invocation.getNewLineCount(), 2);
@@ -266,8 +268,9 @@ void main() {
           'new_string': 'b',
         },
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentEditToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentEditToolInvocation;
 
       expect(invocation.replaceAll, false);
     });
@@ -279,8 +282,9 @@ void main() {
         toolName: 'Read',
         parameters: {'file_path': '/home/user/project/lib/main.dart'},
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentFileOperationToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentFileOperationToolInvocation;
 
       final relative = invocation.getRelativePath('/home/user/project');
       expect(relative, 'lib/main.dart');
@@ -291,8 +295,9 @@ void main() {
         toolName: 'Read',
         parameters: {'file_path': '/a'},
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentFileOperationToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentFileOperationToolInvocation;
 
       final relative = invocation.getRelativePath('/very/long/working/dir');
       // Should return whichever is shorter
@@ -304,8 +309,9 @@ void main() {
         toolName: 'Read',
         parameters: {'file_path': '/tmp/test.dart'},
       );
-      final invocation = AgentToolInvocation.createTyped(toolCall: toolCall)
-          as AgentFileOperationToolInvocation;
+      final invocation =
+          AgentToolInvocation.createTyped(toolCall: toolCall)
+              as AgentFileOperationToolInvocation;
 
       expect(invocation.getRelativePath(''), '/tmp/test.dart');
     });
@@ -323,10 +329,7 @@ void main() {
             id: 'r1',
             timestamp: now,
             toolName: 'Write',
-            parameters: {
-              'file_path': '/tmp/test.dart',
-              'content': 'hello',
-            },
+            parameters: {'file_path': '/tmp/test.dart', 'content': 'hello'},
             toolUseId: 'tu-1',
           ),
           AgentToolResultResponse(

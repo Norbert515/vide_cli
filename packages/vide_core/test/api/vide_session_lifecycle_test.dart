@@ -178,11 +178,13 @@ void main() {
       final configManager = MockVideConfigManager(tempDir: tempDir);
       final container = ProviderContainer(
         overrides: [
-          videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-            workingDirectory: tempDir.path,
-            configManager: configManager,
-            permissionHandler: PermissionHandler(),
-          )),
+          videCoreConfigProvider.overrideWithValue(
+            VideCoreConfig(
+              workingDirectory: tempDir.path,
+              configManager: configManager,
+              permissionHandler: PermissionHandler(),
+            ),
+          ),
         ],
       );
 
@@ -225,11 +227,13 @@ void main() {
       final configManager = MockVideConfigManager(tempDir: tempDir);
       final container = ProviderContainer(
         overrides: [
-          videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-            workingDirectory: tempDir.path,
-            configManager: configManager,
-            permissionHandler: PermissionHandler(),
-          )),
+          videCoreConfigProvider.overrideWithValue(
+            VideCoreConfig(
+              workingDirectory: tempDir.path,
+              configManager: configManager,
+              permissionHandler: PermissionHandler(),
+            ),
+          ),
         ],
       );
 

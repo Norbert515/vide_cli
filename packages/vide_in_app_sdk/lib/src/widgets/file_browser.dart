@@ -114,16 +114,15 @@ class _FileBrowserState extends State<FileBrowser> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to read file: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to read file: $e')));
     }
   }
 
   Future<void> _showDiff(FileEntry entry) async {
     final fullDiff = await widget.client.gitDiff(widget.workingDirectory);
-    final relativePath =
-        toRelativePath(entry.path, widget.workingDirectory);
+    final relativePath = toRelativePath(entry.path, widget.workingDirectory);
     final fileDiff = filterDiffForFile(fullDiff, relativePath);
 
     if (!mounted) return;
@@ -132,10 +131,8 @@ class _FileBrowserState extends State<FileBrowser> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DiffBottomSheet(
-        fileName: entry.name,
-        diff: fileDiff,
-      ),
+      builder: (context) =>
+          DiffBottomSheet(fileName: entry.name, diff: fileDiff),
     );
   }
 
@@ -216,63 +213,65 @@ class _FileBrowserState extends State<FileBrowser> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline,
-                                size: 32, color: colorScheme.error),
-                            const SizedBox(height: 8),
-                            Text(
-                              _error!,
-                              style: TextStyle(
-                                color: videColors.textSecondary,
-                                fontSize: 13,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.tonal(
-                              onPressed: () => _load(_currentPath),
-                              child: const Text('Retry'),
-                            ),
-                          ],
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 32,
+                          color: colorScheme.error,
                         ),
-                      ),
-                    )
-                  : _entries.isEmpty
-                      ? Center(
-                          child: Text(
-                            'Empty directory',
-                            style: TextStyle(color: videColors.textSecondary),
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: videColors.textSecondary,
+                            fontSize: 13,
                           ),
-                        )
-                      : ListView.separated(
-                          itemCount: _entries.length,
-                          separatorBuilder: (_, __) => Divider(
-                            height: 0.5,
-                            indent: 48,
-                            color: colorScheme.outlineVariant
-                                .withValues(alpha: 0.5),
-                          ),
-                          itemBuilder: (context, index) {
-                            final entry = _entries[index];
-                            return FileListTile(
-                              entry: entry,
-                              rootPath: widget.workingDirectory,
-                              gitStatus: _gitStatus,
-                              onTap: () {
-                                if (entry.isDirectory) {
-                                  _load(entry.path);
-                                } else {
-                                  _showFileContent(entry);
-                                }
-                              },
-                            );
-                          },
+                          textAlign: TextAlign.center,
                         ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonal(
+                          onPressed: () => _load(_currentPath),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _entries.isEmpty
+              ? Center(
+                  child: Text(
+                    'Empty directory',
+                    style: TextStyle(color: videColors.textSecondary),
+                  ),
+                )
+              : ListView.separated(
+                  itemCount: _entries.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 0.5,
+                    indent: 48,
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                  ),
+                  itemBuilder: (context, index) {
+                    final entry = _entries[index];
+                    return FileListTile(
+                      entry: entry,
+                      rootPath: widget.workingDirectory,
+                      gitStatus: _gitStatus,
+                      onTap: () {
+                        if (entry.isDirectory) {
+                          _load(entry.path);
+                        } else {
+                          _showFileContent(entry);
+                        }
+                      },
+                    );
+                  },
+                ),
         ),
       ],
     );

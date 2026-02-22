@@ -389,6 +389,7 @@ class AgentStatusMapper {
       claude.ClaudeStatus.processing => AgentProcessingStatus.processing,
       claude.ClaudeStatus.thinking => AgentProcessingStatus.thinking,
       claude.ClaudeStatus.responding => AgentProcessingStatus.responding,
+      claude.ClaudeStatus.compacting => AgentProcessingStatus.compacting,
       claude.ClaudeStatus.completed => AgentProcessingStatus.completed,
       claude.ClaudeStatus.error => AgentProcessingStatus.error,
       claude.ClaudeStatus.unknown => AgentProcessingStatus.unknown,

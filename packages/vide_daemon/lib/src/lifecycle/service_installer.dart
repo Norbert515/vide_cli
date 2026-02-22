@@ -29,7 +29,8 @@ abstract class ServiceInstaller {
   /// Prefers the installed binary at ~/.vide/bin/vide,
   /// falls back to the current executable.
   static String resolveVideBinary() {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
     if (home != null) {
       final installedBinary = p.join(home, '.vide', 'bin', 'vide');
       if (File(installedBinary).existsSync()) return installedBinary;
@@ -80,7 +81,10 @@ class LaunchdInstaller implements ServiceInstaller {
   static const _label = 'com.vide.daemon';
 
   String get _plistPath {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
     return p.join(home, 'Library', 'LaunchAgents', '$_label.plist');
   }
 
@@ -200,14 +204,11 @@ class SystemdInstaller implements ServiceInstaller {
   static const _serviceName = 'vide-daemon';
 
   String get _servicePath {
-    final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'] ?? '.';
-    return p.join(
-      home,
-      '.config',
-      'systemd',
-      'user',
-      '$_serviceName.service',
-    );
+    final home =
+        Platform.environment['HOME'] ??
+        Platform.environment['USERPROFILE'] ??
+        '.';
+    return p.join(home, '.config', 'systemd', 'user', '$_serviceName.service');
   }
 
   @override

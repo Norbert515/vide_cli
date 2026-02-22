@@ -180,10 +180,7 @@ Future<Response> readFileContent(Request request, ServerConfig config) async {
 
   if (targetType != FileSystemEntityType.file) {
     return Response.notFound(
-      jsonEncode({
-        'error': 'File not found: $targetPath',
-        'code': 'NOT_FOUND',
-      }),
+      jsonEncode({'error': 'File not found: $targetPath', 'code': 'NOT_FOUND'}),
       headers: {'Content-Type': 'application/json'},
     );
   }
@@ -202,10 +199,9 @@ Future<Response> readFileContent(Request request, ServerConfig config) async {
   }
 
   // Check for binary content by reading first 8KB
-  final bytes = await file.openRead(0, fileSize.clamp(0, 8192)).fold<List<int>>(
-    <int>[],
-    (prev, chunk) => prev..addAll(chunk),
-  );
+  final bytes = await file
+      .openRead(0, fileSize.clamp(0, 8192))
+      .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
   if (bytes.any((b) => b == 0)) {
     return Response.badRequest(
       body: jsonEncode({

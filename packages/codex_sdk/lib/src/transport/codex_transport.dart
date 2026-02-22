@@ -24,8 +24,7 @@ class CodexTransport {
       StreamController<JsonRpcNotification>.broadcast();
 
   /// Server requests that need a client response (e.g., approvals).
-  final _serverRequestController =
-      StreamController<JsonRpcRequest>.broadcast();
+  final _serverRequestController = StreamController<JsonRpcRequest>.broadcast();
 
   /// Raw stderr output for error diagnostics.
   final _stderrBuffer = StringBuffer();
@@ -38,8 +37,7 @@ class CodexTransport {
       _notificationController.stream;
 
   /// Server requests stream (approval requests).
-  Stream<JsonRpcRequest> get serverRequests =>
-      _serverRequestController.stream;
+  Stream<JsonRpcRequest> get serverRequests => _serverRequestController.stream;
 
   /// Start the `codex app-server` subprocess.
   Future<void> start({
@@ -62,10 +60,9 @@ class CodexTransport {
       environment: Platform.environment,
     );
 
-    _process!.stdout.transform(utf8.decoder).listen(
-      _onStdoutData,
-      onDone: _onProcessDone,
-    );
+    _process!.stdout
+        .transform(utf8.decoder)
+        .listen(_onStdoutData, onDone: _onProcessDone);
 
     _process!.stderr.transform(utf8.decoder).listen((chunk) {
       _stderrBuffer.write(chunk);
@@ -109,10 +106,7 @@ class CodexTransport {
   void respondToRequest(dynamic requestId, Map<String, dynamic> result) {
     _ensureRunning();
 
-    final response = <String, dynamic>{
-      'id': requestId,
-      'result': result,
-    };
+    final response = <String, dynamic>{'id': requestId, 'result': result};
 
     _writeLine(jsonEncode(response));
   }

@@ -161,19 +161,13 @@ void main() {
     group('emitStatus', () {
       test('updates currentStatus', () {
         client.emitStatus(AgentProcessingStatus.processing);
-        expect(
-          client.currentStatus,
-          equals(AgentProcessingStatus.processing),
-        );
+        expect(client.currentStatus, equals(AgentProcessingStatus.processing));
       });
 
       test('emits on statusStream', () async {
         final statusFuture = client.statusStream.first;
         client.emitStatus(AgentProcessingStatus.thinking);
-        expect(
-          await statusFuture,
-          equals(AgentProcessingStatus.thinking),
-        );
+        expect(await statusFuture, equals(AgentProcessingStatus.thinking));
       });
     });
 

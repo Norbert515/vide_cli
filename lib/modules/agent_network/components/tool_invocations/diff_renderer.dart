@@ -155,7 +155,11 @@ class _DiffRendererState extends State<DiffRenderer> {
     );
   }
 
-  Component _buildHeader(BuildContext context, Color statusColor, String statusIndicator) {
+  Component _buildHeader(
+    BuildContext context,
+    Color statusColor,
+    String statusIndicator,
+  ) {
     final theme = VideTheme.of(context);
     final dim = theme.base.onSurface.withOpacity(0.5);
 
@@ -233,14 +237,8 @@ class _DiffRendererState extends State<DiffRenderer> {
     final resultLines = resultContent.split('\n');
 
     // Use Sets for O(1) lookup instead of O(n) list iteration
-    final oldSet = oldString
-        .split('\n')
-        .map((l) => l.trim())
-        .toSet();
-    final newSet = newString
-        .split('\n')
-        .map((l) => l.trim())
-        .toSet();
+    final oldSet = oldString.split('\n').map((l) => l.trim()).toSet();
+    final newSet = newString.split('\n').map((l) => l.trim()).toSet();
 
     for (final line in resultLines) {
       // Skip non-content lines (using pre-compiled regex)

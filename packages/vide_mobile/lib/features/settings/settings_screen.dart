@@ -50,8 +50,7 @@ class SettingsScreen extends ConsumerWidget {
             final statusLabel = switch (server.status) {
               ServerHealthStatus.connected => 'Connected',
               ServerHealthStatus.connecting => 'Connecting...',
-              ServerHealthStatus.error =>
-                server.errorMessage ?? 'Error',
+              ServerHealthStatus.error => server.errorMessage ?? 'Error',
               ServerHealthStatus.disconnected => 'Disconnected',
             };
 
@@ -75,8 +74,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Icon(Icons.chevron_right),
                 ],
               ),
-              onTap: () =>
-                  _showServerOptions(context, ref, entry.key, server),
+              onTap: () => _showServerOptions(context, ref, entry.key, server),
             );
           }),
           SettingsTile(
@@ -227,8 +225,7 @@ class SettingsScreen extends ConsumerWidget {
   ) {
     final nameController =
         TextEditingController(text: server.connection.name ?? '');
-    final hostController =
-        TextEditingController(text: server.connection.host);
+    final hostController = TextEditingController(text: server.connection.host);
     final portController =
         TextEditingController(text: server.connection.port.toString());
 
@@ -244,8 +241,8 @@ class SettingsScreen extends ConsumerWidget {
 
           final registry = ref.read(serverRegistryProvider.notifier);
 
-          final connectionChanged = host != server.connection.host ||
-              port != server.connection.port;
+          final connectionChanged =
+              host != server.connection.host || port != server.connection.port;
           if (connectionChanged &&
               server.status == ServerHealthStatus.connected) {
             registry.disconnectServer(serverId);

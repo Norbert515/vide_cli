@@ -188,10 +188,7 @@ class SessionRegistry {
     session.markSeen();
 
     _eventController.add(
-      SessionSeenEvent(
-        sessionId: sessionId,
-        lastSeenAt: session.lastSeenAt!,
-      ),
+      SessionSeenEvent(sessionId: sessionId, lastSeenAt: session.lastSeenAt!),
     );
 
     await persist();

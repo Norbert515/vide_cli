@@ -154,7 +154,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
           _agents = currentAgents;
           for (final agent in currentAgents) {
             _agentScrollControllers.putIfAbsent(
-                agent.id, () => ScrollController());
+              agent.id,
+              () => ScrollController(),
+            );
           }
           final agentIds = currentAgents.map((a) => a.id).toSet();
           final removed = _agentScrollControllers.keys
@@ -192,7 +194,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted && widget.sdkState.pendingAskUserQuestion != null) {
               _showAskUserQuestionSheet(
-                  widget.sdkState.pendingAskUserQuestion!);
+                widget.sdkState.pendingAskUserQuestion!,
+              );
             }
           });
         }
@@ -202,8 +205,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
           child: _showingConfig
               ? _buildConfigLayout(context)
               : hasSession
-                  ? _buildSessionLayout(context)
-                  : _buildEmptyLayout(context),
+              ? _buildSessionLayout(context)
+              : _buildEmptyLayout(context),
         );
       },
     );
@@ -232,10 +235,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
           Navigator.of(sheetContext).pop();
         },
         onDeny: () {
-          widget.sdkState.respondToPermission(
-            request.requestId,
-            allow: false,
-          );
+          widget.sdkState.respondToPermission(request.requestId, allow: false);
           Navigator.of(sheetContext).pop();
         },
       ),
@@ -328,8 +328,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
         ),
 
         // Bottom input + settings
-        if (widget.pendingScreenshot != null)
-          _buildScreenshotPreview(context),
+        if (widget.pendingScreenshot != null) _buildScreenshotPreview(context),
         _buildBottomInput(context),
       ],
     );
@@ -394,7 +393,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 padding: const EdgeInsets.only(
-                    left: 16, right: 4, top: 4, bottom: 4),
+                  left: 16,
+                  right: 4,
+                  top: 4,
+                  bottom: 4,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -402,18 +405,22 @@ class _VideChatPanelState extends State<VideChatPanel> {
                         controller: _textController,
                         decoration: InputDecoration(
                           hintText: 'Ask anything...',
-                          hintStyle:
-                              TextStyle(color: colorScheme.onSurfaceVariant),
+                          hintStyle: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                           border: InputBorder.none,
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           filled: false,
                           isDense: true,
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 10),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                          ),
                         ),
                         style: TextStyle(
-                            color: colorScheme.onSurface, fontSize: 15),
+                          color: colorScheme.onSurface,
+                          fontSize: 15,
+                        ),
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _sendMessage(),
                       ),
@@ -507,8 +514,11 @@ class _VideChatPanelState extends State<VideChatPanel> {
                 color: videColors.error.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(Icons.delete_outline,
-                  color: videColors.error, size: 20),
+              child: Icon(
+                Icons.delete_outline,
+                color: videColors.error,
+                size: 20,
+              ),
             ),
             confirmDismiss: (_) async {
               return _confirmStopSession(context, session);
@@ -516,8 +526,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
             onDismissed: (_) {},
             child: _SessionTile(
               session: session,
-              onTap: () =>
-                  widget.sdkState.connectToSession(session.sessionId),
+              onTap: () => widget.sdkState.connectToSession(session.sessionId),
               videColors: videColors,
               colorScheme: colorScheme,
             ),
@@ -542,9 +551,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
       return true;
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to stop session: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to stop session: $e')));
       }
       return false;
     }
@@ -565,8 +574,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
 
         Expanded(child: _buildChatContent(context)),
 
-        if (widget.pendingScreenshot != null)
-          _buildScreenshotPreview(context),
+        if (widget.pendingScreenshot != null) _buildScreenshotPreview(context),
         _buildInputBar(context),
       ],
     );
@@ -631,11 +639,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
   }
 
   void _openToolDetail(ToolContent tool) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ToolDetailScreen(tool: tool),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => ToolDetailScreen(tool: tool)));
   }
 
   // ---------------------------------------------------------------------------
@@ -662,10 +668,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
                 size: 20,
               ),
               const SizedBox(width: 4),
-              Text(
-                'Settings',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              Text('Settings', style: Theme.of(context).textTheme.titleSmall),
             ],
           ),
         ),
@@ -815,7 +818,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
 
     // Use per-agent status for typing indicator, not global isProcessing
     final agentStatus = mainAgent.status;
-    final isAgentBusy = agentStatus == VideAgentStatus.working ||
+    final isAgentBusy =
+        agentStatus == VideAgentStatus.working ||
         agentStatus == VideAgentStatus.waitingForAgent;
     final showTyping = isAgentBusy;
     final totalCount = items.length + (showTyping ? 1 : 0);
@@ -834,9 +838,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
         if (showTyping && reverseIndex == 0) {
           return const TypingIndicator();
         }
-        final itemIndex = items.length -
-            1 -
-            (showTyping ? reverseIndex - 1 : reverseIndex);
+        final itemIndex =
+            items.length - 1 - (showTyping ? reverseIndex - 1 : reverseIndex);
         final item = items[itemIndex];
         switch (item) {
           case _TextRenderItem(:final entry, :final content):
@@ -885,9 +888,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
           const SizedBox(height: 4),
           Text(
             'Configure the Vide server connection.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: videColors.textSecondary,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: videColors.textSecondary),
           ),
           const SizedBox(height: 20),
 
@@ -910,8 +913,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
                       controller: _hostController,
                       decoration: InputDecoration(
                         hintText: 'localhost',
-                        prefixIcon:
-                            const Icon(Icons.computer_outlined, size: 20),
+                        prefixIcon: const Icon(
+                          Icons.computer_outlined,
+                          size: 20,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -1071,8 +1076,9 @@ class _VideChatPanelState extends State<VideChatPanel> {
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
     final result = _testResult!;
     final color = result.success ? videColors.success : videColors.error;
-    final icon =
-        result.success ? Icons.check_circle_outline : Icons.error_outline;
+    final icon = result.success
+        ? Icons.check_circle_outline
+        : Icons.error_outline;
 
     return Center(
       child: Container(
@@ -1147,8 +1153,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
                     color: Colors.black54,
                     shape: BoxShape.circle,
                   ),
-                  child:
-                      const Icon(Icons.close, size: 14, color: Colors.white),
+                  child: const Icon(Icons.close, size: 14, color: Colors.white),
                 ),
               ),
             ),
@@ -1164,8 +1169,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
 
   Widget _buildInputBar(BuildContext context) {
     final isProcessing = widget.sdkState.videState?.isProcessing ?? false;
-    final isDisconnected = widget.sdkState.connectionState ==
-        VideSdkConnectionState.disconnected;
+    final isDisconnected =
+        widget.sdkState.connectionState == VideSdkConnectionState.disconnected;
     final enabled = !isProcessing && !isDisconnected;
 
     return InputBar(
@@ -1233,8 +1238,10 @@ class _MessageList extends StatelessWidget {
 
     if (messages.isEmpty && !_isAgentBusy) {
       return const Center(
-        child: Text('No messages from this agent yet',
-            style: TextStyle(color: Colors.grey)),
+        child: Text(
+          'No messages from this agent yet',
+          style: TextStyle(color: Colors.grey),
+        ),
       );
     }
 
@@ -1282,9 +1289,8 @@ class _MessageList extends StatelessWidget {
           if (showTyping && reverseIndex == 0) {
             return const TypingIndicator();
           }
-          final itemIndex = items.length -
-              1 -
-              (showTyping ? reverseIndex - 1 : reverseIndex);
+          final itemIndex =
+              items.length - 1 - (showTyping ? reverseIndex - 1 : reverseIndex);
           final item = items[itemIndex];
           switch (item) {
             case _TextRenderItem(:final entry, :final content):
@@ -1292,13 +1298,15 @@ class _MessageList extends StatelessWidget {
             case _ToolRenderItem(:final tool):
               if (isSpawnAgentTool(tool)) {
                 return SpawnAgentCard(
-                    tool: tool, agents: agents, onTap: onAgentTap);
+                  tool: tool,
+                  agents: agents,
+                  onTap: onAgentTap,
+                );
               }
               if (tool.toolName == 'ExitPlanMode') {
                 return PlanResultIndicator(tool: tool);
               }
-              return ToolCard(
-                  tool: tool, onTap: () => onToolTap?.call(tool));
+              return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
           }
         },
       ),
@@ -1330,24 +1338,16 @@ class _MessageBubble extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           border: isUser
-              ? Border(
-                  left: BorderSide(color: videColors.accent, width: 3),
-                )
+              ? Border(left: BorderSide(color: videColors.accent, width: 3))
               : null,
         ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: isUser
-            ? Text(
-                content.text,
-                style: TextStyle(color: colorScheme.onSurface),
-              )
+            ? Text(content.text, style: TextStyle(color: colorScheme.onSurface))
             : MarkdownBody(
                 data: content.text,
                 styleSheet: MarkdownStyleSheet(
-                  p: TextStyle(
-                    color: colorScheme.onSurface,
-                    fontSize: 14,
-                  ),
+                  p: TextStyle(color: colorScheme.onSurface, fontSize: 14),
                   code: TextStyle(
                     backgroundColor: colorScheme.surfaceContainerHigh,
                     fontSize: 13,
@@ -1355,9 +1355,7 @@ class _MessageBubble extends StatelessWidget {
                   codeblockDecoration: BoxDecoration(
                     color: colorScheme.surfaceContainerHigh,
                     borderRadius: VideRadius.smAll,
-                    border: Border.all(
-                      color: colorScheme.outlineVariant,
-                    ),
+                    border: Border.all(color: colorScheme.outlineVariant),
                   ),
                 ),
                 selectable: false,
@@ -1367,8 +1365,6 @@ class _MessageBubble extends StatelessWidget {
     );
   }
 }
-
-
 
 // =============================================================================
 // Session tile — shown in the empty layout for reconnecting
@@ -1443,11 +1439,7 @@ class _SessionTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: videColors.textTertiary,
-            ),
+            Icon(Icons.chevron_right, size: 18, color: videColors.textTertiary),
           ],
         ),
       ),
@@ -1570,9 +1562,7 @@ class _WorkingDirectoryField extends StatelessWidget {
           tooltip: _canBrowse
               ? 'Browse server filesystem'
               : 'Enter host and port first',
-          style: IconButton.styleFrom(
-            minimumSize: const Size(40, 40),
-          ),
+          style: IconButton.styleFrom(minimumSize: const Size(40, 40)),
         ),
       ],
     );
@@ -1676,9 +1666,7 @@ class _FolderPickerSheetState extends State<FolderPickerSheet> {
         return Container(
           decoration: BoxDecoration(
             color: colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(12),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
           ),
           child: Column(
             children: [
@@ -1743,8 +1731,10 @@ class _FolderPickerSheetState extends State<FolderPickerSheet> {
               // Search
               if (!_isLoading && _error == null && _entries.isNotEmpty)
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
@@ -1761,7 +1751,9 @@ class _FolderPickerSheetState extends State<FolderPickerSheet> {
                           : null,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                     ),
                     onChanged: (v) => setState(() => _searchQuery = v),
                   ),
@@ -1771,50 +1763,48 @@ class _FolderPickerSheetState extends State<FolderPickerSheet> {
                 child: _isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Text(
-                                _error!,
-                                style: TextStyle(color: videColors.error),
-                                textAlign: TextAlign.center,
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            _error!,
+                            style: TextStyle(color: videColors.error),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    : _filteredEntries.isEmpty
+                    ? Center(
+                        child: Text(
+                          _searchQuery.isNotEmpty
+                              ? 'No matching folders'
+                              : 'No subdirectories',
+                          style: TextStyle(color: videColors.textSecondary),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: _filteredEntries.length,
+                        itemBuilder: (context, index) {
+                          final entry = _filteredEntries[index];
+                          return ListTile(
+                            leading: Icon(
+                              Icons.folder_outlined,
+                              color: videColors.accent,
+                              size: 20,
+                            ),
+                            title: Text(
+                              entry.name,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: colorScheme.onSurface,
                               ),
                             ),
-                          )
-                        : _filteredEntries.isEmpty
-                            ? Center(
-                                child: Text(
-                                  _searchQuery.isNotEmpty
-                                      ? 'No matching folders'
-                                      : 'No subdirectories',
-                                  style: TextStyle(
-                                    color: videColors.textSecondary,
-                                  ),
-                                ),
-                              )
-                            : ListView.builder(
-                                controller: scrollController,
-                                itemCount: _filteredEntries.length,
-                                itemBuilder: (context, index) {
-                                  final entry = _filteredEntries[index];
-                                  return ListTile(
-                                    leading: Icon(
-                                      Icons.folder_outlined,
-                                      color: videColors.accent,
-                                      size: 20,
-                                    ),
-                                    title: Text(
-                                      entry.name,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: colorScheme.onSurface,
-                                      ),
-                                    ),
-                                    dense: true,
-                                    onTap: () => _loadDirectory(entry.path),
-                                  );
-                                },
-                              ),
+                            dense: true,
+                            onTap: () => _loadDirectory(entry.path),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -1823,4 +1813,3 @@ class _FolderPickerSheetState extends State<FolderPickerSheet> {
     );
   }
 }
-

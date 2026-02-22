@@ -84,14 +84,14 @@ class TriggerContext {
 /// Provider for TriggerService.
 final Provider<TriggerService> triggerServiceProvider =
     Provider<TriggerService>((ref) {
-  final config = ref.watch(videCoreConfigProvider);
-  return TriggerService(
-    teamFrameworkLoader: TeamFrameworkLoader(
-      workingDirectory: config.workingDirectory,
-    ),
-    getNetworkManager: () => ref.read(agentNetworkManagerProvider.notifier),
-  );
-});
+      final config = ref.watch(videCoreConfigProvider);
+      return TriggerService(
+        teamFrameworkLoader: TeamFrameworkLoader(
+          workingDirectory: config.workingDirectory,
+        ),
+        getNetworkManager: () => ref.read(agentNetworkManagerProvider.notifier),
+      );
+    });
 
 /// Service for firing lifecycle triggers that spawn agents.
 ///

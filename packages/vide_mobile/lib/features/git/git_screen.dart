@@ -110,7 +110,6 @@ class GitScreen extends ConsumerWidget {
       ),
     );
   }
-
 }
 
 class _ErrorView extends StatelessWidget {
@@ -516,9 +515,7 @@ class _CommitTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            commit.hash.length >= 7
-                ? commit.hash.substring(0, 7)
-                : commit.hash,
+            commit.hash.length >= 7 ? commit.hash.substring(0, 7) : commit.hash,
             style: GoogleFonts.jetBrainsMono(
               fontSize: 12,
               color: videColors.accent,

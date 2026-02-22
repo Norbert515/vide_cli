@@ -55,10 +55,7 @@ void main() {
 
     group('task_complete', () {
       test('maps to CompletionResponse', () {
-        const event = TaskCompleteEvent(
-          lastAgentMessage: 'Done!',
-          params: {},
-        );
+        const event = TaskCompleteEvent(lastAgentMessage: 'Done!', params: {});
         final responses = mapper.mapEvent(event);
         expect(responses, hasLength(1));
         expect(responses[0], isA<CompletionResponse>());
@@ -370,15 +367,17 @@ void main() {
         expect((responses[0] as StatusResponse).status, ClaudeStatus.thinking);
       });
 
-      test('completed event returns empty (streaming deltas already delivered)',
-          () {
-        const event = ItemCompletedEvent(
-          itemId: 'reason_001',
-          itemType: 'reasoning',
-          itemData: {'text': 'Let me think...'},
-        );
-        expect(mapper.mapEvent(event), isEmpty);
-      });
+      test(
+        'completed event returns empty (streaming deltas already delivered)',
+        () {
+          const event = ItemCompletedEvent(
+            itemId: 'reason_001',
+            itemType: 'reasoning',
+            itemData: {'text': 'Let me think...'},
+          );
+          expect(mapper.mapEvent(event), isEmpty);
+        },
+      );
     });
 
     group('webSearch item', () {

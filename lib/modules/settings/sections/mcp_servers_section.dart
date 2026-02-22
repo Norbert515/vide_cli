@@ -39,7 +39,9 @@ class _McpServersSectionState extends State<McpServersSection> {
   @override
   void initState() {
     super.initState();
-    _settingsManager = ClaudeSettingsManager(projectRoot: Directory.current.path);
+    _settingsManager = ClaudeSettingsManager(
+      projectRoot: Directory.current.path,
+    );
     _fetchMcpStatus();
   }
 

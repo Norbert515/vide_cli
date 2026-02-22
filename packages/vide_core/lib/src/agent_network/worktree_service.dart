@@ -56,7 +56,7 @@ class WorktreeService {
       VideLogger.instance.warn(
         'WorktreeService',
         'Stale worktree path detected (directory missing): $worktreePath — '
-        'falling back to $baseWorkingDirectory',
+            'falling back to $baseWorkingDirectory',
       );
       // Schedule async cleanup without blocking
       Future.microtask(() => _clearStaleWorktreePath(worktreePath));
@@ -95,9 +95,9 @@ class WorktreeService {
     VideLogger.instance.info(
       'WorktreeService',
       'Switching worktree path: '
-      '${network.worktreePath ?? baseWorkingDirectory} -> '
-      '${worktreePath ?? baseWorkingDirectory} '
-      '(${network.agentIds.length} agents to restart)',
+          '${network.worktreePath ?? baseWorkingDirectory} -> '
+          '${worktreePath ?? baseWorkingDirectory} '
+          '(${network.agentIds.length} agents to restart)',
       sessionId: network.id,
     );
 
@@ -132,7 +132,7 @@ class WorktreeService {
       VideLogger.instance.debug(
         'WorktreeService',
         'Recreating client for agent=${agentMetadata.id} '
-        '(${agentMetadata.type}, ${agentMetadata.name})',
+            '(${agentMetadata.type}, ${agentMetadata.name})',
         sessionId: updated.id,
       );
       try {

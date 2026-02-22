@@ -201,7 +201,10 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     if (agentIds.isNotEmpty) {
       _trackConversationReady(session, agentIds.first);
       if (!_conversationReady) {
-        return _buildConnectingScreen(context, label: 'Loading conversation...');
+        return _buildConnectingScreen(
+          context,
+          label: 'Loading conversation...',
+        );
       }
     }
 
@@ -240,14 +243,15 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   /// Full-screen loading state shown while connecting to a remote session
   /// or waiting for conversation history to load.
-  Component _buildConnectingScreen(BuildContext context, {required String label}) {
+  Component _buildConnectingScreen(
+    BuildContext context, {
+    required String label,
+  }) {
     final theme = VideTheme.of(context);
 
     return Container(
       decoration: BoxDecoration(color: theme.base.surface),
-      child: Center(
-        child: _LoadingIndicator(label: label),
-      ),
+      child: Center(child: _LoadingIndicator(label: label)),
     );
   }
 }
@@ -583,12 +587,17 @@ class _AgentChatState extends State<_AgentChat> {
     return false;
   }
 
-  /// Builds the filtered list of messages (excluding slash commands)
+  /// Builds the filtered list of messages (excluding slash commands and
+  /// entries that consist entirely of hidden/invisible tools).
   List<ConversationEntry> _getFilteredMessages() {
     final conv = _conversation;
     if (conv == null) return [];
     return conv.messages.reversed
-        .where((entry) => !(entry.role == 'user' && entry.text.startsWith('/')))
+        .where(
+          (entry) =>
+              !(entry.role == 'user' && entry.text.startsWith('/')) &&
+              !MessageBubble.isAllHiddenToolsEntry(entry),
+        )
         .toList();
   }
 
@@ -787,12 +796,10 @@ class _LoadingIndicatorState extends State<_LoadingIndicator>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )
-      ..addListener(() => setState(() {}))
-      ..repeat();
+    _controller =
+        AnimationController(duration: const Duration(seconds: 1), vsync: this)
+          ..addListener(() => setState(() {}))
+          ..repeat();
   }
 
   @override

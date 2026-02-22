@@ -100,11 +100,7 @@ class CodexApprovalRequest {
 }
 
 /// The type of approval being requested.
-enum CodexApprovalType {
-  commandExecution,
-  fileChange,
-  userInput,
-}
+enum CodexApprovalType { commandExecution, fileChange, userInput }
 
 /// Decision for a command or file change approval request.
 enum CodexApprovalDecision {

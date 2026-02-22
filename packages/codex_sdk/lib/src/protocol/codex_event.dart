@@ -17,8 +17,7 @@ sealed class CodexEvent {
       // Thread lifecycle
       'thread/started' => ThreadStartedEvent.fromParams(params),
       'thread/name/updated' => ThreadNameUpdatedEvent.fromParams(params),
-      'thread/tokenUsage/updated' =>
-        TokenUsageUpdatedEvent.fromParams(params),
+      'thread/tokenUsage/updated' => TokenUsageUpdatedEvent.fromParams(params),
       'thread/compacted' => ThreadCompactedEvent.fromParams(params),
 
       // Turn lifecycle
@@ -33,14 +32,16 @@ sealed class CodexEvent {
       'item/agentMessage/delta' => AgentMessageDeltaEvent.fromParams(params),
       'item/reasoning/summaryTextDelta' =>
         ReasoningSummaryDeltaEvent.fromParams(params),
-      'item/reasoning/textDelta' =>
-        ReasoningTextDeltaEvent.fromParams(params),
-      'item/commandExecution/outputDelta' =>
-        CommandOutputDeltaEvent.fromParams(params),
-      'item/fileChange/outputDelta' =>
-        FileChangeOutputDeltaEvent.fromParams(params),
-      'item/mcpToolCall/progress' =>
-        McpToolCallProgressEvent.fromParams(params),
+      'item/reasoning/textDelta' => ReasoningTextDeltaEvent.fromParams(params),
+      'item/commandExecution/outputDelta' => CommandOutputDeltaEvent.fromParams(
+        params,
+      ),
+      'item/fileChange/outputDelta' => FileChangeOutputDeltaEvent.fromParams(
+        params,
+      ),
+      'item/mcpToolCall/progress' => McpToolCallProgressEvent.fromParams(
+        params,
+      ),
 
       // Legacy codex/event namespace (still emitted alongside new events)
       'codex/event/task_complete' => TaskCompleteEvent.fromParams(params),
@@ -63,10 +64,7 @@ class ThreadStartedEvent extends CodexEvent {
   final String threadId;
   final Map<String, dynamic> threadData;
 
-  const ThreadStartedEvent({
-    required this.threadId,
-    required this.threadData,
-  });
+  const ThreadStartedEvent({required this.threadId, required this.threadData});
 
   factory ThreadStartedEvent.fromParams(Map<String, dynamic> params) {
     final thread = params['thread'] as Map<String, dynamic>? ?? {};
@@ -81,10 +79,7 @@ class ThreadNameUpdatedEvent extends CodexEvent {
   final String threadId;
   final String name;
 
-  const ThreadNameUpdatedEvent({
-    required this.threadId,
-    required this.name,
-  });
+  const ThreadNameUpdatedEvent({required this.threadId, required this.name});
 
   factory ThreadNameUpdatedEvent.fromParams(Map<String, dynamic> params) {
     return ThreadNameUpdatedEvent(
@@ -112,10 +107,7 @@ class TurnStartedEvent extends CodexEvent {
   final String turnId;
   final Map<String, dynamic> turnData;
 
-  const TurnStartedEvent({
-    required this.turnId,
-    required this.turnData,
-  });
+  const TurnStartedEvent({required this.turnId, required this.turnData});
 
   factory TurnStartedEvent.fromParams(Map<String, dynamic> params) {
     final turn = params['turn'] as Map<String, dynamic>? ?? {};
@@ -201,10 +193,7 @@ class AgentMessageDeltaEvent extends CodexEvent {
   final String itemId;
   final String delta;
 
-  const AgentMessageDeltaEvent({
-    required this.itemId,
-    required this.delta,
-  });
+  const AgentMessageDeltaEvent({required this.itemId, required this.delta});
 
   factory AgentMessageDeltaEvent.fromParams(Map<String, dynamic> params) {
     return AgentMessageDeltaEvent(
@@ -218,10 +207,7 @@ class ReasoningSummaryDeltaEvent extends CodexEvent {
   final String itemId;
   final String delta;
 
-  const ReasoningSummaryDeltaEvent({
-    required this.itemId,
-    required this.delta,
-  });
+  const ReasoningSummaryDeltaEvent({required this.itemId, required this.delta});
 
   factory ReasoningSummaryDeltaEvent.fromParams(Map<String, dynamic> params) {
     return ReasoningSummaryDeltaEvent(
@@ -235,10 +221,7 @@ class ReasoningTextDeltaEvent extends CodexEvent {
   final String itemId;
   final String delta;
 
-  const ReasoningTextDeltaEvent({
-    required this.itemId,
-    required this.delta,
-  });
+  const ReasoningTextDeltaEvent({required this.itemId, required this.delta});
 
   factory ReasoningTextDeltaEvent.fromParams(Map<String, dynamic> params) {
     return ReasoningTextDeltaEvent(
@@ -252,10 +235,7 @@ class CommandOutputDeltaEvent extends CodexEvent {
   final String itemId;
   final String delta;
 
-  const CommandOutputDeltaEvent({
-    required this.itemId,
-    required this.delta,
-  });
+  const CommandOutputDeltaEvent({required this.itemId, required this.delta});
 
   factory CommandOutputDeltaEvent.fromParams(Map<String, dynamic> params) {
     return CommandOutputDeltaEvent(
@@ -269,10 +249,7 @@ class FileChangeOutputDeltaEvent extends CodexEvent {
   final String itemId;
   final String delta;
 
-  const FileChangeOutputDeltaEvent({
-    required this.itemId,
-    required this.delta,
-  });
+  const FileChangeOutputDeltaEvent({required this.itemId, required this.delta});
 
   factory FileChangeOutputDeltaEvent.fromParams(Map<String, dynamic> params) {
     return FileChangeOutputDeltaEvent(
@@ -286,10 +263,7 @@ class McpToolCallProgressEvent extends CodexEvent {
   final String itemId;
   final Map<String, dynamic> params;
 
-  const McpToolCallProgressEvent({
-    required this.itemId,
-    required this.params,
-  });
+  const McpToolCallProgressEvent({required this.itemId, required this.params});
 
   factory McpToolCallProgressEvent.fromParams(Map<String, dynamic> params) {
     return McpToolCallProgressEvent(
@@ -309,9 +283,7 @@ class TokenUsageUpdatedEvent extends CodexEvent {
   const TokenUsageUpdatedEvent({required this.usage});
 
   factory TokenUsageUpdatedEvent.fromParams(Map<String, dynamic> params) {
-    return TokenUsageUpdatedEvent(
-      usage: CodexUsage.fromJson(params),
-    );
+    return TokenUsageUpdatedEvent(usage: CodexUsage.fromJson(params));
   }
 }
 
@@ -323,10 +295,7 @@ class TaskCompleteEvent extends CodexEvent {
   final String? lastAgentMessage;
   final Map<String, dynamic> params;
 
-  const TaskCompleteEvent({
-    this.lastAgentMessage,
-    required this.params,
-  });
+  const TaskCompleteEvent({this.lastAgentMessage, required this.params});
 
   factory TaskCompleteEvent.fromParams(Map<String, dynamic> params) {
     final msg = params['msg'] as Map<String, dynamic>? ?? {};
@@ -387,15 +356,14 @@ class CodexUsage {
     // Support both the thread/tokenUsage/updated format and legacy format
     final usage = json['usage'] as Map<String, dynamic>? ?? json;
     return CodexUsage(
-      inputTokens: usage['input_tokens'] as int? ??
-          usage['inputTokens'] as int? ??
-          0,
-      cachedInputTokens: usage['cached_input_tokens'] as int? ??
+      inputTokens:
+          usage['input_tokens'] as int? ?? usage['inputTokens'] as int? ?? 0,
+      cachedInputTokens:
+          usage['cached_input_tokens'] as int? ??
           usage['cachedInputTokens'] as int? ??
           0,
-      outputTokens: usage['output_tokens'] as int? ??
-          usage['outputTokens'] as int? ??
-          0,
+      outputTokens:
+          usage['output_tokens'] as int? ?? usage['outputTokens'] as int? ?? 0,
     );
   }
 }

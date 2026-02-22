@@ -46,7 +46,8 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
     final args = widget.args;
 
     // Pre-fill from args (quick-start) or fall back to last used directory
-    final dir = args?.workingDirectory ?? await storage.getLastWorkingDirectory();
+    final dir =
+        args?.workingDirectory ?? await storage.getLastWorkingDirectory();
     if (dir != null) {
       notifier.setWorkingDirectory(dir);
     }
@@ -193,8 +194,8 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                 Builder(builder: (context) {
                   final registryState = ref.watch(serverRegistryProvider);
                   final connectedServers = registryState.entries
-                      .where((e) =>
-                          e.value.status == ServerHealthStatus.connected)
+                      .where(
+                          (e) => e.value.status == ServerHealthStatus.connected)
                       .toList();
 
                   if (connectedServers.length <= 1) {
@@ -216,10 +217,9 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                       ...connectedServers.map((entry) {
                         final serverId = entry.key;
                         final server = entry.value;
-                        final isSelected =
-                            state.selectedServerId == serverId ||
-                                (state.selectedServerId == null &&
-                                    entry == connectedServers.first);
+                        final isSelected = state.selectedServerId == serverId ||
+                            (state.selectedServerId == null &&
+                                entry == connectedServers.first);
 
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -235,9 +235,8 @@ class _SessionCreationScreenState extends ConsumerState<SessionCreationScreen> {
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 12, vertical: 10),
                               decoration: BoxDecoration(
-                                color: isSelected
-                                    ? videColors.accentSubtle
-                                    : null,
+                                color:
+                                    isSelected ? videColors.accentSubtle : null,
                                 border: Border.all(
                                   color: isSelected
                                       ? videColors.accent
@@ -797,8 +796,7 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 8),
                     ),
-                    onChanged: (value) =>
-                        setState(() => _searchQuery = value),
+                    onChanged: (value) => setState(() => _searchQuery = value),
                   ),
                 ),
               // Directory listing
@@ -846,8 +844,7 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
                                       ),
                                     ),
                                     dense: true,
-                                    onTap: () =>
-                                        _loadDirectory(entry.path),
+                                    onTap: () => _loadDirectory(entry.path),
                                   );
                                 },
                               ),
@@ -859,7 +856,6 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
     );
   }
 }
-
 
 class _PermissionModeSelector extends StatelessWidget {
   final PermissionMode selectedMode;

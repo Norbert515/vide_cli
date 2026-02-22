@@ -10,17 +10,14 @@ import '../../team_framework/trigger_service.dart';
 import 'package:riverpod/riverpod.dart';
 
 final ProviderFamily<AgentMCPServer, AgentId> agentServerProvider =
-    Provider.family<AgentMCPServer, AgentId>((
-  ref,
-  agentId,
-) {
-  return AgentMCPServer(
-    callerAgentId: agentId,
-    networkManager: ref.watch(agentNetworkManagerProvider.notifier),
-    getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
-    getTriggerService: () => ref.read(triggerServiceProvider),
-  );
-});
+    Provider.family<AgentMCPServer, AgentId>((ref, agentId) {
+      return AgentMCPServer(
+        callerAgentId: agentId,
+        networkManager: ref.watch(agentNetworkManagerProvider.notifier),
+        getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
+        getTriggerService: () => ref.read(triggerServiceProvider),
+      );
+    });
 
 /// MCP server for agent network operations.
 ///
@@ -127,7 +124,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           VideLogger.instance.info(
             'AgentMCPServer',
             'spawnAgent: type=$agentType name="$name" caller=$callerAgentId '
-            'workDir=${workingDirectory ?? '(session default)'}',
+                'workDir=${workingDirectory ?? '(session default)'}',
             sessionId: networkId,
           );
 
@@ -218,7 +215,7 @@ Use this to coordinate with other agents in the network.''',
           VideLogger.instance.debug(
             'AgentMCPServer',
             'sendMessageToAgent: target=$targetAgentId from=$callerAgentId '
-            '(${message.length} chars)',
+                '(${message.length} chars)',
             sessionId: networkId,
           );
 
@@ -302,8 +299,7 @@ Call this when:
           );
         }
 
-        final networkId =
-            _networkManager.currentState.currentNetwork?.id;
+        final networkId = _networkManager.currentState.currentNetwork?.id;
         VideLogger.instance.info(
           'AgentMCPServer',
           'setAgentStatus called: agent=$callerAgentId requested=$statusStr',
@@ -315,9 +311,7 @@ Call this when:
           if (status == AgentStatus.idle) {
             // Delegate to unified logic: guards against active children,
             // cascades to parent, and checks the all-idle trigger.
-            effectiveStatus = _networkManager.setAgentIdleStatus(
-              callerAgentId,
-            );
+            effectiveStatus = _networkManager.setAgentIdleStatus(callerAgentId);
           } else {
             effectiveStatus = status;
             _getStatusNotifier(callerAgentId).setStatus(status);
@@ -347,7 +341,6 @@ Call this when:
       },
     );
   }
-
 
   void _registerTerminateAgentTool(McpServer server) {
     server.tool(
@@ -389,7 +382,7 @@ Any agent can terminate any other agent, including itself.''',
           VideLogger.instance.info(
             'AgentMCPServer',
             'terminateAgent: target=$targetAgentId by=$callerAgentId '
-            'reason=${reason ?? '(none)'} self=${targetAgentId == callerAgentId}',
+                'reason=${reason ?? '(none)'} self=${targetAgentId == callerAgentId}',
             sessionId: networkId,
           );
 

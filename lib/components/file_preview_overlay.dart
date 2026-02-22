@@ -362,12 +362,7 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
                 controller: _scrollController,
                 children: [
                   for (var i = 0; i < lines.length; i++)
-                    _buildContentLine(
-                      i + 1,
-                      lines[i],
-                      language,
-                      theme,
-                    ),
+                    _buildContentLine(i + 1, lines[i], language, theme),
                 ],
               ),
             ),
@@ -480,18 +475,14 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
     if (changeType == _LineChangeType.added) {
       return Container(
-        decoration: BoxDecoration(
-          color: theme.base.success.withOpacity(0.1),
-        ),
+        decoration: BoxDecoration(color: theme.base.success.withOpacity(0.1)),
         child: contentComponent,
       );
     }
 
     if (changeType == _LineChangeType.modified) {
       return Container(
-        decoration: BoxDecoration(
-          color: theme.base.warning.withOpacity(0.1),
-        ),
+        decoration: BoxDecoration(color: theme.base.warning.withOpacity(0.1)),
         child: contentComponent,
       );
     }

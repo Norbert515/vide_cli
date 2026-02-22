@@ -20,8 +20,7 @@ class MockAgentClient implements AgentClient {
   final _conversationController =
       StreamController<AgentConversation>.broadcast();
   final _turnCompleteController = StreamController<void>.broadcast();
-  final _statusController =
-      StreamController<AgentProcessingStatus>.broadcast();
+  final _statusController = StreamController<AgentProcessingStatus>.broadcast();
   final _queuedMessageController = StreamController<String?>.broadcast();
   final _initDataController = StreamController<AgentInitData>.broadcast();
   AgentConversation _currentConversation = AgentConversation.empty();
@@ -35,8 +34,7 @@ class MockAgentClient implements AgentClient {
   bool get isClosed => _isClosed;
 
   @override
-  Stream<AgentConversation> get conversation =>
-      _conversationController.stream;
+  Stream<AgentConversation> get conversation => _conversationController.stream;
 
   @override
   Stream<void> get onTurnComplete => _turnCompleteController.stream;

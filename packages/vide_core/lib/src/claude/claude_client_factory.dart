@@ -80,14 +80,24 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
   final String Function() _getWorkingDirectory;
   final VideConfigManager _configManager;
   final bool Function() _getDangerouslySkipPermissions;
-  final McpServerBase Function(AgentId agentId, McpServerType type, String projectPath) _createMcpServer;
+  final McpServerBase Function(
+    AgentId agentId,
+    McpServerType type,
+    String projectPath,
+  )
+  _createMcpServer;
   final PermissionHandler? _permissionHandler;
 
   ClaudeAgentClientFactory({
     required String Function() getWorkingDirectory,
     required VideConfigManager configManager,
     required bool Function() getDangerouslySkipPermissions,
-    required McpServerBase Function(AgentId agentId, McpServerType type, String projectPath) createMcpServer,
+    required McpServerBase Function(
+      AgentId agentId,
+      McpServerType type,
+      String projectPath,
+    )
+    createMcpServer,
     PermissionHandler? permissionHandler,
   }) : _getWorkingDirectory = getWorkingDirectory,
        _configManager = configManager,
@@ -126,7 +136,7 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
     VideLogger.instance.info(
       'AgentClientFactory',
       'createSync: agent=$agentId type=$agentType cwd=$cwd '
-      'permissionHandler=${_permissionHandler != null}',
+          'permissionHandler=${_permissionHandler != null}',
       sessionId: networkId,
     );
     final claudeConfig = config.toClaudeConfig(
@@ -138,9 +148,7 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
 
     final mcpServers =
         config.mcpServers
-            ?.map(
-              (server) => _createMcpServer(agentId, server, cwd),
-            )
+            ?.map((server) => _createMcpServer(agentId, server, cwd))
             .toList() ??
         [];
 
@@ -184,9 +192,7 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
 
     final mcpServers =
         config.mcpServers
-            ?.map(
-              (server) => _createMcpServer(agentId, server, cwd),
-            )
+            ?.map((server) => _createMcpServer(agentId, server, cwd))
             .toList() ??
         [];
 
@@ -221,7 +227,7 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
     VideLogger.instance.info(
       'AgentClientFactory',
       'createForked: agent=$agentId type=$agentType '
-      'forkFrom=$resumeSessionId cwd=$cwd',
+          'forkFrom=$resumeSessionId cwd=$cwd',
       sessionId: networkId,
     );
 
@@ -241,9 +247,7 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
 
     final mcpServers =
         config.mcpServers
-            ?.map(
-              (server) => _createMcpServer(agentId, server, cwd),
-            )
+            ?.map((server) => _createMcpServer(agentId, server, cwd))
             .toList() ??
         [];
 
@@ -295,7 +299,11 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
     );
 
     // Bridge from AgentCanUseToolCallback to claude_sdk CanUseToolCallback
-    return (String toolName, Map<String, dynamic> input, ToolPermissionContext context) async {
+    return (
+      String toolName,
+      Map<String, dynamic> input,
+      ToolPermissionContext context,
+    ) async {
       final agentContext = AgentPermissionContextMapper.fromClaude(context);
       final agentResult = await agentCallback(toolName, input, agentContext);
       return AgentPermissionMapper.toClaude(agentResult);

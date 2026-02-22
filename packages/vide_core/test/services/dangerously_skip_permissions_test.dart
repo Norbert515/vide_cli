@@ -23,12 +23,14 @@ void main() {
     ProviderContainer createContainer({required bool skipPermissions}) {
       return ProviderContainer(
         overrides: [
-          videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-            workingDirectory: tempDir.path,
-            configManager: configManager,
-            permissionHandler: PermissionHandler(),
-            dangerouslySkipPermissions: skipPermissions,
-          )),
+          videCoreConfigProvider.overrideWithValue(
+            VideCoreConfig(
+              workingDirectory: tempDir.path,
+              configManager: configManager,
+              permissionHandler: PermissionHandler(),
+              dangerouslySkipPermissions: skipPermissions,
+            ),
+          ),
         ],
       );
     }

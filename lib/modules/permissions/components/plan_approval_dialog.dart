@@ -157,7 +157,12 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
                     child: ListView(
                       lazy: false,
                       controller: _scrollController,
-                      children: [MarkdownText(component.request.planContent, styleSheet: theme.markdownStyleSheet)],
+                      children: [
+                        MarkdownText(
+                          component.request.planContent,
+                          styleSheet: theme.markdownStyleSheet,
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -165,7 +170,12 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
                 Divider(color: theme.base.outline),
 
                 // Options
-                _buildListItem(index: 0, label: 'Accept plan', isAccept: true, theme: theme),
+                _buildListItem(
+                  index: 0,
+                  label: 'Accept plan',
+                  isAccept: true,
+                  theme: theme,
+                ),
                 _buildRejectItem(theme),
 
                 SizedBox(height: 1),
@@ -221,12 +231,18 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
         children: [
           Text(
             isSelected ? '\u2192 ' : '  ',
-            style: TextStyle(color: theme.base.error, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.error,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           if (isSelected) ...[
             Text(
               'Reject: ',
-              style: TextStyle(color: theme.base.error, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: theme.base.error,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Expanded(
               child: TextField(
@@ -238,7 +254,10 @@ class _PlanApprovalDialogState extends State<PlanApprovalDialog> {
               ),
             ),
           ] else
-            Text('Reject with feedback', style: TextStyle(color: theme.base.outline)),
+            Text(
+              'Reject with feedback',
+              style: TextStyle(color: theme.base.outline),
+            ),
         ],
       ),
     );

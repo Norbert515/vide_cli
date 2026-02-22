@@ -443,6 +443,8 @@ class ClaudeClientImpl implements ClaudeClient {
     var conversation = _currentConversation;
     var turnComplete = false;
 
+    var isCompacting = false;
+
     for (final response in responses) {
       // Extract and emit status updates
       if (response is StatusResponse) {
@@ -476,9 +478,14 @@ class ClaudeClientImpl implements ClaudeClient {
       final result = _responseProcessor.processResponse(response, conversation);
       conversation = result.updatedConversation;
       turnComplete = turnComplete || result.turnComplete;
+      isCompacting = isCompacting || result.isCompacting;
     }
 
     _updateConversation(conversation);
+
+    if (isCompacting) {
+      _updateStatus(ClaudeStatus.compacting);
+    }
 
     if (turnComplete) {
       // When turn completes, update status to ready (idle)

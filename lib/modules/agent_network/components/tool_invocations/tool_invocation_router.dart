@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart' show AgentId;
+import 'package:vide_core/vide_core.dart' show AgentId, ToolContent;
 import 'package:vide_cli/theme/theme.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
@@ -91,6 +91,33 @@ class ToolInvocationRouter extends StatelessComponent {
         !invocation.isError;
   }
 
+  /// Whether a [ToolContent] should not be rendered at all.
+  ///
+  /// Used by the message list to skip entries that consist entirely of hidden
+  /// tools so they don't produce empty padding/spacing.
+  static bool isHiddenToolContent(ToolContent tool) {
+    final name = tool.toolName;
+    if (name == 'mcp__vide-agent__setTaskName' ||
+        name == 'mcp__vide-agent__setAgentTaskName' ||
+        name == 'mcp__vide-task-management__setTaskName' ||
+        name == 'mcp__vide-task-management__setAgentTaskName' ||
+        name == 'mcp__vide-agent__setAgentStatus' ||
+        name == 'TodoWrite' ||
+        name == 'EnterPlanMode') {
+      return true;
+    }
+
+    // Hide the Write tool when it writes to Claude's plans directory
+    if (name == 'Write') {
+      final filePath = tool.toolInput['file_path'] as String?;
+      if (filePath != null && filePath.contains('.claude/plans/')) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /// Tools that should not be rendered at all (have their own UI or are internal)
   bool _isHiddenTool() {
     if (invocation.toolName == 'mcp__vide-agent__setTaskName' ||
@@ -155,7 +182,10 @@ class ToolInvocationRouter extends StatelessComponent {
           Text('◆ ', style: TextStyle(color: theme.base.success)),
           Text(
             'Plan accepted',
-            style: TextStyle(color: theme.base.success, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: theme.base.success,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
@@ -193,7 +223,10 @@ class ToolInvocationRouter extends StatelessComponent {
             Text('◇ ', style: TextStyle(color: theme.base.outline)),
             Text(
               'Question cancelled',
-              style: TextStyle(color: theme.base.outline, fontStyle: FontStyle.italic),
+              style: TextStyle(
+                color: theme.base.outline,
+                fontStyle: FontStyle.italic,
+              ),
             ),
           ],
         );
@@ -216,7 +249,10 @@ class ToolInvocationRouter extends StatelessComponent {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(entry.key, style: TextStyle(color: theme.base.outline)),
+                        Text(
+                          entry.key,
+                          style: TextStyle(color: theme.base.outline),
+                        ),
                         Text(
                           '  ${entry.value}',
                           style: TextStyle(

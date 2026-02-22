@@ -201,9 +201,7 @@ class _DaemonSessionsDialogState extends State<DaemonSessionsDialog> {
               padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
               decoration: BoxDecoration(
                 border: BoxBorder(
-                  bottom: BorderSide(
-                    color: theme.base.outlineVariant,
-                  ),
+                  bottom: BorderSide(color: theme.base.outlineVariant),
                 ),
               ),
               child: Row(

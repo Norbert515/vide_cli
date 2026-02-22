@@ -91,18 +91,9 @@ class VideThemeData {
   /// colors (e.g. yellow-on-black for inline code). This getter provides
   /// colors that adapt to the current theme's brightness.
   MarkdownStyleSheet get markdownStyleSheet => MarkdownStyleSheet(
-    h1Style: TextStyle(
-      fontWeight: FontWeight.bold,
-      color: base.primary,
-    ),
-    h2Style: TextStyle(
-      fontWeight: FontWeight.bold,
-      color: base.secondary,
-    ),
-    h3Style: TextStyle(
-      fontWeight: FontWeight.bold,
-      color: base.success,
-    ),
+    h1Style: TextStyle(fontWeight: FontWeight.bold, color: base.primary),
+    h2Style: TextStyle(fontWeight: FontWeight.bold, color: base.secondary),
+    h3Style: TextStyle(fontWeight: FontWeight.bold, color: base.success),
     h4Style: const TextStyle(fontWeight: FontWeight.bold),
     h5Style: const TextStyle(fontWeight: FontWeight.bold),
     h6Style: const TextStyle(fontWeight: FontWeight.bold),

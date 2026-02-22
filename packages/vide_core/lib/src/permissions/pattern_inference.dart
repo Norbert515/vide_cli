@@ -54,7 +54,8 @@ class PatternInference {
     if (mainCommand.isEmpty) {
       mainCommand = parsedCommands
           .firstWhere(
-            (cmd) => cmd.type != CommandType.cd && !_isPrefixCommand(cmd.command),
+            (cmd) =>
+                cmd.type != CommandType.cd && !_isPrefixCommand(cmd.command),
             orElse: () => parsedCommands.firstWhere(
               (cmd) => cmd.type != CommandType.cd,
               orElse: () => parsedCommands.isNotEmpty

@@ -28,8 +28,9 @@ class AgentPermissionContext {
 }
 
 /// Callback to check whether a tool can be used.
-typedef AgentCanUseToolCallback = Future<AgentPermissionResult> Function(
-  String toolName,
-  Map<String, dynamic> input,
-  AgentPermissionContext context,
-);
+typedef AgentCanUseToolCallback =
+    Future<AgentPermissionResult> Function(
+      String toolName,
+      Map<String, dynamic> input,
+      AgentPermissionContext context,
+    );

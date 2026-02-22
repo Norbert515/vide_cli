@@ -223,8 +223,11 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         requestId: data?['request-id'] as String? ?? '',
-        answers: (data?['answers'] as Map<String, dynamic>?)
-            ?.map((k, v) => MapEntry(k, v?.toString() ?? '')) ?? {},
+        answers:
+            (data?['answers'] as Map<String, dynamic>?)?.map(
+              (k, v) => MapEntry(k, v?.toString() ?? ''),
+            ) ??
+            {},
       ),
       'task-name-changed' => TaskNameChangedEvent(
         seq: seq,

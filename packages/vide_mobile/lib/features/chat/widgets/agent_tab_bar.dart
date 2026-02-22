@@ -16,7 +16,11 @@ class AgentTabBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTabSelected;
 
-  const AgentTabBar({super.key, required this.agents, required this.selectedIndex, required this.onTabSelected});
+  const AgentTabBar(
+      {super.key,
+      required this.agents,
+      required this.selectedIndex,
+      required this.onTabSelected});
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +67,10 @@ class _TabChip extends StatelessWidget {
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (statusIndicator != null) ...[statusIndicator!, const SizedBox(width: 6)],
+        if (statusIndicator != null) ...[
+          statusIndicator!,
+          const SizedBox(width: 6)
+        ],
         Flexible(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -74,14 +81,16 @@ class _TabChip extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  color: isSelected ? videColors.accent : videColors.textSecondary,
+                  color:
+                      isSelected ? videColors.accent : videColors.textSecondary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
               if (subtitle != null)
                 Text(
                   subtitle!,
-                  style: TextStyle(fontSize: 10, color: videColors.textTertiary),
+                  style:
+                      TextStyle(fontSize: 10, color: videColors.textTertiary),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                 ),
@@ -96,9 +105,14 @@ class _TabChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: VideSpacing.xs, vertical: 6),
+        padding:
+            const EdgeInsets.symmetric(horizontal: VideSpacing.xs, vertical: 6),
         child: LiquidGlass.withOwnLayer(
-          settings: LiquidGlassSettings(thickness: 12, blur: 30, refractiveIndex: 1.1, lightIntensity: 0.3),
+          settings: LiquidGlassSettings(
+              thickness: 12,
+              blur: 30,
+              refractiveIndex: 1.1,
+              lightIntensity: 0.3),
           shape: const LiquidRoundedSuperellipse(borderRadius: VideRadius.md),
           clipBehavior: Clip.antiAlias,
           child: Padding(
@@ -122,7 +136,8 @@ class _AgentStatusIndicator extends StatefulWidget {
   State<_AgentStatusIndicator> createState() => _AgentStatusIndicatorState();
 }
 
-class _AgentStatusIndicatorState extends State<_AgentStatusIndicator> with SingleTickerProviderStateMixin {
+class _AgentStatusIndicatorState extends State<_AgentStatusIndicator>
+    with SingleTickerProviderStateMixin {
   static const _brailleFrames = [
     '\u280B',
     '\u2819',
@@ -141,7 +156,8 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator> with Singl
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(duration: const Duration(seconds: 1), vsync: this);
+    _controller =
+        AnimationController(duration: const Duration(seconds: 1), vsync: this);
     _updateAnimation();
   }
 
@@ -175,8 +191,11 @@ class _AgentStatusIndicatorState extends State<_AgentStatusIndicator> with Singl
       return AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          final frameIndex = (_controller.value * _brailleFrames.length).floor() % _brailleFrames.length;
-          return Text(_brailleFrames[frameIndex], style: TextStyle(fontSize: 13, color: videColors.accent));
+          final frameIndex =
+              (_controller.value * _brailleFrames.length).floor() %
+                  _brailleFrames.length;
+          return Text(_brailleFrames[frameIndex],
+              style: TextStyle(fontSize: 13, color: videColors.accent));
         },
       );
     }

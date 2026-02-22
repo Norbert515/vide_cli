@@ -78,6 +78,7 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     AgentProcessingStatus.processing: 'Processing',
     AgentProcessingStatus.thinking: 'Thinking',
     AgentProcessingStatus.responding: 'Responding',
+    AgentProcessingStatus.compacting: 'Compacting',
   };
 
   static final _brailleFrames = [

@@ -112,11 +112,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     // Clean up existing connection
     _disconnect();
 
-    state = DaemonConnectionState(
-      isConnecting: true,
-      host: host,
-      port: port,
-    );
+    state = DaemonConnectionState(isConnecting: true, host: host, port: port);
 
     final client = DaemonClient(host: host, port: port);
 

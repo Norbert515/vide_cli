@@ -71,20 +71,29 @@ class AgentLoader {
             VideLogger.instance.warn(
               'AgentLoader',
               'Duplicate agent name "${agent.name}" found in '
-              '${file.path}. Skipping (already loaded from ${_cache[agent.name]?.filePath}).',
+                  '${file.path}. Skipping (already loaded from ${_cache[agent.name]?.filePath}).',
             );
             continue;
           }
 
           _cache[agent.name] = agent;
-          VideLogger.instance.info('AgentLoader', 'Loaded $source agent: ${agent.name} from ${file.path}');
+          VideLogger.instance.info(
+            'AgentLoader',
+            'Loaded $source agent: ${agent.name} from ${file.path}',
+          );
         } catch (e) {
-          VideLogger.instance.error('AgentLoader', 'Error loading agent from ${file.path}: $e');
+          VideLogger.instance.error(
+            'AgentLoader',
+            'Error loading agent from ${file.path}: $e',
+          );
           // Continue loading other agents
         }
       }
     } catch (e) {
-      VideLogger.instance.error('AgentLoader', 'Error scanning directory ${dir.path}: $e');
+      VideLogger.instance.error(
+        'AgentLoader',
+        'Error scanning directory ${dir.path}: $e',
+      );
     }
   }
 

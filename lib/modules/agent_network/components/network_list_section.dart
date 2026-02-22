@@ -146,9 +146,7 @@ class _NetworkListSectionState extends State<NetworkListSection> {
                   children: [
                     Text(
                       '─── ',
-                      style: TextStyle(
-                        color: theme.base.outlineVariant,
-                      ),
+                      style: TextStyle(color: theme.base.outlineVariant),
                     ),
                     Text(
                       'Previous Conversations',

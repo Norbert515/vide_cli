@@ -26,11 +26,13 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
-          videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-            workingDirectory: tempDir.path,
-            configManager: configManager,
-            permissionHandler: PermissionHandler(),
-          )),
+          videCoreConfigProvider.overrideWithValue(
+            VideCoreConfig(
+              workingDirectory: tempDir.path,
+              configManager: configManager,
+              permissionHandler: PermissionHandler(),
+            ),
+          ),
         ],
       );
 

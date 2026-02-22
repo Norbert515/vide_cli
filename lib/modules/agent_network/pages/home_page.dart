@@ -144,7 +144,9 @@ class _HomePageState extends State<HomePage> {
 
         final configManager = container.read(videConfigManagerProvider);
         final settings = configManager.readGlobalSettings();
-        configManager.writeGlobalSettings(settings.copyWith(ideModeEnabled: !current));
+        configManager.writeGlobalSettings(
+          settings.copyWith(ideModeEnabled: !current),
+        );
       },
       showGitPopup: () async {
         final repoPath = context.read(currentRepoPathProvider);
@@ -199,7 +201,9 @@ class _HomePageState extends State<HomePage> {
 
     final daemonEnabled = context.watch(daemonModeEnabledProvider);
 
-    final textFieldFocused = _focusSection == _HomeSection.input || _focusSection == _HomeSection.daemonIndicator;
+    final textFieldFocused =
+        _focusSection == _HomeSection.input ||
+        _focusSection == _HomeSection.daemonIndicator;
 
     return Focusable(
       focused: !sidebarFocused,
@@ -214,10 +218,15 @@ class _HomePageState extends State<HomePage> {
         builder: (context, constraints) {
           final totalHeight = constraints.maxHeight;
 
-          final networksHeight = networks.isNotEmpty && !textFieldFocused ? (totalHeight * 0.4).clamp(8.0, 20.0) : 0.0;
-          final hintHeight = networks.isNotEmpty && textFieldFocused ? 4.0 : 0.0;
+          final networksHeight = networks.isNotEmpty && !textFieldFocused
+              ? (totalHeight * 0.4).clamp(8.0, 20.0)
+              : 0.0;
+          final hintHeight = networks.isNotEmpty && textFieldFocused
+              ? 4.0
+              : 0.0;
           final availableForMain = totalHeight - networksHeight - hintHeight;
-          final topPadding = ((availableForMain - _mainContentHeight) / 2).clamp(0.0, double.infinity);
+          final topPadding = ((availableForMain - _mainContentHeight) / 2)
+              .clamp(0.0, double.infinity);
 
           return Stack(
             children: [
@@ -236,9 +245,12 @@ class _HomePageState extends State<HomePage> {
                         children: [
                           HomeLogoSection(repoPath: currentDir),
                           DaemonIndicator(
-                            focused: _focusSection == _HomeSection.daemonIndicator,
+                            focused:
+                                _focusSection == _HomeSection.daemonIndicator,
                             onDownEdge: () {
-                              setState(() => _focusSection = _HomeSection.input);
+                              setState(
+                                () => _focusSection = _HomeSection.input,
+                              );
                             },
                             onEnter: () {
                               DaemonSessionsDialog.show(context);
@@ -249,24 +261,32 @@ class _HomePageState extends State<HomePage> {
                             padding: EdgeInsets.all(1),
                             child: Builder(
                               builder: (context) {
-                                final promptHistory = context.watch(promptHistoryProvider);
+                                final promptHistory = context.watch(
+                                  promptHistoryProvider,
+                                );
                                 return AttachmentTextField(
-                                  focused: _focusSection == _HomeSection.input && !sidebarFocused,
-                                  placeholder: 'Describe your goal (you can attach images)',
+                                  focused:
+                                      _focusSection == _HomeSection.input &&
+                                      !sidebarFocused,
+                                  placeholder:
+                                      'Describe your goal (you can attach images)',
                                   onSubmit: _handleSubmit,
                                   onCommand: _handleCommand,
                                   commandSuggestions: _getCommandSuggestions,
                                   promptHistory: promptHistory,
-                                  onPromptSubmitted: (prompt) =>
-                                      context.read(promptHistoryProvider.notifier).addPrompt(prompt),
+                                  onPromptSubmitted: (prompt) => context
+                                      .read(promptHistoryProvider.notifier)
+                                      .addPrompt(prompt),
                                   onDownEdge: networks.isNotEmpty
                                       ? () => setState(() {
-                                          _focusSection = _HomeSection.networksList;
+                                          _focusSection =
+                                              _HomeSection.networksList;
                                         })
                                       : null,
                                   onUpEdge: daemonEnabled
                                       ? () => setState(() {
-                                          _focusSection = _HomeSection.daemonIndicator;
+                                          _focusSection =
+                                              _HomeSection.daemonIndicator;
                                         })
                                       : null,
                                 );
@@ -282,7 +302,9 @@ class _HomePageState extends State<HomePage> {
                                 style: TextStyle(
                                   color: _commandResultIsError
                                       ? theme.base.error
-                                      : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                                      : theme.base.onSurface.withOpacity(
+                                          TextOpacity.secondary,
+                                        ),
                                 ),
                               ),
                             ),
@@ -297,7 +319,11 @@ class _HomePageState extends State<HomePage> {
                       child: Center(
                         child: Text(
                           'Enter: start a new conversation',
-                          style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.tertiary)),
+                          style: TextStyle(
+                            color: theme.base.onSurface.withOpacity(
+                              TextOpacity.tertiary,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -309,13 +335,17 @@ class _HomePageState extends State<HomePage> {
                       focused: _focusSection == _HomeSection.networksList,
                       listHeight: networksHeight,
                       onSessionSelected: (sessionId) {
-                        final sessionManager = context.read(videSessionManagerProvider);
+                        final sessionManager = context.read(
+                          videSessionManagerProvider,
+                        );
                         sessionManager.resumeSession(sessionId).then((session) {
                           NetworkExecutionPage.push(context, session: session);
                         });
                       },
                       onSessionDeleted: (index) {
-                        context.read(agentNetworksStateNotifierProvider.notifier).deleteSession(index);
+                        context
+                            .read(agentNetworksStateNotifierProvider.notifier)
+                            .deleteSession(index);
                       },
                       onUpEdge: () {
                         setState(() => _focusSection = _HomeSection.input);

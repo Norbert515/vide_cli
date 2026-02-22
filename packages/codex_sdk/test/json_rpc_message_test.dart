@@ -6,7 +6,10 @@ import 'package:test/test.dart';
 void main() {
   group('JsonRpcMessage.fromJson', () {
     test('parses notification (method, no id)', () {
-      final json = {'method': 'turn/started', 'params': {'turn': {}}};
+      final json = {
+        'method': 'turn/started',
+        'params': {'turn': {}},
+      };
       final msg = JsonRpcMessage.fromJson(json);
       expect(msg, isA<JsonRpcNotification>());
       final notif = msg as JsonRpcNotification;
@@ -55,10 +58,7 @@ void main() {
     });
 
     test('parses response with string id', () {
-      final json = {
-        'id': 'abc-123',
-        'result': {},
-      };
+      final json = {'id': 'abc-123', 'result': {}};
       final msg = JsonRpcMessage.fromJson(json);
       expect(msg, isA<JsonRpcResponse>());
       expect((msg as JsonRpcResponse).id, 'abc-123');

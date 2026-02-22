@@ -51,10 +51,7 @@ void main() {
       final notification = JsonRpcNotification(
         method: 'item/started',
         params: {
-          'item': {
-            'id': 'item_001',
-            'type': 'agentMessage',
-          },
+          'item': {'id': 'item_001', 'type': 'agentMessage'},
         },
       );
       final event = parser.parseNotification(notification);
@@ -68,11 +65,7 @@ void main() {
       final notification = JsonRpcNotification(
         method: 'item/completed',
         params: {
-          'item': {
-            'id': 'item_001',
-            'type': 'agentMessage',
-            'text': 'Hello!',
-          },
+          'item': {'id': 'item_001', 'type': 'agentMessage', 'text': 'Hello!'},
         },
       );
       final event = parser.parseNotification(notification);
@@ -85,10 +78,7 @@ void main() {
     test('parses item/agentMessage/delta', () {
       final notification = JsonRpcNotification(
         method: 'item/agentMessage/delta',
-        params: {
-          'itemId': 'item_001',
-          'delta': 'Hello ',
-        },
+        params: {'itemId': 'item_001', 'delta': 'Hello '},
       );
       final event = parser.parseNotification(notification);
       expect(event, isA<AgentMessageDeltaEvent>());
@@ -100,10 +90,7 @@ void main() {
     test('parses item/reasoning/summaryTextDelta', () {
       final notification = JsonRpcNotification(
         method: 'item/reasoning/summaryTextDelta',
-        params: {
-          'itemId': 'r_001',
-          'delta': 'thinking...',
-        },
+        params: {'itemId': 'r_001', 'delta': 'thinking...'},
       );
       final event = parser.parseNotification(notification);
       expect(event, isA<ReasoningSummaryDeltaEvent>());
@@ -113,10 +100,7 @@ void main() {
     test('parses item/commandExecution/outputDelta', () {
       final notification = JsonRpcNotification(
         method: 'item/commandExecution/outputDelta',
-        params: {
-          'itemId': 'cmd_001',
-          'delta': 'output line',
-        },
+        params: {'itemId': 'cmd_001', 'delta': 'output line'},
       );
       final event = parser.parseNotification(notification);
       expect(event, isA<CommandOutputDeltaEvent>());
@@ -146,10 +130,7 @@ void main() {
       final notification = JsonRpcNotification(
         method: 'codex/event/task_complete',
         params: {
-          'msg': {
-            'type': 'task_complete',
-            'last_agent_message': 'Done!',
-          },
+          'msg': {'type': 'task_complete', 'last_agent_message': 'Done!'},
         },
       );
       final event = parser.parseNotification(notification);

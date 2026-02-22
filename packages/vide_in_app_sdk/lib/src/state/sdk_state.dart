@@ -52,8 +52,9 @@ class VideSdkState extends ChangeNotifier {
   ///
   /// Available whenever host and port are configured, regardless of session
   /// state.
-  VideClient? get client =>
-      _host != null && _port != null ? VideClient(host: _host!, port: _port!) : null;
+  VideClient? get client => _host != null && _port != null
+      ? VideClient(host: _host!, port: _port!)
+      : null;
   RemoteVideSession? get session => _session;
   VideState? get videState => _session?.state;
   bool get hasActiveSession =>
@@ -61,7 +62,8 @@ class VideSdkState extends ChangeNotifier {
 
   PlanApprovalRequestEvent? get pendingPlanApproval => _pendingPlanApproval;
   AskUserQuestionEvent? get pendingAskUserQuestion => _pendingAskUserQuestion;
-  PermissionRequestEvent? get currentPermission => _pendingPermissions.firstOrNull;
+  PermissionRequestEvent? get currentPermission =>
+      _pendingPermissions.firstOrNull;
 
   void clearPendingPlanApproval() {
     _pendingPlanApproval = null;
@@ -136,12 +138,15 @@ class VideSdkState extends ChangeNotifier {
     final client = VideClient(host: _host!, port: _port!);
     try {
       final all = await client.listSessions();
-      _sessions = all
-          .where((s) =>
-              s.workingDirectory == _workingDirectory &&
-              s.state == 'ready')
-          .toList()
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _sessions =
+          all
+              .where(
+                (s) =>
+                    s.workingDirectory == _workingDirectory &&
+                    s.state == 'ready',
+              )
+              .toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       _sessionsFetched = true;
       notifyListeners();
     } catch (_) {

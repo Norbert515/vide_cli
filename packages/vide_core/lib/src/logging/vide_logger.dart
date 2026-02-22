@@ -81,9 +81,7 @@ class VideLogger {
   /// Start logging for a session. Opens the session-specific log file.
   void startSession(String sessionId) {
     if (_sessionSinks.containsKey(sessionId)) return;
-    final sessionFile = File(
-      path.join(_logDir, 'sessions', '$sessionId.log'),
-    );
+    final sessionFile = File(path.join(_logDir, 'sessions', '$sessionId.log'));
     _sessionSinks[sessionId] = sessionFile.openWrite(mode: FileMode.append);
     info('VideLogger', 'Session started', sessionId: sessionId);
   }
@@ -129,8 +127,9 @@ class VideLogger {
     String? sessionId,
   }) {
     final timestamp = DateTime.now().toUtc().toIso8601String();
-    final sessionTag =
-        sessionId != null ? ' [session:${_shortId(sessionId)}]' : '';
+    final sessionTag = sessionId != null
+        ? ' [session:${_shortId(sessionId)}]'
+        : '';
     final line = '$timestamp [${level.label}]$sessionTag [$component] $message';
 
     _globalSink.writeln(line);

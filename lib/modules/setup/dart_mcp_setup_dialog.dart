@@ -50,7 +50,10 @@ class DartMcpSetupDialog extends StatelessComponent {
             _buildSetupInstructions(theme),
             SizedBox(height: 1),
           ],
-          Text('Press any key to close', style: TextStyle(color: theme.base.outline)),
+          Text(
+            'Press any key to close',
+            style: TextStyle(color: theme.base.outline),
+          ),
         ],
       ),
     );
@@ -91,7 +94,10 @@ class DartMcpSetupDialog extends StatelessComponent {
       children: [
         Text(
           'Setup Instructions:',
-          style: TextStyle(fontWeight: FontWeight.bold, color: theme.base.warning),
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: theme.base.warning,
+          ),
         ),
         SizedBox(height: 1),
         Text('To enable Dart MCP, run one of these commands:'),

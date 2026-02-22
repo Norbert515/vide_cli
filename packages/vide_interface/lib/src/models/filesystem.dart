@@ -11,14 +11,14 @@ class FileEntry {
   });
 
   factory FileEntry.fromJson(Map<String, dynamic> json) => FileEntry(
-        name: json['name'] as String,
-        path: json['path'] as String,
-        isDirectory: json['is-directory'] as bool,
-      );
+    name: json['name'] as String,
+    path: json['path'] as String,
+    isDirectory: json['is-directory'] as bool,
+  );
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'path': path,
-        'is-directory': isDirectory,
-      };
+    'name': name,
+    'path': path,
+    'is-directory': isDirectory,
+  };
 }

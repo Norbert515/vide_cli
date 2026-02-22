@@ -277,20 +277,24 @@ void main() {
       test('provider uses workingDirProvider for project scoping', () async {
         final containerA = ProviderContainer(
           overrides: [
-            videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-              workingDirectory: '/project/alpha',
-              configManager: configManager,
-              permissionHandler: PermissionHandler(),
-            )),
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/project/alpha',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
           ],
         );
         final containerB = ProviderContainer(
           overrides: [
-            videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-              workingDirectory: '/project/beta',
-              configManager: configManager,
-              permissionHandler: PermissionHandler(),
-            )),
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/project/beta',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
           ],
         );
 
@@ -324,11 +328,13 @@ void main() {
         // but isolated session containers have client CWDs.
         final rootContainer = ProviderContainer(
           overrides: [
-            videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-              workingDirectory: '/daemon/cwd',
-              configManager: configManager,
-              permissionHandler: PermissionHandler(),
-            )),
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/daemon/cwd',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
           ],
         );
         addTearDown(rootContainer.dispose);
@@ -337,11 +343,15 @@ void main() {
         // (mimics _containerForSession in LocalVideSessionManager)
         final clientContainer = ProviderContainer(
           overrides: [
-            videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-              workingDirectory: '/client/project',
-              configManager: rootContainer.read(videCoreConfigProvider).configManager,
-              permissionHandler: PermissionHandler(),
-            )),
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/client/project',
+                configManager: rootContainer
+                    .read(videCoreConfigProvider)
+                    .configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
           ],
         );
         addTearDown(clientContainer.dispose);

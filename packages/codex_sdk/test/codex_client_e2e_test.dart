@@ -214,7 +214,10 @@ void main() {
     // Turn 2: ask about the fact (same persistent thread)
     final turn2Future = client.onTurnComplete.first;
     client.sendMessage(
-      Message(text: 'What number did I just tell you to remember? Reply with just the number.'),
+      Message(
+        text:
+            'What number did I just tell you to remember? Reply with just the number.',
+      ),
     );
 
     await turn2Future.timeout(

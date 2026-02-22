@@ -37,10 +37,7 @@ void main() {
       });
 
       test('maps AgentPermissionDeny with interrupt', () {
-        const agent = AgentPermissionDeny(
-          message: 'stop now',
-          interrupt: true,
-        );
+        const agent = AgentPermissionDeny(message: 'stop now', interrupt: true);
         final claude = AgentPermissionMapper.toClaude(agent);
 
         expect(claude, isA<PermissionResultDeny>());
@@ -62,9 +59,7 @@ void main() {
       });
 
       test('maps PermissionResultAllow with updatedInput', () {
-        const claude = PermissionResultAllow(
-          updatedInput: {'command': 'ls'},
-        );
+        const claude = PermissionResultAllow(updatedInput: {'command': 'ls'});
         final agent = AgentPermissionMapper.fromClaude(claude);
 
         expect(agent, isA<AgentPermissionAllow>());

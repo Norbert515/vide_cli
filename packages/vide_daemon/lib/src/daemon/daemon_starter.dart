@@ -181,9 +181,7 @@ class DaemonStarter {
     );
 
     // Invoke ready callback if provided
-    config.onReady?.call(
-      'http://${config.bindAddress}:${config.port}',
-    );
+    config.onReady?.call('http://${config.bindAddress}:${config.port}');
 
     _server = server;
     _registry = registry;
@@ -308,7 +306,9 @@ class DaemonStarter {
     if (config.dangerouslySkipPermissions) {
       print('╠══════════════════════════════════════════════════════════════╣');
       print('║                                                              ║');
-      print('║  ⚠️  PERMISSIONS DISABLED: All tool calls auto-approved       ║');
+      print(
+        '║  ⚠️  PERMISSIONS DISABLED: All tool calls auto-approved       ║',
+      );
       print('║  Only use in sandboxed environments (Docker, VMs)!          ║');
       print('║                                                              ║');
     }
@@ -352,7 +352,9 @@ class DaemonStarter {
     if (bindAddress == '0.0.0.0') {
       print('');
       print('╔══════════════════════════════════════════════════════════════╗');
-      print('║                    ⚠️  SECURITY WARNING ⚠️                    ║');
+      print(
+        '║                    ⚠️  SECURITY WARNING ⚠️                    ║',
+      );
       print('╠══════════════════════════════════════════════════════════════╣');
       print('║                                                              ║');
       print('║  You are about to bind to 0.0.0.0 (ALL network interfaces)  ║');

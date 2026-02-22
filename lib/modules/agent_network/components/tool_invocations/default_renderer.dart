@@ -53,9 +53,7 @@ class _DefaultRendererState extends State<DefaultRenderer> {
         if (component.invocation.parameters.isNotEmpty) ...[
           Text(
             ' \u2192 ',
-            style: TextStyle(
-              color: theme.base.onSurface.withOpacity(0.25),
-            ),
+            style: TextStyle(color: theme.base.onSurface.withOpacity(0.25)),
           ),
           Flexible(
             child: Text(

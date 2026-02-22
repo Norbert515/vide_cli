@@ -391,7 +391,6 @@ void main() {
         daemonClient.close();
       });
     });
-
   });
 
   group('DaemonClientException', () {

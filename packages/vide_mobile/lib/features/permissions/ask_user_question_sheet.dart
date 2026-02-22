@@ -179,8 +179,7 @@ class _AskUserQuestionSheetState extends State<AskUserQuestionSheet> {
                 questions: questions,
                 currentIndex: _currentQuestionIndex,
                 isAnswered: _isQuestionAnswered,
-                onTap: (index) =>
-                    setState(() => _currentQuestionIndex = index),
+                onTap: (index) => setState(() => _currentQuestionIndex = index),
               ),
             ],
             const SizedBox(height: 16),
@@ -195,8 +194,7 @@ class _AskUserQuestionSheetState extends State<AskUserQuestionSheet> {
                   multiSelections:
                       _multiSelections[_currentQuestionIndex] ?? {},
                   otherActive: _otherActive[_currentQuestionIndex] ?? false,
-                  otherController:
-                      _otherControllers[_currentQuestionIndex]!,
+                  otherController: _otherControllers[_currentQuestionIndex]!,
                   onSingleSelect: (optionIndex) {
                     setState(() {
                       _singleSelections[_currentQuestionIndex] = optionIndex;
@@ -205,7 +203,8 @@ class _AskUserQuestionSheetState extends State<AskUserQuestionSheet> {
                   },
                   onMultiToggle: (optionIndex) {
                     setState(() {
-                      final set = _multiSelections[_currentQuestionIndex] ??= {};
+                      final set =
+                          _multiSelections[_currentQuestionIndex] ??= {};
                       if (set.contains(optionIndex)) {
                         set.remove(optionIndex);
                       } else {
@@ -343,9 +342,8 @@ class _QuestionTabs extends StatelessWidget {
                     : Colors.transparent,
                 borderRadius: VideRadius.mdAll,
                 border: Border.all(
-                  color: isActive
-                      ? videColors.accent
-                      : colorScheme.outlineVariant,
+                  color:
+                      isActive ? videColors.accent : colorScheme.outlineVariant,
                 ),
               ),
               alignment: Alignment.center,

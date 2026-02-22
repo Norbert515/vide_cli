@@ -42,6 +42,26 @@ class MessageBubble extends StatelessComponent {
     return entry.content.any((c) => c is ToolContent);
   }
 
+  /// Returns true if an entry consists entirely of hidden/invisible tool calls
+  /// (e.g. setTaskName, setAgentStatus, TodoWrite, EnterPlanMode).
+  ///
+  /// These entries should be skipped entirely to avoid producing empty padding.
+  static bool isAllHiddenToolsEntry(ConversationEntry entry) {
+    if (entry.role != 'assistant') return false;
+    final tools = entry.content.whereType<ToolContent>().toList();
+    if (tools.isEmpty) return false;
+    // Check there's no visible text/thinking content
+    for (final content in entry.content) {
+      if (content is TextContent && content.text.trim().isNotEmpty) {
+        return false;
+      }
+      if (content is ThinkingContent && content.text.trim().isNotEmpty) {
+        return false;
+      }
+    }
+    return tools.every(ToolInvocationRouter.isHiddenToolContent);
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -155,7 +175,9 @@ class MessageBubble extends StatelessComponent {
               content.text.toLowerCase().contains('context window') ||
               content.text.toLowerCase().contains('token limit');
 
-          widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
+          widgets.add(
+            MarkdownText(content.text, styleSheet: theme.markdownStyleSheet),
+          );
 
           if (isContextFullError) {
             widgets.add(

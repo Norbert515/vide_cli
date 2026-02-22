@@ -1488,10 +1488,7 @@ void main() {
                 'thinking': 'I need to find the GCD...',
                 'signature': 'sig123',
               },
-              {
-                'type': 'text',
-                'text': 'The greatest common divisor is 21.',
-              },
+              {'type': 'text', 'text': 'The greatest common divisor is 21.'},
             ],
           },
         };
@@ -1503,10 +1500,7 @@ void main() {
           (responses[0] as ThinkingResponse).content,
           'I need to find the GCD...',
         );
-        expect(
-          (responses[0] as ThinkingResponse).isCumulative,
-          isTrue,
-        );
+        expect((responses[0] as ThinkingResponse).isCumulative, isTrue);
         expect(
           (responses[1] as TextResponse).content,
           'The greatest common divisor is 21.',
@@ -1514,47 +1508,7 @@ void main() {
       },
     );
 
-    test(
-      'parses thinking + text + tool_use interleaved blocks',
-      () {
-        final json = {
-          'type': 'assistant',
-          'uuid': 'msg_123',
-          'message': {
-            'id': 'msg_123',
-            'role': 'assistant',
-            'content': [
-              {
-                'type': 'thinking',
-                'thinking': 'I should check the weather...',
-                'signature': 'sig_abc',
-              },
-              {
-                'type': 'text',
-                'text': 'Let me check the weather for you.',
-              },
-              {
-                'type': 'tool_use',
-                'id': 'toolu_weather',
-                'name': 'get_weather',
-                'input': {'location': 'Paris'},
-              },
-            ],
-          },
-        };
-        final responses = ClaudeResponse.fromJsonMultiple(json);
-        expect(responses, hasLength(3));
-        expect(responses[0], isA<ThinkingResponse>());
-        expect(responses[1], isA<TextResponse>());
-        expect(responses[2], isA<ToolUseResponse>());
-        expect(
-          (responses[0] as ThinkingResponse).content,
-          'I should check the weather...',
-        );
-      },
-    );
-
-    test('skips empty thinking blocks in fromJsonMultiple', () {
+    test('parses thinking + text + tool_use interleaved blocks', () {
       final json = {
         'type': 'assistant',
         'uuid': 'msg_123',
@@ -1564,13 +1518,40 @@ void main() {
           'content': [
             {
               'type': 'thinking',
-              'thinking': '',
-              'signature': 'sig_empty',
+              'thinking': 'I should check the weather...',
+              'signature': 'sig_abc',
             },
+            {'type': 'text', 'text': 'Let me check the weather for you.'},
             {
-              'type': 'text',
-              'text': 'Response without visible thinking.',
+              'type': 'tool_use',
+              'id': 'toolu_weather',
+              'name': 'get_weather',
+              'input': {'location': 'Paris'},
             },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(3));
+      expect(responses[0], isA<ThinkingResponse>());
+      expect(responses[1], isA<TextResponse>());
+      expect(responses[2], isA<ToolUseResponse>());
+      expect(
+        (responses[0] as ThinkingResponse).content,
+        'I should check the weather...',
+      );
+    });
+
+    test('skips empty thinking blocks in fromJsonMultiple', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {'type': 'thinking', 'thinking': '', 'signature': 'sig_empty'},
+            {'type': 'text', 'text': 'Response without visible thinking.'},
           ],
         },
       };
@@ -1609,10 +1590,7 @@ void main() {
         'event': {
           'type': 'content_block_delta',
           'index': 1,
-          'delta': {
-            'type': 'text_delta',
-            'text': 'The answer is 21.',
-          },
+          'delta': {'type': 'text_delta', 'text': 'The answer is 21.'},
         },
       };
       final response = ClaudeResponse.fromJson(json);
@@ -1628,10 +1606,7 @@ void main() {
         'event': {
           'type': 'content_block_delta',
           'index': 0,
-          'delta': {
-            'type': 'thinking_delta',
-            'thinking': '',
-          },
+          'delta': {'type': 'thinking_delta', 'thinking': ''},
         },
       };
       final response = ClaudeResponse.fromJson(json);
@@ -1646,10 +1621,7 @@ void main() {
           'id': 'msg_123',
           'role': 'assistant',
           'content': [
-            {
-              'type': 'thinking',
-              'signature': 'sig_no_content',
-            },
+            {'type': 'thinking', 'signature': 'sig_no_content'},
           ],
         },
       };

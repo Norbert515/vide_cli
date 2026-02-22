@@ -209,9 +209,7 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapCommandExecutionCompleted(
-    ItemCompletedEvent event,
-  ) {
+  List<ClaudeResponse> _mapCommandExecutionCompleted(ItemCompletedEvent event) {
     final exitCode = event.itemData['exit_code'] as int?;
     final output =
         event.itemData['aggregated_output'] as String? ??
@@ -232,8 +230,9 @@ class CodexEventMapper {
     final changes = event.itemData['changes'] as List<dynamic>?;
     final params = <String, dynamic>{};
     if (changes != null && changes.isNotEmpty) {
-      final paths =
-          changes.map((c) => (c as Map)['path'] as String? ?? '').toList();
+      final paths = changes
+          .map((c) => (c as Map)['path'] as String? ?? '')
+          .toList();
       params['files'] = paths;
       final kind = (changes.first as Map)['kind'] as String? ?? 'update';
       params['kind'] = kind;
@@ -275,18 +274,18 @@ class CodexEventMapper {
   List<ClaudeResponse> _mapMcpToolCallStarted(ItemStartedEvent event) {
     final serverLabel = event.itemData['server'] as String? ?? '';
     final toolName = event.itemData['tool'] as String? ?? '';
-    final fullName =
-        serverLabel.isNotEmpty ? 'mcp__${serverLabel}__$toolName' : toolName;
+    final fullName = serverLabel.isNotEmpty
+        ? 'mcp__${serverLabel}__$toolName'
+        : toolName;
     final arguments = event.itemData['arguments'];
     return [
       ToolUseResponse(
         id: event.itemId,
         timestamp: DateTime.now(),
         toolName: fullName,
-        parameters:
-            arguments is Map<String, dynamic>
-                ? arguments
-                : <String, dynamic>{},
+        parameters: arguments is Map<String, dynamic>
+            ? arguments
+            : <String, dynamic>{},
         toolUseId: event.itemId,
       ),
     ];

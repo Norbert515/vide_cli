@@ -130,11 +130,11 @@ class _RenderScrollbarWithMarkers extends RenderObject
     required Color trackColor,
     required Color thumbColor,
     required List<ScrollbarMarker> markers,
-  })  : _controller = controller,
-        _thumbVisibility = thumbVisibility,
-        _trackColor = trackColor,
-        _thumbColor = thumbColor,
-        _markers = markers {
+  }) : _controller = controller,
+       _thumbVisibility = thumbVisibility,
+       _trackColor = trackColor,
+       _thumbColor = thumbColor,
+       _markers = markers {
     _controller?.addListener(_handleScrollUpdate);
   }
 
@@ -206,8 +206,9 @@ class _RenderScrollbarWithMarkers extends RenderObject
       return;
     }
 
-    final reservedWidth =
-        _markers.isEmpty ? _scrollbarThickness : _totalThickness;
+    final reservedWidth = _markers.isEmpty
+        ? _scrollbarThickness
+        : _totalThickness;
 
     final childConstraints = BoxConstraints(
       minWidth: math.max(0, constraints.minWidth - reservedWidth),
@@ -218,10 +219,9 @@ class _RenderScrollbarWithMarkers extends RenderObject
 
     child!.layout(childConstraints, parentUsesSize: true);
 
-    size = constraints.constrain(Size(
-      child!.size.width + reservedWidth,
-      child!.size.height,
-    ));
+    size = constraints.constrain(
+      Size(child!.size.width + reservedWidth, child!.size.height),
+    );
   }
 
   @override
@@ -273,30 +273,29 @@ class _RenderScrollbarWithMarkers extends RenderObject
 
     // 3. Draw arrows
     if (scrollbarHeight >= 3) {
-      final topArrowActive =
-          _isReversed ? !controller.atEnd : !controller.atStart;
-      final bottomArrowActive =
-          _isReversed ? !controller.atStart : !controller.atEnd;
+      final topArrowActive = _isReversed
+          ? !controller.atEnd
+          : !controller.atStart;
+      final bottomArrowActive = _isReversed
+          ? !controller.atStart
+          : !controller.atEnd;
 
       canvas.drawText(
         offset + Offset(scrollbarX, 0),
         '▲',
-        style: TextStyle(
-          color: topArrowActive ? _thumbColor : _trackColor,
-        ),
+        style: TextStyle(color: topArrowActive ? _thumbColor : _trackColor),
       );
 
       canvas.drawText(
         offset + Offset(scrollbarX, scrollbarHeight - 1),
         '▼',
-        style: TextStyle(
-          color: bottomArrowActive ? _thumbColor : _trackColor,
-        ),
+        style: TextStyle(color: bottomArrowActive ? _thumbColor : _trackColor),
       );
     }
 
     // 4. Draw thumb on top of scrollbar track
-    final scrollFraction = controller.viewportDimension /
+    final scrollFraction =
+        controller.viewportDimension /
         (controller.maxScrollExtent + controller.viewportDimension);
     final thumbHeight = math.max(1.0, scrollbarHeight * scrollFraction);
 

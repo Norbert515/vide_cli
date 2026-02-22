@@ -444,9 +444,7 @@ class _WelcomePageState extends State<WelcomePage>
   Component _buildDivider(VideThemeData theme) {
     return Text(
       '─' * (_contentWidth),
-      style: TextStyle(
-        color: theme.base.outlineVariant,
-      ),
+      style: TextStyle(color: theme.base.outlineVariant),
     );
   }
 
@@ -723,26 +721,11 @@ class _WelcomePageState extends State<WelcomePage>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          '○',
-          style: TextStyle(
-            color: theme.base.outlineVariant,
-          ),
-        ),
+        Text('○', style: TextStyle(color: theme.base.outlineVariant)),
         SizedBox(width: 2),
-        Text(
-          name,
-          style: TextStyle(
-            color: theme.base.outlineVariant,
-          ),
-        ),
+        Text(name, style: TextStyle(color: theme.base.outlineVariant)),
         SizedBox(width: 2),
-        Text(
-          label,
-          style: TextStyle(
-            color: theme.base.outlineVariant,
-          ),
-        ),
+        Text(label, style: TextStyle(color: theme.base.outlineVariant)),
       ],
     );
   }

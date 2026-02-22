@@ -111,10 +111,7 @@ void main() {
 
   group('ClientMessage', () {
     test('fromJson parses user-message', () {
-      final json = {
-        'type': 'user-message',
-        'content': 'Hello there',
-      };
+      final json = {'type': 'user-message', 'content': 'Hello there'};
 
       final message = ClientMessage.fromJson(json);
 

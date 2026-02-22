@@ -100,11 +100,7 @@ class CodexClient {
 
     // Initialize handshake
     final initResponse = await _transport.sendRequest('initialize', {
-      'clientInfo': {
-        'name': 'vide',
-        'version': '0.1.0',
-        'title': 'Vide',
-      },
+      'clientInfo': {'name': 'vide', 'version': '0.1.0', 'title': 'Vide'},
       'capabilities': {'experimentalApi': true},
     });
 
@@ -196,8 +192,7 @@ class CodexClient {
   }
 
   void sendMessage(Message message) {
-    if (message.text.trim().isEmpty &&
-        (message.attachments?.isEmpty ?? true)) {
+    if (message.text.trim().isEmpty && (message.attachments?.isEmpty ?? true)) {
       return;
     }
 
@@ -241,10 +236,7 @@ class CodexClient {
   }
 
   /// Respond to a server approval request.
-  void respondToApproval(
-    dynamic requestId,
-    CodexApprovalDecision decision,
-  ) {
+  void respondToApproval(dynamic requestId, CodexApprovalDecision decision) {
     _transport.respondToRequest(requestId, {'decision': decision.toJson()});
   }
 
@@ -269,9 +261,7 @@ class CodexClient {
 
   Future<void> abort() async {
     if (!_transport.isRunning || _threadId == null) return;
-    await _transport.sendRequest('turn/interrupt', {
-      'threadId': _threadId,
-    });
+    await _transport.sendRequest('turn/interrupt', {'threadId': _threadId});
     _updateStatus(ClaudeStatus.ready);
   }
 
@@ -397,8 +387,7 @@ class CodexClient {
       }
 
       // Process through ResponseProcessor
-      final result =
-          _responseProcessor.processResponse(response, conversation);
+      final result = _responseProcessor.processResponse(response, conversation);
       conversation = result.updatedConversation;
       turnComplete = turnComplete || result.turnComplete;
     }

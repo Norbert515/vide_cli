@@ -13,16 +13,16 @@ class GitCommitInfo {
   });
 
   factory GitCommitInfo.fromJson(Map<String, dynamic> json) => GitCommitInfo(
-        hash: json['hash'] as String,
-        author: json['author'] as String,
-        message: json['message'] as String,
-        date: DateTime.parse(json['date'] as String),
-      );
+    hash: json['hash'] as String,
+    author: json['author'] as String,
+    message: json['message'] as String,
+    date: DateTime.parse(json['date'] as String),
+  );
 
   Map<String, dynamic> toJson() => {
-        'hash': hash,
-        'author': author,
-        'message': message,
-        'date': date.toIso8601String(),
-      };
+    'hash': hash,
+    'author': author,
+    'message': message,
+    'date': date.toIso8601String(),
+  };
 }

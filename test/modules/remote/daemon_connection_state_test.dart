@@ -94,7 +94,6 @@ void main() {
         expect(copied.host, equals('192.168.1.1'));
         expect(copied.port, equals(9090));
       });
-
     });
 
     group('default constructor', () {

@@ -327,16 +327,14 @@ class VideClient {
 
   /// Read file content as a UTF-8 string.
   Future<String> readFileContent(String path) async {
-    final uri = Uri.parse('$_httpUrl/api/v1/filesystem/content').replace(
-      queryParameters: {'path': path},
-    );
+    final uri = Uri.parse(
+      '$_httpUrl/api/v1/filesystem/content',
+    ).replace(queryParameters: {'path': path});
 
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
-      throw VideClientException(
-        'Failed to read file: ${response.body}',
-      );
+      throw VideClientException('Failed to read file: ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -347,18 +345,14 @@ class VideClient {
   ///
   /// If [parent] is null, lists the server's configured filesystem root.
   Future<List<FileEntry>> listDirectory({String? parent}) async {
-    final uri = Uri.parse('$_httpUrl/api/v1/filesystem').replace(
-      queryParameters: {
-        if (parent != null) 'parent': parent,
-      },
-    );
+    final uri = Uri.parse(
+      '$_httpUrl/api/v1/filesystem',
+    ).replace(queryParameters: {if (parent != null) 'parent': parent});
 
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
-      throw VideClientException(
-        'Failed to list directory: ${response.body}',
-      );
+      throw VideClientException('Failed to list directory: ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -373,15 +367,9 @@ class VideClient {
   // ==========================================================================
 
   /// Get git status for a repository.
-  Future<GitStatusInfo> gitStatus(
-    String path, {
-    bool detailed = false,
-  }) async {
+  Future<GitStatusInfo> gitStatus(String path, {bool detailed = false}) async {
     final uri = Uri.parse('$_httpUrl/api/v1/git/status').replace(
-      queryParameters: {
-        'path': path,
-        if (detailed) 'detailed': 'true',
-      },
+      queryParameters: {'path': path, if (detailed) 'detailed': 'true'},
     );
 
     final response = await http.get(uri);
@@ -395,16 +383,10 @@ class VideClient {
   }
 
   /// Get git log (recent commits).
-  Future<List<GitCommitInfo>> gitLog(
-    String path, {
-    int count = 10,
-  }) async {
-    final uri = Uri.parse('$_httpUrl/api/v1/git/log').replace(
-      queryParameters: {
-        'path': path,
-        'count': count.toString(),
-      },
-    );
+  Future<List<GitCommitInfo>> gitLog(String path, {int count = 10}) async {
+    final uri = Uri.parse(
+      '$_httpUrl/api/v1/git/log',
+    ).replace(queryParameters: {'path': path, 'count': count.toString()});
 
     final response = await http.get(uri);
 
@@ -424,19 +406,14 @@ class VideClient {
     String path, {
     bool all = false,
   }) async {
-    final uri = Uri.parse('$_httpUrl/api/v1/git/branches').replace(
-      queryParameters: {
-        'path': path,
-        if (all) 'all': 'true',
-      },
-    );
+    final uri = Uri.parse(
+      '$_httpUrl/api/v1/git/branches',
+    ).replace(queryParameters: {'path': path, if (all) 'all': 'true'});
 
     final response = await http.get(uri);
 
     if (response.statusCode != 200) {
-      throw VideClientException(
-        'Failed to get git branches: ${response.body}',
-      );
+      throw VideClientException('Failed to get git branches: ${response.body}');
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -481,16 +458,10 @@ class VideClient {
   }
 
   /// Get git diff output.
-  Future<String> gitDiff(
-    String path, {
-    bool staged = false,
-  }) async {
-    final uri = Uri.parse('$_httpUrl/api/v1/git/diff').replace(
-      queryParameters: {
-        'path': path,
-        if (staged) 'staged': 'true',
-      },
-    );
+  Future<String> gitDiff(String path, {bool staged = false}) async {
+    final uri = Uri.parse(
+      '$_httpUrl/api/v1/git/diff',
+    ).replace(queryParameters: {'path': path, if (staged) 'staged': 'true'});
 
     final response = await http.get(uri);
 

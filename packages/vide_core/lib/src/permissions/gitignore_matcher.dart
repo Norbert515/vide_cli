@@ -42,7 +42,10 @@ class GitignoreMatcher {
       }
     } catch (e) {
       // If we can't read gitignore, fail open (allow reads)
-      VideLogger.instance.warn('GitignoreMatcher', 'Could not read .gitignore: $e');
+      VideLogger.instance.warn(
+        'GitignoreMatcher',
+        'Could not read .gitignore: $e',
+      );
     }
   }
 

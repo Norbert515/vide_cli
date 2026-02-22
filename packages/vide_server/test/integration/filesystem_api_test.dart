@@ -63,7 +63,6 @@ void main() {
       const Duration(seconds: 30),
       onTimeout: () => throw Exception('Server failed to start'),
     );
-
   });
 
   tearDownAll(() async {

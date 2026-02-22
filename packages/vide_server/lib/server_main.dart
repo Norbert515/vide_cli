@@ -100,12 +100,14 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   final permissionHandler = PermissionHandler();
   final container = ProviderContainer(
     overrides: [
-      videCoreConfigProvider.overrideWithValue(VideCoreConfig(
-        workingDirectory: Directory.current.path,
-        configManager: VideConfigManager(),
-        permissionHandler: permissionHandler,
-        dangerouslySkipPermissions: config.dangerouslySkipPermissions,
-      )),
+      videCoreConfigProvider.overrideWithValue(
+        VideCoreConfig(
+          workingDirectory: Directory.current.path,
+          configManager: VideConfigManager(),
+          permissionHandler: permissionHandler,
+          dangerouslySkipPermissions: config.dangerouslySkipPermissions,
+        ),
+      ),
     ],
   );
   final sessionManager = LocalVideSessionManager.isolated(

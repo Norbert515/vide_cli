@@ -71,15 +71,17 @@ class _GitViewState extends State<GitView> {
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to stage files: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to stage files: $e')));
     }
   }
 
   Future<void> _showDiff(String relativePath, {bool staged = false}) async {
-    final fullDiff =
-        await widget.client.gitDiff(widget.workingDirectory, staged: staged);
+    final fullDiff = await widget.client.gitDiff(
+      widget.workingDirectory,
+      staged: staged,
+    );
     final fileDiff = filterDiffForFile(fullDiff, relativePath);
 
     if (!mounted) return;
@@ -139,68 +141,68 @@ class _GitViewState extends State<GitView> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.error_outline,
-                                size: 32, color: colorScheme.error),
-                            const SizedBox(height: 8),
-                            Text(
-                              _error!,
-                              style: TextStyle(
-                                color: videColors.textSecondary,
-                                fontSize: 13,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 12),
-                            FilledButton.tonal(
-                              onPressed: _load,
-                              child: const Text('Retry'),
-                            ),
-                          ],
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 32,
+                          color: colorScheme.error,
                         ),
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        children: [
-                          if (_status != null)
-                            _BranchHeader(status: _status!),
-                          if (_status != null && _status!.hasChanges)
-                            _ChangesSection(
-                              status: _status!,
-                              onStage: _stageFiles,
-                              onFileTap: _showDiff,
-                              videColors: videColors,
-                            ),
-                          if (_commits.isNotEmpty)
-                            _CommitsSection(
-                              commits: _commits,
-                              videColors: videColors,
-                              colorScheme: colorScheme,
-                            ),
-                          if (_status != null &&
-                              !_status!.hasChanges &&
-                              _commits.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.all(32),
-                              child: Center(
-                                child: Text(
-                                  'No changes or commits',
-                                  style: TextStyle(
-                                    color: videColors.textSecondary,
-                                  ),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _error!,
+                          style: TextStyle(
+                            color: videColors.textSecondary,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonal(
+                          onPressed: _load,
+                          child: const Text('Retry'),
+                        ),
+                      ],
                     ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    children: [
+                      if (_status != null) _BranchHeader(status: _status!),
+                      if (_status != null && _status!.hasChanges)
+                        _ChangesSection(
+                          status: _status!,
+                          onStage: _stageFiles,
+                          onFileTap: _showDiff,
+                          videColors: videColors,
+                        ),
+                      if (_commits.isNotEmpty)
+                        _CommitsSection(
+                          commits: _commits,
+                          videColors: videColors,
+                          colorScheme: colorScheme,
+                        ),
+                      if (_status != null &&
+                          !_status!.hasChanges &&
+                          _commits.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Center(
+                            child: Text(
+                              'No changes or commits',
+                              style: TextStyle(color: videColors.textSecondary),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
         ),
       ],
     );
@@ -596,9 +598,7 @@ class _CommitTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            commit.hash.length >= 7
-                ? commit.hash.substring(0, 7)
-                : commit.hash,
+            commit.hash.length >= 7 ? commit.hash.substring(0, 7) : commit.hash,
             style: GoogleFonts.jetBrainsMono(
               fontSize: 12,
               color: videColors.accent,
@@ -612,10 +612,7 @@ class _CommitTile extends StatelessWidget {
               children: [
                 Text(
                   commit.message,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: colorScheme.onSurface,
-                  ),
+                  style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),

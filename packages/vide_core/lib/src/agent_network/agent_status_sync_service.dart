@@ -43,110 +43,113 @@ class AgentStatusSyncService {
     // Cancel any existing subscription
     _statusSyncSubscriptions[agentId]?.cancel();
 
-    _statusSyncSubscriptions[agentId] = client.statusStream.listen((
-      processingStatus,
-    ) {
-      VideLogger.instance.debug(
-        'AgentStatusSyncService',
-        'Agent $agentId: received AgentProcessingStatus.${processingStatus.name}',
-        sessionId: _networkId,
-      );
-      final agentStatusNotifier = _getStatusNotifier(agentId);
-      final currentAgentStatus = _getStatus(agentId);
+    _statusSyncSubscriptions[agentId] = client.statusStream.listen(
+      (processingStatus) {
+        VideLogger.instance.debug(
+          'AgentStatusSyncService',
+          'Agent $agentId: received AgentProcessingStatus.${processingStatus.name}',
+          sessionId: _networkId,
+        );
+        final agentStatusNotifier = _getStatusNotifier(agentId);
+        final currentAgentStatus = _getStatus(agentId);
 
-      switch (processingStatus) {
-        case AgentProcessingStatus.processing:
-        case AgentProcessingStatus.thinking:
-        case AgentProcessingStatus.responding:
-          // Agent is working, set agent status to working
-          if (currentAgentStatus != AgentStatus.working) {
-            VideLogger.instance.debug(
-              'AgentStatusSyncService',
-              'Agent $agentId: AgentProcessingStatus.${processingStatus.name} -> setting working (was ${currentAgentStatus.name})',
-              sessionId: _networkId,
-            );
-            agentStatusNotifier.setStatus(AgentStatus.working);
-          }
-          break;
-        case AgentProcessingStatus.ready:
-          // Agent's turn is truly complete.
-          // Only react to 'ready' (not 'completed') because 'completed' is
-          // emitted for every response end, including compaction. 'ready' is
-          // only emitted when turnComplete is true, so it correctly skips
-          // compaction.
-          if (currentAgentStatus == AgentStatus.working) {
-            final effectiveStatus = effectiveIdleStatus(agentId);
-            VideLogger.instance.debug(
-              'AgentStatusSyncService',
-              'Agent $agentId: AgentProcessingStatus.ready -> setting ${effectiveStatus.name} (was working)',
-              sessionId: _networkId,
-            );
-            agentStatusNotifier.setStatus(effectiveStatus);
-            // If truly idle, cascade up to parent
-            if (effectiveStatus == AgentStatus.idle) {
-              cascadeIdleToParent(agentId);
+        switch (processingStatus) {
+          case AgentProcessingStatus.processing:
+          case AgentProcessingStatus.thinking:
+          case AgentProcessingStatus.responding:
+          case AgentProcessingStatus.compacting:
+            // Agent is working, set agent status to working
+            if (currentAgentStatus != AgentStatus.working) {
+              VideLogger.instance.debug(
+                'AgentStatusSyncService',
+                'Agent $agentId: AgentProcessingStatus.${processingStatus.name} -> setting working (was ${currentAgentStatus.name})',
+                sessionId: _networkId,
+              );
+              agentStatusNotifier.setStatus(AgentStatus.working);
             }
-            // Check if all agents are now idle
-            checkAllAgentsIdle();
-          } else {
-            VideLogger.instance.debug(
-              'AgentStatusSyncService',
-              'Agent $agentId: AgentProcessingStatus.ready ignored (status is ${currentAgentStatus.name}, not working)',
-              sessionId: _networkId,
-            );
-          }
-          break;
-        case AgentProcessingStatus.completed:
-          // 'completed' means a response finished, but NOT necessarily
-          // the turn. During compaction, 'completed' fires but the turn
-          // continues. We ignore it here and wait for 'ready' instead.
-          VideLogger.instance.debug(
-            'AgentStatusSyncService',
-            'Agent $agentId: AgentProcessingStatus.completed ignored (waiting for ready)',
-            sessionId: _networkId,
-          );
-          break;
-        case AgentProcessingStatus.error:
-          // On error, set to idle so triggers can fire
-          if (currentAgentStatus == AgentStatus.working) {
-            final effectiveStatus = effectiveIdleStatus(agentId);
-            VideLogger.instance.debug(
-              'AgentStatusSyncService',
-              'Agent $agentId: AgentProcessingStatus.error -> setting ${effectiveStatus.name} (was ${currentAgentStatus.name})',
-              sessionId: _networkId,
-            );
-            agentStatusNotifier.setStatus(effectiveStatus);
-            if (effectiveStatus == AgentStatus.idle) {
-              cascadeIdleToParent(agentId);
+            break;
+          case AgentProcessingStatus.ready:
+            // Agent's turn is truly complete.
+            // Only react to 'ready' (not 'completed') because 'completed' is
+            // emitted for every response end, including compaction. 'ready' is
+            // only emitted when turnComplete is true, so it correctly skips
+            // compaction.
+            if (currentAgentStatus == AgentStatus.working) {
+              final effectiveStatus = effectiveIdleStatus(agentId);
+              VideLogger.instance.debug(
+                'AgentStatusSyncService',
+                'Agent $agentId: AgentProcessingStatus.ready -> setting ${effectiveStatus.name} (was working)',
+                sessionId: _networkId,
+              );
+              agentStatusNotifier.setStatus(effectiveStatus);
+              // If truly idle, cascade up to parent
+              if (effectiveStatus == AgentStatus.idle) {
+                cascadeIdleToParent(agentId);
+              }
+              // Check if all agents are now idle
+              checkAllAgentsIdle();
+            } else {
+              VideLogger.instance.debug(
+                'AgentStatusSyncService',
+                'Agent $agentId: AgentProcessingStatus.ready ignored (status is ${currentAgentStatus.name}, not working)',
+                sessionId: _networkId,
+              );
             }
-            checkAllAgentsIdle();
-          }
-          break;
-        case AgentProcessingStatus.unknown:
-          // 'unknown' means a status string we don't recognize — often
-          // caused by unhandled system message subtypes during compaction.
-          // Do NOT set idle here; the agent is likely still working.
-          // Only 'ready' (true turn completion) should transition to idle.
-          VideLogger.instance.warn(
-            'AgentStatusSyncService',
-            'Agent $agentId: AgentProcessingStatus.unknown ignored (was ${currentAgentStatus.name}) — likely unrecognized system message during compaction',
-            sessionId: _networkId,
-          );
-          break;
-      }
-    }, onError: (Object error) {
-      VideLogger.instance.error(
-        'AgentStatusSyncService',
-        'Agent $agentId: statusStream error: $error',
-        sessionId: _networkId,
-      );
-    }, onDone: () {
-      VideLogger.instance.warn(
-        'AgentStatusSyncService',
-        'Agent $agentId: statusStream closed (process may have exited)',
-        sessionId: _networkId,
-      );
-    });
+            break;
+          case AgentProcessingStatus.completed:
+            // 'completed' means a response finished, but NOT necessarily
+            // the turn. During compaction, 'completed' fires but the turn
+            // continues. We ignore it here and wait for 'ready' instead.
+            VideLogger.instance.debug(
+              'AgentStatusSyncService',
+              'Agent $agentId: AgentProcessingStatus.completed ignored (waiting for ready)',
+              sessionId: _networkId,
+            );
+            break;
+          case AgentProcessingStatus.error:
+            // On error, set to idle so triggers can fire
+            if (currentAgentStatus == AgentStatus.working) {
+              final effectiveStatus = effectiveIdleStatus(agentId);
+              VideLogger.instance.debug(
+                'AgentStatusSyncService',
+                'Agent $agentId: AgentProcessingStatus.error -> setting ${effectiveStatus.name} (was ${currentAgentStatus.name})',
+                sessionId: _networkId,
+              );
+              agentStatusNotifier.setStatus(effectiveStatus);
+              if (effectiveStatus == AgentStatus.idle) {
+                cascadeIdleToParent(agentId);
+              }
+              checkAllAgentsIdle();
+            }
+            break;
+          case AgentProcessingStatus.unknown:
+            // 'unknown' means a status string we don't recognize — often
+            // caused by unhandled system message subtypes during compaction.
+            // Do NOT set idle here; the agent is likely still working.
+            // Only 'ready' (true turn completion) should transition to idle.
+            VideLogger.instance.warn(
+              'AgentStatusSyncService',
+              'Agent $agentId: AgentProcessingStatus.unknown ignored (was ${currentAgentStatus.name}) — likely unrecognized system message during compaction',
+              sessionId: _networkId,
+            );
+            break;
+        }
+      },
+      onError: (Object error) {
+        VideLogger.instance.error(
+          'AgentStatusSyncService',
+          'Agent $agentId: statusStream error: $error',
+          sessionId: _networkId,
+        );
+      },
+      onDone: () {
+        VideLogger.instance.warn(
+          'AgentStatusSyncService',
+          'Agent $agentId: statusStream closed (process may have exited)',
+          sessionId: _networkId,
+        );
+      },
+    );
   }
 
   /// Clean up status sync subscription for an agent.

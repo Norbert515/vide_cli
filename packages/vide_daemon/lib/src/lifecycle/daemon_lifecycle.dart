@@ -90,14 +90,14 @@ class DaemonLifecycle {
     // Use shell redirection to capture stdout/stderr to log file.
     // ProcessStartMode.detached doesn't expose stdio, so we use
     // a shell wrapper to redirect output before detaching.
-    final shellCommand = '${daemonArgs.map(shellEscape).join(' ')} '
+    final shellCommand =
+        '${daemonArgs.map(shellEscape).join(' ')} '
         '>> ${shellEscape(logPath)} 2>&1';
 
-    await Process.start(
-      '/bin/sh',
-      ['-c', shellCommand],
-      mode: ProcessStartMode.detached,
-    );
+    await Process.start('/bin/sh', [
+      '-c',
+      shellCommand,
+    ], mode: ProcessStartMode.detached);
 
     // Poll health endpoint to confirm startup
     final client = DaemonClient(host: host, port: port);

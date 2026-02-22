@@ -225,8 +225,7 @@ class PermissionMatcher {
     // Legacy support: convert trailing `:*` to ` *`
     var normalized = pattern;
     if (normalized.endsWith(':*')) {
-      normalized =
-          '${normalized.substring(0, normalized.length - 2)} *';
+      normalized = '${normalized.substring(0, normalized.length - 2)} *';
     }
 
     // Special case: trailing ` *` enforces word boundary.
@@ -262,7 +261,19 @@ class PermissionMatcher {
   }
 
   static const _regexSpecialChars = {
-    '.', '+', '?', '[', ']', '(', ')', '{', '}', '^', r'$', '|', r'\',
+    '.',
+    '+',
+    '?',
+    '[',
+    ']',
+    '(',
+    ')',
+    '{',
+    '}',
+    '^',
+    r'$',
+    '|',
+    r'\',
   };
 
   /// Check if a command matches a bash glob pattern.

@@ -274,7 +274,7 @@ class PermissionChecker {
     VideLogger.instance.debug(
       'PermissionChecker',
       'No auto-approve rule matched: tool=$toolName behavior=${config.askUserBehavior.name} '
-      'pattern=$inferredPattern',
+          'pattern=$inferredPattern',
     );
     return switch (config.askUserBehavior) {
       AskUserBehavior.ask => PermissionAskUser(

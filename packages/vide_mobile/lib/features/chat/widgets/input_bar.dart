@@ -109,8 +109,7 @@ class _InputBarState extends State<InputBar> {
                   style: TextStyle(color: colorScheme.onSurface),
                   decoration: InputDecoration(
                     hintText: 'Type a message...',
-                    hintStyle:
-                        TextStyle(color: colorScheme.onSurfaceVariant),
+                    hintStyle: TextStyle(color: colorScheme.onSurfaceVariant),
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,

@@ -49,7 +49,7 @@ class AgentIdAndMcpServerType {
 }
 
 final ProviderFamily<McpServerBase, AgentIdAndMcpServerType>
-    genericMcpServerProvider =
+genericMcpServerProvider =
     Provider.family<McpServerBase, AgentIdAndMcpServerType>((ref, params) {
       return switch (params.mcpServerType) {
         McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),

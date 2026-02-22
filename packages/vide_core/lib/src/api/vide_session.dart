@@ -230,7 +230,9 @@ class LocalVideSession implements VideSession {
     // are lost, causing stale UI (e.g. missing loading indicators).
     final controller = StreamController<VideState>();
     controller.add(_buildState());
-    controller.addStream(_stateController.stream).whenComplete(controller.close);
+    controller
+        .addStream(_stateController.stream)
+        .whenComplete(controller.close);
     return controller.stream;
   }
 
@@ -332,7 +334,7 @@ class LocalVideSession implements VideSession {
       VideLogger.instance.info(
         'LocalVideSession',
         'Permission response: tool=${pending.toolName} agent=${pending.agentId} '
-        'allow=$allow remember=$remember',
+            'allow=$allow remember=$remember',
         sessionId: _networkId,
       );
       if (remember && allow) {
@@ -639,8 +641,9 @@ class LocalVideSession implements VideSession {
       );
       // Convert AgentPermissionResult to VidePermissionResult
       return switch (result) {
-        AgentPermissionAllow(:final updatedInput) =>
-          VidePermissionAllow(updatedInput: updatedInput),
+        AgentPermissionAllow(:final updatedInput) => VidePermissionAllow(
+          updatedInput: updatedInput,
+        ),
         AgentPermissionDeny(:final message) => VidePermissionDeny(
           message: message,
         ),
@@ -655,7 +658,7 @@ class LocalVideSession implements VideSession {
     VideLogger.instance.info(
       'LocalVideSession',
       'Disposing session (pending requests: ${_pendingRequests.length}, '
-      'agent subscriptions: ${_agentSubscriptions.length})',
+          'agent subscriptions: ${_agentSubscriptions.length})',
       sessionId: _networkId,
     );
 
@@ -666,7 +669,11 @@ class LocalVideSession implements VideSession {
         await manager.fireSessionEndTrigger();
       } catch (e) {
         // Don't fail dispose if trigger fails
-        VideLogger.instance.error('LocalVideSession', 'Error firing onSessionEnd trigger: $e', sessionId: _networkId);
+        VideLogger.instance.error(
+          'LocalVideSession',
+          'Error firing onSessionEnd trigger: $e',
+          sessionId: _networkId,
+        );
       }
     }
 
@@ -1074,9 +1081,7 @@ class LocalVideSession implements VideSession {
         'ExitPlanMode failed: agent=$agentId error=$e',
         sessionId: _networkId,
       );
-      return AgentPermissionDeny(
-        message: 'Failed to process ExitPlanMode: $e',
-      );
+      return AgentPermissionDeny(message: 'Failed to process ExitPlanMode: $e');
     }
   }
 
@@ -1098,8 +1103,7 @@ class LocalVideSession implements VideSession {
     if (lastAssistantMessage != null) {
       // Search within this turn for a Write tool targeting .claude/plans/
       for (final response in lastAssistantMessage.responses.reversed) {
-        if (response is AgentToolUseResponse &&
-            response.toolName == 'Write') {
+        if (response is AgentToolUseResponse && response.toolName == 'Write') {
           final filePath = response.parameters['file_path'] as String?;
           final content = response.parameters['content'] as String?;
           if (filePath != null &&

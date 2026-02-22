@@ -191,7 +191,8 @@ class _VideInAppState extends State<VideInApp> {
 
     // Auto-switch to Agent tab when there are pending permissions/approvals
     // so the user sees them (sheets are shown inside the Agent tab's Navigator).
-    final hasPendingInteraction = _sdkState.currentPermission != null ||
+    final hasPendingInteraction =
+        _sdkState.currentPermission != null ||
         _sdkState.pendingPlanApproval != null ||
         _sdkState.pendingAskUserQuestion != null;
     if (hasPendingInteraction && _selectedTab != _VideTab.agent) {
@@ -294,9 +295,7 @@ class _VideTabBar extends StatelessWidget {
 
     return Container(
       color: colorScheme.surface,
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top,
-      ),
+      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top),
       child: Container(
         height: 40,
         decoration: BoxDecoration(
@@ -493,16 +492,16 @@ class _ProjectViewState extends State<_ProjectView> {
         Expanded(
           child: client != null && workingDir.isNotEmpty
               ? _section == _ProjectSection.files
-                  ? FileBrowser(
-                      key: ValueKey('files_$workingDir'),
-                      client: client,
-                      workingDirectory: workingDir,
-                    )
-                  : GitView(
-                      key: ValueKey('git_$workingDir'),
-                      client: client,
-                      workingDirectory: workingDir,
-                    )
+                    ? FileBrowser(
+                        key: ValueKey('files_$workingDir'),
+                        client: client,
+                        workingDirectory: workingDir,
+                      )
+                    : GitView(
+                        key: ValueKey('git_$workingDir'),
+                        client: client,
+                        workingDirectory: workingDir,
+                      )
               : Center(
                   child: Text(
                     'Not connected',
@@ -675,8 +674,7 @@ class _ToolsView extends StatelessWidget {
               icon: Icons.speed_outlined,
               title: 'Performance Overlay',
               subtitle: 'Show GPU/UI thread timings',
-              valueGetter: () =>
-                  WidgetsApp.showPerformanceOverlayOverride,
+              valueGetter: () => WidgetsApp.showPerformanceOverlayOverride,
               onChanged: (v) {
                 WidgetsApp.showPerformanceOverlayOverride = v;
                 (context as Element).markNeedsBuild();
@@ -788,11 +786,7 @@ class _ToolTile extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: videColors.textTertiary,
-            ),
+            Icon(Icons.chevron_right, size: 18, color: videColors.textTertiary),
           ],
         ),
       ),
@@ -907,10 +901,10 @@ class _DesktopDragScrollBehavior extends MaterialScrollBehavior {
 
   @override
   Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.stylus,
-        PointerDeviceKind.mouse,
-      };
+    PointerDeviceKind.touch,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.mouse,
+  };
 }
 
 // =============================================================================
@@ -1022,8 +1016,8 @@ class _SetupScreenState extends State<_SetupScreen> {
                 child: Text(
                   'Connect to your Vide server',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ),

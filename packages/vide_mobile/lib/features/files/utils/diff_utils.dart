@@ -9,8 +9,8 @@ String filterDiffForFile(String fullDiff, String relativePath) {
 
   for (final line in lines) {
     if (line.startsWith('diff --git ')) {
-      inTargetSection = line.contains('a/$relativePath') &&
-          line.contains('b/$relativePath');
+      inTargetSection =
+          line.contains('a/$relativePath') && line.contains('b/$relativePath');
     }
     if (inTargetSection) {
       buffer.writeln(line);

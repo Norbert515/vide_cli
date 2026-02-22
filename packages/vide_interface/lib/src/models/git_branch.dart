@@ -15,18 +15,18 @@ class GitBranchInfo {
   });
 
   factory GitBranchInfo.fromJson(Map<String, dynamic> json) => GitBranchInfo(
-        name: json['name'] as String,
-        isCurrent: json['is-current'] as bool,
-        isRemote: json['is-remote'] as bool,
-        upstream: json['upstream'] as String?,
-        lastCommit: json['last-commit'] as String,
-      );
+    name: json['name'] as String,
+    isCurrent: json['is-current'] as bool,
+    isRemote: json['is-remote'] as bool,
+    upstream: json['upstream'] as String?,
+    lastCommit: json['last-commit'] as String,
+  );
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'is-current': isCurrent,
-        'is-remote': isRemote,
-        if (upstream != null) 'upstream': upstream,
-        'last-commit': lastCommit,
-      };
+    'name': name,
+    'is-current': isCurrent,
+    'is-remote': isRemote,
+    if (upstream != null) 'upstream': upstream,
+    'last-commit': lastCommit,
+  };
 }

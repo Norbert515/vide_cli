@@ -56,10 +56,12 @@ class AgentToolInvocation {
         return AgentWriteToolInvocation(
           toolCall: toolCall,
           toolResult: toolResult,
-          filePath: params['file_path'] as String? ??
+          filePath:
+              params['file_path'] as String? ??
               params['notebook_path'] as String? ??
               '',
-          content: params['content'] as String? ??
+          content:
+              params['content'] as String? ??
               params['new_source'] as String? ??
               '',
         );
@@ -79,7 +81,8 @@ class AgentToolInvocation {
         return AgentFileOperationToolInvocation(
           toolCall: toolCall,
           toolResult: toolResult,
-          filePath: params['file_path'] as String? ??
+          filePath:
+              params['file_path'] as String? ??
               params['pattern'] as String? ??
               '',
         );
@@ -278,9 +281,7 @@ class AgentConversationMessage {
         if (response.toolUseId != null) {
           toolCalls[response.toolUseId!] = response;
         } else {
-          invocations.add(
-            AgentToolInvocation.createTyped(toolCall: response),
-          );
+          invocations.add(AgentToolInvocation.createTyped(toolCall: response));
         }
       } else if (response is AgentToolResultResponse) {
         final call = toolCalls[response.toolUseId];
@@ -337,7 +338,8 @@ class AgentConversationMessage {
       attachments: attachments ?? this.attachments,
       messageType: messageType ?? this.messageType,
       isCompactSummary: isCompactSummary ?? this.isCompactSummary,
-      isVisibleInTranscriptOnly: isVisibleInTranscriptOnly ?? this.isVisibleInTranscriptOnly,
+      isVisibleInTranscriptOnly:
+          isVisibleInTranscriptOnly ?? this.isVisibleInTranscriptOnly,
     );
   }
 }

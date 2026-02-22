@@ -69,10 +69,9 @@ void main(List<String> arguments) async {
   final filesystemRoot = argResults['filesystem-root'] as String?;
 
   // Start the server using shared logic
-  await startServer(VideServerConfig(
-    port: port,
-    filesystemRoot: filesystemRoot,
-  ));
+  await startServer(
+    VideServerConfig(port: port, filesystemRoot: filesystemRoot),
+  );
 
   // Keep the process alive
   await Completer<void>().future;

@@ -611,9 +611,7 @@ void main() {
       final futures = <Future<AgentPermissionResult>>[];
       for (var i = 0; i < 5; i++) {
         futures.add(
-          callback('Bash', {
-            'command': 'cmd-$i',
-          }, AgentPermissionContext()),
+          callback('Bash', {'command': 'cmd-$i'}, AgentPermissionContext()),
         );
       }
       await Future<void>.delayed(Duration.zero);

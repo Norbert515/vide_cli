@@ -725,7 +725,6 @@ class _MessageList extends StatelessWidget {
       ),
     );
   }
-
 }
 
 /// A flattened render item from ConversationEntry content blocks.

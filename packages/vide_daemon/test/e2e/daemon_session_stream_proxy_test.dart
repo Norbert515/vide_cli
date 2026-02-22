@@ -32,16 +32,10 @@ void main() {
         ),
       );
 
-      daemonServer = DaemonServer(
-        registry: registry!,
-        port: daemonPort,
-      );
+      daemonServer = DaemonServer(registry: registry!, port: daemonPort);
       await daemonServer!.start();
 
-      daemonClient = DaemonClient(
-        host: '127.0.0.1',
-        port: daemonPort,
-      );
+      daemonClient = DaemonClient(host: '127.0.0.1', port: daemonPort);
     });
 
     tearDown(() async {

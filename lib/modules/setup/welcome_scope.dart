@@ -94,7 +94,10 @@ class _WelcomeScopeState extends State<WelcomeScope> {
           children: [
             Text('Error: $_error', style: TextStyle(color: theme.base.error)),
             SizedBox(height: 2),
-            Text('Press Ctrl+C to exit', style: TextStyle(color: theme.base.outline)),
+            Text(
+              'Press Ctrl+C to exit',
+              style: TextStyle(color: theme.base.outline),
+            ),
           ],
         ),
       );

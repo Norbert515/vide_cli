@@ -67,10 +67,7 @@ class JsonRpcNotification extends JsonRpcMessage {
   final String method;
   final Map<String, dynamic> params;
 
-  const JsonRpcNotification({
-    required this.method,
-    required this.params,
-  });
+  const JsonRpcNotification({required this.method, required this.params});
 
   factory JsonRpcNotification.fromJson(Map<String, dynamic> json) {
     return JsonRpcNotification(
@@ -118,11 +115,7 @@ class JsonRpcResponse extends JsonRpcMessage {
   final Map<String, dynamic>? result;
   final JsonRpcError? error;
 
-  const JsonRpcResponse({
-    required this.id,
-    this.result,
-    this.error,
-  });
+  const JsonRpcResponse({required this.id, this.result, this.error});
 
   bool get isError => error != null;
 
@@ -138,11 +131,7 @@ class JsonRpcResponse extends JsonRpcMessage {
         ? Map<String, dynamic>.from(resultData)
         : null;
 
-    return JsonRpcResponse(
-      id: json['id'],
-      result: result,
-      error: error,
-    );
+    return JsonRpcResponse(id: json['id'], result: result, error: error);
   }
 
   @override
@@ -155,11 +144,7 @@ class JsonRpcError {
   final String message;
   final dynamic data;
 
-  const JsonRpcError({
-    required this.code,
-    required this.message,
-    this.data,
-  });
+  const JsonRpcError({required this.code, required this.message, this.data});
 
   factory JsonRpcError.fromJson(Map<String, dynamic> json) {
     return JsonRpcError(

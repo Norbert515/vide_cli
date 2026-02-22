@@ -22,10 +22,7 @@ void main() {
 
     test('maps all conversation states', () {
       for (final agentState in AgentConversationState.values) {
-        final agent = AgentConversation(
-          messages: [],
-          state: agentState,
-        );
+        final agent = AgentConversation(messages: [], state: agentState);
         final result = AgentConversationMapper.toClaude(agent);
         // Just ensure it maps without error
         expect(result.state, isA<claude.ConversationState>());
@@ -159,9 +156,7 @@ void main() {
         role: AgentMessageRole.user,
         content: '',
         timestamp: now,
-        attachments: [
-          AgentAttachment(type: 'file', path: '/tmp/test.txt'),
-        ],
+        attachments: [AgentAttachment(type: 'file', path: '/tmp/test.txt')],
       );
 
       final result = AgentConversationMessageMapper.toClaude(agent);
