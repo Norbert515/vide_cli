@@ -88,6 +88,11 @@ class VideLogger {
     info('VideLogger', 'Session started', sessionId: sessionId);
   }
 
+  /// Returns the full file path for a session's log file.
+  String sessionLogPath(String sessionId) {
+    return path.join(_logDir, 'sessions', '$sessionId.log');
+  }
+
   /// End logging for a session. Flushes and closes the session sink.
   void endSession(String sessionId) {
     final sink = _sessionSinks.remove(sessionId);

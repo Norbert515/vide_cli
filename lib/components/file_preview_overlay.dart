@@ -36,6 +36,8 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   String? _fileContent;
   String? _error;
   final _scrollController = ScrollController();
+  final _gutterScrollController = ScrollController();
+  bool _syncingScroll = false;
 
   /// Map of line numbers to their change type (1-indexed)
   Map<int, _LineChangeType> _lineChanges = {};
@@ -43,7 +45,15 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_syncGutterFromContent);
     _loadFile();
+  }
+
+  void _syncGutterFromContent() {
+    if (_syncingScroll) return;
+    _syncingScroll = true;
+    _gutterScrollController.jumpTo(_scrollController.offset);
+    _syncingScroll = false;
   }
 
   @override
@@ -318,41 +328,63 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
     final borderColor = theme.base.primary;
 
-    return Scrollbar(
-      controller: _scrollController,
-      thumbVisibility: true,
-      thumbColor: theme.base.primary,
-      trackColor: theme.base.surface,
-      child: ListView(
-        lazy: false,
-        controller: _scrollController,
-        children: [
-          for (var i = 0; i < lines.length; i++)
-            _buildLine(
-              i + 1,
-              lines[i],
-              lineNumberWidth,
-              language,
-              theme,
-              borderColor,
+    // gutter char (1) + line number digits + padding (1)
+    final gutterWidth = 1 + lineNumberWidth + 1;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Gutter: line numbers (not selectable)
+        SizedBox(
+          width: gutterWidth.toDouble(),
+          child: ListView(
+            lazy: false,
+            controller: _gutterScrollController,
+            children: [
+              for (var i = 0; i < lines.length; i++)
+                _buildGutter(i + 1, lineNumberWidth, theme, borderColor),
+            ],
+          ),
+        ),
+        // Content: selectable text
+        Expanded(
+          child: SelectionArea(
+            onSelectionCompleted: ClipboardManager.copy,
+            child: Scrollbar(
+              controller: _scrollController,
+              thumbVisibility: true,
+              thumbColor: theme.base.primary,
+              trackColor: theme.base.surface,
+              child: ListView(
+                lazy: false,
+                controller: _scrollController,
+                children: [
+                  for (var i = 0; i < lines.length; i++)
+                    _buildContentLine(
+                      i + 1,
+                      lines[i],
+                      language,
+                      theme,
+                    ),
+                ],
+              ),
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 
-  Component _buildLine(
+  /// Builds the gutter column for a line (change indicator + line number).
+  Component _buildGutter(
     int lineNumber,
-    String lineContent,
     int lineNumberWidth,
-    String? language,
     VideThemeData theme,
     Color borderColor,
   ) {
     final lineNumStr = lineNumber.toString().padLeft(lineNumberWidth);
     final changeType = _lineChanges[lineNumber];
 
-    // Determine gutter indicator and colors based on change type
     String gutterChar;
     Color gutterColor;
     Color? lineBackground;
@@ -374,7 +406,42 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         lineBackground = null;
     }
 
-    // Highlight the line content if language is detected
+    final gutter = Row(
+      children: [
+        Text(gutterChar, style: TextStyle(color: gutterColor)),
+        Container(
+          padding: EdgeInsets.only(right: 1),
+          child: Text(
+            lineNumStr,
+            style: TextStyle(
+              color: changeType != null
+                  ? gutterColor.withOpacity(0.8)
+                  : theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+            ),
+          ),
+        ),
+      ],
+    );
+
+    if (lineBackground != null) {
+      return Container(
+        decoration: BoxDecoration(color: lineBackground),
+        child: gutter,
+      );
+    }
+
+    return gutter;
+  }
+
+  /// Builds the content portion of a line (selectable text).
+  Component _buildContentLine(
+    int lineNumber,
+    String lineContent,
+    String? language,
+    VideThemeData theme,
+  ) {
+    final changeType = _lineChanges[lineNumber];
+
     Component contentComponent;
     if (language != null && lineContent.isNotEmpty) {
       final highlightedSpan = SyntaxHighlighter.highlightCode(
@@ -390,35 +457,24 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
       );
     }
 
-    final lineRow = Row(
-      children: [
-        // Git change indicator (gutter) - renders as colored border character
-        Text(gutterChar, style: TextStyle(color: gutterColor)),
-        // Line number
-        Container(
-          padding: EdgeInsets.only(right: 1),
-          child: Text(
-            lineNumStr,
-            style: TextStyle(
-              color: changeType != null
-                  ? gutterColor.withOpacity(0.8)
-                  : theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-            ),
-          ),
-        ),
-        // Line content
-        Expanded(child: contentComponent),
-      ],
-    );
-
-    // Wrap with background color if line has changes
-    if (lineBackground != null) {
+    if (changeType == _LineChangeType.added) {
       return Container(
-        decoration: BoxDecoration(color: lineBackground),
-        child: lineRow,
+        decoration: BoxDecoration(
+          color: theme.base.success.withOpacity(0.1),
+        ),
+        child: contentComponent,
       );
     }
 
-    return lineRow;
+    if (changeType == _LineChangeType.modified) {
+      return Container(
+        decoration: BoxDecoration(
+          color: theme.base.warning.withOpacity(0.1),
+        ),
+        child: contentComponent,
+      );
+    }
+
+    return contentComponent;
   }
 }

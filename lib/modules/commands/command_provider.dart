@@ -10,6 +10,7 @@ import 'commands/fork_command.dart';
 import 'commands/git_command.dart';
 import 'commands/ide_command.dart';
 import 'commands/kill_command.dart';
+import 'commands/logs_command.dart';
 import 'commands/settings_command.dart';
 
 /// Provider for the command registry with all built-in commands registered.
@@ -26,6 +27,7 @@ final commandRegistryProvider = Provider<CommandRegistry>((ref) {
     GitCommand(),
     IdeCommand(),
     KillCommand(),
+    LogsCommand(),
     SettingsCommand(),
   ]);
 
