@@ -26,15 +26,6 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
     return _buildSummary(context);
   }
 
-  /// Whether the session has unseen activity.
-  bool _hasUnseenActivity(VideSessionInfo info) {
-    final lastActive = info.lastActiveAt;
-    if (lastActive == null) return false;
-    final seenAt = info.lastSeenAt;
-    if (seenAt == null) return true;
-    return lastActive.isAfter(seenAt);
-  }
-
   Component _buildSummary(BuildContext context) {
     final theme = VideTheme.of(context);
     final info = component.sessionInfo;
@@ -42,17 +33,12 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
     final agentCount = info.agentCount;
     final lastActive = info.lastActiveAt ?? info.createdAt;
     final timeAgo = _formatTimeAgo(lastActive);
-    final hasUnseen = _hasUnseenActivity(info);
 
     final textColor = component.selected
         ? theme.base.onSurface.withOpacity(TextOpacity.secondary)
-        : hasUnseen
-        ? theme.base.onSurface
         : theme.base.onSurface.withOpacity(TextOpacity.tertiary);
     final leftBorderColor = component.showDeleteConfirmation
         ? theme.base.error
-        : hasUnseen && !component.selected
-        ? theme.base.primary
         : component.selected
         ? theme.base.primary
         : theme.base.outline;
@@ -77,26 +63,10 @@ class _NetworkSummaryComponentState extends State<NetworkSummaryComponent> {
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          if (hasUnseen)
-                            Text(
-                              '● ',
-                              style: TextStyle(color: theme.base.primary),
-                            ),
-                          Expanded(
-                            child: Text(
-                              displayName,
-                              style: TextStyle(
-                                color: textColor,
-                                fontWeight: hasUnseen
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        displayName,
+                        style: TextStyle(color: textColor),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       Row(
                         children: [
