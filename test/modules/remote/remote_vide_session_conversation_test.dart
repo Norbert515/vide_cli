@@ -224,37 +224,25 @@ void main() {
         _simulateDone(session, agentId, seq: ++seq);
 
         final conversation = session.getConversation(agentId);
-        // Each new event-id for an assistant message creates a new ConversationEntry
-        // because the ConversationStateManager tracks messages by event-id.
-        // So we get 3 assistant messages: one per text event-id.
-        // Each message contains: text + tool content blocks that follow it.
-        expect(conversation!.messages.length, equals(3));
+        // Consecutive assistant messages are merged into a single entry
+        // for consistent rendering (no extra spacing between text/tool groups).
+        expect(conversation!.messages.length, equals(1));
 
-        // First message: text + tool use + tool result
-        expect(conversation.messages[0].content[0], isA<TextContent>());
-        expect(
-          (conversation.messages[0].content[0] as TextContent).text,
-          equals('Checking...'),
-        );
-        expect(conversation.messages[0].content[1], isA<ToolContent>()); // Bash
+        // Merged entry: text1 + tool1 + text2 + tool2 + text3
+        final msg = conversation.messages[0];
+        final textBlocks = msg.content.whereType<TextContent>().toList();
+        expect(textBlocks.length, equals(3));
+        expect(textBlocks[0].text, equals('Checking...'));
+        expect(textBlocks[1].text, equals('Found file.txt. '));
+        expect(textBlocks[2].text, equals('Done!'));
 
-        // Second message: text + tool use + tool result
-        expect(conversation.messages[1].content[0], isA<TextContent>());
-        expect(
-          (conversation.messages[1].content[0] as TextContent).text,
-          equals('Found file.txt. '),
-        );
-        expect(conversation.messages[1].content[1], isA<ToolContent>()); // Read
+        final toolBlocks = msg.content.whereType<ToolContent>().toList();
+        expect(toolBlocks.length, equals(2));
+        expect(toolBlocks[0].toolName, equals('Bash'));
+        expect(toolBlocks[1].toolName, equals('Read'));
 
-        // Third message: just text
-        expect(conversation.messages[2].content[0], isA<TextContent>());
-        expect(
-          (conversation.messages[2].content[0] as TextContent).text,
-          equals('Done!'),
-        );
-
-        // Verify the last message is complete
-        expect(conversation.messages[2].isStreaming, isFalse);
+        // Verify the message is complete (not streaming)
+        expect(msg.isStreaming, isFalse);
       });
 
       test('creates assistant message if tool use arrives first', () {

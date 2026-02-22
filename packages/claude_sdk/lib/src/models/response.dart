@@ -112,6 +112,19 @@ sealed class ClaudeResponse {
             ),
           );
         }
+      } else if (blockType == 'thinking') {
+        final thinkingText = block['thinking'] as String? ?? '';
+        if (thinkingText.isNotEmpty) {
+          responses.add(
+            ThinkingResponse(
+              id: blockId,
+              timestamp: DateTime.now(),
+              content: thinkingText,
+              isCumulative: true,
+              rawData: json,
+            ),
+          );
+        }
       }
     }
 
@@ -160,11 +173,24 @@ sealed class ClaudeResponse {
           final message = json['message'] as Map<String, dynamic>;
           final content = message['content'] as List<dynamic>?;
 
-          // Check if it's a tool use in assistant message
+          // Check if it's a tool use or thinking in assistant message
           if (content != null && content.isNotEmpty) {
             final firstContent = content.first as Map<String, dynamic>;
             if (firstContent['type'] == 'tool_use') {
               return ToolUseResponse.fromAssistantMessage(json);
+            }
+            if (firstContent['type'] == 'thinking') {
+              final thinkingText =
+                  firstContent['thinking'] as String? ?? '';
+              return ThinkingResponse(
+                id: firstContent['id'] ??
+                    json['uuid'] ??
+                    DateTime.now().millisecondsSinceEpoch.toString(),
+                timestamp: DateTime.now(),
+                content: thinkingText,
+                isCumulative: true,
+                rawData: json,
+              );
             }
           }
 
@@ -209,19 +235,37 @@ sealed class ClaudeResponse {
         if (event != null) {
           final eventType = event['type'] as String?;
           if (eventType == 'content_block_delta') {
-            // Extract streaming text delta
             final delta = event['delta'] as Map<String, dynamic>?;
-            final text = delta?['text'] as String?;
-            if (text != null && text.isNotEmpty) {
-              return TextResponse(
-                id:
-                    json['uuid'] ??
-                    DateTime.now().millisecondsSinceEpoch.toString(),
-                timestamp: DateTime.now(),
-                content: text,
-                isPartial: true,
-                rawData: json,
-              );
+            final deltaType = delta?['type'] as String?;
+
+            if (deltaType == 'thinking_delta') {
+              // Extract streaming thinking delta
+              final thinking = delta?['thinking'] as String?;
+              if (thinking != null && thinking.isNotEmpty) {
+                return ThinkingResponse(
+                  id:
+                      json['uuid'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
+                  timestamp: DateTime.now(),
+                  content: thinking,
+                  isCumulative: false,
+                  rawData: json,
+                );
+              }
+            } else {
+              // Extract streaming text delta (text_delta or untyped)
+              final text = delta?['text'] as String?;
+              if (text != null && text.isNotEmpty) {
+                return TextResponse(
+                  id:
+                      json['uuid'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
+                  timestamp: DateTime.now(),
+                  content: text,
+                  isPartial: true,
+                  rawData: json,
+                );
+              }
             }
           }
         }

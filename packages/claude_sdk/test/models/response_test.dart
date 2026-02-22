@@ -1446,6 +1446,220 @@ void main() {
     });
   });
 
+  group('ThinkingResponse parsing', () {
+    test(
+      'parses type=assistant with single thinking block as ThinkingResponse',
+      () {
+        final json = {
+          'type': 'assistant',
+          'uuid': 'msg_123',
+          'message': {
+            'id': 'msg_123',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'thinking',
+                'thinking': 'Let me analyze this step by step...',
+                'signature': 'abc123signature',
+              },
+            ],
+          },
+        };
+        final response = ClaudeResponse.fromJson(json);
+        expect(response, isA<ThinkingResponse>());
+        final thinking = response as ThinkingResponse;
+        expect(thinking.content, 'Let me analyze this step by step...');
+        expect(thinking.isCumulative, isTrue);
+      },
+    );
+
+    test(
+      'parses type=assistant with thinking + text blocks via fromJsonMultiple',
+      () {
+        final json = {
+          'type': 'assistant',
+          'uuid': 'msg_123',
+          'message': {
+            'id': 'msg_123',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'thinking',
+                'thinking': 'I need to find the GCD...',
+                'signature': 'sig123',
+              },
+              {
+                'type': 'text',
+                'text': 'The greatest common divisor is 21.',
+              },
+            ],
+          },
+        };
+        final responses = ClaudeResponse.fromJsonMultiple(json);
+        expect(responses, hasLength(2));
+        expect(responses[0], isA<ThinkingResponse>());
+        expect(responses[1], isA<TextResponse>());
+        expect(
+          (responses[0] as ThinkingResponse).content,
+          'I need to find the GCD...',
+        );
+        expect(
+          (responses[0] as ThinkingResponse).isCumulative,
+          isTrue,
+        );
+        expect(
+          (responses[1] as TextResponse).content,
+          'The greatest common divisor is 21.',
+        );
+      },
+    );
+
+    test(
+      'parses thinking + text + tool_use interleaved blocks',
+      () {
+        final json = {
+          'type': 'assistant',
+          'uuid': 'msg_123',
+          'message': {
+            'id': 'msg_123',
+            'role': 'assistant',
+            'content': [
+              {
+                'type': 'thinking',
+                'thinking': 'I should check the weather...',
+                'signature': 'sig_abc',
+              },
+              {
+                'type': 'text',
+                'text': 'Let me check the weather for you.',
+              },
+              {
+                'type': 'tool_use',
+                'id': 'toolu_weather',
+                'name': 'get_weather',
+                'input': {'location': 'Paris'},
+              },
+            ],
+          },
+        };
+        final responses = ClaudeResponse.fromJsonMultiple(json);
+        expect(responses, hasLength(3));
+        expect(responses[0], isA<ThinkingResponse>());
+        expect(responses[1], isA<TextResponse>());
+        expect(responses[2], isA<ToolUseResponse>());
+        expect(
+          (responses[0] as ThinkingResponse).content,
+          'I should check the weather...',
+        );
+      },
+    );
+
+    test('skips empty thinking blocks in fromJsonMultiple', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'thinking',
+              'thinking': '',
+              'signature': 'sig_empty',
+            },
+            {
+              'type': 'text',
+              'text': 'Response without visible thinking.',
+            },
+          ],
+        },
+      };
+      final responses = ClaudeResponse.fromJsonMultiple(json);
+      expect(responses, hasLength(1));
+      expect(responses[0], isA<TextResponse>());
+    });
+
+    test('parses thinking_delta in stream_event', () {
+      final json = {
+        'type': 'stream_event',
+        'uuid': 'evt_123',
+        'event': {
+          'type': 'content_block_delta',
+          'index': 0,
+          'delta': {
+            'type': 'thinking_delta',
+            'thinking': 'I need to find the GCD using the Euclidean algorithm.',
+          },
+        },
+      };
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<ThinkingResponse>());
+      final thinking = response as ThinkingResponse;
+      expect(
+        thinking.content,
+        'I need to find the GCD using the Euclidean algorithm.',
+      );
+      expect(thinking.isCumulative, isFalse);
+    });
+
+    test('handles text_delta in stream_event (not thinking)', () {
+      final json = {
+        'type': 'stream_event',
+        'uuid': 'evt_456',
+        'event': {
+          'type': 'content_block_delta',
+          'index': 1,
+          'delta': {
+            'type': 'text_delta',
+            'text': 'The answer is 21.',
+          },
+        },
+      };
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<TextResponse>());
+      expect((response as TextResponse).content, 'The answer is 21.');
+      expect(response.isPartial, isTrue);
+    });
+
+    test('returns UnknownResponse for empty thinking_delta', () {
+      final json = {
+        'type': 'stream_event',
+        'uuid': 'evt_789',
+        'event': {
+          'type': 'content_block_delta',
+          'index': 0,
+          'delta': {
+            'type': 'thinking_delta',
+            'thinking': '',
+          },
+        },
+      };
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<UnknownResponse>());
+    });
+
+    test('handles single thinking block with missing thinking field', () {
+      final json = {
+        'type': 'assistant',
+        'uuid': 'msg_123',
+        'message': {
+          'id': 'msg_123',
+          'role': 'assistant',
+          'content': [
+            {
+              'type': 'thinking',
+              'signature': 'sig_no_content',
+            },
+          ],
+        },
+      };
+      // When thinking text is empty, it returns ThinkingResponse with empty content
+      final response = ClaudeResponse.fromJson(json);
+      expect(response, isA<ThinkingResponse>());
+      expect((response as ThinkingResponse).content, '');
+    });
+  });
+
   group('Edge cases', () {
     test('handles nested HTML entities', () {
       final json = {

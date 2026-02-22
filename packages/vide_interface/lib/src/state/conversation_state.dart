@@ -347,21 +347,32 @@ class ConversationStateManager {
     if (state.currentMessageEventId != event.eventId) {
       state.currentMessageEventId = event.eventId;
 
-      // If the previous entry is a thinking-only assistant entry, merge
-      // thinking content into this new entry instead of leaving them separate.
-      final thinkingBlocks = <ConversationContent>[];
+      // Merge consecutive assistant messages into a single entry so that
+      // interleaved text/tool sequences render with consistent spacing.
+      // During live streaming, each text segment after a tool call gets a
+      // new eventId, which would otherwise create a separate entry — leading
+      // to extra blank lines from MarkdownText paragraph trailing newlines.
       if (event.role == 'assistant' && state.messages.isNotEmpty) {
         final prev = state.messages.last;
-        if (prev.role == 'assistant' &&
-            prev.content.isNotEmpty &&
-            prev.content.every((c) => c is ThinkingContent)) {
-          thinkingBlocks.addAll(prev.content);
-          state.messages.removeLast();
+        if (prev.role == 'assistant') {
+          final contentList =
+              List<ConversationContent>.from(prev.content);
+          if (event.content.isNotEmpty) {
+            contentList.add(
+              TextContent(
+                text: event.content,
+                isStreaming: event.isPartial,
+              ),
+            );
+          }
+          state.messages[state.messages.length - 1] =
+              prev.copyWith(content: contentList);
+          _notifyChange(event.agentId);
+          return;
         }
       }
 
       final contentBlocks = <ConversationContent>[
-        ...thinkingBlocks,
         if (event.attachments != null && event.attachments!.isNotEmpty)
           AttachmentContent(attachments: event.attachments!),
         TextContent(text: event.content, isStreaming: event.isPartial),

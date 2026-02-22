@@ -224,23 +224,20 @@ void main() {
 
       final state = manager.getAgentState('agent-1');
       expect(state, isNotNull);
-      // msg-1 and msg-2 are different event IDs, so they're separate messages
-      expect(state!.messages, hasLength(2));
+      // Consecutive assistant messages are merged into a single entry
+      // so that interleaved text/tool sequences render with consistent spacing.
+      expect(state!.messages, hasLength(1));
 
-      // First message: text + tool1
-      final msg1 = state.messages[0];
-      expect(msg1.content, hasLength(2)); // text + tool
-      expect((msg1.content[0] as TextContent).text, 'First text.');
-      expect((msg1.content[0] as TextContent).isStreaming, isFalse);
-      expect((msg1.content[1] as ToolContent).toolName, 'Read');
-      expect((msg1.content[1] as ToolContent).result, 'file contents');
-
-      // Second message: text + tool2
-      final msg2 = state.messages[1];
-      expect(msg2.content, hasLength(2)); // text + tool
-      expect((msg2.content[0] as TextContent).text, 'Second text.');
-      expect((msg2.content[0] as TextContent).isStreaming, isFalse);
-      expect((msg2.content[1] as ToolContent).toolName, 'Write');
+      final msg = state.messages[0];
+      // text1 + tool1 + text2 + tool2
+      expect(msg.content, hasLength(4));
+      expect((msg.content[0] as TextContent).text, 'First text.');
+      expect((msg.content[0] as TextContent).isStreaming, isFalse);
+      expect((msg.content[1] as ToolContent).toolName, 'Read');
+      expect((msg.content[1] as ToolContent).result, 'file contents');
+      expect((msg.content[2] as TextContent).text, 'Second text.');
+      expect((msg.content[2] as TextContent).isStreaming, isFalse);
+      expect((msg.content[3] as ToolContent).toolName, 'Write');
     });
 
     test('turn complete finalizes any remaining streaming text', () {

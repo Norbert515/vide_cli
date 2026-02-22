@@ -159,43 +159,41 @@ void main() {
       // Verify state
       final state = manager.getAgentState(agentId);
       expect(state, isNotNull);
-      expect(state!.messages.length, equals(4));
+      // User message + merged assistant entry (consecutive assistant messages
+      // are merged into a single entry for consistent rendering).
+      expect(state!.messages.length, equals(2));
 
       // Message 0: user
       expect(state.messages[0].role, equals('user'));
       expect(state.messages[0].text, equals('Hello'));
 
-      // Message 1: assistant with Bash tool
-      expect(state.messages[1].role, equals('assistant'));
-      expect(state.messages[1].text, equals('Let me check...'));
-      final toolContents1 = state.messages[1].content
+      // Message 1: merged assistant entry with all text blocks and tool calls
+      final assistantMsg = state.messages[1];
+      expect(assistantMsg.role, equals('assistant'));
+
+      // Should contain: TextContent("Let me check...") + ToolContent(Bash)
+      //               + TextContent("Reading file...") + ToolContent(Read)
+      //               + TextContent("Done!")
+      final textContents = assistantMsg.content
+          .whereType<TextContent>()
+          .toList();
+      expect(textContents.length, equals(3));
+      expect(textContents[0].text, equals('Let me check...'));
+      expect(textContents[1].text, equals('Reading file...'));
+      expect(textContents[2].text, equals('Done!'));
+
+      final toolContents = assistantMsg.content
           .whereType<ToolContent>()
           .toList();
       expect(
-        toolContents1.length,
-        equals(1),
-        reason: 'First assistant message should have 1 tool call',
+        toolContents.length,
+        equals(2),
+        reason: 'Both tool calls should be in the merged entry',
       );
-      expect(toolContents1[0].toolName, equals('Bash'));
-      expect(toolContents1[0].result, equals('file.txt'));
-
-      // Message 2: assistant with Read tool
-      expect(state.messages[2].role, equals('assistant'));
-      expect(state.messages[2].text, equals('Reading file...'));
-      final toolContents2 = state.messages[2].content
-          .whereType<ToolContent>()
-          .toList();
-      expect(
-        toolContents2.length,
-        equals(1),
-        reason: 'Second assistant message should have 1 tool call',
-      );
-      expect(toolContents2[0].toolName, equals('Read'));
-      expect(toolContents2[0].result, equals('file contents here'));
-
-      // Message 3: final assistant text
-      expect(state.messages[3].role, equals('assistant'));
-      expect(state.messages[3].text, equals('Done!'));
+      expect(toolContents[0].toolName, equals('Bash'));
+      expect(toolContents[0].result, equals('file.txt'));
+      expect(toolContents[1].toolName, equals('Read'));
+      expect(toolContents[1].result, equals('file contents here'));
     });
 
     test(
