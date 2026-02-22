@@ -38,8 +38,11 @@ export 'src/agent_network/agent_status_manager.dart';
 export 'src/agent_network/agent_network_persistence_manager.dart';
 
 // =============================================================================
-// Claude
+// Claude / Agent Client Factory
 // =============================================================================
+export 'src/claude/claude_client_factory.dart'
+    show AgentClientFactory, ClaudeAgentClientFactory;
+export 'src/claude/codex_client_factory.dart' show CodexAgentClientFactory;
 export 'src/claude/claude_manager.dart'
     show
         agentClientProvider,

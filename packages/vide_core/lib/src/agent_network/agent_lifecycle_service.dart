@@ -274,6 +274,12 @@ $initialPrompt''';
       throw StateError('No active network to fork agent in');
     }
 
+    if (!_clientFactory.supportsFork) {
+      throw UnsupportedError(
+        'The current agent backend does not support session forking',
+      );
+    }
+
     // Find source agent metadata
     final sourceAgent = network.agents
         .where((a) => a.id == sourceAgentId)

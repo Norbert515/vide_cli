@@ -1,11 +1,9 @@
 import 'package:agent_sdk/agent_sdk.dart';
-import 'package:claude_sdk/claude_sdk.dart' show McpServerBase;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../claude/agent_configuration.dart';
 import '../mcp/mcp_provider.dart';
-import '../mcp/mcp_server_type.dart';
 import '../models/agent_id.dart';
 import '../models/agent_metadata.dart';
 import '../models/agent_network.dart';
@@ -20,11 +18,10 @@ import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
 import '../analytics/bashboard_service.dart';
 import '../claude/claude_client_factory.dart';
+import '../claude/codex_client_factory.dart';
 import '../claude/claude_manager.dart';
-import '../permissions/permission_provider.dart';
 import '../team_framework/team_framework_loader.dart';
 import '../team_framework/trigger_service.dart';
-import '../configuration/vide_config_manager.dart';
 import 'worktree_service.dart';
 
 /// The state of the agent network manager - just tracks the current network
@@ -51,28 +48,58 @@ final StateNotifierProvider<AgentNetworkManager, AgentNetworkState>
     agentNetworkManagerProvider =
     StateNotifierProvider<AgentNetworkManager, AgentNetworkState>((ref) {
       final config = ref.watch(videCoreConfigProvider);
-      return AgentNetworkManager(
+
+      // Late-binding: the factory captures a reference that is set after
+      // the manager is constructed, so effectiveWorkingDirectory is available.
+      AgentNetworkManager? managerRef;
+
+      final useCodex = config.configManager
+          .readGlobalSettings()
+          .useCodexBackend;
+
+      final AgentClientFactory clientFactory;
+      if (config.clientFactory != null) {
+        clientFactory = config.clientFactory!;
+      } else if (useCodex) {
+        clientFactory = CodexAgentClientFactory(
+          getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
+          createMcpServer: (agentId, type, projectPath) => ref.read(
+            genericMcpServerProvider(AgentIdAndMcpServerType(
+              agentId: agentId,
+              mcpServerType: type,
+              projectPath: projectPath,
+            )),
+          ),
+        );
+      } else {
+        clientFactory = ClaudeAgentClientFactory(
+          getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
+          configManager: config.configManager,
+          getDangerouslySkipPermissions: () =>
+              config.dangerouslySkipPermissions,
+          createMcpServer: (agentId, type, projectPath) => ref.read(
+            genericMcpServerProvider(AgentIdAndMcpServerType(
+              agentId: agentId,
+              mcpServerType: type,
+              projectPath: projectPath,
+            )),
+          ),
+          permissionHandler: config.permissionHandler,
+        );
+      }
+
+      final manager = AgentNetworkManager(
         workingDirectory: config.workingDirectory,
         claudeManager: ref.read(agentClientManagerProvider.notifier),
         persistenceManager: ref.read(agentNetworkPersistenceManagerProvider),
         getTriggerService: () => ref.read(triggerServiceProvider),
-        createMcpServer: (agentId, type, projectPath) => ref.read(
-          genericMcpServerProvider(AgentIdAndMcpServerType(
-            agentId: agentId,
-            mcpServerType: type,
-            projectPath: projectPath,
-          )),
-        ),
+        clientFactory: clientFactory,
         getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
         getStatus: (id) => ref.read(agentStatusProvider(id)),
-        permissionHandler: config.permissionHandler,
-        configManager: config.configManager,
-        getDangerouslySkipPermissions: () {
-          final c = ref.read(videCoreConfigProvider);
-          return c.dangerouslySkipPermissions ||
-              c.configManager.readGlobalSettings().dangerouslySkipPermissions;
-        },
       );
+
+      managerRef = manager;
+      return manager;
     });
 
 class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
@@ -81,24 +108,15 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required AgentClientManagerStateNotifier claudeManager,
     required AgentNetworkPersistenceManager persistenceManager,
     required TriggerService Function() getTriggerService,
-    required McpServerBase Function(AgentId, McpServerType, String) createMcpServer,
+    required AgentClientFactory clientFactory,
     required AgentStatusNotifier Function(AgentId) getStatusNotifier,
     required AgentStatus Function(AgentId) getStatus,
-    required PermissionHandler permissionHandler,
-    required VideConfigManager configManager,
-    required bool Function() getDangerouslySkipPermissions,
   }) : _claudeManager = claudeManager,
        _persistenceManager = persistenceManager,
        _getTriggerService = getTriggerService,
        _getStatusNotifier = getStatusNotifier,
        super(AgentNetworkState()) {
-    _clientFactory = ClaudeAgentClientFactory(
-      getWorkingDirectory: () => effectiveWorkingDirectory,
-      configManager: configManager,
-      getDangerouslySkipPermissions: getDangerouslySkipPermissions,
-      createMcpServer: createMcpServer,
-      permissionHandler: permissionHandler,
-    );
+    _clientFactory = clientFactory;
     _teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,
     );

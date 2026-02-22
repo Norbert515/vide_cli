@@ -34,6 +34,9 @@ class CodexClient {
   bool _isClosed = false;
   final Completer<void> _initializedCompleter = Completer<void>();
 
+  /// Queue for messages sent before init completes (via createSync path).
+  final List<Message> _pendingMessages = [];
+
   final String _sessionId;
   final String _workingDirectory;
 
@@ -147,6 +150,9 @@ class CodexClient {
     if (!_initializedCompleter.isCompleted) {
       _initializedCompleter.complete();
     }
+
+    // Flush any messages that were queued before init completed
+    _flushPendingMessages();
   }
 
   // ============================================================
@@ -198,6 +204,23 @@ class CodexClient {
     // If currently processing, queue the message
     if (_currentConversation.isProcessing) {
       _queueMessage(message);
+      return;
+    }
+
+    // If not yet initialized (createSync path), queue and flush after init
+    if (!_isInitialized) {
+      _pendingMessages.add(message);
+      // Update conversation optimistically so UI shows the message
+      final userMessage = ConversationMessage.user(
+        content: message.text,
+        attachments: message.attachments,
+      );
+      _updateConversation(
+        _currentConversation
+            .addMessage(userMessage)
+            .withState(ConversationState.sendingMessage),
+      );
+      _updateStatus(ClaudeStatus.processing);
       return;
     }
 
@@ -446,5 +469,19 @@ class CodexClient {
     _queuedMessageController.add(null);
 
     sendMessage(Message(text: text, attachments: attachments));
+  }
+
+  /// Flush messages that were queued before [init] completed.
+  void _flushPendingMessages() {
+    if (_pendingMessages.isEmpty) return;
+
+    final messages = List<Message>.of(_pendingMessages);
+    _pendingMessages.clear();
+
+    for (final message in messages) {
+      // Conversation already updated optimistically when queued,
+      // so just start the turn directly.
+      _startTurn(message.text);
+    }
   }
 }

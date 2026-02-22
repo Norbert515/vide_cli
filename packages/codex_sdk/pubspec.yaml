@@ -7,6 +7,7 @@ environment:
   sdk: ^3.8.0
 
 dependencies:
+  agent_sdk: any
   claude_sdk: any
   uuid: ^4.5.1
   path: ^1.8.3

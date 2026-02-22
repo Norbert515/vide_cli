@@ -1,5 +1,6 @@
 library codex_sdk;
 
+export 'src/bridge/codex_agent_client.dart';
 export 'src/client/codex_client.dart';
 export 'src/config/codex_config.dart';
 export 'src/config/codex_mcp_registry.dart';

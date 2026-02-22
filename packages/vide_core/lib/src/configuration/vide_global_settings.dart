@@ -62,6 +62,11 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool telemetryEnabled;
 
+  /// Whether to use the Codex (OpenAI) backend instead of Claude.
+  /// Debug setting for testing the Codex integration.
+  @JsonKey(defaultValue: false)
+  final bool useCodexBackend;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -74,6 +79,7 @@ class VideGlobalSettings {
     this.daemonHost = '127.0.0.1',
     this.daemonPort = 8080,
     this.telemetryEnabled = true,
+    this.useCodexBackend = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -95,6 +101,7 @@ class VideGlobalSettings {
     String? daemonHost,
     int? daemonPort,
     bool? telemetryEnabled,
+    bool? useCodexBackend,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -109,6 +116,7 @@ class VideGlobalSettings {
       daemonHost: daemonHost ?? this.daemonHost,
       daemonPort: daemonPort ?? this.daemonPort,
       telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
+      useCodexBackend: useCodexBackend ?? this.useCodexBackend,
     );
   }
 }

@@ -248,6 +248,13 @@ class AgentResponseMapper {
         maxRetries: r.maxRetries,
         rawData: r.rawData,
       ),
+      claude.ThinkingResponse() => AgentThinkingResponse(
+        id: r.id,
+        timestamp: r.timestamp,
+        content: r.content,
+        isCumulative: r.isCumulative,
+        rawData: r.rawData,
+      ),
       claude.CompactBoundaryResponse() => AgentContextCompactedResponse(
         id: r.id,
         timestamp: r.timestamp,
@@ -342,6 +349,13 @@ class AgentResponseMapper {
         retryInMs: r.retryInMs,
         retryAttempt: r.retryAttempt,
         maxRetries: r.maxRetries,
+        rawData: r.rawData,
+      ),
+      AgentThinkingResponse() => claude.ThinkingResponse(
+        id: r.id,
+        timestamp: r.timestamp,
+        content: r.content,
+        isCumulative: r.isCumulative,
         rawData: r.rawData,
       ),
       AgentContextCompactedResponse() => claude.CompactBoundaryResponse(
