@@ -50,6 +50,7 @@ class ResponseProcessor {
         r,
         currentConversation,
       ),
+      ThinkingResponse r => _processThinkingResponse(r, currentConversation),
       // Non-message responses - pass through unchanged
       StatusResponse() => _passThrough(currentConversation),
       MetaResponse() => _passThrough(currentConversation),
@@ -277,6 +278,32 @@ class ResponseProcessor {
 
     return ProcessResult(
       updatedConversation: currentConversation.addMessage(message),
+      turnComplete: false,
+    );
+  }
+
+  ProcessResult _processThinkingResponse(
+    ThinkingResponse response,
+    Conversation currentConversation,
+  ) {
+    final context = _getAssistantMessageContext(currentConversation);
+    final responses = _appendResponse(context, response);
+
+    final message = ConversationMessage.assistant(
+      id: context.messageId,
+      responses: responses,
+      isStreaming: true,
+    );
+
+    final updatedConversation = _updateOrAddMessage(
+      currentConversation,
+      message,
+      context.isExistingMessage,
+      ConversationState.receivingResponse,
+    );
+
+    return ProcessResult(
+      updatedConversation: updatedConversation,
       turnComplete: false,
     );
   }

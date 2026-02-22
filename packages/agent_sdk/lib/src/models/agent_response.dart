@@ -242,6 +242,27 @@ class AgentUserMessageResponse extends AgentResponse {
   });
 }
 
+/// Reasoning/thinking content from the model.
+///
+/// This represents internal chain-of-thought text that is separate from
+/// the actual response content. UI layers can render this differently
+/// (e.g., collapsed, dimmed, or in an expandable section).
+class AgentThinkingResponse extends AgentResponse {
+  /// The thinking/reasoning text.
+  final String content;
+
+  /// Whether this contains cumulative content (full text up to this point).
+  final bool isCumulative;
+
+  const AgentThinkingResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    this.isCumulative = false,
+    super.rawData,
+  });
+}
+
 /// An unrecognized response type (forward compatibility).
 class AgentUnknownResponse extends AgentResponse {
   const AgentUnknownResponse({

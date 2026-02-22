@@ -5,6 +5,8 @@ import 'package:vide_cli/modules/settings/settings_category.dart';
 import 'package:vide_cli/modules/settings/components/settings_sidebar.dart';
 import 'package:vide_cli/modules/settings/sections/general_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/appearance_section.dart';
+import 'package:vide_cli/modules/settings/sections/daemon_settings_section.dart';
+import 'package:vide_cli/modules/settings/sections/debug_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/mcp_servers_section.dart';
 import 'package:vide_cli/modules/settings/sections/about_section.dart';
 
@@ -231,6 +233,16 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       case SettingsCategory.appearance:
         return AppearanceSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
+      case SettingsCategory.daemon:
+        return DaemonSettingsSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
+      case SettingsCategory.debug:
+        return DebugSettingsSection(
           focused: !_sidebarFocused,
           onExit: _handleContentExit,
         );

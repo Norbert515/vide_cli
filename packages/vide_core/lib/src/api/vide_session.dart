@@ -1499,6 +1499,16 @@ class LocalVideSession implements VideSession {
             isError: response.isError,
           ),
         );
+      } else if (response is AgentThinkingResponse) {
+        _emit(
+          ThinkingEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: taskName,
+            content: response.content,
+          ),
+        );
       }
     }
 

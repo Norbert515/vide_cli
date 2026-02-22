@@ -135,6 +135,15 @@ sealed class VideEvent {
         isPartial: json['is-partial'] as bool? ?? false,
         attachments: _parseAttachments(data?['attachments']),
       ),
+      'thinking' => ThinkingEvent(
+        seq: seq,
+        agentId: agentId,
+        agentType: agentType,
+        agentName: agentName,
+        taskName: taskName,
+        timestamp: timestamp,
+        content: data?['content'] as String? ?? '',
+      ),
       'status' => StatusEvent(
         seq: seq,
         agentId: agentId,
@@ -475,6 +484,34 @@ final class MessageEvent extends VideEvent {
   @override
   String toString() =>
       'MessageEvent($role, ${content.length} chars, partial=$isPartial)';
+}
+
+/// Thinking/reasoning content from the model.
+///
+/// Emitted when the model produces chain-of-thought text separate from
+/// the actual response. UI layers can render this collapsed or dimmed.
+final class ThinkingEvent extends VideEvent {
+  /// The thinking/reasoning text.
+  final String content;
+
+  ThinkingEvent({
+    super.seq,
+    required super.agentId,
+    required super.agentType,
+    super.agentName,
+    super.taskName,
+    super.timestamp,
+    required this.content,
+  });
+
+  @override
+  String get wireType => 'thinking';
+
+  @override
+  Map<String, dynamic> dataFields() => {'content': content};
+
+  @override
+  String toString() => 'ThinkingEvent(${content.length} chars)';
 }
 
 /// Agent is invoking a tool.

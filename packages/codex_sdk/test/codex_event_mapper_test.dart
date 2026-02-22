@@ -358,50 +358,24 @@ void main() {
     });
 
     group('reasoning item', () {
-      test('maps completed event to TextResponse', () {
+      test('maps started event to StatusResponse with thinking', () {
+        const event = ItemStartedEvent(
+          itemId: 'reason_001',
+          itemType: 'reasoning',
+          itemData: {},
+        );
+        final responses = mapper.mapEvent(event);
+        expect(responses, hasLength(1));
+        expect(responses[0], isA<StatusResponse>());
+        expect((responses[0] as StatusResponse).status, ClaudeStatus.thinking);
+      });
+
+      test('completed event returns empty (streaming deltas already delivered)',
+          () {
         const event = ItemCompletedEvent(
           itemId: 'reason_001',
           itemType: 'reasoning',
           itemData: {'text': 'Let me think...'},
-        );
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        final text = responses[0] as TextResponse;
-        expect(text.content, 'Let me think...');
-        expect(text.isCumulative, isTrue);
-      });
-
-      test('falls back to summary field', () {
-        const event = ItemCompletedEvent(
-          itemId: 'reason_001',
-          itemType: 'reasoning',
-          itemData: {'summary': 'Thinking summary'},
-        );
-        final responses = mapper.mapEvent(event);
-        expect((responses[0] as TextResponse).content, 'Thinking summary');
-      });
-
-      test('handles summary as list of content blocks', () {
-        const event = ItemCompletedEvent(
-          itemId: 'reason_001',
-          itemType: 'reasoning',
-          itemData: {
-            'summary': [
-              {'type': 'summary_text', 'text': 'Thinking about it'},
-            ],
-          },
-        );
-        final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        expect(
-            (responses[0] as TextResponse).content, 'Thinking about it');
-      });
-
-      test('returns empty for empty text', () {
-        const event = ItemCompletedEvent(
-          itemId: 'reason_001',
-          itemType: 'reasoning',
-          itemData: {'text': ''},
         );
         expect(mapper.mapEvent(event), isEmpty);
       });
@@ -494,8 +468,17 @@ void main() {
         expect(mapper.mapEvent(event), isEmpty);
       });
 
-      test('ReasoningSummaryDeltaEvent maps to empty', () {
+      test('ReasoningSummaryDeltaEvent maps to ThinkingResponse', () {
         const event = ReasoningSummaryDeltaEvent(itemId: 'r', delta: 'x');
+        final responses = mapper.mapEvent(event);
+        expect(responses, hasLength(1));
+        final thinking = responses[0] as ThinkingResponse;
+        expect(thinking.content, 'x');
+        expect(thinking.isCumulative, isFalse);
+      });
+
+      test('ReasoningSummaryDeltaEvent with empty delta maps to empty', () {
+        const event = ReasoningSummaryDeltaEvent(itemId: 'r', delta: '');
         expect(mapper.mapEvent(event), isEmpty);
       });
 

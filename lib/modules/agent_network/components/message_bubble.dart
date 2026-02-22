@@ -35,6 +35,9 @@ class MessageBubble extends StatelessComponent {
       if (content is TextContent && content.text.trim().isNotEmpty) {
         return false;
       }
+      if (content is ThinkingContent && content.text.trim().isNotEmpty) {
+        return false;
+      }
     }
     return entry.content.any((c) => c is ToolContent);
   }
@@ -114,7 +117,32 @@ class MessageBubble extends StatelessComponent {
     }
 
     for (final content in entry.content) {
-      if (content is TextContent) {
+      if (content is ThinkingContent) {
+        flushToolGroup();
+        if (content.text.isNotEmpty) {
+          // Strip markdown bold markers (Codex wraps reasoning in **...**)
+          final thinkingText = content.text
+              .replaceAll(RegExp(r'^\*\*'), '')
+              .replaceAll(RegExp(r'\*\*$'), '')
+              .trim();
+          if (thinkingText.isNotEmpty) {
+            widgets.add(
+              Container(
+                padding: EdgeInsets.only(bottom: 1),
+                child: Text(
+                  thinkingText,
+                  style: TextStyle(
+                    color: theme.base.onSurface.withOpacity(
+                      TextOpacity.secondary,
+                    ),
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            );
+          }
+        }
+      } else if (content is TextContent) {
         final hadTools = pendingTools.isNotEmpty;
         flushToolGroup();
         if (content.text.isNotEmpty) {

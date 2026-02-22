@@ -2,6 +2,8 @@
 enum SettingsCategory {
   general('General'),
   appearance('Appearance'),
+  daemon('Daemon'),
+  debug('Debug'),
   mcpServers('MCP Servers'),
   about('About');
 

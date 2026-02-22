@@ -78,6 +78,21 @@ final class ToolContent extends ConversationContent {
   }
 }
 
+/// Thinking/reasoning content from the model.
+///
+/// Separate from [TextContent] so the UI can render it differently
+/// (e.g., collapsed, dimmed, or in an expandable section).
+final class ThinkingContent extends ConversationContent {
+  /// The accumulated thinking/reasoning text.
+  final String text;
+
+  const ThinkingContent({required this.text});
+
+  ThinkingContent copyWith({String? text}) {
+    return ThinkingContent(text: text ?? this.text);
+  }
+}
+
 /// An attachment included with a user message (image, file, etc.).
 final class AttachmentContent extends ConversationContent {
   /// The attachments.
@@ -273,6 +288,8 @@ class ConversationStateManager {
     switch (event) {
       case MessageEvent e:
         _handleMessage(e);
+      case ThinkingEvent e:
+        _handleThinking(e);
       case ToolUseEvent e:
         _handleToolUse(e);
       case ToolResultEvent e:
@@ -329,7 +346,22 @@ class ConversationStateManager {
 
     if (state.currentMessageEventId != event.eventId) {
       state.currentMessageEventId = event.eventId;
+
+      // If the previous entry is a thinking-only assistant entry, merge
+      // thinking content into this new entry instead of leaving them separate.
+      final thinkingBlocks = <ConversationContent>[];
+      if (event.role == 'assistant' && state.messages.isNotEmpty) {
+        final prev = state.messages.last;
+        if (prev.role == 'assistant' &&
+            prev.content.isNotEmpty &&
+            prev.content.every((c) => c is ThinkingContent)) {
+          thinkingBlocks.addAll(prev.content);
+          state.messages.removeLast();
+        }
+      }
+
       final contentBlocks = <ConversationContent>[
+        ...thinkingBlocks,
         if (event.attachments != null && event.attachments!.isNotEmpty)
           AttachmentContent(attachments: event.attachments!),
         TextContent(text: event.content, isStreaming: event.isPartial),
@@ -360,6 +392,39 @@ class ConversationStateManager {
         content: contentList,
       );
     }
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleThinking(ThinkingEvent event) {
+    final state = _getOrCreateAgentState(event);
+    state.taskName = event.taskName;
+
+    // Ensure we have an assistant message to attach thinking to
+    if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
+      state.messages.add(
+        const ConversationEntry(role: 'assistant', content: []),
+      );
+    }
+
+    final lastMessage = state.messages.last;
+    final contentList = List<ConversationContent>.from(lastMessage.content);
+
+    // Append or update ThinkingContent
+    final lastThinkingIndex =
+        contentList.lastIndexWhere((c) => c is ThinkingContent);
+    if (lastThinkingIndex >= 0) {
+      final existing = contentList[lastThinkingIndex] as ThinkingContent;
+      contentList[lastThinkingIndex] = existing.copyWith(
+        text: existing.text + event.content,
+      );
+    } else {
+      contentList.add(ThinkingContent(text: event.content));
+    }
+
+    state.messages[state.messages.length - 1] = lastMessage.copyWith(
+      content: contentList,
+    );
 
     _notifyChange(event.agentId);
   }

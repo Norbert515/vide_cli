@@ -30,8 +30,8 @@ class CodexEventMapper {
 
       // Streaming deltas
       AgentMessageDeltaEvent e => _mapAgentMessageDelta(e),
-      ReasoningSummaryDeltaEvent _ => [],
-      ReasoningTextDeltaEvent _ => [],
+      ReasoningSummaryDeltaEvent e => _mapReasoningDelta(e.itemId, e.delta),
+      ReasoningTextDeltaEvent e => _mapReasoningDelta(e.itemId, e.delta),
       CommandOutputDeltaEvent _ => [],
       FileChangeOutputDeltaEvent _ => [],
       McpToolCallProgressEvent _ => [],
@@ -99,7 +99,7 @@ class CodexEventMapper {
       'commandExecution' => _mapCommandExecutionStarted(event),
       'fileChange' => _mapFileChangeStarted(event),
       'mcpToolCall' => _mapMcpToolCallStarted(event),
-      'reasoning' => [],
+      'reasoning' => _mapReasoningStarted(),
       'webSearch' => _mapWebSearchStarted(event),
       'todoList' => [],
       _ => [],
@@ -309,19 +309,32 @@ class CodexEventMapper {
     ];
   }
 
-  List<ClaudeResponse> _mapReasoningCompleted(ItemCompletedEvent event) {
-    final text = _extractStringField(event.itemData, 'text') ??
-        _extractStringField(event.itemData, 'summary') ??
-        '';
-    if (text.isEmpty) return [];
+  List<ClaudeResponse> _mapReasoningDelta(String itemId, String delta) {
+    if (delta.isEmpty) return [];
     return [
-      TextResponse(
-        id: event.itemId,
+      ThinkingResponse(
+        id: itemId,
         timestamp: DateTime.now(),
-        content: text,
-        isCumulative: true,
+        content: delta,
+        isCumulative: false,
       ),
     ];
+  }
+
+  List<ClaudeResponse> _mapReasoningStarted() {
+    return [
+      StatusResponse(
+        id: _nextId(),
+        timestamp: DateTime.now(),
+        status: ClaudeStatus.thinking,
+      ),
+    ];
+  }
+
+  List<ClaudeResponse> _mapReasoningCompleted(ItemCompletedEvent event) {
+    // Streaming deltas already delivered all reasoning content.
+    // Emitting the cumulative text here would duplicate it.
+    return [];
   }
 
   List<ClaudeResponse> _mapWebSearchStarted(ItemStartedEvent event) {

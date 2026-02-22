@@ -457,6 +457,16 @@ class RemoteVideSession implements VideSession {
         _handlePlanApprovalResolved(event);
       case AbortedEvent():
         _handleAborted(event);
+      case ThinkingEvent():
+        _emit(
+          ThinkingEvent(
+            agentId: event.agentId,
+            agentType: _resolveAgentType(event.agentId, event),
+            agentName: _resolveAgentName(event.agentId, event),
+            taskName: event.taskName,
+            content: event.content,
+          ),
+        );
       case CommandResultEvent():
         // Command results are handled inside Session.
         break;

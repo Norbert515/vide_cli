@@ -13,6 +13,12 @@ import '../configuration/vide_config_manager.dart';
 /// This separates client creation from network orchestration, making
 /// AgentNetworkManager focused on agent lifecycle management.
 abstract class AgentClientFactory {
+  /// Whether this factory supports session forking via [createForked].
+  ///
+  /// When false, [createForked] will throw [UnsupportedError].
+  /// Callers should check this before attempting to fork.
+  bool get supportsFork;
+
   /// Creates an AgentClient synchronously with background initialization.
   /// The client will be usable immediately but may queue messages until init completes.
   ///
@@ -88,6 +94,9 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
        _getDangerouslySkipPermissions = getDangerouslySkipPermissions,
        _createMcpServer = createMcpServer,
        _permissionHandler = permissionHandler;
+
+  @override
+  bool get supportsFork => true;
 
   /// Gets the enableStreaming setting from global settings.
   bool get _enableStreaming {

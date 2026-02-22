@@ -857,6 +857,28 @@ class CompletionResponse extends ClaudeResponse {
   Map<String, dynamic> toJson() => _$CompletionResponseToJson(this);
 }
 
+/// Response containing reasoning/thinking content from the model.
+///
+/// This represents internal chain-of-thought text that is separate from
+/// the actual response content. UI layers can render this differently
+/// (e.g., collapsed, dimmed, or in an expandable section).
+class ThinkingResponse extends ClaudeResponse {
+  /// The thinking/reasoning text.
+  final String content;
+
+  /// Whether this contains cumulative content (full text up to this point)
+  /// rather than a sequential delta.
+  final bool isCumulative;
+
+  const ThinkingResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    this.isCumulative = false,
+    super.rawData,
+  });
+}
+
 @JsonSerializable()
 class UnknownResponse extends ClaudeResponse {
   const UnknownResponse({
