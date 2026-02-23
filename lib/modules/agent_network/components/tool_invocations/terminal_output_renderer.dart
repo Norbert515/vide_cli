@@ -2,13 +2,15 @@ import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
-import 'package:path/path.dart' as p;
 import 'default_renderer.dart';
+import 'shared/tool_header.dart';
 
 /// Renderer for terminal/bash output tool invocations.
 /// Shows collapsed preview (last 3 lines) by default, expandable to full output (max 8 lines).
-class TerminalOutputRenderer extends StatefulComponent {
+class TerminalOutputRenderer extends StatefulComponent with ToolHeaderMixin {
+  @override
   final AgentToolInvocation invocation;
+  @override
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -101,38 +103,16 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
           onTap: () => setState(() => isExpanded = !isExpanded),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [_buildHeader(theme), _buildOutput(lines, theme)],
+            children: [
+              component.buildToolHeader(
+                context,
+                statusColor: component.getStatusColor(theme),
+              ),
+              _buildOutput(lines, theme),
+            ],
           ),
         ),
       ),
-    );
-  }
-
-  Component _buildHeader(VideThemeData theme) {
-    final statusColor = _getStatusColor(theme);
-    final dim = theme.base.onSurface.withOpacity(0.5);
-    return Row(
-      children: [
-        Text('\u25cf ', style: TextStyle(color: statusColor)),
-        Text(
-          component.invocation.displayName,
-          style: TextStyle(color: dim, fontWeight: FontWeight.bold),
-        ),
-        if (component.invocation.parameters.isNotEmpty) ...[
-          Text(
-            ' \u2192 ',
-            style: TextStyle(color: theme.base.onSurface.withOpacity(0.25)),
-          ),
-          Flexible(
-            child: Text(
-              _getParameterValue(),
-              style: TextStyle(color: dim),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ],
     );
   }
 
@@ -196,44 +176,5 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
       _stripAnsi(line),
       style: TextStyle(color: theme.base.onSurface.withOpacity(0.7)),
     );
-  }
-
-  Color _getStatusColor(VideThemeData theme) {
-    if (!component.invocation.hasResult) {
-      return theme.status.inProgress;
-    }
-    return component.invocation.isError
-        ? theme.status.error
-        : theme.status.completed;
-  }
-
-  String _getParameterValue() {
-    final invocation = component.invocation;
-    if (invocation is AgentFileOperationToolInvocation) {
-      return _formatFilePath(invocation.filePath);
-    }
-
-    final params = invocation.parameters;
-    if (params.isEmpty) return '';
-
-    for (final key in ['pattern', 'command', 'query', 'url']) {
-      if (params.containsKey(key)) {
-        return params[key].toString();
-      }
-    }
-
-    return params.values.first.toString();
-  }
-
-  String _formatFilePath(String filePath) {
-    if (component.workingDirectory.isEmpty) return filePath;
-
-    try {
-      final relative = p.relative(filePath, from: component.workingDirectory);
-      // Only use relative if it's actually shorter (file is within working dir)
-      return relative.length < filePath.length ? relative : filePath;
-    } catch (e) {
-      return filePath; // Fallback on error
-    }
   }
 }

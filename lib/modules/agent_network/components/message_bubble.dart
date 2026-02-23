@@ -233,13 +233,7 @@ class MessageBubble extends StatelessComponent {
     return Container(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...widgets,
-
-          // If no content yet but streaming, show loading
-          if (entry.content.isEmpty && entry.isStreaming)
-            EnhancedLoadingIndicator(agentId: agentId),
-        ],
+        children: widgets,
       ),
     );
   }

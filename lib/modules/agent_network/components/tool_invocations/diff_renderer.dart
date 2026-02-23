@@ -1,16 +1,18 @@
 import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
-import 'package:path/path.dart' as p;
 import 'shared/code_diff.dart';
 import 'shared/syntax_highlighter.dart';
+import 'shared/tool_header.dart';
 import 'default_renderer.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Renderer for Write/Edit/MultiEdit tool invocations with successful results.
 /// Shows code diffs with syntax highlighting.
-class DiffRenderer extends StatefulComponent {
+class DiffRenderer extends StatefulComponent with ToolHeaderMixin {
+  @override
   final AgentToolInvocation invocation;
+  @override
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -49,7 +51,7 @@ class _DiffRendererState extends State<DiffRenderer> {
         : null;
     final filePath = fileOp?.filePath;
     if (filePath != null && filePath.isNotEmpty) {
-      _cachedFormattedPath = _formatFilePath(filePath);
+      _cachedFormattedPath = component.formatFilePath(filePath);
       _language = SyntaxHighlighter.detectLanguage(filePath);
     } else {
       _cachedFormattedPath = null;
@@ -129,10 +131,6 @@ class _DiffRendererState extends State<DiffRenderer> {
     }
 
     final theme = VideTheme.of(context);
-    final statusColor = component.invocation.isError
-        ? theme.status.error
-        : theme.status.completed;
-    final statusIndicator = '●';
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 1),
@@ -140,7 +138,10 @@ class _DiffRendererState extends State<DiffRenderer> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Tool header
-          _buildHeader(context, statusColor, statusIndicator),
+          component.buildToolHeader(
+            context,
+            statusColor: component.getStatusColor(theme),
+          ),
 
           // Diff view (with pre-computed syntax highlighting)
           Container(
@@ -153,51 +154,6 @@ class _DiffRendererState extends State<DiffRenderer> {
         ],
       ),
     );
-  }
-
-  Component _buildHeader(
-    BuildContext context,
-    Color statusColor,
-    String statusIndicator,
-  ) {
-    final theme = VideTheme.of(context);
-    final dim = theme.base.onSurface.withOpacity(0.5);
-
-    return Row(
-      children: [
-        Text('$statusIndicator ', style: TextStyle(color: statusColor)),
-        Text(
-          component.invocation.displayName,
-          style: TextStyle(color: dim, fontWeight: FontWeight.bold),
-        ),
-        if (component.invocation.parameters.isNotEmpty) ...[
-          Text(
-            ' \u2192 ',
-            style: TextStyle(color: theme.base.onSurface.withOpacity(0.25)),
-          ),
-          Flexible(
-            child: Text(
-              _getParameterValue(),
-              style: TextStyle(color: dim),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  String _formatFilePath(String filePath) {
-    if (component.workingDirectory.isEmpty) return filePath;
-
-    try {
-      final relative = p.relative(filePath, from: component.workingDirectory);
-      // Only use relative if it's actually shorter (file is within working dir)
-      return relative.length < filePath.length ? relative : filePath;
-    } catch (e) {
-      return filePath; // Fallback on error
-    }
   }
 
   List<DiffLine> _createDiffLines() {
@@ -278,23 +234,5 @@ class _DiffRendererState extends State<DiffRenderer> {
     }
 
     return lines;
-  }
-
-  String _getParameterValue() {
-    final invocation = component.invocation;
-    if (invocation is AgentFileOperationToolInvocation) {
-      return _formatFilePath(invocation.filePath);
-    }
-
-    final params = invocation.parameters;
-    if (params.isEmpty) return '';
-
-    for (final key in ['pattern', 'command', 'query', 'url']) {
-      if (params.containsKey(key)) {
-        return params[key].toString();
-      }
-    }
-
-    return params.values.first.toString();
   }
 }
