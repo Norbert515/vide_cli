@@ -75,7 +75,6 @@ body {
 .minimal-wrapper {
   max-width: 800px;
   margin: 0 auto;
-  margin-top: -80px;
   padding: 0 24px;
   background: rgba(8, 8, 16, 0.75);
   backdrop-filter: blur(8px);
@@ -98,6 +97,29 @@ body {
   margin-bottom: 16px;
 }
 
+/* Install hero section - first section in minimal-wrapper */
+.install-hero-section {
+  padding: 32px 0 !important;
+  border-bottom: 1px solid rgba(42, 42, 58, 0.6);
+}
+
+/* OS switch - subtle toggle link */
+.os-switch {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 10px;
+  transition: color 0.2s ease;
+}
+
+.os-switch:hover {
+  color: var(--text-primary);
+}
+
 /* What is */
 .what-is {
   padding: 32px 0 !important;
@@ -112,7 +134,6 @@ body {
 .terminal-window {
   margin-top: 24px;
   border: 1px solid var(--border-default);
-  border-radius: 6px;
   background: #1e1e2e;
   overflow: hidden;
 }
@@ -159,7 +180,7 @@ body {
 /* Install CTA */
 .install-section {
   padding: 48px 24px 64px 24px;
-  max-width: 848px;
+  max-width: 800px;
   margin: 0 auto;
 }
 
@@ -879,13 +900,12 @@ body {
   left: 50%;
   transform: translateX(-50%);
   width: calc(100% - 48px);
-  max-width: 1000px;
+  max-width: 800px;
   z-index: 100;
   background: rgba(8, 8, 16, 0.8);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
   padding: 12px 24px;
   display: flex;
   justify-content: space-between;
@@ -937,8 +957,12 @@ body {
 .hero-section {
   position: relative;
   width: 100%;
-  height: 100vh;
-  min-height: 500px;
+  height: 70vh;
+  min-height: 400px;
+  max-height: 600px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   overflow: hidden;
 }
@@ -952,12 +976,8 @@ body {
   /* Height set dynamically by JS to cover full document */
 }
 
-/* Hero center content - logo, install, buttons */
+/* Hero center content - logo + subtitle */
 .hero-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1014,12 +1034,7 @@ body {
   text-align: center;
 }
 
-.os-tab:first-child {
-  border-radius: 4px 0 0 0;
-}
-
 .os-tab:last-child {
-  border-radius: 0 4px 0 0;
   border-left: none;
 }
 
@@ -1077,82 +1092,55 @@ body {
   display: block;
 }
 
-/* And connector */
-.hero-and {
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-  margin: 12px 0;
-}
-
-/* Buttons below install */
-.hero-buttons {
+/* Install row - install command + github link side by side */
+.hero-install-row {
   display: flex;
-  gap: 12px;
-}
-
-.hero-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 24px;
-  font-size: 0.85rem;
-  font-family: inherit;
-  text-decoration: none;
-  font-weight: bold;
-  transition: all 0.2s ease;
-  border: 1px solid;
-}
-
-.hero-btn.primary {
-  background: var(--text-bright);
-  color: var(--bg-dark);
-  border-color: var(--text-bright);
-}
-
-.hero-btn.primary:hover {
-  background: transparent;
-  color: var(--text-bright);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
-}
-
-.github-icon {
-  flex-shrink: 0;
-}
-
-/* GitHub stars button */
-.github-stars-btn {
+  align-items: stretch;
   gap: 0;
+  width: 100%;
 }
 
-.github-stars-btn .github-icon {
-  margin-right: 8px;
+.hero-install-row .hero-install-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
-.github-stars-btn .btn-text {
-  margin-right: 8px;
-}
-
-.star-divider {
-  width: 1px;
-  height: 16px;
-  background: currentColor;
-  opacity: 0.3;
-  margin: 0 12px;
-}
-
-.star-count {
+/* GitHub link - subtle, next to install, spans full height */
+.hero-github-link {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: #0a0a14;
+  border: 1px solid var(--border-default);
+  border-left: none;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.8rem;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
-.star-icon {
+.hero-github-link:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
+
+.hero-github-link .github-icon {
   flex-shrink: 0;
 }
 
-.count-value {
+.hero-github-link .star-icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.hero-github-link .count-value {
   font-weight: bold;
-  min-width: 20px;
+  min-width: 16px;
 }
 
 /* Floating content over vortex */
@@ -1773,11 +1761,6 @@ body {
    ============================================ */
 
 @media (max-width: 900px) {
-  .hero-section {
-    height: 100vh;
-    min-height: 500px;
-  }
-
   .stats-row {
     flex-wrap: wrap;
   }
@@ -1799,17 +1782,24 @@ body {
   }
 
   .hero-section {
-    height: 100vh;
-    min-height: 450px;
-  }
-
-  .hero-center {
-    width: 90%;
-    padding: 0 16px;
+    height: 60vh;
+    min-height: 350px;
   }
 
   .vide-logo {
     font-size: 10px;
+  }
+
+  .hero-install-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-github-link {
+    flex-direction: row;
+    justify-content: center;
+    border-left: 1px solid var(--border-default);
+    border-top: none;
   }
 
   .hero-install {
@@ -1889,16 +1879,6 @@ body {
 
   .hero-install code {
     font-size: 0.55rem;
-  }
-
-  .hero-buttons {
-    flex-direction: column;
-    width: 100%;
-  }
-
-  .hero-btn {
-    width: 100%;
-    justify-content: center;
   }
 
   .hero-cta {
