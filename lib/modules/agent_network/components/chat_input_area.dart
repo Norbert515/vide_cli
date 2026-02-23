@@ -80,13 +80,9 @@ class ChatInputArea extends StatelessComponent {
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
-    // Use min size normally, but fill available space when permission dialog
-    // is active so the Expanded scrollable action text gets bounded height.
-    final hasPermission = currentPermissionRequest != null;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: hasPermission ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Show queued message indicator above the generating indicator
         if (queuedMessage != null)
@@ -154,9 +150,10 @@ class ChatInputArea extends StatelessComponent {
           )
         // Show permission dialog above text field (if active)
         else if (currentPermissionRequest != null)
-          Expanded(
+          Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Show queue length if there are more requests waiting
                 if (permissionQueueState.queueLength > 1)
@@ -170,7 +167,7 @@ class ChatInputArea extends StatelessComponent {
                       ),
                     ),
                   ),
-                Expanded(
+                Flexible(
                   child: PermissionDialog.fromRequest(
                     request: currentPermissionRequest,
                     onResponse:

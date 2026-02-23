@@ -703,19 +703,15 @@ class _AgentChatState extends State<_AgentChat> {
     final planApprovalQueueState = context.watch(planApprovalStateProvider);
     final currentPlanApproval = planApprovalQueueState.current;
 
-    // Watch permission state to adjust layout when permission dialog is tall
-    final permissionQueueState = context.watch(permissionStateProvider);
-    final hasPermissionRequest = permissionQueueState.current != null;
-
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
       child: Container(
         child: Column(
           children: [
-            // Messages area (hidden when plan approval or permission dialog
-            // is active to give the dialog full Expanded space for scrolling)
-            if (currentPlanApproval == null && !hasPermissionRequest)
+            // Messages area (hidden when plan approval is active to give it
+            // the full Expanded space for scrolling)
+            if (currentPlanApproval == null)
               Expanded(
                 child: _conversation == null
                     ? Center(child: EnhancedLoadingIndicator())
@@ -736,10 +732,8 @@ class _AgentChatState extends State<_AgentChat> {
                 ),
               ),
 
-            // Input area — Expanded when permission dialog is active so
-            // the action text can scroll within bounded constraints.
-            // Normal (non-expanded) when no permission dialog is showing.
-            _buildChatInputArea(context, currentPlanApproval, hasPermissionRequest),
+            // Input area
+            _buildChatInputArea(context, currentPlanApproval),
           ],
         ),
       ),
@@ -749,7 +743,6 @@ class _AgentChatState extends State<_AgentChat> {
   Component _buildChatInputArea(
     BuildContext context,
     PlanApprovalUIRequest? currentPlanApproval,
-    bool hasPermissionRequest,
   ) {
     final inputArea = ChatInputArea(
       agentId: component.agentId,
@@ -783,11 +776,6 @@ class _AgentChatState extends State<_AgentChat> {
       commandSuggestions: _getCommandSuggestions,
     );
 
-    // When a permission dialog is active, expand the input area so the
-    // scrollable action text gets bounded height constraints.
-    if (hasPermissionRequest && currentPlanApproval == null) {
-      return Expanded(child: inputArea);
-    }
     return inputArea;
   }
 }

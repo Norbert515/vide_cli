@@ -193,6 +193,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
         },
         autofocus: true,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Title
@@ -224,7 +225,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
             ),
 
             // Scrollable action text
-            Expanded(
+            Flexible(
               child: Scrollbar(
                 controller: _scrollController,
                 thumbVisibility: true,
