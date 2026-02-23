@@ -60,6 +60,9 @@ class _PermissionDialogState extends State<PermissionDialog> {
   /// Controller for custom deny reason text input
   final _textController = TextEditingController();
 
+  /// Scroll controller for the action text area
+  final _scrollController = ScrollController();
+
   /// Whether the deny option is selected (last option in the list)
   bool get _isDenySelected => _selectedIndex == _options.length - 1;
 
@@ -158,6 +161,15 @@ class _PermissionDialogState extends State<PermissionDialog> {
             return false;
           }
 
+          // Scroll action text with Page Up/Down
+          if (key == LogicalKey.pageUp) {
+            _scrollController.pageUp();
+            return true;
+          } else if (key == LogicalKey.pageDown) {
+            _scrollController.pageDown();
+            return true;
+          }
+
           // Normal navigation mode
           if (key == LogicalKey.arrowUp) {
             setState(() {
@@ -181,7 +193,6 @@ class _PermissionDialogState extends State<PermissionDialog> {
         },
         autofocus: true,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Title
@@ -203,7 +214,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
                 ),
               ),
 
-            // Tool and action
+            // Tool name
             Text(
               'Tool: ${component.toolName}',
               style: TextStyle(
@@ -211,9 +222,25 @@ class _PermissionDialogState extends State<PermissionDialog> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            Text(
-              component.displayAction,
-              style: TextStyle(color: theme.base.onSurface),
+
+            // Scrollable action text
+            Expanded(
+              child: Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                thumbColor: theme.base.outline,
+                trackColor: theme.base.outlineVariant,
+                child: ListView(
+                  lazy: false,
+                  controller: _scrollController,
+                  children: [
+                    Text(
+                      component.displayAction,
+                      style: TextStyle(color: theme.base.onSurface),
+                    ),
+                  ],
+                ),
+              ),
             ),
 
             // Show inferred pattern if "remember" would be used

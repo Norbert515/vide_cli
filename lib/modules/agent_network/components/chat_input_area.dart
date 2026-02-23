@@ -80,9 +80,13 @@ class ChatInputArea extends StatelessComponent {
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
+    // Use min size normally, but fill available space when permission dialog
+    // is active so the Expanded scrollable action text gets bounded height.
+    final hasPermission = currentPermissionRequest != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: hasPermission ? MainAxisSize.max : MainAxisSize.min,
       children: [
         // Show queued message indicator above the generating indicator
         if (queuedMessage != null)
@@ -150,40 +154,43 @@ class ChatInputArea extends StatelessComponent {
           )
         // Show permission dialog above text field (if active)
         else if (currentPermissionRequest != null)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Show queue length if there are more requests waiting
-              if (permissionQueueState.queueLength > 1)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
-                  child: Text(
-                    'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
-                    style: TextStyle(
-                      color: theme.base.warning,
-                      fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Show queue length if there are more requests waiting
+                if (permissionQueueState.queueLength > 1)
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
+                    child: Text(
+                      'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
+                      style: TextStyle(
+                        color: theme.base.warning,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                Expanded(
+                  child: PermissionDialog.fromRequest(
+                    request: currentPermissionRequest,
+                    onResponse:
+                        (
+                          granted,
+                          remember, {
+                          String? patternOverride,
+                          String? denyReason,
+                        }) => onPermissionResponse(
+                          currentPermissionRequest,
+                          granted,
+                          remember,
+                          patternOverride: patternOverride,
+                          denyReason: denyReason,
+                        ),
+                    key: Key('permission_${currentPermissionRequest.requestId}'),
+                  ),
                 ),
-              PermissionDialog.fromRequest(
-                request: currentPermissionRequest,
-                onResponse:
-                    (
-                      granted,
-                      remember, {
-                      String? patternOverride,
-                      String? denyReason,
-                    }) => onPermissionResponse(
-                      currentPermissionRequest,
-                      granted,
-                      remember,
-                      patternOverride: patternOverride,
-                      denyReason: denyReason,
-                    ),
-                key: Key('permission_${currentPermissionRequest.requestId}'),
-              ),
-            ],
+              ],
+            ),
           ),
 
         // Text field - rendered when no dialogs are active

@@ -703,15 +703,19 @@ class _AgentChatState extends State<_AgentChat> {
     final planApprovalQueueState = context.watch(planApprovalStateProvider);
     final currentPlanApproval = planApprovalQueueState.current;
 
+    // Watch permission state to adjust layout when permission dialog is tall
+    final permissionQueueState = context.watch(permissionStateProvider);
+    final hasPermissionRequest = permissionQueueState.current != null;
+
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
       child: Container(
         child: Column(
           children: [
-            // Messages area (hidden when plan approval is active to give it
-            // the full Expanded space for scrolling)
-            if (currentPlanApproval == null)
+            // Messages area (hidden when plan approval or permission dialog
+            // is active to give the dialog full Expanded space for scrolling)
+            if (currentPlanApproval == null && !hasPermissionRequest)
               Expanded(
                 child: _conversation == null
                     ? Center(child: EnhancedLoadingIndicator())
@@ -732,42 +736,59 @@ class _AgentChatState extends State<_AgentChat> {
                 ),
               ),
 
-            // Input area
-            ChatInputArea(
-              agentId: component.agentId,
-              queuedMessage: _queuedMessage,
-              isAgentWorking: _isAgentWorking,
-              showQuitWarning: component.showQuitWarning,
-              hasPlanApproval: currentPlanApproval != null,
-              commandResult: _commandResult,
-              commandResultIsError: _commandResultIsError,
-              conversation: _conversation,
-              model: _model,
-              onClearQueue: () {
-                final session = context.read(currentVideSessionProvider);
-                if (session != null) {
-                  unawaited(session.clearQueuedMessage(component.agentId));
-                }
-              },
-              onSendMessage: _sendMessage,
-              onCommand: _handleCommand,
-              onPermissionResponse: _handlePermissionResponse,
-              onAskUserQuestionResponse: _handleAskUserQuestionResponse,
-              onEscape: () {
-                final session = context.read(currentVideSessionProvider);
-                if (session == null) return;
-                if (_queuedMessage != null) {
-                  unawaited(session.clearQueuedMessage(component.agentId));
-                } else {
-                  session.abortAgent(component.agentId);
-                }
-              },
-              commandSuggestions: _getCommandSuggestions,
-            ),
+            // Input area — Expanded when permission dialog is active so
+            // the action text can scroll within bounded constraints.
+            // Normal (non-expanded) when no permission dialog is showing.
+            _buildChatInputArea(context, currentPlanApproval, hasPermissionRequest),
           ],
         ),
       ),
     );
+  }
+
+  Component _buildChatInputArea(
+    BuildContext context,
+    PlanApprovalUIRequest? currentPlanApproval,
+    bool hasPermissionRequest,
+  ) {
+    final inputArea = ChatInputArea(
+      agentId: component.agentId,
+      queuedMessage: _queuedMessage,
+      isAgentWorking: _isAgentWorking,
+      showQuitWarning: component.showQuitWarning,
+      hasPlanApproval: currentPlanApproval != null,
+      commandResult: _commandResult,
+      commandResultIsError: _commandResultIsError,
+      conversation: _conversation,
+      model: _model,
+      onClearQueue: () {
+        final session = context.read(currentVideSessionProvider);
+        if (session != null) {
+          unawaited(session.clearQueuedMessage(component.agentId));
+        }
+      },
+      onSendMessage: _sendMessage,
+      onCommand: _handleCommand,
+      onPermissionResponse: _handlePermissionResponse,
+      onAskUserQuestionResponse: _handleAskUserQuestionResponse,
+      onEscape: () {
+        final session = context.read(currentVideSessionProvider);
+        if (session == null) return;
+        if (_queuedMessage != null) {
+          unawaited(session.clearQueuedMessage(component.agentId));
+        } else {
+          session.abortAgent(component.agentId);
+        }
+      },
+      commandSuggestions: _getCommandSuggestions,
+    );
+
+    // When a permission dialog is active, expand the input area so the
+    // scrollable action text gets bounded height constraints.
+    if (hasPermissionRequest && currentPlanApproval == null) {
+      return Expanded(child: inputArea);
+    }
+    return inputArea;
   }
 }
 
