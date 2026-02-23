@@ -45,6 +45,10 @@ daemon-debug port="8080":
 daemon-tailscale:
     videdev daemon start --host 100.69.74.9 --port 8093 --detach
 
+# Serve the landing page locally
+landing:
+    cd landing && npx -y serve -l 0
+
 # Create a new release (interactive)
 release:
     #!/usr/bin/env bash
