@@ -17,6 +17,15 @@ class UserMessageRenderer extends StatelessComponent {
     super.key,
   });
 
+  static String _formatAttachment(VideAttachment attachment, int index) {
+    final label = switch (attachment.type) {
+      'image' => 'Image',
+      'document' => 'Document',
+      _ => attachment.type,
+    };
+    return '\u{1F4CE} $label #${index + 1}';
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -36,23 +45,40 @@ class UserMessageRenderer extends StatelessComponent {
       children: [
         Container(
           decoration: BoxDecoration(color: theme.base.primary.withOpacity(0.05)),
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          child: Row(
+          padding: EdgeInsets.symmetric(horizontal: 1, vertical: 2),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
-              Expanded(
-                child: Text(entry.text, style: TextStyle(color: theme.base.onSurface)),
+              if (attachments != null && attachments.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.only(bottom: 1),
+                  child: Row(
+                    children: [
+                      for (final (i, attachment) in attachments.indexed) ...[
+                        if (i > 0) SizedBox(width: 2),
+                        Text(
+                          _formatAttachment(attachment, i),
+                          style: TextStyle(
+                            color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
+                  Expanded(
+                    child: Text(entry.text, style: TextStyle(color: theme.base.onSurface)),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        if (attachments != null && attachments.isNotEmpty)
-          for (final attachment in attachments)
-            Text(
-              '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
-            ),
       ],
     );
   }

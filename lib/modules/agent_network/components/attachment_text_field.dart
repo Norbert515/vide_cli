@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
-import 'package:path/path.dart' as path;
 import 'package:vide_core/vide_core.dart' show VideMessage, VideAttachment;
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
@@ -389,14 +388,14 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           // Attachments row
           if (_controller.attachments.isNotEmpty)
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
+              padding: EdgeInsets.symmetric(horizontal: 1),
               child: Row(
                 children: [
                   for (var i = 0; i < _controller.attachments.length; i++) ...[
                     Text(
                       _controller.attachments[i].type == 'image'
-                          ? '📎 ${path.basename(_controller.attachments[i].filePath ?? "image")}'
-                          : '📎 Pasted content (${_controller.attachments[i].content?.length ?? 0} chars)',
+                          ? '\u{1F4CE} Image #${i + 1}'
+                          : '\u{1F4CE} Pasted Content #${i + 1}',
                       style: TextStyle(
                         color: theme.base.onSurface.withOpacity(
                           TextOpacity.secondary,
@@ -446,6 +445,19 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                     ),
                     onPaste: _controller.handlePaste,
                     onKeyEvent: (event) {
+                      // Backspace/Delete: remove entire placeholder atomically
+                      if (event.logicalKey == LogicalKey.backspace ||
+                          event.logicalKey == LogicalKey.delete) {
+                        final removed = _controller.removeAttachmentAtCursor(
+                          _controller.selection.baseOffset,
+                          isBackspace: event.logicalKey == LogicalKey.backspace,
+                        );
+                        if (removed) {
+                          setState(() {});
+                          return true;
+                        }
+                      }
+
                       // Arrow keys: Navigate suggestion selection if visible
                       if (suggestions.isNotEmpty) {
                         if (event.logicalKey == LogicalKey.arrowUp) {
@@ -556,9 +568,42 @@ class _AttachmentTextEditingController extends TextEditingController {
       return;
     }
 
-    // Check for placeholder deletions on normal text changes
-    _handlePlaceholderDeletion(newText);
-    super.text = newText;
+    // If a placeholder was partially deleted, remove the entire remnant
+    // so placeholders behave as atomic units.
+    final cleaned = _removePartialPlaceholders(newText);
+    _handlePlaceholderDeletion(cleaned);
+    super.text = cleaned;
+  }
+
+  /// Detects partially deleted placeholders by comparing old and new text,
+  /// and removes any leftover remnant so the placeholder deletes atomically.
+  String _removePartialPlaceholders(String newText) {
+    final oldText = text; // getter returns current (old) value
+    var result = newText;
+
+    for (var i = 0; i < attachments.length; i++) {
+      final isImage = attachments[i].type == 'image';
+      final placeholder = isImage
+          ? '[Image #${i + 1}]'
+          : '[Pasted Content #${i + 1}]';
+
+      if (!oldText.contains(placeholder) || result.contains(placeholder)) {
+        continue;
+      }
+
+      // Placeholder was broken — find the remnant (original minus one char)
+      // and remove it. This covers backspace/delete of a single character.
+      for (var j = 0; j < placeholder.length; j++) {
+        final remnant =
+            placeholder.substring(0, j) + placeholder.substring(j + 1);
+        if (remnant.isNotEmpty && result.contains(remnant)) {
+          result = result.replaceFirst(remnant, '');
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 
   /// Handle pasted text - runs image path detection only on paste events.
@@ -823,6 +868,38 @@ class _AttachmentTextEditingController extends TextEditingController {
 
     // Single filesystem check
     return File(cleanPath).existsSync();
+  }
+
+  /// If [cursorPos] is inside or at the edge of a placeholder, removes the
+  /// entire placeholder and positions the cursor correctly. Returns true if
+  /// a placeholder was removed.
+  bool removeAttachmentAtCursor(int cursorPos, {required bool isBackspace}) {
+    for (var i = 0; i < attachments.length; i++) {
+      final isImage = attachments[i].type == 'image';
+      final placeholder = isImage
+          ? '[Image #${i + 1}]'
+          : '[Pasted Content #${i + 1}]';
+      final idx = text.indexOf(placeholder);
+      if (idx == -1) continue;
+
+      final end = idx + placeholder.length;
+      // Backspace: cursor must be inside or right after the placeholder
+      // Delete: cursor must be inside or right before the placeholder
+      final isInside = isBackspace
+          ? (cursorPos > idx && cursorPos <= end)
+          : (cursorPos >= idx && cursorPos < end);
+
+      if (isInside) {
+        final newText = text.substring(0, idx) + text.substring(end);
+        _isInternalUpdate = true;
+        super.text = newText;
+        selection = TextSelection.collapsed(offset: idx);
+        _isInternalUpdate = false;
+        _handlePlaceholderDeletion(newText);
+        return true;
+      }
+    }
+    return false;
   }
 
   void clearAttachments() {

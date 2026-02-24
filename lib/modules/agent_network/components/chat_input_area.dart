@@ -84,7 +84,9 @@ class ChatInputArea extends StatelessComponent {
 
     final dialogHeightConstraint = maxDialogHeight;
 
-    return Column(
+    return Padding(
+      padding: EdgeInsets.only(top: 2),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -195,6 +197,7 @@ class ChatInputArea extends StatelessComponent {
         // Context usage bar with compact button
         ContextUsageSection(conversation: conversation, model: model),
       ],
+    ),
     );
   }
 
