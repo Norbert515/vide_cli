@@ -1077,6 +1077,7 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  cursor: pointer;
   /* Hide scrollbar while keeping scroll functionality */
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE/Edge */
