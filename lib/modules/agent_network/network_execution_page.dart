@@ -7,7 +7,8 @@ import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
-import 'package:vide_cli/modules/agent_network/components/conversation_entry_renderer.dart';
+import 'package:vide_cli/modules/agent_network/components/assistant_entry_renderer.dart';
+import 'package:vide_cli/modules/agent_network/components/user_message_renderer.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
@@ -569,14 +570,19 @@ class _AgentChatState extends State<_AgentChat> {
 
           return Padding(
             padding: EdgeInsets.only(top: 1),
-            child: ConversationEntryRenderer(
-              key: ValueKey(message.hashCode),
-              entry: message,
-              networkId: component.networkId,
-              agentId: component.agentId,
-              workingDirectory: workingDir,
-              sentAttachments: _sentAttachments,
-            ),
+            child: message.role == MessageRole.user
+                ? UserMessageRenderer(
+                    key: ValueKey(message.hashCode),
+                    entry: message,
+                    sentAttachments: _sentAttachments,
+                  )
+                : AssistantEntryRenderer(
+                    key: ValueKey(message.hashCode),
+                    entry: message,
+                    networkId: component.networkId,
+                    agentId: component.agentId,
+                    workingDirectory: workingDir,
+                  ),
           );
         },
       ),
