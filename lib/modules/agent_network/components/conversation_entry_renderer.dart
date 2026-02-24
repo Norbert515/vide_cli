@@ -1,12 +1,9 @@
-import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
-import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/modules/agent_network/components/assistant_entry_renderer.dart';
+import 'package:vide_cli/modules/agent_network/components/user_message_renderer.dart';
 import 'package:vide_core/vide_core.dart';
 
-/// Renders a single conversation entry (user or assistant message).
+/// Routes a [ConversationEntry] to the appropriate renderer based on role.
 class ConversationEntryRenderer extends StatelessComponent {
   final ConversationEntry entry;
   final String networkId;
@@ -28,135 +25,18 @@ class ConversationEntryRenderer extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
     if (entry.role == MessageRole.user) {
-      return _buildUserMessage(theme);
-    } else {
-      return _buildAssistantMessage(context, theme);
-    }
-  }
-
-  Component _buildUserMessage(VideThemeData theme) {
-    // Resolve attachments from entry content or locally tracked
-    List<VideAttachment>? attachments;
-    for (final c in entry.content) {
-      if (c is AttachmentContent) {
-        attachments = c.attachments;
-        break;
-      }
-    }
-    attachments ??= sentAttachments[entry.text];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          decoration: BoxDecoration(color: theme.base.primary.withOpacity(0.05)),
-          padding: EdgeInsets.symmetric(horizontal: 1),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
-              Expanded(
-                child: Text(entry.text, style: TextStyle(color: theme.base.onSurface)),
-              ),
-            ],
-          ),
-        ),
-        if (attachments != null && attachments.isNotEmpty)
-          for (final attachment in attachments)
-            Text(
-              '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
-              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
-            ),
-      ],
-    );
-  }
-
-  Component _buildAssistantMessage(BuildContext context, VideThemeData theme) {
-    final widgets = <Component>[];
-    final pendingTools = <Component>[];
-
-    void flushToolGroup() {
-      if (pendingTools.isEmpty) return;
-
-      widgets.addAll(pendingTools);
-      pendingTools.clear();
+      return UserMessageRenderer(
+        entry: entry,
+        sentAttachments: sentAttachments,
+      );
     }
 
-    for (final content in entry.content) {
-      if (content is ThinkingContent) {
-        flushToolGroup();
-        if (content.text.trim().isNotEmpty) {
-          widgets.add(
-            Text(
-              content.text.trim(),
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          );
-        }
-      } else if (content is TextContent) {
-        flushToolGroup();
-        if (content.text.isNotEmpty) {
-          widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
-
-          if (content.isContextWindowError) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(top: 1),
-                child: Text(
-                  '💡 Tip: Type /compact to free up context space',
-                  style: TextStyle(color: theme.base.primary),
-                ),
-              ),
-            );
-          }
-        }
-      } else if (content is ToolContent) {
-        final now = DateTime.now();
-        final invocation = AgentToolInvocation.createTyped(
-          toolCall: AgentToolUseResponse(
-            id: content.toolUseId,
-            timestamp: now,
-            toolName: content.toolName,
-            parameters: content.toolInput,
-            toolUseId: content.toolUseId,
-          ),
-          toolResult: content.result != null
-              ? AgentToolResultResponse(
-                  id: content.toolUseId,
-                  timestamp: now,
-                  toolUseId: content.toolUseId,
-                  content: content.result!,
-                  isError: content.isError,
-                )
-              : null,
-        );
-
-        pendingTools.add(
-          ToolInvocationRouter(
-            key: ValueKey(content.toolUseId),
-            invocation: invocation,
-            workingDirectory: workingDirectory,
-            executionId: networkId,
-            agentId: agentId,
-          ),
-        );
-      }
-    }
-    flushToolGroup();
-
-    // Show loading indicator if streaming with no content yet
-    if (widgets.isEmpty && entry.isStreaming) {
-      widgets.add(EnhancedLoadingIndicator(agentId: agentId));
-    }
-
-    return Container(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets),
+    return AssistantEntryRenderer(
+      entry: entry,
+      networkId: networkId,
+      agentId: agentId,
+      workingDirectory: workingDirectory,
     );
   }
 }
