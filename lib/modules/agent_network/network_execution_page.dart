@@ -706,36 +706,49 @@ class _AgentChatState extends State<_AgentChat> {
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
-      child: Container(
-        child: Column(
-          children: [
-            // Messages area (hidden when plan approval is active to give it
-            // the full Expanded space for scrolling)
-            if (currentPlanApproval == null)
-              Expanded(
-                child: _conversation == null
-                    ? Center(child: EnhancedLoadingIndicator())
-                    : _buildMessageList(context),
-              ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate the max height available for dialogs inside the input area.
+          // Reserve space for the loading indicator line, text field, and
+          // context bar (~4 lines) so the dialog doesn't push them off-screen.
+          final maxDialogHeight =
+              (constraints.maxHeight - 4).clamp(4.0, double.infinity);
 
-            // Plan approval dialog takes the Expanded slot when active
-            if (currentPlanApproval != null)
-              Expanded(
-                child: PlanApprovalDialog(
-                  request: currentPlanApproval,
-                  onResponse: (action, feedback) => _handlePlanApprovalResponse(
-                    currentPlanApproval,
-                    action,
-                    feedback,
+          return Container(
+            child: Column(
+              children: [
+                // Messages area (hidden when plan approval is active to give it
+                // the full Expanded space for scrolling)
+                if (currentPlanApproval == null)
+                  Expanded(
+                    child: _conversation == null
+                        ? Center(child: EnhancedLoadingIndicator())
+                        : _buildMessageList(context),
                   ),
-                  key: Key('plan_approval_${currentPlanApproval.requestId}'),
-                ),
-              ),
 
-            // Input area
-            _buildChatInputArea(context, currentPlanApproval),
-          ],
-        ),
+                // Plan approval dialog takes the Expanded slot when active
+                if (currentPlanApproval != null)
+                  Expanded(
+                    child: PlanApprovalDialog(
+                      request: currentPlanApproval,
+                      onResponse: (action, feedback) =>
+                          _handlePlanApprovalResponse(
+                        currentPlanApproval,
+                        action,
+                        feedback,
+                      ),
+                      key: Key(
+                          'plan_approval_${currentPlanApproval.requestId}'),
+                    ),
+                  ),
+
+                // Input area
+                _buildChatInputArea(
+                    context, currentPlanApproval, maxDialogHeight),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -743,6 +756,7 @@ class _AgentChatState extends State<_AgentChat> {
   Component _buildChatInputArea(
     BuildContext context,
     PlanApprovalUIRequest? currentPlanApproval,
+    double maxDialogHeight,
   ) {
     final inputArea = ChatInputArea(
       agentId: component.agentId,
@@ -754,6 +768,7 @@ class _AgentChatState extends State<_AgentChat> {
       commandResultIsError: _commandResultIsError,
       conversation: _conversation,
       model: _model,
+      maxDialogHeight: maxDialogHeight,
       onClearQueue: () {
         final session = context.read(currentVideSessionProvider);
         if (session != null) {

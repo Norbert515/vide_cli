@@ -69,6 +69,42 @@ class PermissionRequest {
         return 'Use $toolName';
     }
   }
+
+  /// Label for the action type (e.g. "Command", "File", "URL").
+  String get actionLabel {
+    switch (toolName) {
+      case 'Bash':
+        return 'Command';
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return 'File';
+      case 'WebFetch':
+        return 'URL';
+      case 'WebSearch':
+        return 'Query';
+      default:
+        return toolName;
+    }
+  }
+
+  /// Raw action value without the prefix (e.g. "ls -la" instead of "Run: ls -la").
+  String get rawAction {
+    switch (toolName) {
+      case 'Bash':
+        return '${toolInput['command']}';
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return '${toolInput['file_path']}';
+      case 'WebFetch':
+        return '${toolInput['url']}';
+      case 'WebSearch':
+        return '${toolInput['query']}';
+      default:
+        return 'Use $toolName';
+    }
+  }
 }
 
 /// Provider for permission service (now just a placeholder for backwards compat).

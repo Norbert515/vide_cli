@@ -21,7 +21,7 @@ class SettingsSidebar extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final categories = SettingsCategory.values;
+    final categories = SettingsCategory.visible;
 
     return SizedBox(
       width: 24,

@@ -4,7 +4,8 @@ import 'package:vide_cli/modules/permissions/permission_service.dart';
 
 class PermissionDialog extends StatefulComponent {
   final String toolName;
-  final String displayAction;
+  final String actionLabel;
+  final String rawAction;
   final String? agentName;
   final String? inferredPattern;
 
@@ -21,7 +22,8 @@ class PermissionDialog extends StatefulComponent {
 
   const PermissionDialog({
     required this.toolName,
-    required this.displayAction,
+    required this.actionLabel,
+    required this.rawAction,
     this.agentName,
     this.inferredPattern,
     required this.onResponse,
@@ -42,7 +44,8 @@ class PermissionDialog extends StatefulComponent {
   }) {
     return PermissionDialog(
       toolName: request.toolName,
-      displayAction: request.displayAction,
+      actionLabel: request.actionLabel,
+      rawAction: request.rawAction,
       inferredPattern: request.inferredPattern,
       onResponse: onResponse,
       key: key,
@@ -96,8 +99,8 @@ class _PermissionDialogState extends State<PermissionDialog> {
     if (component.toolName.startsWith('mcp__')) {
       final parts = component.toolName.split('__');
       if (parts.length >= 2) {
-        final serverName = parts[1]; // e.g., "dart" from "mcp__dart__dart_fix"
-        final serverPattern = 'mcp__${serverName}__.*'; // Regex pattern
+        final serverName = parts[1];
+        final serverPattern = 'mcp__${serverName}__.*';
 
         options.add(
           _PermissionOption(
@@ -118,7 +121,6 @@ class _PermissionDialogState extends State<PermissionDialog> {
     if (_hasResponded) return;
     _hasResponded = true;
 
-    // If denying with custom reason, pass it along
     String? denyReason;
     if (!option.granted && _textController.text.isNotEmpty) {
       denyReason = _textController.text;
@@ -138,26 +140,34 @@ class _PermissionDialogState extends State<PermissionDialog> {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: BoxDecoration(
-        border: BoxBorder.all(color: theme.base.outline),
+        border: BoxBorder.all(
+          color: theme.base.outlineVariant,
+          style: BoxBorderStyle.rounded,
+        ),
         color: theme.base.surface,
+        title: BorderTitle(
+          text: ' ${component.toolName} ',
+          alignment: TitleAlignment.left,
+          style: TextStyle(
+            color: theme.base.primary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
       child: KeyboardListener(
         onKeyEvent: (key) {
           // When deny is selected and text field is active, handle differently
           if (_isDenySelected) {
             if (key == LogicalKey.arrowUp) {
-              // Navigate away from deny option
               setState(() {
                 _selectedIndex = _selectedIndex - 1;
                 if (_selectedIndex < 0) _selectedIndex = _options.length - 1;
               });
               return true;
             } else if (key == LogicalKey.escape) {
-              // ESC denies without reason (abort behavior)
               _handleResponse(_options.last);
               return true;
             }
-            // Let TextField handle other keys (including enter)
             return false;
           }
 
@@ -186,7 +196,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
             _handleResponse(_options[_selectedIndex]);
             return true;
           } else if (key == LogicalKey.escape) {
-            _handleResponse(_options.last); // Deny
+            _handleResponse(_options.last);
             return true;
           }
           return false;
@@ -196,15 +206,6 @@ class _PermissionDialogState extends State<PermissionDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title
-            Text(
-              'Permission Request',
-              style: TextStyle(
-                color: theme.base.outline,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
             // Agent name (if aggregated)
             if (component.agentName != null)
               Text(
@@ -215,13 +216,10 @@ class _PermissionDialogState extends State<PermissionDialog> {
                 ),
               ),
 
-            // Tool name
+            // Action label
             Text(
-              'Tool: ${component.toolName}',
-              style: TextStyle(
-                color: theme.base.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
+              component.actionLabel,
+              style: TextStyle(color: theme.base.outline),
             ),
 
             // Scrollable action text
@@ -233,9 +231,12 @@ class _PermissionDialogState extends State<PermissionDialog> {
                 trackColor: theme.base.outlineVariant,
                 child: SingleChildScrollView(
                   controller: _scrollController,
-                  child: Text(
-                    component.displayAction,
-                    style: TextStyle(color: theme.base.onSurface),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      component.rawAction,
+                      style: TextStyle(color: theme.base.onSurface),
+                    ),
                   ),
                 ),
               ),
@@ -245,14 +246,15 @@ class _PermissionDialogState extends State<PermissionDialog> {
             if (component.inferredPattern != null)
               Text(
                 'Pattern: ${component.inferredPattern}',
-                style: TextStyle(color: theme.base.warning),
+                style: TextStyle(color: theme.base.outline),
               ),
 
-            Divider(color: theme.base.outline),
+            Divider(color: theme.base.outlineVariant),
 
             // List of options
             for (int i = 0; i < _options.length; i++)
               _buildListItem(i, _options[i], theme),
+
           ],
         ),
       ),
@@ -273,7 +275,7 @@ class _PermissionDialogState extends State<PermissionDialog> {
       child: Row(
         children: [
           Text(
-            isSelected ? '→ ' : '  ',
+            isSelected ? '\u203a ' : '  ',
             style: TextStyle(color: color, fontWeight: FontWeight.bold),
           ),
           Text(

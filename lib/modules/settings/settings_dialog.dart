@@ -144,7 +144,7 @@ class _SettingsDialogState extends State<SettingsDialog> {
 
   /// Returns true if the event was handled.
   bool _handleSidebarNavigation(KeyboardEvent event) {
-    final categories = SettingsCategory.values;
+    final categories = SettingsCategory.visible;
 
     if (event.logicalKey == LogicalKey.arrowUp ||
         event.logicalKey == LogicalKey.keyK) {

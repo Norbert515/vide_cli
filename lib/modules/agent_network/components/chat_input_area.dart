@@ -45,6 +45,7 @@ class ChatInputArea extends StatelessComponent {
   onAskUserQuestionResponse;
   final VoidCallback onEscape;
   final List<CommandSuggestion> Function(String prefix) commandSuggestions;
+  final double? maxDialogHeight;
 
   const ChatInputArea({
     required this.agentId,
@@ -63,6 +64,7 @@ class ChatInputArea extends StatelessComponent {
     required this.onAskUserQuestionResponse,
     required this.onEscape,
     required this.commandSuggestions,
+    this.maxDialogHeight,
     super.key,
   });
 
@@ -80,13 +82,18 @@ class ChatInputArea extends StatelessComponent {
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 
+    final dialogHeightConstraint = maxDialogHeight;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         // Show queued message indicator above the generating indicator
         if (queuedMessage != null)
-          QueueIndicator(queuedText: queuedMessage!, onClear: onClearQueue),
+          QueueIndicator(
+            queuedText: queuedMessage!,
+            onClear: onClearQueue,
+          ),
 
         // Loading indicator row - always 1 cell height to prevent layout jumps
         if (isAgentWorking &&
@@ -102,7 +109,9 @@ class ChatInputArea extends StatelessComponent {
               Text(
                 '(Press ESC to stop)',
                 style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.tertiary,
+                  ),
                 ),
               ),
             ],
@@ -114,79 +123,60 @@ class ChatInputArea extends StatelessComponent {
           Text(
             '(Press Ctrl+C again to exit)',
             style: TextStyle(
-              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+              color: theme.base.onSurface.withOpacity(
+                TextOpacity.tertiary,
+              ),
             ),
           ),
 
         // Show AskUserQuestion dialog above text field (if active)
         if (!hasPlanApproval && currentAskUserQuestionRequest != null)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Show queue length if there are more questions waiting
-              if (askUserQuestionQueueState.queueLength > 1)
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
-                  child: Text(
+          _buildDialogContainer(
+            maxHeight: dialogHeightConstraint,
+            queueInfo: askUserQuestionQueueState.queueLength > 1
+                ? (
                     'Question 1 of ${askUserQuestionQueueState.queueLength} (${askUserQuestionQueueState.queueLength - 1} more in queue)',
-                    style: TextStyle(
-                      color: theme.base.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              AskUserQuestionDialog(
-                request: currentAskUserQuestionRequest,
-                onSubmit: (answers) => onAskUserQuestionResponse(
-                  currentAskUserQuestionRequest,
-                  answers,
-                ),
-                key: Key(
-                  'ask_user_question_${currentAskUserQuestionRequest.requestId}',
-                ),
+                    theme.base.primary,
+                  )
+                : null,
+            child: AskUserQuestionDialog(
+              request: currentAskUserQuestionRequest,
+              onSubmit: (answers) => onAskUserQuestionResponse(
+                currentAskUserQuestionRequest,
+                answers,
               ),
-            ],
+              key: Key(
+                'ask_user_question_${currentAskUserQuestionRequest.requestId}',
+              ),
+            ),
           )
         // Show permission dialog above text field (if active)
         else if (currentPermissionRequest != null)
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Show queue length if there are more requests waiting
-                if (permissionQueueState.queueLength > 1)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 1, vertical: 0),
-                    child: Text(
-                      'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
-                      style: TextStyle(
-                        color: theme.base.warning,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                Flexible(
-                  child: PermissionDialog.fromRequest(
-                    request: currentPermissionRequest,
-                    onResponse:
-                        (
-                          granted,
-                          remember, {
-                          String? patternOverride,
-                          String? denyReason,
-                        }) => onPermissionResponse(
-                          currentPermissionRequest,
-                          granted,
-                          remember,
-                          patternOverride: patternOverride,
-                          denyReason: denyReason,
-                        ),
-                    key: Key('permission_${currentPermissionRequest.requestId}'),
-                  ),
-                ),
-              ],
+          _buildDialogContainer(
+            maxHeight: dialogHeightConstraint,
+            queueInfo: permissionQueueState.queueLength > 1
+                ? (
+                    'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
+                    theme.base.warning,
+                  )
+                : null,
+            child: PermissionDialog.fromRequest(
+              request: currentPermissionRequest,
+              onResponse: (
+                granted,
+                remember, {
+                String? patternOverride,
+                String? denyReason,
+              }) => onPermissionResponse(
+                currentPermissionRequest,
+                granted,
+                remember,
+                patternOverride: patternOverride,
+                denyReason: denyReason,
+              ),
+              key: Key(
+                'permission_${currentPermissionRequest.requestId}',
+              ),
             ),
           ),
 
@@ -214,6 +204,40 @@ class ChatInputArea extends StatelessComponent {
         ContextUsageSection(conversation: conversation, model: model),
       ],
     );
+  }
+
+  /// Builds a height-constrained container for a dialog with optional queue info.
+  Component _buildDialogContainer({
+    required double? maxHeight,
+    required (String text, Color color)? queueInfo,
+    required Component child,
+  }) {
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (queueInfo != null)
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 1),
+            child: Text(
+              queueInfo.$1,
+              style: TextStyle(
+                color: queueInfo.$2,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        Flexible(child: child),
+      ],
+    );
+
+    if (maxHeight != null) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: content,
+      );
+    }
+    return content;
   }
 
   Component _buildTextField(BuildContext context) {
