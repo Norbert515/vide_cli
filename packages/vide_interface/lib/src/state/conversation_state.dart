@@ -277,6 +277,18 @@ class AgentConversationState {
   /// Whether the agent is currently processing.
   bool get isProcessing => status == VideAgentStatus.working;
 
+  /// Whether the agent is currently producing thinking content.
+  ///
+  /// Derived from the conversation content: true when the last assistant
+  /// message's most recent content block is [ThinkingContent].
+  bool get isThinking {
+    if (messages.isEmpty) return false;
+    final last = messages.last;
+    if (last.role != MessageRole.assistant) return false;
+    if (last.content.isEmpty) return false;
+    return last.content.last is ThinkingContent;
+  }
+
   /// Total context tokens used across all turns.
   int get totalContextTokens =>
       totalInputTokens +

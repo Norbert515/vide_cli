@@ -101,7 +101,10 @@ class ChatInputArea extends StatelessComponent {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              EnhancedLoadingIndicator(agentId: agentId),
+              EnhancedLoadingIndicator(
+                agentId: agentId,
+                isThinking: conversation?.isThinking ?? false,
+              ),
               SizedBox(width: 2),
               Text(
                 '(Press ESC to stop)',

@@ -20,6 +20,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       daemonHost: json['daemonHost'] as String? ?? '127.0.0.1',
       daemonPort: (json['daemonPort'] as num?)?.toInt() ?? 8080,
       telemetryEnabled: json['telemetryEnabled'] as bool? ?? true,
+      showThinking: json['showThinking'] as bool? ?? true,
       useCodexBackend: json['useCodexBackend'] as bool? ?? false,
       experimentAutoTeamSelection:
           json['experimentAutoTeamSelection'] as bool? ?? false,
@@ -43,6 +44,7 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'daemonHost': instance.daemonHost,
       'daemonPort': instance.daemonPort,
       'telemetryEnabled': instance.telemetryEnabled,
+      'showThinking': instance.showThinking,
       'useCodexBackend': instance.useCodexBackend,
       'experimentAutoTeamSelection': instance.experimentAutoTeamSelection,
       'experimentParallelAgents': instance.experimentParallelAgents,

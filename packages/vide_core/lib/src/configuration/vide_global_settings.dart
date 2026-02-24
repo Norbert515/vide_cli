@@ -62,6 +62,10 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool telemetryEnabled;
 
+  /// Whether to display model thinking blocks in the conversation view.
+  @JsonKey(defaultValue: true)
+  final bool showThinking;
+
   /// Whether to use the Codex (OpenAI) backend instead of Claude.
   /// Debug setting for testing the Codex integration.
   @JsonKey(defaultValue: false)
@@ -95,6 +99,7 @@ class VideGlobalSettings {
     this.daemonHost = '127.0.0.1',
     this.daemonPort = 8080,
     this.telemetryEnabled = true,
+    this.showThinking = true,
     this.useCodexBackend = false,
     this.experimentAutoTeamSelection = false,
     this.experimentParallelAgents = false,
@@ -121,6 +126,7 @@ class VideGlobalSettings {
     String? daemonHost,
     int? daemonPort,
     bool? telemetryEnabled,
+    bool? showThinking,
     bool? useCodexBackend,
     bool? experimentAutoTeamSelection,
     bool? experimentParallelAgents,
@@ -140,6 +146,7 @@ class VideGlobalSettings {
       daemonHost: daemonHost ?? this.daemonHost,
       daemonPort: daemonPort ?? this.daemonPort,
       telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
+      showThinking: showThinking ?? this.showThinking,
       useCodexBackend: useCodexBackend ?? this.useCodexBackend,
       experimentAutoTeamSelection:
           experimentAutoTeamSelection ?? this.experimentAutoTeamSelection,

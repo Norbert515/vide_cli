@@ -24,8 +24,8 @@ class GeneralSettingsSection extends StatefulComponent {
 class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
   int _selectedIndex = 0;
 
-  // [0] = IDE mode, [1] = Git sidebar, [2] = Streaming
-  static const int _totalItems = 3;
+  // [0] = IDE mode, [1] = Git sidebar, [2] = Streaming, [3] = Show Thinking
+  static const int _totalItems = 4;
 
   bool _handleKeyEvent(KeyboardEvent event) {
     if (!component.focused) return false;
@@ -79,6 +79,11 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
         settings.copyWith(enableStreaming: !settings.enableStreaming),
       );
       setState(() {});
+    } else if (_selectedIndex == 3) {
+      configManager.writeGlobalSettings(
+        settings.copyWith(showThinking: !settings.showThinking),
+      );
+      setState(() {});
     }
   }
 
@@ -89,6 +94,7 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
     final ideModeEnabled = settings.ideModeEnabled;
     final gitSidebarEnabled = settings.gitSidebarEnabled;
     final streamingEnabled = settings.enableStreaming;
+    final showThinking = settings.showThinking;
 
     return Focusable(
       focused: component.focused,
@@ -130,6 +136,16 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
                     isSelected: component.focused && _selectedIndex == 2,
                     onTap: () {
                       setState(() => _selectedIndex = 2);
+                      _toggleCurrentItem();
+                    },
+                  ),
+                  SettingsToggleItem(
+                    label: 'Show Thinking',
+                    description: 'Display model thinking blocks',
+                    value: showThinking,
+                    isSelected: component.focused && _selectedIndex == 3,
+                    onTap: () {
+                      setState(() => _selectedIndex = 3);
                       _toggleCurrentItem();
                     },
                   ),

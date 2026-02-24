@@ -455,6 +455,12 @@ class ClaudeClientImpl implements ClaudeClient {
           );
         }
         _updateStatus(response.status);
+      } else if (response is ThinkingResponse) {
+        // Infer thinking status — Claude CLI does not emit a separate
+        // status:thinking event for extended thinking blocks.
+        _updateStatus(ClaudeStatus.thinking);
+      } else if (response is TextResponse && response.content.isNotEmpty) {
+        _updateStatus(ClaudeStatus.responding);
       }
 
       // Store and emit init data when MetaResponse is received

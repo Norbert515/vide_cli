@@ -7,11 +7,15 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
 class EnhancedLoadingIndicator extends StatefulComponent {
-  const EnhancedLoadingIndicator({super.key, this.agentId});
+  const EnhancedLoadingIndicator({super.key, this.agentId, this.isThinking = false});
 
   /// Optional agent ID to show status-aware loading messages.
   /// If provided, the indicator will show messages based on Claude's actual status.
   final String? agentId;
+
+  /// Whether the agent is currently producing thinking content.
+  /// Derived from the conversation state by the parent widget.
+  final bool isThinking;
 
   @override
   State<EnhancedLoadingIndicator> createState() =>
@@ -173,6 +177,11 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
         agentProcessingStatusProvider(component.agentId!),
       );
       processingStatus = statusAsync.valueOrNull;
+    }
+
+    // Override with thinking status from conversation state if available
+    if (component.isThinking) {
+      processingStatus = AgentProcessingStatus.thinking;
     }
 
     final displayText = _getDisplayText(processingStatus);

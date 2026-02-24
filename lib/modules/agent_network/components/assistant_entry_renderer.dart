@@ -1,5 +1,6 @@
 import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
@@ -25,12 +26,14 @@ class AssistantEntryRenderer extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
+    final configManager = context.read(videConfigManagerProvider);
+    final showThinking = configManager.readGlobalSettings().showThinking;
     final children = <Component>[];
     var prevWasTool = false;
 
     for (final content in entry.content) {
       final widgets = switch (content) {
-        ThinkingContent(:final text) when text.trim().isNotEmpty => [
+        ThinkingContent(:final text) when text.trim().isNotEmpty && showThinking => [
           Text(
             text.trim(),
             style: TextStyle(
