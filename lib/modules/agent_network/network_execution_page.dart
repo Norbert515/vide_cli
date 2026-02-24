@@ -561,9 +561,19 @@ class _AgentChatState extends State<_AgentChat> {
           final session = context.read(currentVideSessionProvider);
           final workingDir = session?.state.workingDirectory ?? '';
 
+          // Render system-like user messages (e.g. "[Request interrupted by user]")
+          // as dimmed inline text instead of a full user message bubble.
+          final isSystemLike = message.role == MessageRole.user &&
+              message.text.startsWith('[') &&
+              message.text.endsWith(']');
+
           return Padding(
             padding: EdgeInsets.only(top: 1),
             child: switch (message.role) {
+              MessageRole.user when isSystemLike => _SystemMessageRenderer(
+                key: ValueKey(message.hashCode),
+                text: message.text,
+              ),
               MessageRole.user => UserMessageRenderer(
                 key: ValueKey(message.hashCode),
                 entry: message,
@@ -672,8 +682,8 @@ class _AgentChatState extends State<_AgentChat> {
   }
 }
 
-/// Renders a system message (e.g. context compaction boundary) as a
-/// centered, dimmed line.
+/// Renders a system message (e.g. context compaction boundary, request
+/// interrupted) as a left-aligned, dimmed line.
 class _SystemMessageRenderer extends StatelessComponent {
   final String text;
 
@@ -682,12 +692,10 @@ class _SystemMessageRenderer extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    return Center(
-      child: Text(
-        text,
-        style: TextStyle(
-          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-        ),
+    return Text(
+      text,
+      style: TextStyle(
+        color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
       ),
     );
   }
