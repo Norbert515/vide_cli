@@ -40,7 +40,7 @@ class AssistantEntryRenderer extends StatelessComponent {
           ),
         ],
         TextContent(:final text, :final isContextWindowError) when text.isNotEmpty => [
-          MarkdownText(text, styleSheet: theme.markdownStyleSheet),
+          MarkdownText(text.trimRight(), styleSheet: theme.markdownStyleSheet),
           if (isContextWindowError)
             Container(
               padding: EdgeInsets.only(top: 1),
