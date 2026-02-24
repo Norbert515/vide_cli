@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
+import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
@@ -544,11 +545,7 @@ class _AgentChatState extends State<_AgentChat> {
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
-    final todos = _getLatestTodos();
-    final hasTodos = todos != null && todos.isNotEmpty;
     final filteredMessages = _getFilteredMessages();
-
-    final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
 
     return SelectionArea(
       onSelectionCompleted: ClipboardManager.copy,
@@ -557,32 +554,33 @@ class _AgentChatState extends State<_AgentChat> {
         reverse: true,
         padding: EdgeInsets.all(1),
         lazy: true,
-        itemCount: itemCount,
+        itemCount: filteredMessages.length,
         itemBuilder: (context, index) {
-          if (hasTodos && index == 0) {
-            return TodoListComponent(todos: todos);
-          }
-
-          final messageIndex = hasTodos ? index - 1 : index;
+          final messageIndex = index;
           final message = filteredMessages[messageIndex];
           final session = context.read(currentVideSessionProvider);
           final workingDir = session?.state.workingDirectory ?? '';
 
           return Padding(
             padding: EdgeInsets.only(top: 1),
-            child: message.role == MessageRole.user
-                ? UserMessageRenderer(
-                    key: ValueKey(message.hashCode),
-                    entry: message,
-                    sentAttachments: _sentAttachments,
-                  )
-                : AssistantEntryRenderer(
-                    key: ValueKey(message.hashCode),
-                    entry: message,
-                    networkId: component.networkId,
-                    agentId: component.agentId,
-                    workingDirectory: workingDir,
-                  ),
+            child: switch (message.role) {
+              MessageRole.user => UserMessageRenderer(
+                key: ValueKey(message.hashCode),
+                entry: message,
+                sentAttachments: _sentAttachments,
+              ),
+              MessageRole.system => _SystemMessageRenderer(
+                key: ValueKey(message.hashCode),
+                text: message.text,
+              ),
+              MessageRole.assistant => AssistantEntryRenderer(
+                key: ValueKey(message.hashCode),
+                entry: message,
+                networkId: component.networkId,
+                agentId: component.agentId,
+                workingDirectory: workingDir,
+              ),
+            },
           );
         },
       ),
@@ -628,6 +626,18 @@ class _AgentChatState extends State<_AgentChat> {
                     ),
                   ),
 
+                // Todo list (fixed above input area)
+                Builder(builder: (context) {
+                  final todos = _getLatestTodos();
+                  if (todos != null && todos.isNotEmpty) {
+                    return Padding(
+                      padding: EdgeInsets.only(top: 1),
+                      child: TodoListComponent(todos: todos),
+                    );
+                  }
+                  return SizedBox.shrink();
+                }),
+
                 // Input area
                 ChatInputArea(
                   agentId: component.agentId,
@@ -657,6 +667,27 @@ class _AgentChatState extends State<_AgentChat> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Renders a system message (e.g. context compaction boundary) as a
+/// centered, dimmed line.
+class _SystemMessageRenderer extends StatelessComponent {
+  final String text;
+
+  const _SystemMessageRenderer({required this.text, super.key});
+
+  @override
+  Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+    return Center(
+      child: Text(
+        text,
+        style: TextStyle(
+          color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+        ),
       ),
     );
   }

@@ -765,6 +765,12 @@ class LocalVideSession implements VideSession {
     return network?.agents.where((a) => a.id == agentId).firstOrNull?.taskName;
   }
 
+  static MessageRole _mapRole(AgentMessageRole role) => switch (role) {
+    AgentMessageRole.user => MessageRole.user,
+    AgentMessageRole.assistant => MessageRole.assistant,
+    AgentMessageRole.system => MessageRole.system,
+  };
+
   /// Whether to skip all permission checks (auto-approve everything).
   bool get _dangerouslySkipPermissions {
     final config = _container.read(videCoreConfigProvider);
@@ -1415,9 +1421,7 @@ class LocalVideSession implements VideSession {
               agentName: agent.name,
               taskName: taskName,
               eventId: eventId,
-              role: message.role == AgentMessageRole.user
-                  ? MessageRole.user
-                  : MessageRole.assistant,
+              role: _mapRole(message.role),
               content: message.content,
               isPartial: isLastMessage && conversation.isProcessing,
             ),
@@ -1448,9 +1452,7 @@ class LocalVideSession implements VideSession {
               agentName: agent.name,
               taskName: taskName,
               eventId: eventId,
-              role: latestMessage.role == AgentMessageRole.user
-                  ? MessageRole.user
-                  : MessageRole.assistant,
+              role: _mapRole(latestMessage.role),
               content: delta,
               isPartial: true,
             ),
