@@ -25,75 +25,84 @@ class AssistantEntryRenderer extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final widgets = <Component>[];
+    final children = <Component>[];
+    var prevWasTool = false;
 
     for (final content in entry.content) {
-      if (content is ThinkingContent) {
-        if (content.text.trim().isNotEmpty) {
-          widgets.add(
-            Text(
-              content.text.trim(),
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                fontStyle: FontStyle.italic,
+      final widgets = switch (content) {
+        ThinkingContent(:final text) when text.trim().isNotEmpty => [
+          Text(
+            text.trim(),
+            style: TextStyle(
+              color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+        TextContent(:final text, :final isContextWindowError) when text.isNotEmpty => [
+          MarkdownText(text, styleSheet: theme.markdownStyleSheet),
+          if (isContextWindowError)
+            Container(
+              padding: EdgeInsets.only(top: 1),
+              child: Text(
+                '💡 Tip: Type /compact to free up context space',
+                style: TextStyle(color: theme.base.primary),
               ),
             ),
-          );
-        }
-      } else if (content is TextContent) {
-        if (content.text.isNotEmpty) {
-          widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
+        ],
+        ToolContent() when !content.isHidden => [_buildToolInvocation(content)],
+        _ => <Component>[],
+      };
 
-          if (content.isContextWindowError) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(top: 1),
-                child: Text(
-                  '💡 Tip: Type /compact to free up context space',
-                  style: TextStyle(color: theme.base.primary),
-                ),
-              ),
-            );
-          }
-        }
-      } else if (content is ToolContent) {
-        final now = DateTime.now();
-        final invocation = AgentToolInvocation.createTyped(
-          toolCall: AgentToolUseResponse(
-            id: content.toolUseId,
-            timestamp: now,
-            toolName: content.toolName,
-            parameters: content.toolInput,
-            toolUseId: content.toolUseId,
-          ),
-          toolResult: content.result != null
-              ? AgentToolResultResponse(
-                  id: content.toolUseId,
-                  timestamp: now,
-                  toolUseId: content.toolUseId,
-                  content: content.result!,
-                  isError: content.isError,
-                )
-              : null,
-        );
+      if (widgets.isEmpty) continue;
 
-        widgets.add(
-          ToolInvocationRouter(
-            key: ValueKey(content.toolUseId),
-            invocation: invocation,
-            workingDirectory: workingDirectory,
-            executionId: networkId,
-            agentId: agentId,
-          ),
-        );
+      final isCompactTool = content is ToolContent && content.toolName != 'Bash';
+
+      // Add spacing between content blocks, but not between consecutive
+      // compact tool calls so they group tightly. Bash always gets spacing
+      // since it renders expanded terminal output.
+      if (children.isNotEmpty && !(isCompactTool && prevWasTool)) {
+        children.add(SizedBox(height: 1));
       }
+      children.addAll(widgets);
+      prevWasTool = isCompactTool;
     }
 
     // Show loading indicator if streaming with no content yet
-    if (widgets.isEmpty && entry.isStreaming) {
-      widgets.add(EnhancedLoadingIndicator(agentId: agentId));
+    if (children.isEmpty && entry.isStreaming) {
+      children.add(EnhancedLoadingIndicator(agentId: agentId));
     }
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
+  }
+
+
+  Component _buildToolInvocation(ToolContent content) {
+    final now = DateTime.now();
+    final invocation = AgentToolInvocation.createTyped(
+      toolCall: AgentToolUseResponse(
+        id: content.toolUseId,
+        timestamp: now,
+        toolName: content.toolName,
+        parameters: content.toolInput,
+        toolUseId: content.toolUseId,
+      ),
+      toolResult: content.result != null
+          ? AgentToolResultResponse(
+              id: content.toolUseId,
+              timestamp: now,
+              toolUseId: content.toolUseId,
+              content: content.result!,
+              isError: content.isError,
+            )
+          : null,
+    );
+    return ToolInvocationRouter(
+      key: ValueKey(content.toolUseId),
+      invocation: invocation,
+      workingDirectory: workingDirectory,
+      executionId: networkId,
+      agentId: agentId,
+    );
   }
 }
