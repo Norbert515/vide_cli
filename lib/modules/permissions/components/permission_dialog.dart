@@ -231,15 +231,12 @@ class _PermissionDialogState extends State<PermissionDialog> {
                 thumbVisibility: true,
                 thumbColor: theme.base.outline,
                 trackColor: theme.base.outlineVariant,
-                child: ListView(
-                  lazy: false,
+                child: SingleChildScrollView(
                   controller: _scrollController,
-                  children: [
-                    Text(
-                      component.displayAction,
-                      style: TextStyle(color: theme.base.onSurface),
-                    ),
-                  ],
+                  child: Text(
+                    component.displayAction,
+                    style: TextStyle(color: theme.base.onSurface),
+                  ),
                 ),
               ),
             ),

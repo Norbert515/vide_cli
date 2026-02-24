@@ -67,6 +67,22 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool useCodexBackend;
 
+  /// Auto-select team based on task description.
+  @JsonKey(defaultValue: false)
+  final bool experimentAutoTeamSelection;
+
+  /// Allow agents to work in parallel.
+  @JsonKey(defaultValue: false)
+  final bool experimentParallelAgents;
+
+  /// Enable persistent agent memory across sessions.
+  @JsonKey(defaultValue: false)
+  final bool experimentAgentMemory;
+
+  /// Verbose handoff details between agents.
+  @JsonKey(defaultValue: false)
+  final bool experimentVerboseHandoffs;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -80,6 +96,10 @@ class VideGlobalSettings {
     this.daemonPort = 8080,
     this.telemetryEnabled = true,
     this.useCodexBackend = false,
+    this.experimentAutoTeamSelection = false,
+    this.experimentParallelAgents = false,
+    this.experimentAgentMemory = false,
+    this.experimentVerboseHandoffs = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -102,6 +122,10 @@ class VideGlobalSettings {
     int? daemonPort,
     bool? telemetryEnabled,
     bool? useCodexBackend,
+    bool? experimentAutoTeamSelection,
+    bool? experimentParallelAgents,
+    bool? experimentAgentMemory,
+    bool? experimentVerboseHandoffs,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -117,6 +141,14 @@ class VideGlobalSettings {
       daemonPort: daemonPort ?? this.daemonPort,
       telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
       useCodexBackend: useCodexBackend ?? this.useCodexBackend,
+      experimentAutoTeamSelection:
+          experimentAutoTeamSelection ?? this.experimentAutoTeamSelection,
+      experimentParallelAgents:
+          experimentParallelAgents ?? this.experimentParallelAgents,
+      experimentAgentMemory:
+          experimentAgentMemory ?? this.experimentAgentMemory,
+      experimentVerboseHandoffs:
+          experimentVerboseHandoffs ?? this.experimentVerboseHandoffs,
     );
   }
 }

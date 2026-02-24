@@ -1,6 +1,7 @@
 /// Settings category enum for navigation.
 enum SettingsCategory {
   general('General'),
+  team('Team'),
   appearance('Appearance'),
   daemon('Daemon'),
   debug('Debug'),

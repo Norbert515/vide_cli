@@ -7,6 +7,7 @@ import 'package:vide_cli/modules/settings/sections/general_settings_section.dart
 import 'package:vide_cli/modules/settings/sections/appearance_section.dart';
 import 'package:vide_cli/modules/settings/sections/daemon_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/debug_settings_section.dart';
+import 'package:vide_cli/modules/settings/sections/team_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/mcp_servers_section.dart';
 import 'package:vide_cli/modules/settings/sections/about_section.dart';
 
@@ -228,6 +229,11 @@ class _SettingsDialogState extends State<SettingsDialog> {
     switch (_selectedCategory) {
       case SettingsCategory.general:
         return GeneralSettingsSection(
+          focused: !_sidebarFocused,
+          onExit: _handleContentExit,
+        );
+      case SettingsCategory.team:
+        return TeamSettingsSection(
           focused: !_sidebarFocused,
           onExit: _handleContentExit,
         );
