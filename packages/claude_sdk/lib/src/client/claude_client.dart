@@ -285,16 +285,7 @@ class ClaudeClientImpl implements ClaudeClient {
 
     // Monitor process lifecycle for unexpected exits
     _lifecycleManager.onProcessExited = (exitCode) {
-      stderr.writeln(
-        '[ClaudeClient] Process exited unexpectedly '
-        '(exitCode=$exitCode, session=$sessionId)',
-      );
       _updateStatus(ClaudeStatus.error);
-    };
-    _lifecycleManager.onStdoutDone = () {
-      stderr.writeln(
-        '[ClaudeClient] stdout stream closed (session=$sessionId)',
-      );
     };
   }
 
@@ -449,10 +440,7 @@ class ClaudeClientImpl implements ClaudeClient {
       // Extract and emit status updates
       if (response is StatusResponse) {
         if (response.status == ClaudeStatus.unknown) {
-          stderr.writeln(
-            '[claude_sdk] WARNING: Received unknown ClaudeStatus. '
-            'Raw data: ${response.rawData}',
-          );
+          // Unknown status — consumer should observe via statusStream
         }
         _updateStatus(response.status);
       } else if (response is ThinkingResponse) {

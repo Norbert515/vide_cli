@@ -88,7 +88,7 @@ class ProcessLifecycleManager {
       onStdoutDone?.call();
     };
     _controlProtocol!.onStdoutError = (error) {
-      stderr.writeln('[ProcessLifecycleManager] stdout stream error: $error');
+      // Error surfaced via onProcessExited callback
     };
 
     // Monitor process exit
