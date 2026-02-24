@@ -7,7 +7,7 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// Renders a single conversation entry (user or assistant message).
-class MessageBubble extends StatelessComponent {
+class ConversationEntryRenderer extends StatelessComponent {
   final ConversationEntry entry;
   final String networkId;
   final String agentId;
@@ -17,7 +17,7 @@ class MessageBubble extends StatelessComponent {
   /// when [AttachmentContent] is not present in the entry.
   final Map<String, List<VideAttachment>> sentAttachments;
 
-  const MessageBubble({
+  const ConversationEntryRenderer({
     required this.entry,
     required this.networkId,
     required this.agentId,
@@ -48,41 +48,29 @@ class MessageBubble extends StatelessComponent {
     }
     attachments ??= sentAttachments[entry.text];
 
-    return Container(
-      padding: EdgeInsets.only(bottom: 1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              color: theme.base.primary.withOpacity(0.05),
-            ),
-            padding: EdgeInsets.symmetric(horizontal: 1),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
-                Expanded(
-                  child: Text(
-                    entry.text,
-                    style: TextStyle(color: theme.base.onSurface),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (attachments != null && attachments.isNotEmpty)
-            for (final attachment in attachments)
-              Text(
-                '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(
-                    TextOpacity.secondary,
-                  ),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          decoration: BoxDecoration(color: theme.base.primary.withOpacity(0.05)),
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('\u25b8 ', style: TextStyle(color: theme.base.primary)),
+              Expanded(
+                child: Text(entry.text, style: TextStyle(color: theme.base.onSurface)),
               ),
-        ],
-      ),
+            ],
+          ),
+        ),
+        if (attachments != null && attachments.isNotEmpty)
+          for (final attachment in attachments)
+            Text(
+              '  [${attachment.type}: ${attachment.filePath ?? attachment.mimeType ?? 'inline'}]',
+              style: TextStyle(color: theme.base.onSurface.withOpacity(TextOpacity.secondary)),
+            ),
+      ],
     );
   }
 
@@ -92,10 +80,7 @@ class MessageBubble extends StatelessComponent {
 
     void flushToolGroup() {
       if (pendingTools.isEmpty) return;
-      // Add spacing between preceding text and this tool group
-      if (widgets.isNotEmpty) {
-        widgets.add(SizedBox(height: 1));
-      }
+
       widgets.addAll(pendingTools);
       pendingTools.clear();
     }
@@ -105,32 +90,19 @@ class MessageBubble extends StatelessComponent {
         flushToolGroup();
         if (content.text.trim().isNotEmpty) {
           widgets.add(
-            Container(
-              padding: EdgeInsets.only(bottom: 1),
-              child: Text(
-                content.text.trim(),
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(
-                    TextOpacity.secondary,
-                  ),
-                  fontStyle: FontStyle.italic,
-                ),
+            Text(
+              content.text.trim(),
+              style: TextStyle(
+                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                fontStyle: FontStyle.italic,
               ),
             ),
           );
         }
       } else if (content is TextContent) {
-        final hadTools = pendingTools.isNotEmpty;
         flushToolGroup();
         if (content.text.isNotEmpty) {
-          // Add spacing between preceding tools and this text
-          if (hadTools && widgets.isNotEmpty) {
-            widgets.add(SizedBox(height: 1));
-          }
-
-          widgets.add(
-            MarkdownText(content.text, styleSheet: theme.markdownStyleSheet),
-          );
+          widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
 
           if (content.isContextWindowError) {
             widgets.add(
@@ -184,10 +156,7 @@ class MessageBubble extends StatelessComponent {
     }
 
     return Container(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: widgets,
-      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets),
     );
   }
 }

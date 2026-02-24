@@ -7,7 +7,7 @@ import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
-import 'package:vide_cli/modules/agent_network/components/message_bubble.dart';
+import 'package:vide_cli/modules/agent_network/components/conversation_entry_renderer.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
@@ -25,26 +25,18 @@ import 'package:vide_cli/components/vide_scaffold.dart';
 class NetworkExecutionPage extends StatefulComponent {
   const NetworkExecutionPage({super.key});
 
-  static Future<void> push(
-    BuildContext context, {
-    required VideSession session,
-  }) async {
+  static Future<void> push(BuildContext context, {required VideSession session}) async {
     context.read(sessionSelectionProvider.notifier).selectSession(session);
 
     // Mark session as seen on the daemon (best-effort).
     final daemonState = context.read(daemonConnectionProvider);
     if (daemonState.isConnected) {
-      context
-          .read(daemonConnectionProvider.notifier)
-          .markSessionSeen(session.id);
+      context.read(daemonConnectionProvider.notifier).markSessionSeen(session.id);
     }
 
-    return Navigator.of(context).push<void>(
-      PageRoute(
-        builder: (context) => const NetworkExecutionPage(),
-        settings: RouteSettings(),
-      ),
-    );
+    return Navigator.of(
+      context,
+    ).push<void>(PageRoute(builder: (context) => const NetworkExecutionPage(), settings: RouteSettings()));
   }
 
   @override
@@ -103,14 +95,11 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   Component _buildAgentChat(BuildContext context, List<String> agentIds) {
     // Get selected agent ID from provider, or use the first agent
-    final selectedAgentIdNotifier = context.read(
-      selectedAgentIdProvider.notifier,
-    );
+    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
     final selectedAgentId = context.watch(selectedAgentIdProvider);
 
     // Find the selected agent, or default to the first agent
-    String agentId =
-        selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
+    String agentId = selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
 
     // Ensure selected agent is still valid
     if (!agentIds.contains(agentId) && agentIds.isNotEmpty) {
@@ -152,8 +141,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   void _handleCtrlC() {
     final now = DateTime.now();
 
-    if (_lastCtrlCPress != null &&
-        now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
+    if (_lastCtrlCPress != null && now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
       // Second press within time window - stop daemon session and quit
       _exitWithDaemonCleanup();
     } else {
@@ -201,10 +189,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     if (agentIds.isNotEmpty) {
       _trackConversationReady(session, agentIds.first);
       if (!_conversationReady) {
-        return _buildConnectingScreen(
-          context,
-          label: 'Loading conversation...',
-        );
+        return _buildConnectingScreen(context, label: 'Loading conversation...');
       }
     }
 
@@ -213,12 +198,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       padding: EdgeInsets.symmetric(horizontal: 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (agentIds.isEmpty)
-            Center(child: Text('No agents'))
-          else
-            _buildAgentChat(context, agentIds),
-        ],
+        children: [if (agentIds.isEmpty) Center(child: Text('No agents')) else _buildAgentChat(context, agentIds)],
       ),
     );
 
@@ -243,10 +223,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   /// Full-screen loading state shown while connecting to a remote session
   /// or waiting for conversation history to load.
-  Component _buildConnectingScreen(
-    BuildContext context, {
-    required String label,
-  }) {
+  Component _buildConnectingScreen(BuildContext context, {required String label}) {
     final theme = VideTheme.of(context);
 
     return Container(
@@ -307,22 +284,18 @@ class _AgentChatState extends State<_AgentChat> {
     if (session == null) return;
 
     // Listen to conversation updates
-    _conversationSubscription = session
-        .conversationStream(component.agentId)
-        .listen((conversation) {
-          setState(() {
-            _conversation = conversation;
-          });
+    _conversationSubscription = session.conversationStream(component.agentId).listen((conversation) {
+      setState(() {
+        _conversation = conversation;
+      });
 
-          // Sync token stats to AgentMetadata for persistence and network-wide tracking
-          _syncTokenStats(conversation, session);
-        });
+      // Sync token stats to AgentMetadata for persistence and network-wide tracking
+      _syncTokenStats(conversation, session);
+    });
     _conversation = session.getConversation(component.agentId);
 
     // Listen to queued message updates
-    _queueSubscription = session.queuedMessageStream(component.agentId).listen((
-      text,
-    ) {
+    _queueSubscription = session.queuedMessageStream(component.agentId).listen((text) {
       setState(() => _queuedMessage = text);
     });
 
@@ -335,10 +308,7 @@ class _AgentChatState extends State<_AgentChat> {
     unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
-  void _syncTokenStats(
-    AgentConversationState conversation,
-    VideSession session,
-  ) {
+  void _syncTokenStats(AgentConversationState conversation, VideSession session) {
     session.updateAgentTokenStats(
       component.agentId,
       totalInputTokens: conversation.totalInputTokens,
@@ -367,8 +337,7 @@ class _AgentChatState extends State<_AgentChat> {
 
   bool _isLastAgent() {
     final session = context.read(currentVideSessionProvider);
-    if (session == null)
-      return true; // If no session, treat as last agent (safe default)
+    if (session == null) return true; // If no session, treat as last agent (safe default)
     return session.state.agents.length <= 1;
   }
 
@@ -380,10 +349,7 @@ class _AgentChatState extends State<_AgentChat> {
       workingDirectory: session?.state.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(
-          VideMessage(text: message),
-          agentId: component.agentId,
-        );
+        session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
       },
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
@@ -401,15 +367,10 @@ class _AgentChatState extends State<_AgentChat> {
         // Also persist to settings
         final configManager = container.read(videConfigManagerProvider);
         final settings = configManager.readGlobalSettings();
-        configManager.writeGlobalSettings(
-          settings.copyWith(ideModeEnabled: !current),
-        );
+        configManager.writeGlobalSettings(settings.copyWith(ideModeEnabled: !current));
       },
       forkAgent: (name) async {
-        final newAgentId = await session?.forkAgent(
-          component.agentId,
-          name: name,
-        );
+        final newAgentId = await session?.forkAgent(component.agentId, name: name);
         return newAgentId ?? '';
       },
       killAgent: () async {
@@ -426,10 +387,7 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(
-              VideMessage(text: message),
-              agentId: component.agentId,
-            );
+            session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
           },
           onSwitchWorktree: (path) async {
             final container = ProviderScope.containerOf(context);
@@ -514,10 +472,7 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(permissionStateProvider.notifier).dequeueRequest();
   }
 
-  void _handleAskUserQuestionResponse(
-    AskUserQuestionUIRequest request,
-    Map<String, String> answers,
-  ) {
+  void _handleAskUserQuestionResponse(AskUserQuestionUIRequest request, Map<String, String> answers) {
     final session = context.read(currentVideSessionProvider);
 
     // Send the response through the session (unified path for local and remote)
@@ -527,18 +482,10 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
   }
 
-  void _handlePlanApprovalResponse(
-    PlanApprovalUIRequest request,
-    String action,
-    String? feedback,
-  ) {
+  void _handlePlanApprovalResponse(PlanApprovalUIRequest request, String action, String? feedback) {
     final session = context.read(currentVideSessionProvider);
 
-    session?.respondToPlanApproval(
-      request.requestId,
-      action: action,
-      feedback: feedback,
-    );
+    session?.respondToPlanApproval(request.requestId, action: action, feedback: feedback);
 
     // Dequeue the current request to show the next one
     context.read(planApprovalStateProvider.notifier).dequeueRequest();
@@ -582,9 +529,7 @@ class _AgentChatState extends State<_AgentChat> {
   List<ConversationEntry> _getFilteredMessages() {
     final conv = _conversation;
     if (conv == null) return [];
-    return conv.messages.reversed
-        .where((entry) => !entry.isSlashCommand && !entry.isAllHidden)
-        .toList();
+    return conv.messages.reversed.where((entry) => !entry.isSlashCommand && !entry.isAllHidden).toList();
   }
 
   /// Whether the current agent is working.
@@ -595,41 +540,14 @@ class _AgentChatState extends State<_AgentChat> {
   /// and can miss the initial status event on broadcast streams.
   bool get _isAgentWorking => _conversation?.isProcessing ?? false;
 
-  /// Groups consecutive tool-only assistant entries into single display items.
-  /// Returns a list where each element is either a single [ConversationEntry]
-  /// or a list of consecutive tool-only entries to be rendered in one box.
-  List<Object> _groupMessages(List<ConversationEntry> messages) {
-    final items = <Object>[];
-    List<ConversationEntry>? currentToolGroup;
-
-    for (final message in messages) {
-      if (message.isToolOnly) {
-        currentToolGroup ??= [];
-        currentToolGroup.add(message);
-      } else {
-        if (currentToolGroup != null) {
-          items.add(currentToolGroup);
-          currentToolGroup = null;
-        }
-        items.add(message);
-      }
-    }
-    if (currentToolGroup != null) {
-      items.add(currentToolGroup);
-    }
-    return items;
-  }
-
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
     final todos = _getLatestTodos();
     final hasTodos = todos != null && todos.isNotEmpty;
     final filteredMessages = _getFilteredMessages();
-    final groupedItems = _groupMessages(filteredMessages);
 
-    // Total items = todos (if any) + grouped items
-    final itemCount = (hasTodos ? 1 : 0) + groupedItems.length;
+    final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
 
     return SelectionArea(
       onSelectionCompleted: ClipboardManager.copy,
@@ -640,43 +558,25 @@ class _AgentChatState extends State<_AgentChat> {
         lazy: true,
         itemCount: itemCount,
         itemBuilder: (context, index) {
-          // First item (index 0) is the todo list if it exists
           if (hasTodos && index == 0) {
             return TodoListComponent(todos: todos);
           }
 
-          final itemIndex = hasTodos ? index - 1 : index;
-          final item = groupedItems[itemIndex];
+          final messageIndex = hasTodos ? index - 1 : index;
+          final message = filteredMessages[messageIndex];
           final session = context.read(currentVideSessionProvider);
           final workingDir = session?.state.workingDirectory ?? '';
 
-          // Grouped tool-only entries: render all together without borders
-          if (item is List<ConversationEntry>) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final entry in item)
-                  MessageBubble(
-                    key: ValueKey(entry.hashCode),
-                    entry: entry,
-                    networkId: component.networkId,
-                    agentId: component.agentId,
-                    workingDirectory: workingDir,
-                    sentAttachments: _sentAttachments,
-                  ),
-              ],
-            );
-          }
-
-          // Single entry (text + tools, user message, etc.)
-          final message = item as ConversationEntry;
-          return MessageBubble(
-            key: ValueKey(message.hashCode),
-            entry: message,
-            networkId: component.networkId,
-            agentId: component.agentId,
-            workingDirectory: workingDir,
-            sentAttachments: _sentAttachments,
+          return Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: ConversationEntryRenderer(
+              key: ValueKey(message.hashCode),
+              entry: message,
+              networkId: component.networkId,
+              agentId: component.agentId,
+              workingDirectory: workingDir,
+              sentAttachments: _sentAttachments,
+            ),
           );
         },
       ),
@@ -697,10 +597,7 @@ class _AgentChatState extends State<_AgentChat> {
           // Calculate the max height available for dialogs inside the input area.
           // Reserve space for the loading indicator line, text field, and
           // context bar (~4 lines) so the dialog doesn't push them off-screen.
-          final maxDialogHeight = (constraints.maxHeight - 4).clamp(
-            4.0,
-            double.infinity,
-          );
+          final maxDialogHeight = (constraints.maxHeight - 4).clamp(4.0, double.infinity);
 
           return Container(
             child: Column(
@@ -720,59 +617,41 @@ class _AgentChatState extends State<_AgentChat> {
                     child: PlanApprovalDialog(
                       request: currentPlanApproval,
                       onResponse: (action, feedback) =>
-                          _handlePlanApprovalResponse(
-                            currentPlanApproval,
-                            action,
-                            feedback,
-                          ),
-                      key: Key(
-                        'plan_approval_${currentPlanApproval.requestId}',
-                      ),
+                          _handlePlanApprovalResponse(currentPlanApproval, action, feedback),
+                      key: Key('plan_approval_${currentPlanApproval.requestId}'),
                     ),
                   ),
 
                 // Input area
-                _buildChatInputArea(
-                  context,
-                  currentPlanApproval,
-                  maxDialogHeight,
+                ChatInputArea(
+                  agentId: component.agentId,
+                  queuedMessage: _queuedMessage,
+                  isAgentWorking: _isAgentWorking,
+                  showQuitWarning: component.showQuitWarning,
+                  hasPlanApproval: currentPlanApproval != null,
+                  commandResult: _commandResult,
+                  commandResultIsError: _commandResultIsError,
+                  conversation: _conversation,
+                  model: _model,
+                  maxDialogHeight: maxDialogHeight,
+                  onClearQueue: () {
+                    final session = context.read(currentVideSessionProvider);
+                    if (session != null) {
+                      unawaited(session.clearQueuedMessage(component.agentId));
+                    }
+                  },
+                  onSendMessage: _sendMessage,
+                  onCommand: _handleCommand,
+                  onPermissionResponse: _handlePermissionResponse,
+                  onAskUserQuestionResponse: _handleAskUserQuestionResponse,
+                  onEscape: _handleEscape,
+                  commandSuggestions: _getCommandSuggestions,
                 ),
               ],
             ),
           );
         },
       ),
-    );
-  }
-
-  Component _buildChatInputArea(
-    BuildContext context,
-    PlanApprovalUIRequest? currentPlanApproval,
-    double maxDialogHeight,
-  ) {
-    return ChatInputArea(
-      agentId: component.agentId,
-      queuedMessage: _queuedMessage,
-      isAgentWorking: _isAgentWorking,
-      showQuitWarning: component.showQuitWarning,
-      hasPlanApproval: currentPlanApproval != null,
-      commandResult: _commandResult,
-      commandResultIsError: _commandResultIsError,
-      conversation: _conversation,
-      model: _model,
-      maxDialogHeight: maxDialogHeight,
-      onClearQueue: () {
-        final session = context.read(currentVideSessionProvider);
-        if (session != null) {
-          unawaited(session.clearQueuedMessage(component.agentId));
-        }
-      },
-      onSendMessage: _sendMessage,
-      onCommand: _handleCommand,
-      onPermissionResponse: _handlePermissionResponse,
-      onAskUserQuestionResponse: _handleAskUserQuestionResponse,
-      onEscape: _handleEscape,
-      commandSuggestions: _getCommandSuggestions,
     );
   }
 }
