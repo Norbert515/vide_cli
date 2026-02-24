@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
+import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
 import 'package:vide_cli/modules/agent_network/components/message_bubble.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
@@ -251,7 +251,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
     return Container(
       decoration: BoxDecoration(color: theme.base.surface),
-      child: Center(child: _LoadingIndicator(label: label)),
+      child: Center(child: ConnectingIndicator(label: label)),
     );
   }
 }
@@ -544,6 +544,19 @@ class _AgentChatState extends State<_AgentChat> {
     context.read(planApprovalStateProvider.notifier).dequeueRequest();
   }
 
+  void _handleEscape() {
+    final session = context.read(currentVideSessionProvider);
+    if (session == null) return;
+
+    // If there's a queued message, clear it first
+    if (_queuedMessage != null) {
+      unawaited(session.clearQueuedMessage(component.agentId));
+    } else {
+      // Otherwise abort the current processing
+      session.abortAgent(component.agentId);
+    }
+  }
+
   bool _handleKeyEvent(KeyboardEvent event) {
     // Don't intercept keys when plan approval dialog is active —
     // the dialog handles its own key events (Escape, Tab, etc.)
@@ -551,16 +564,7 @@ class _AgentChatState extends State<_AgentChat> {
     if (planState.current != null) return false;
 
     if (event.logicalKey == LogicalKey.escape) {
-      final session = context.read(currentVideSessionProvider);
-      if (session == null) return false;
-
-      // If there's a queued message, clear it first
-      if (_queuedMessage != null) {
-        unawaited(session.clearQueuedMessage(component.agentId));
-        return true;
-      }
-      // Otherwise abort the current processing
-      session.abortAgent(component.agentId);
+      _handleEscape();
       return true;
     }
 
@@ -746,7 +750,7 @@ class _AgentChatState extends State<_AgentChat> {
     PlanApprovalUIRequest? currentPlanApproval,
     double maxDialogHeight,
   ) {
-    final inputArea = ChatInputArea(
+    return ChatInputArea(
       agentId: component.agentId,
       queuedMessage: _queuedMessage,
       isAgentWorking: _isAgentWorking,
@@ -767,81 +771,8 @@ class _AgentChatState extends State<_AgentChat> {
       onCommand: _handleCommand,
       onPermissionResponse: _handlePermissionResponse,
       onAskUserQuestionResponse: _handleAskUserQuestionResponse,
-      onEscape: () {
-        final session = context.read(currentVideSessionProvider);
-        if (session == null) return;
-        if (_queuedMessage != null) {
-          unawaited(session.clearQueuedMessage(component.agentId));
-        } else {
-          session.abortAgent(component.agentId);
-        }
-      },
+      onEscape: _handleEscape,
       commandSuggestions: _getCommandSuggestions,
-    );
-
-    return inputArea;
-  }
-}
-
-/// Minimal centered loading indicator with braille spinner and label.
-class _LoadingIndicator extends StatefulComponent {
-  final String label;
-
-  const _LoadingIndicator({required this.label});
-
-  @override
-  State<_LoadingIndicator> createState() => _LoadingIndicatorState();
-}
-
-class _LoadingIndicatorState extends State<_LoadingIndicator>
-    with TickerProviderStateMixin {
-  static const _frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-
-  late AnimationController _controller;
-
-  int get _frameIndex =>
-      (_controller.value * _frames.length).floor() % _frames.length;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller =
-        AnimationController(duration: const Duration(seconds: 1), vsync: this)
-          ..addListener(() => setState(() {}))
-          ..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-    final dim = theme.base.onSurface.withOpacity(TextOpacity.secondary);
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'VIDE',
-          style: TextStyle(
-            color: theme.base.primary,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        SizedBox(height: 1),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_frames[_frameIndex], style: TextStyle(color: dim)),
-            SizedBox(width: 1),
-            Text(component.label, style: TextStyle(color: dim)),
-          ],
-        ),
-      ],
     );
   }
 }

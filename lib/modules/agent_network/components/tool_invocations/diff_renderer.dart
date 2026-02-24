@@ -4,15 +4,12 @@ import 'package:vide_core/vide_core.dart' show AgentId;
 import 'shared/code_diff.dart';
 import 'shared/syntax_highlighter.dart';
 import 'shared/tool_header.dart';
-import 'default_renderer.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Renderer for Write/Edit/MultiEdit tool invocations with successful results.
 /// Shows code diffs with syntax highlighting.
-class DiffRenderer extends StatefulComponent with ToolHeaderMixin {
-  @override
+class DiffRenderer extends StatefulComponent {
   final AgentToolInvocation invocation;
-  @override
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -51,7 +48,7 @@ class _DiffRendererState extends State<DiffRenderer> {
         : null;
     final filePath = fileOp?.filePath;
     if (filePath != null && filePath.isNotEmpty) {
-      _cachedFormattedPath = component.formatFilePath(filePath);
+      _cachedFormattedPath = ToolHeader.formatFilePath(filePath, component.workingDirectory);
       _language = SyntaxHighlighter.detectLanguage(filePath);
     } else {
       _cachedFormattedPath = null;
@@ -120,17 +117,15 @@ class _DiffRendererState extends State<DiffRenderer> {
 
   @override
   Component build(BuildContext context) {
-    // If no diff lines could be created, fall back to default renderer
+    final theme = VideTheme.of(context);
+
+    // If no diff lines could be created, fall back to just the header
     if (_shouldUseFallback) {
-      return DefaultRenderer(
+      return ToolHeader(
         invocation: component.invocation,
         workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
       );
     }
-
-    final theme = VideTheme.of(context);
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 1),
@@ -138,9 +133,10 @@ class _DiffRendererState extends State<DiffRenderer> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Tool header
-          component.buildToolHeader(
-            context,
-            statusColor: component.getStatusColor(theme),
+          ToolHeader(
+            invocation: component.invocation,
+            workingDirectory: component.workingDirectory,
+            statusColor: ToolHeader.getStatusColor(component.invocation, theme),
           ),
 
           // Diff view (with pre-computed syntax highlighting)

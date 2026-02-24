@@ -3,26 +3,28 @@ import 'package:nocterm/nocterm.dart';
 import 'package:path/path.dart' as p;
 import 'package:vide_cli/theme/theme.dart';
 
-/// Shared utilities for tool invocation renderers.
-///
-/// Provides the common header row (● ToolName → param), parameter extraction,
-/// and file path formatting used by [DefaultRenderer], [DiffRenderer], and
-/// [TerminalOutputRenderer].
-mixin ToolHeaderMixin on StatefulComponent {
-  AgentToolInvocation get invocation;
-  String get workingDirectory;
+/// Renders the standard tool header: ● ToolName → param
+class ToolHeader extends StatelessComponent {
+  final AgentToolInvocation invocation;
+  final String workingDirectory;
+  final Color? statusColor;
 
-  /// Builds the standard tool header: ● ToolName → param
-  Component buildToolHeader(
-    BuildContext context, {
-    required Color statusColor,
-  }) {
+  const ToolHeader({
+    required this.invocation,
+    required this.workingDirectory,
+    this.statusColor,
+    super.key,
+  });
+
+  @override
+  Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final dim = theme.base.onSurface.withOpacity(0.5);
+    final effectiveStatusColor = statusColor ?? getStatusColor(invocation, theme);
 
     return Row(
       children: [
-        Text('● ', style: TextStyle(color: statusColor)),
+        Text('● ', style: TextStyle(color: effectiveStatusColor)),
         Text(
           invocation.displayName,
           style: TextStyle(color: dim, fontWeight: FontWeight.bold),
@@ -34,7 +36,7 @@ mixin ToolHeaderMixin on StatefulComponent {
           ),
           Flexible(
             child: Text(
-              getParameterValue(),
+              _getParameterValue(),
               style: TextStyle(color: dim),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -45,11 +47,11 @@ mixin ToolHeaderMixin on StatefulComponent {
     );
   }
 
-  /// Returns the most meaningful parameter value for compact display.
-  String getParameterValue() {
+  String _getParameterValue() {
     if (invocation is AgentFileOperationToolInvocation) {
       return formatFilePath(
         (invocation as AgentFileOperationToolInvocation).filePath,
+        workingDirectory,
       );
     }
 
@@ -65,8 +67,18 @@ mixin ToolHeaderMixin on StatefulComponent {
     return params.values.first.toString();
   }
 
+  /// Returns the status color based on the invocation's result state.
+  static Color getStatusColor(
+    AgentToolInvocation invocation,
+    VideThemeData theme,
+  ) {
+    if (!invocation.hasResult) return theme.status.inProgress;
+    if (invocation.isError) return theme.status.error;
+    return theme.status.completed;
+  }
+
   /// Formats a file path relative to the working directory when shorter.
-  String formatFilePath(String filePath) {
+  static String formatFilePath(String filePath, String workingDirectory) {
     if (workingDirectory.isEmpty) return filePath;
 
     try {
@@ -75,12 +87,5 @@ mixin ToolHeaderMixin on StatefulComponent {
     } catch (_) {
       return filePath;
     }
-  }
-
-  /// Returns the status color based on the invocation's result state.
-  Color getStatusColor(VideThemeData theme) {
-    if (!invocation.hasResult) return theme.status.inProgress;
-    if (invocation.isError) return theme.status.error;
-    return theme.status.completed;
   }
 }

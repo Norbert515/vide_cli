@@ -2,15 +2,12 @@ import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart' show AgentId;
-import 'default_renderer.dart';
 import 'shared/tool_header.dart';
 
 /// Renderer for terminal/bash output tool invocations.
 /// Shows collapsed preview (last 3 lines) by default, expandable to full output (max 8 lines).
-class TerminalOutputRenderer extends StatefulComponent with ToolHeaderMixin {
-  @override
+class TerminalOutputRenderer extends StatefulComponent {
   final AgentToolInvocation invocation;
-  @override
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -64,13 +61,11 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
   @override
   Component build(BuildContext context) {
-    // Fallback to DefaultRenderer if no result or error
+    // Fallback to just the header if no result or error
     if (!component.invocation.hasResult || component.invocation.isError) {
-      return DefaultRenderer(
+      return ToolHeader(
         invocation: component.invocation,
         workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
       );
     }
 
@@ -82,13 +77,11 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
         .where((l) => l.trim().isNotEmpty)
         .toList();
 
-    // If no lines, fallback to default
+    // If no lines, fallback to just the header
     if (lines.isEmpty) {
-      return DefaultRenderer(
+      return ToolHeader(
         invocation: component.invocation,
         workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
       );
     }
 
@@ -104,9 +97,10 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              component.buildToolHeader(
-                context,
-                statusColor: component.getStatusColor(theme),
+              ToolHeader(
+                invocation: component.invocation,
+                workingDirectory: component.workingDirectory,
+                statusColor: ToolHeader.getStatusColor(component.invocation, theme),
               ),
               _buildOutput(lines, theme),
             ],

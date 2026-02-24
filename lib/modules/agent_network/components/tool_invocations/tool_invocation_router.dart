@@ -6,7 +6,7 @@ import 'package:vide_core/vide_core.dart' show AgentId, ToolContent;
 import 'package:vide_cli/theme/theme.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
-import 'default_renderer.dart';
+import 'shared/tool_header.dart';
 
 /// Main router for tool invocation rendering.
 ///
@@ -14,7 +14,7 @@ import 'default_renderer.dart';
 /// - SubAgent tools (containing 'spawnAgent') → SubagentRenderer
 /// - Bash commands → TerminalOutputRenderer
 /// - Write/Edit/MultiEdit (successful) → DiffRenderer
-/// - All other tools → DefaultRenderer
+/// - All other tools → ToolHeader
 class ToolInvocationRouter extends StatelessComponent {
   final AgentToolInvocation invocation;
   final String workingDirectory;
@@ -72,12 +72,10 @@ class ToolInvocationRouter extends StatelessComponent {
       return SizedBox();
     }
 
-    // Route 5: Default renderer for all other tools
-    return DefaultRenderer(
+    // Route 5: Default — just show the tool header
+    return ToolHeader(
       invocation: invocation,
       workingDirectory: workingDirectory,
-      executionId: executionId,
-      agentId: agentId,
     );
   }
 
