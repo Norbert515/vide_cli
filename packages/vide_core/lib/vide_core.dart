@@ -100,10 +100,4 @@ export 'src/git/git_service.dart';
 // Claude SDK Re-exports (types needed by TUI for rendering/settings)
 // =============================================================================
 export 'package:claude_sdk/claude_sdk.dart'
-    show
-        McpServerBase,
-        McpServerStatus,
-        McpStatusResponse,
-        McpServerStatusInfo,
-        ClaudeSettingsManager,
-        ProcessManager;
+    show McpJsonConfig, ClaudeSettingsManager, ProcessManager;

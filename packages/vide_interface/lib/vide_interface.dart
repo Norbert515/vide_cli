@@ -31,6 +31,7 @@ export 'src/models/filesystem.dart';
 export 'src/models/git_branch.dart';
 export 'src/models/git_log.dart';
 export 'src/models/git_status.dart';
+export 'src/models/mcp_server.dart';
 export 'src/models/vide_agent.dart';
 export 'src/models/vide_config.dart';
 export 'src/models/vide_message.dart';

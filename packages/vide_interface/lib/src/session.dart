@@ -8,6 +8,7 @@ library;
 import 'dart:async';
 
 import 'events/vide_event.dart';
+import 'models/mcp_server.dart';
 import 'models/vide_agent.dart';
 import 'models/vide_message.dart';
 import 'models/vide_permission.dart';
@@ -293,6 +294,16 @@ abstract class VideSession {
 
   /// Stream of model changes for an agent.
   Stream<String?> modelStream(String agentId);
+
+  // ============================================================
+  // MCP server info
+  // ============================================================
+
+  /// Get MCP server status list for the session.
+  Future<List<VideMcpServerInfo>> getMcpServers();
+
+  /// Stream of MCP server status changes.
+  Stream<List<VideMcpServerInfo>> mcpServersStream();
 
   // ============================================================
   // Worktree management

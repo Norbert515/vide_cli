@@ -547,6 +547,44 @@ class LocalVideSession implements VideSession {
   }
 
   @override
+  Future<List<VideMcpServerInfo>> getMcpServers() async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return [];
+    final client = _container.read(agentClientProvider(mainAgentId));
+    return _parseMcpServers(client?.initData);
+  }
+
+  @override
+  Stream<List<VideMcpServerInfo>> mcpServersStream() {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return Stream.value([]);
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client == null) return Stream.value([]);
+
+    // Emit cached value first (if init data already arrived), then future updates.
+    Stream<List<VideMcpServerInfo>> stream() async* {
+      final cached = _parseMcpServers(client.initData);
+      if (cached.isNotEmpty) {
+        yield cached;
+      }
+      yield* client.initDataStream.map(_parseMcpServers);
+    }
+
+    return stream();
+  }
+
+  List<VideMcpServerInfo> _parseMcpServers(AgentInitData? data) {
+    final raw = data?.metadata['mcp_servers'] as List?;
+    if (raw == null) return [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map((s) => VideMcpServerInfo.fromJson(s))
+        .toList();
+  }
+
+  @override
   void respondToAskUserQuestion(
     String requestId, {
     required Map<String, String> answers,

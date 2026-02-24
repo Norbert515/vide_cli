@@ -164,6 +164,14 @@ class RemoteVideSession implements VideSession {
   final Map<String, StreamController<String?>> _modelControllers = {};
   final Set<String> _modelRefreshInFlight = {};
 
+  /// Cached MCP server status list (session-level, not per-agent).
+  List<VideMcpServerInfo>? _mcpServers;
+
+  /// Stream controller for MCP server status updates.
+  final StreamController<List<VideMcpServerInfo>> _mcpServersController =
+      StreamController<List<VideMcpServerInfo>>.broadcast();
+  bool _mcpServersRefreshInFlight = false;
+
   /// Current status per agent.
   final Map<String, VideAgentStatus> _agentStatuses = {};
 
@@ -1186,12 +1194,15 @@ class RemoteVideSession implements VideSession {
     }
     _modelControllers.clear();
 
+    await _mcpServersController.close();
     await _connectionStateController.close();
 
     _models.clear();
+    _mcpServers = null;
     _queuedMessages.clear();
     _agentStatuses.clear();
     _modelRefreshInFlight.clear();
+    _mcpServersRefreshInFlight = false;
     _queuedRefreshInFlight.clear();
   }
 
@@ -1341,6 +1352,50 @@ class RemoteVideSession implements VideSession {
   Stream<String?> modelStream(String agentId) {
     _refreshModel(agentId);
     return _getOrCreateModelController(agentId).stream;
+  }
+
+  @override
+  Future<List<VideMcpServerInfo>> getMcpServers() async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return _mcpServers ?? [];
+
+    final raw = await session.getMcpServers();
+    if (raw == null) return _mcpServers ?? [];
+
+    final servers = raw.map((s) => VideMcpServerInfo.fromJson(s)).toList();
+    _mcpServers = servers;
+    _mcpServersController.add(servers);
+    return servers;
+  }
+
+  @override
+  Stream<List<VideMcpServerInfo>> mcpServersStream() {
+    _refreshMcpServers();
+    return _mcpServersController.stream;
+  }
+
+  void _refreshMcpServers() {
+    final session = _clientSession;
+    if (session == null) return;
+    if (_mcpServersRefreshInFlight) return;
+    _mcpServersRefreshInFlight = true;
+    unawaited(() async {
+      try {
+        final raw = await session.getMcpServers();
+        if (_disposed) return;
+        if (raw != null) {
+          final servers =
+              raw.map((s) => VideMcpServerInfo.fromJson(s)).toList();
+          _mcpServers = servers;
+          _mcpServersController.add(servers);
+        }
+      } catch (_) {
+        // Best-effort cache refresh.
+      } finally {
+        _mcpServersRefreshInFlight = false;
+      }
+    }());
   }
 
   @override

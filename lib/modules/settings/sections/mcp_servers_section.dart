@@ -1,6 +1,6 @@
+import 'dart:async';
 import 'dart:io';
 
-import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -27,13 +27,17 @@ class McpServersSection extends StatefulComponent {
 
 class _McpServersSectionState extends State<McpServersSection> {
   int _selectedIndex = 0;
-  McpStatusResponse? _mcpStatus;
   ClaudeSettingsManager? _settingsManager;
 
-  List<McpServerStatusInfo> get _filteredServers {
-    return (_mcpStatus?.servers ?? [])
-        .where((s) => !s.name.startsWith('vide-'))
-        .toList();
+  /// Server names from .mcp.json config.
+  List<String> _serverNames = [];
+
+  /// Live status by server name (populated when a session is available).
+  Map<String, VideMcpServerInfo> _liveStatus = {};
+  StreamSubscription<List<VideMcpServerInfo>>? _mcpStreamSub;
+
+  List<String> get _filteredNames {
+    return _serverNames.where((s) => !s.startsWith('vide-')).toList();
   }
 
   @override
@@ -42,50 +46,52 @@ class _McpServersSectionState extends State<McpServersSection> {
     _settingsManager = ClaudeSettingsManager(
       projectRoot: Directory.current.path,
     );
-    _fetchMcpStatus();
+    _loadServers();
   }
 
-  Future<void> _fetchMcpStatus() async {
-    final session = context.read(pendingSessionProvider);
+  @override
+  void dispose() {
+    _mcpStreamSub?.cancel();
+    super.dispose();
+  }
+
+  void _loadServers() {
+    final mcpJson =
+        _settingsManager?.readMcpJsonSync() ?? const McpJsonConfig();
+    setState(() {
+      _serverNames = mcpJson.serverNames.toList();
+    });
+
+    // Best-effort: try to get live status from a running session.
+    _tryLiveStatus();
+  }
+
+  void _tryLiveStatus() {
+    final session = context.read(currentVideSessionProvider) ??
+        context.read(pendingSessionProvider);
     if (session == null) return;
 
-    final mainAgentId = session.state.mainAgent?.id;
-    if (mainAgentId == null) return;
-
-    final client = context.read(agentClientProvider(mainAgentId));
-    if (client == null || client is! McpConfigurable) return;
-
-    try {
-      await client.initialized;
-      final agentStatus = await (client as McpConfigurable).getMcpStatus();
-      // Convert AgentMcpStatusInfo → McpStatusResponse for settings display
-      final status = McpStatusResponse(
-        servers: agentStatus.servers
-            .map(
-              (s) => McpServerStatusInfo(
-                name: s.name,
-                status: switch (s.status) {
-                  'connected' => McpServerStatus.connected,
-                  'failed' => McpServerStatus.failed,
-                  'connecting' => McpServerStatus.connecting,
-                  _ => McpServerStatus.disconnected,
-                },
-              ),
-            )
-            .toList(),
-      );
-      if (mounted) {
-        setState(() => _mcpStatus = status);
+    session.getMcpServers().then((servers) {
+      if (servers.isNotEmpty && mounted) {
+        setState(() {
+          _liveStatus = {for (final s in servers) s.name: s};
+        });
       }
-    } catch (e) {
-      print('[McpServersSection] Failed to fetch MCP status: $e');
-    }
+    }).catchError((_) {});
+
+    _mcpStreamSub = session.mcpServersStream().listen((servers) {
+      if (servers.isNotEmpty && mounted) {
+        setState(() {
+          _liveStatus = {for (final s in servers) s.name: s};
+        });
+      }
+    });
   }
 
   bool _handleKeyEvent(KeyboardEvent event) {
     if (!component.focused) return false;
-    final servers = _filteredServers;
-    if (servers.isEmpty) {
+    final names = _filteredNames;
+    if (names.isEmpty) {
       if (event.logicalKey == LogicalKey.arrowLeft ||
           event.logicalKey == LogicalKey.escape) {
         component.onExit();
@@ -102,7 +108,7 @@ class _McpServersSectionState extends State<McpServersSection> {
       return true;
     } else if (event.logicalKey == LogicalKey.arrowDown ||
         event.logicalKey == LogicalKey.keyJ) {
-      if (_selectedIndex < servers.length - 1) {
+      if (_selectedIndex < names.length - 1) {
         setState(() => _selectedIndex++);
       }
       return true;
@@ -120,17 +126,16 @@ class _McpServersSectionState extends State<McpServersSection> {
   }
 
   Future<void> _toggleServer(int index) async {
-    final servers = _filteredServers;
-    if (index >= servers.length) return;
+    final names = _filteredNames;
+    if (index >= names.length) return;
 
-    final server = servers[index];
-    final isEnabled =
-        _settingsManager?.isMcpServerEnabled(server.name) ?? false;
+    final name = names[index];
+    final isEnabled = _settingsManager?.isMcpServerEnabled(name) ?? false;
 
     if (isEnabled) {
-      await _settingsManager?.disableMcpServer(server.name);
+      await _settingsManager?.disableMcpServer(name);
     } else {
-      await _settingsManager?.enableMcpServer(server.name);
+      await _settingsManager?.enableMcpServer(name);
     }
 
     setState(() {}); // Rebuild to show new state
@@ -139,11 +144,11 @@ class _McpServersSectionState extends State<McpServersSection> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final servers = _filteredServers;
+    final names = _filteredNames;
 
     // Clamp selected index
-    if (servers.isNotEmpty && _selectedIndex >= servers.length) {
-      _selectedIndex = servers.length - 1;
+    if (names.isNotEmpty && _selectedIndex >= names.length) {
+      _selectedIndex = names.length - 1;
     }
 
     return Focusable(
@@ -159,19 +164,7 @@ class _McpServersSectionState extends State<McpServersSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (_mcpStatus == null)
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 1),
-                      child: Text(
-                        'Loading MCP servers...',
-                        style: TextStyle(
-                          color: theme.base.onSurface.withOpacity(
-                            TextOpacity.tertiary,
-                          ),
-                        ),
-                      ),
-                    )
-                  else if (servers.isEmpty)
+                  if (names.isEmpty)
                     Padding(
                       padding: EdgeInsets.symmetric(horizontal: 1),
                       child: Text(
@@ -184,14 +177,15 @@ class _McpServersSectionState extends State<McpServersSection> {
                       ),
                     )
                   else
-                    for (int index = 0; index < servers.length; index++)
+                    for (int index = 0; index < names.length; index++)
                       _McpServerItem(
-                        server: servers[index],
+                        name: names[index],
                         isEnabled:
                             _settingsManager?.isMcpServerEnabled(
-                              servers[index].name,
+                              names[index],
                             ) ??
                             false,
+                        liveStatus: _liveStatus[names[index]],
                         isSelected:
                             component.focused && index == _selectedIndex,
                         onTap: () {
@@ -223,14 +217,16 @@ class _McpServersSectionState extends State<McpServersSection> {
 
 /// Individual MCP server item in the list - compact single-line format.
 class _McpServerItem extends StatelessComponent {
-  final McpServerStatusInfo server;
+  final String name;
   final bool isEnabled;
+  final VideMcpServerInfo? liveStatus;
   final bool isSelected;
   final VoidCallback onTap;
 
   const _McpServerItem({
-    required this.server,
+    required this.name,
     required this.isEnabled,
+    required this.liveStatus,
     required this.isSelected,
     required this.onTap,
   });
@@ -239,19 +235,8 @@ class _McpServerItem extends StatelessComponent {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
 
-    // Status text and color
-    final (statusText, statusColor) = switch (server.status) {
-      McpServerStatus.connected => ('connected', theme.status.idle),
-      McpServerStatus.failed => ('failed', theme.status.error),
-      McpServerStatus.connecting => (
-        'connecting',
-        theme.base.onSurface.withOpacity(TextOpacity.secondary),
-      ),
-      McpServerStatus.disconnected => (
-        'disabled',
-        theme.base.onSurface.withOpacity(TextOpacity.disabled),
-      ),
-    };
+    // Derive display status: prefer live data, fall back to enabled/disabled.
+    final (statusText, statusColor) = _resolveStatus(theme);
 
     return GestureDetector(
       onTap: onTap,
@@ -269,10 +254,10 @@ class _McpServerItem extends StatelessComponent {
                 SizedBox(width: 1),
                 Expanded(
                   child: Text(
-                    server.name,
+                    name,
                     style: TextStyle(
                       color: theme.base.onSurface.withOpacity(
-                        server.status == McpServerStatus.connected
+                        isEnabled
                             ? TextOpacity.primary
                             : TextOpacity.secondary,
                       ),
@@ -283,11 +268,11 @@ class _McpServerItem extends StatelessComponent {
                 Text(statusText, style: TextStyle(color: statusColor)),
               ],
             ),
-            if (server.error != null)
+            if (liveStatus?.error != null)
               Padding(
                 padding: EdgeInsets.only(left: 4),
                 child: Text(
-                  server.error!,
+                  liveStatus!.error!,
                   style: TextStyle(
                     color: theme.status.error.withOpacity(
                       TextOpacity.secondary,
@@ -299,6 +284,35 @@ class _McpServerItem extends StatelessComponent {
           ],
         ),
       ),
+    );
+  }
+
+  (String, Color) _resolveStatus(VideThemeData theme) {
+    final live = liveStatus;
+
+    // If we have live connection data, use it.
+    if (live != null && live.status != VideMcpServerStatus.disconnected) {
+      return switch (live.status) {
+        VideMcpServerStatus.connected => ('connected', theme.status.idle),
+        VideMcpServerStatus.failed => ('failed', theme.status.error),
+        VideMcpServerStatus.connecting => (
+          'connecting',
+          theme.base.onSurface.withOpacity(TextOpacity.secondary),
+        ),
+        VideMcpServerStatus.disconnected => ('', const Color(0)), // unreachable
+      };
+    }
+
+    // No live data — derive from settings enabled/disabled state.
+    if (isEnabled) {
+      return (
+        'enabled',
+        theme.base.onSurface.withOpacity(TextOpacity.secondary),
+      );
+    }
+    return (
+      'disabled',
+      theme.base.onSurface.withOpacity(TextOpacity.disabled),
     );
   }
 }

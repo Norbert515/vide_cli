@@ -593,6 +593,10 @@ class _SimplifiedStreamHandler {
         }
         return {'model': await session.getModel(agentId)};
 
+      case 'get-mcp-servers':
+        final servers = await session.getMcpServers();
+        return {'servers': servers.map((s) => s.toJson()).toList()};
+
       case 'add-session-permission-pattern':
         final pattern = data['pattern'] as String?;
         if (pattern == null || pattern.isEmpty) {

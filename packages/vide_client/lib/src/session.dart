@@ -231,6 +231,12 @@ class TransportSession {
     return result?['model'] as String?;
   }
 
+  /// Get MCP server status list for the session.
+  Future<List<Map<String, dynamic>>?> getMcpServers() async {
+    final result = await _sendCommand('get-mcp-servers');
+    return (result?['servers'] as List?)?.cast<Map<String, dynamic>>();
+  }
+
   /// Add an in-memory permission pattern.
   Future<void> addSessionPermissionPattern(String pattern) async {
     await _sendCommand(
