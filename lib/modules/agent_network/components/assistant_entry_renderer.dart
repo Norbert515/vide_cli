@@ -26,17 +26,9 @@ class AssistantEntryRenderer extends StatelessComponent {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final widgets = <Component>[];
-    final pendingTools = <Component>[];
-
-    void flushToolGroup() {
-      if (pendingTools.isEmpty) return;
-      widgets.addAll(pendingTools);
-      pendingTools.clear();
-    }
 
     for (final content in entry.content) {
       if (content is ThinkingContent) {
-        flushToolGroup();
         if (content.text.trim().isNotEmpty) {
           widgets.add(
             Text(
@@ -49,7 +41,6 @@ class AssistantEntryRenderer extends StatelessComponent {
           );
         }
       } else if (content is TextContent) {
-        flushToolGroup();
         if (content.text.isNotEmpty) {
           widgets.add(MarkdownText(content.text, styleSheet: theme.markdownStyleSheet));
 
@@ -86,7 +77,7 @@ class AssistantEntryRenderer extends StatelessComponent {
               : null,
         );
 
-        pendingTools.add(
+        widgets.add(
           ToolInvocationRouter(
             key: ValueKey(content.toolUseId),
             invocation: invocation,
@@ -97,7 +88,6 @@ class AssistantEntryRenderer extends StatelessComponent {
         );
       }
     }
-    flushToolGroup();
 
     // Show loading indicator if streaming with no content yet
     if (widgets.isEmpty && entry.isStreaming) {
