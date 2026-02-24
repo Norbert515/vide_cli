@@ -950,6 +950,23 @@ body {
   color: var(--text-bright);
 }
 
+.nav-github-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.nav-star-count {
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.nav-discord-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
 /* ============================================
    Hero Section - Full Viewport Edge to Edge
    ============================================ */
@@ -1060,19 +1077,25 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+  /* Hide scrollbar while keeping scroll functionality */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.hero-install::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
 }
 
 .hero-install code {
   color: var(--text-primary);
   font-size: 0.8rem;
   white-space: nowrap;
-  /* Fixed min-width to prevent layout shift when switching tabs */
-  min-width: 640px;
+  flex: 1;
 }
 
 .copy-btn {
   background: transparent;
-  border: 1px solid var(--border-default);
+  border: none;
   padding: 6px 8px;
   cursor: pointer;
   color: var(--text-muted);
@@ -1084,7 +1107,6 @@ body {
 }
 
 .copy-btn:hover {
-  border-color: var(--text-primary);
   color: var(--text-primary);
 }
 
@@ -1108,10 +1130,10 @@ body {
 /* GitHub link - subtle, next to install, spans full height */
 .hero-github-link {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   padding: 12px 16px;
   background: #0a0a14;
   border: 1px solid var(--border-default);
