@@ -330,43 +330,6 @@ void main() {
     });
   });
 
-  group('ConversationEntry.isToolOnly', () {
-    test('tool-only assistant entry', () {
-      final entry = _entry(content: [_tool()]);
-      expect(entry.isToolOnly, isTrue);
-    });
-
-    test('tool with empty text is still tool-only', () {
-      final entry = _entry(
-        content: [
-          const TextContent(text: ''),
-          _tool(),
-        ],
-      );
-      expect(entry.isToolOnly, isTrue);
-    });
-
-    test('tool with text is not tool-only', () {
-      final entry = _entry(
-        content: [
-          const TextContent(text: 'Done'),
-          _tool(),
-        ],
-      );
-      expect(entry.isToolOnly, isFalse);
-    });
-
-    test('user entry is never tool-only', () {
-      final entry = _entry(role: MessageRole.user, content: [_tool()]);
-      expect(entry.isToolOnly, isFalse);
-    });
-
-    test('no tools is not tool-only', () {
-      final entry = _entry(content: [const TextContent(text: '')]);
-      expect(entry.isToolOnly, isFalse);
-    });
-  });
-
   group('ConversationEntry.isAllHidden', () {
     test('all hidden tools, no text', () {
       final entry = _entry(

@@ -33,17 +33,14 @@ class AgentNetworksStateNotifier extends StateNotifier<AgentNetworksState> {
         state = state.copyWith(sessions: sessions);
       }
     });
+    // Eagerly load sessions on creation so the list is populated
+    // regardless of how this notifier was created (initial boot or
+    // provider recreation after daemon connects).
+    reload();
   }
 
   final VideSessionManager _sessionManager;
   StreamSubscription<List<VideSessionInfo>>? _subscription;
-  bool _initialized = false;
-
-  Future<void> init() async {
-    if (_initialized) return;
-    _initialized = true;
-    await reload();
-  }
 
   /// Reload sessions from the session manager.
   Future<void> reload() async {

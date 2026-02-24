@@ -121,34 +121,25 @@ class _DiffRendererState extends State<DiffRenderer> {
 
     // If no diff lines could be created, fall back to just the header
     if (_shouldUseFallback) {
-      return ToolHeader(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Tool header
-          ToolHeader(
-            invocation: component.invocation,
-            workingDirectory: component.workingDirectory,
-            statusColor: ToolHeader.getStatusColor(component.invocation, theme),
-          ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Tool header
+        ToolHeader(
+          invocation: component.invocation,
+          workingDirectory: component.workingDirectory,
+          statusColor: ToolHeader.getStatusColor(component.invocation, theme),
+        ),
 
-          // Diff view (with pre-computed syntax highlighting)
-          Container(
-            padding: EdgeInsets.only(left: 2),
-            child: CodeDiff(
-              fileName: _cachedFormattedPath,
-              lines: _getHighlightedLines(context),
-            ),
-          ),
-        ],
-      ),
+        // Diff view (with pre-computed syntax highlighting)
+        Container(
+          padding: EdgeInsets.only(left: 2),
+          child: CodeDiff(fileName: _cachedFormattedPath, lines: _getHighlightedLines(context)),
+        ),
+      ],
     );
   }
 
@@ -167,14 +158,7 @@ class _DiffRendererState extends State<DiffRenderer> {
   List<DiffLine> _parseWriteToolResult(String content) {
     // For Write tool, show all lines as added
     final lines = content.split('\n');
-    return List.generate(
-      lines.length,
-      (i) => DiffLine(
-        lineNumber: i + 1,
-        type: DiffLineType.added,
-        content: lines[i],
-      ),
-    );
+    return List.generate(lines.length, (i) => DiffLine(lineNumber: i + 1, type: DiffLineType.added, content: lines[i]));
   }
 
   List<DiffLine> _parseEditResult(String oldString, String newString) {
@@ -223,9 +207,7 @@ class _DiffRendererState extends State<DiffRenderer> {
           lineType = DiffLineType.unchanged;
         }
 
-        lines.add(
-          DiffLine(lineNumber: lineNumber, type: lineType, content: content),
-        );
+        lines.add(DiffLine(lineNumber: lineNumber, type: lineType, content: content));
       }
     }
 

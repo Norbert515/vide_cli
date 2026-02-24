@@ -63,48 +63,36 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   Component build(BuildContext context) {
     // Fallback to just the header if no result or error
     if (!component.invocation.hasResult || component.invocation.isError) {
-      return ToolHeader(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
     // Parse output - process carriage returns first to handle terminal overwrites
     final resultContent = component.invocation.resultContent ?? '';
     final processedContent = _processCarriageReturns(resultContent);
-    final lines = processedContent
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty)
-        .toList();
+    final lines = processedContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
     // If no lines, fallback to just the header
     if (lines.isEmpty) {
-      return ToolHeader(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
     final theme = VideTheme.of(context);
 
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 1),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => isHovered = true),
-        onExit: (_) => setState(() => isHovered = false),
-        child: GestureDetector(
-          onTap: () => setState(() => isExpanded = !isExpanded),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ToolHeader(
-                invocation: component.invocation,
-                workingDirectory: component.workingDirectory,
-                statusColor: ToolHeader.getStatusColor(component.invocation, theme),
-              ),
-              _buildOutput(lines, theme),
-            ],
-          ),
+    return MouseRegion(
+      onEnter: (_) => setState(() => isHovered = true),
+      onExit: (_) => setState(() => isHovered = false),
+      child: GestureDetector(
+        onTap: () => setState(() => isExpanded = !isExpanded),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ToolHeader(
+              invocation: component.invocation,
+              workingDirectory: component.workingDirectory,
+              statusColor: ToolHeader.getStatusColor(component.invocation, theme),
+            ),
+            _buildOutput(lines, theme),
+          ],
         ),
       ),
     );
@@ -112,14 +100,10 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
   Component _buildOutput(List<String> lines, VideThemeData theme) {
     // Show last 3 lines when collapsed (so user sees most recent output)
-    final displayLines = isExpanded
-        ? lines
-        : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
+    final displayLines = isExpanded ? lines : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
     final hasMore = lines.length > 3;
 
-    final bgColor = isHovered
-        ? theme.base.surface.withOpacity(0.8)
-        : theme.base.surface.withOpacity(0.5);
+    final bgColor = isHovered ? theme.base.surface.withOpacity(0.8) : theme.base.surface.withOpacity(0.5);
     final dimText = theme.base.onSurface.withOpacity(0.4);
 
     return Container(
@@ -142,9 +126,7 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
                   controller: _scrollController,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final line in displayLines) _buildLine(line, theme),
-                    ],
+                    children: [for (final line in displayLines) _buildLine(line, theme)],
                   ),
                 ),
               ),
@@ -154,21 +136,16 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
             for (final line in displayLines) _buildLine(line, theme),
 
           // Show line count if collapsed with more lines
-          if (!isExpanded && hasMore)
-            Text('(${lines.length} total)', style: TextStyle(color: dimText)),
+          if (!isExpanded && hasMore) Text('(${lines.length} total)', style: TextStyle(color: dimText)),
 
           // Show line count if expanded and exceeds 8 lines
-          if (isExpanded && lines.length > 8)
-            Text('(${lines.length} total)', style: TextStyle(color: dimText)),
+          if (isExpanded && lines.length > 8) Text('(${lines.length} total)', style: TextStyle(color: dimText)),
         ],
       ),
     );
   }
 
   Component _buildLine(String line, VideThemeData theme) {
-    return Text(
-      _stripAnsi(line),
-      style: TextStyle(color: theme.base.onSurface.withOpacity(0.7)),
-    );
+    return Text(_stripAnsi(line), style: TextStyle(color: theme.base.onSurface.withOpacity(0.7)));
   }
 }

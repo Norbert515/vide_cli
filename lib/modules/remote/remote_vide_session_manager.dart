@@ -53,6 +53,11 @@ class RemoteVideSessionManager implements VideSessionManager {
         _emitSessionList();
       });
     }
+
+    // Emit initial session list so that late subscribers (e.g.
+    // AgentNetworksStateNotifier recreated after provider switch)
+    // get the current data without waiting for a daemon event.
+    _emitSessionList();
   }
 
   @override

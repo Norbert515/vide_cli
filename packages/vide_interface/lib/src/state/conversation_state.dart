@@ -208,12 +208,6 @@ final class ConversationEntry {
     return false;
   }
 
-  /// Whether this is a tool-only entry (no meaningful text, only tool calls).
-  bool get isToolOnly =>
-      role == MessageRole.assistant &&
-      !hasVisibleText &&
-      content.any((c) => c is ToolContent);
-
   /// Whether this entry consists entirely of hidden/invisible tool calls.
   ///
   /// These entries should be skipped to avoid empty padding in the UI.

@@ -76,7 +76,6 @@ class AssistantEntryRenderer extends StatelessComponent {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
   }
 
-
   Component _buildToolInvocation(ToolContent content) {
     final now = DateTime.now();
     final invocation = AgentToolInvocation.createTyped(

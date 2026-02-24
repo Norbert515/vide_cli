@@ -12,7 +12,6 @@ import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/modules/remote/remote_vide_session_manager.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_cli/modules/agent_network/state/agent_networks_state_notifier.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
 export 'package:vide_cli/modules/remote/remote_config.dart';
@@ -199,8 +198,6 @@ Future<void> main(
   // Note: Pending updates are applied by the wrapper script at ~/.local/bin/vide
   // before launching the actual binary. The version indicator shows "ready" when
   // an update has been downloaded and will be applied on next launch.
-
-  await container.read(agentNetworksStateNotifierProvider.notifier).init();
 
   await runApp(
     ProviderScope(
