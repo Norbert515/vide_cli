@@ -1551,6 +1551,7 @@ class LocalVideSession implements VideSession {
             agentName: agent.name,
             taskName: taskName,
             content: response.content,
+            isCumulative: response.isCumulative,
           ),
         );
       }

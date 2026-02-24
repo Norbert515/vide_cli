@@ -557,10 +557,20 @@ class ConversationStateManager {
     );
     if (lastThinkingIndex >= 0 &&
         lastThinkingIndex == contentList.length - 1) {
-      final existing = contentList[lastThinkingIndex] as ThinkingContent;
-      contentList[lastThinkingIndex] = existing.copyWith(
-        text: existing.text + normalizedContent,
-      );
+      if (event.isCumulative) {
+        // Cumulative thinking contains the full text up to this point.
+        // Replace instead of appending to avoid duplication when both
+        // streaming deltas and a final cumulative message are received
+        // (which happens with --include-partial-messages).
+        contentList[lastThinkingIndex] = ThinkingContent(
+          text: normalizedContent,
+        );
+      } else {
+        final existing = contentList[lastThinkingIndex] as ThinkingContent;
+        contentList[lastThinkingIndex] = existing.copyWith(
+          text: existing.text + normalizedContent,
+        );
+      }
     } else {
       contentList.add(ThinkingContent(text: normalizedContent));
     }

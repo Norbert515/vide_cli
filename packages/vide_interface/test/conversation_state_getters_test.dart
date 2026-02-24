@@ -609,5 +609,117 @@ void main() {
       expect(content[0], isA<ThinkingContent>());
       expect((content[0] as ThinkingContent).text, equals('chunk 1 chunk 2'));
     });
+
+    test('cumulative thinking replaces accumulated deltas (no duplication)', () {
+      final manager = ConversationStateManager();
+      addTearDown(manager.dispose);
+
+      // Simulate streaming thinking deltas
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'I need to ',
+        ),
+      );
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'analyze this.',
+        ),
+      );
+
+      // Simulate cumulative thinking from the final assistant message
+      // (sent when --include-partial-messages is enabled)
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'I need to analyze this.',
+          isCumulative: true,
+        ),
+      );
+
+      final state = manager.getAgentState('a1');
+      final content = state!.messages.first.content;
+      expect(content, hasLength(1));
+      expect(content[0], isA<ThinkingContent>());
+      // Should be the cumulative text, NOT "I need to analyze this.I need to analyze this."
+      expect(
+        (content[0] as ThinkingContent).text,
+        equals('I need to analyze this.'),
+      );
+    });
+
+    test('cumulative thinking works as first event (non-streaming mode)', () {
+      final manager = ConversationStateManager();
+      addTearDown(manager.dispose);
+
+      // In non-streaming mode, only a cumulative event arrives (no prior deltas)
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'Full thinking text.',
+          isCumulative: true,
+        ),
+      );
+
+      final state = manager.getAgentState('a1');
+      final content = state!.messages.first.content;
+      expect(content, hasLength(1));
+      expect(content[0], isA<ThinkingContent>());
+      expect(
+        (content[0] as ThinkingContent).text,
+        equals('Full thinking text.'),
+      );
+    });
+
+    test('cumulative thinking after interleaved content creates new block', () {
+      final manager = ConversationStateManager();
+      addTearDown(manager.dispose);
+
+      // Thinking block
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'thought 1',
+        ),
+      );
+
+      // Text interleaved
+      manager.handleEvent(
+        MessageEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          eventId: 'msg-1',
+          role: MessageRole.assistant,
+          content: 'response text',
+          isPartial: false,
+        ),
+      );
+
+      // Cumulative thinking after text — should create a new block,
+      // NOT replace the first thinking block
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'thought 2 full',
+          isCumulative: true,
+        ),
+      );
+
+      final state = manager.getAgentState('a1');
+      final content = state!.messages.first.content;
+      expect(content, hasLength(3));
+      expect(content[0], isA<ThinkingContent>());
+      expect((content[0] as ThinkingContent).text, equals('thought 1'));
+      expect(content[1], isA<TextContent>());
+      expect(content[2], isA<ThinkingContent>());
+      expect((content[2] as ThinkingContent).text, equals('thought 2 full'));
+    });
   });
 }

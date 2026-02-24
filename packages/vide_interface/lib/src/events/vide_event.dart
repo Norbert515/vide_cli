@@ -144,6 +144,7 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         content: data?['content'] as String? ?? '',
+        isCumulative: data?['is-cumulative'] as bool? ?? false,
       ),
       'status' => StatusEvent(
         seq: seq,
@@ -498,6 +499,15 @@ final class ThinkingEvent extends VideEvent {
   /// The thinking/reasoning text.
   final String content;
 
+  /// Whether this contains cumulative content (full text up to this point)
+  /// rather than a streaming delta.
+  ///
+  /// When true, consumers should **replace** any existing accumulated
+  /// thinking text instead of appending. This prevents duplication when
+  /// both streaming deltas and a final cumulative message are received
+  /// (which happens with `--include-partial-messages`).
+  final bool isCumulative;
+
   ThinkingEvent({
     super.seq,
     required super.agentId,
@@ -506,13 +516,17 @@ final class ThinkingEvent extends VideEvent {
     super.taskName,
     super.timestamp,
     required this.content,
+    this.isCumulative = false,
   });
 
   @override
   String get wireType => 'thinking';
 
   @override
-  Map<String, dynamic> dataFields() => {'content': content};
+  Map<String, dynamic> dataFields() => {
+    'content': content,
+    if (isCumulative) 'is-cumulative': true,
+  };
 
   @override
   String toString() => 'ThinkingEvent(${content.length} chars)';
