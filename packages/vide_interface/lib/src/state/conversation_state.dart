@@ -543,11 +543,14 @@ class ConversationStateManager {
         .replaceAll(RegExp(r'^\*\*'), '')
         .replaceAll(RegExp(r'\*\*$'), '');
 
-    // Append or update ThinkingContent
+    // Append to the last ThinkingContent only if it's the final item in the
+    // list (i.e. no text or tool content has been interleaved since). Otherwise
+    // create a new ThinkingContent block to preserve proper interleaving.
     final lastThinkingIndex = contentList.lastIndexWhere(
       (c) => c is ThinkingContent,
     );
-    if (lastThinkingIndex >= 0) {
+    if (lastThinkingIndex >= 0 &&
+        lastThinkingIndex == contentList.length - 1) {
       final existing = contentList[lastThinkingIndex] as ThinkingContent;
       contentList[lastThinkingIndex] = existing.copyWith(
         text: existing.text + normalizedContent,

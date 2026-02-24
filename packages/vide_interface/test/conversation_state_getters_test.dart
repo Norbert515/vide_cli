@@ -558,5 +558,93 @@ void main() {
           .first;
       expect(thinking.text, equals('First chunk second chunk'));
     });
+
+    test('thinking interleaved with text creates separate blocks', () {
+      final manager = ConversationStateManager();
+      addTearDown(manager.dispose);
+
+      // Thinking block 1
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'thought 1',
+        ),
+      );
+
+      // Text block 1 (new eventId triggers merge into same assistant entry)
+      manager.handleEvent(
+        MessageEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          eventId: 'msg-1',
+          role: MessageRole.assistant,
+          content: 'text 1',
+          isPartial: false,
+        ),
+      );
+
+      // Thinking block 2 — should NOT be concatenated with thinking block 1
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'thought 2',
+        ),
+      );
+
+      // Text block 2
+      manager.handleEvent(
+        MessageEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          eventId: 'msg-2',
+          role: MessageRole.assistant,
+          content: 'text 2',
+          isPartial: false,
+        ),
+      );
+
+      final state = manager.getAgentState('a1');
+      expect(state, isNotNull);
+      expect(state!.messages, hasLength(1));
+
+      final content = state.messages.first.content;
+      expect(content, hasLength(4));
+      expect(content[0], isA<ThinkingContent>());
+      expect((content[0] as ThinkingContent).text, equals('thought 1'));
+      expect(content[1], isA<TextContent>());
+      expect((content[1] as TextContent).text, equals('text 1'));
+      expect(content[2], isA<ThinkingContent>());
+      expect((content[2] as ThinkingContent).text, equals('thought 2'));
+      expect(content[3], isA<TextContent>());
+      expect((content[3] as TextContent).text, equals('text 2'));
+    });
+
+    test('consecutive thinking chunks still merge into one block', () {
+      final manager = ConversationStateManager();
+      addTearDown(manager.dispose);
+
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'chunk 1 ',
+        ),
+      );
+      manager.handleEvent(
+        ThinkingEvent(
+          agentId: 'a1',
+          agentType: 'main',
+          content: 'chunk 2',
+        ),
+      );
+
+      final state = manager.getAgentState('a1');
+      final content = state!.messages.first.content;
+      expect(content, hasLength(1));
+      expect(content[0], isA<ThinkingContent>());
+      expect((content[0] as ThinkingContent).text, equals('chunk 1 chunk 2'));
+    });
   });
 }
