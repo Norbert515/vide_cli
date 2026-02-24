@@ -653,7 +653,7 @@ class _MessageList extends StatelessWidget {
               items.add(_RenderItem.text(entry, content));
             }
           case ToolContent():
-            if (!isHiddenTool(content)) {
+            if (!content.isHidden) {
               items.add(_RenderItem.tool(entry, content));
             }
           case AttachmentContent():
@@ -711,11 +711,11 @@ class _MessageList extends StatelessWidget {
               case _TextRenderItem(:final entry):
                 return MessageBubble(entry: entry);
               case _ToolRenderItem(:final tool):
-                if (isSpawnAgentTool(tool)) {
+                if (tool.isSpawnAgent) {
                   return SpawnAgentCard(
                       tool: tool, agents: agents, onTap: onAgentTap);
                 }
-                if (tool.toolName == 'ExitPlanMode') {
+                if (tool.isPlanResult) {
                   return PlanResultIndicator(tool: tool);
                 }
                 return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));

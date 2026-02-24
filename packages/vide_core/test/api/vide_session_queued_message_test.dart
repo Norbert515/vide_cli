@@ -95,7 +95,7 @@ void main() {
       // Check that no user MessageEvent was emitted
       final userMessages = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
 
       expect(
@@ -118,7 +118,7 @@ void main() {
 
       final userMessages = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
 
       expect(

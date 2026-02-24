@@ -5,7 +5,6 @@ import 'package:vide_client/vide_client.dart';
 
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
-import 'chat_helpers.dart';
 
 /// Braille spinner for in-progress tool calls.
 class _BrailleSpinner extends StatefulWidget {
@@ -90,8 +89,8 @@ class ToolCard extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = toolDisplayName(tool.toolName);
-    final subtitle = toolSubtitle(tool.toolName, tool.toolInput);
+    final displayName = tool.displayName;
+    final subtitle = tool.subtitle;
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -191,7 +190,7 @@ class ToolDetailScreen extends StatelessWidget {
             ? videColors.success
             : videColors.accent;
 
-    final displayName = toolDisplayName(tool.toolName);
+    final displayName = tool.displayName;
 
     return Scaffold(
       appBar: AppBar(

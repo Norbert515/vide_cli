@@ -49,9 +49,12 @@ void main() {
       final turnCompletes = events.whereType<TurnCompleteEvent>().toList();
 
       // User message + assistant message + finalization
-      expect(messageEvents.where((m) => m.role == 'user').length, equals(1));
       expect(
-        messageEvents.where((m) => m.role == 'assistant').length,
+        messageEvents.where((m) => m.role == MessageRole.user).length,
+        equals(1),
+      );
+      expect(
+        messageEvents.where((m) => m.role == MessageRole.assistant).length,
         greaterThanOrEqualTo(1),
       );
       expect(turnCompletes, hasLength(1));
@@ -100,7 +103,7 @@ void main() {
       // Verify we have both assistant messages
       final assistantMsgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
       expect(assistantMsgs, isNotEmpty);
     });
@@ -337,7 +340,7 @@ void main() {
 
       final msgEvents = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
 
       final mainMsgs = msgEvents.where((e) => e.agentId == h.agentId);
@@ -384,9 +387,11 @@ void main() {
       convState = h.session.getConversation(h.agentId);
       expect(convState, isNotNull);
       // Should have both user and assistant messages from both turns
-      final userMsgs = convState!.messages.where((m) => m.role == 'user');
+      final userMsgs = convState!.messages.where(
+        (m) => m.role == MessageRole.user,
+      );
       final assistantMsgs = convState.messages.where(
-        (m) => m.role == 'assistant',
+        (m) => m.role == MessageRole.assistant,
       );
       expect(userMsgs.length, greaterThanOrEqualTo(2));
       expect(assistantMsgs.length, greaterThanOrEqualTo(2));
@@ -522,7 +527,7 @@ void main() {
 
       final userMsgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       expect(userMsgs.length, equals(20));
     });
@@ -573,13 +578,13 @@ void main() {
 
       // Each agent should have their events
       final mainMsgs = events.whereType<MessageEvent>().where(
-        (e) => e.agentId == h.agentId && e.role == 'assistant',
+        (e) => e.agentId == h.agentId && e.role == MessageRole.assistant,
       );
       final agent1Msgs = events.whereType<MessageEvent>().where(
-        (e) => e.agentId == 'agent-1' && e.role == 'assistant',
+        (e) => e.agentId == 'agent-1' && e.role == MessageRole.assistant,
       );
       final agent2Msgs = events.whereType<MessageEvent>().where(
-        (e) => e.agentId == 'agent-2' && e.role == 'assistant',
+        (e) => e.agentId == 'agent-2' && e.role == MessageRole.assistant,
       );
 
       expect(mainMsgs, isNotEmpty);

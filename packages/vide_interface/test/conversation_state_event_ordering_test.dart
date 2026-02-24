@@ -27,7 +27,7 @@ void main() {
             agentId: 'agent-1',
             agentType: 'main',
             eventId: 'msg-1',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: 'Let me ',
             isPartial: true,
           ),
@@ -38,7 +38,7 @@ void main() {
             agentId: 'agent-1',
             agentType: 'main',
             eventId: 'msg-1',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: 'read that file.',
             isPartial: true,
           ),
@@ -50,7 +50,7 @@ void main() {
             agentId: 'agent-1',
             agentType: 'main',
             eventId: 'msg-1',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: '',
             isPartial: false,
           ),
@@ -72,7 +72,7 @@ void main() {
         expect(state!.messages, hasLength(1));
 
         final msg = state.messages.first;
-        expect(msg.role, 'assistant');
+        expect(msg.role, MessageRole.assistant);
         expect(msg.content, hasLength(2)); // TextContent + ToolContent
 
         // Text should be finalized (not streaming)
@@ -99,7 +99,7 @@ void main() {
             agentId: 'agent-1',
             agentType: 'main',
             eventId: 'msg-1',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: 'Let me read that.',
             isPartial: true,
           ),
@@ -146,7 +146,7 @@ void main() {
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-1',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'First text.',
           isPartial: true,
         ),
@@ -158,7 +158,7 @@ void main() {
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-1',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: '',
           isPartial: false,
         ),
@@ -193,7 +193,7 @@ void main() {
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-2',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Second text.',
           isPartial: true,
         ),
@@ -205,7 +205,7 @@ void main() {
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-2',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: '',
           isPartial: false,
         ),
@@ -246,7 +246,7 @@ void main() {
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-1',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Still streaming...',
           isPartial: true,
         ),

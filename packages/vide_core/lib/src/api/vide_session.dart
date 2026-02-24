@@ -312,7 +312,7 @@ class LocalVideSession implements VideSession {
         agentId: agentId,
         agentType: 'user',
         eventId: const Uuid().v4(),
-        role: 'user',
+        role: MessageRole.user,
         content: content,
         isPartial: false,
         attachments: attachments,
@@ -1266,7 +1266,7 @@ class LocalVideSession implements VideSession {
             agentName: agent.name,
             taskName: taskName,
             eventId: state.currentMessageEventId!,
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: '',
             isPartial: false,
           ),
@@ -1378,8 +1378,8 @@ class LocalVideSession implements VideSession {
               taskName: taskName,
               eventId: eventId,
               role: message.role == AgentMessageRole.user
-                  ? 'user'
-                  : 'assistant',
+                  ? MessageRole.user
+                  : MessageRole.assistant,
               content: message.content,
               isPartial: isLastMessage && conversation.isProcessing,
             ),
@@ -1411,8 +1411,8 @@ class LocalVideSession implements VideSession {
               taskName: taskName,
               eventId: eventId,
               role: latestMessage.role == AgentMessageRole.user
-                  ? 'user'
-                  : 'assistant',
+                  ? MessageRole.user
+                  : MessageRole.assistant,
               content: delta,
               isPartial: true,
             ),
@@ -1466,7 +1466,7 @@ class LocalVideSession implements VideSession {
               agentName: agent.name,
               taskName: taskName,
               eventId: state.currentMessageEventId!,
-              role: 'assistant',
+              role: MessageRole.assistant,
               content: '',
               isPartial: false,
             ),

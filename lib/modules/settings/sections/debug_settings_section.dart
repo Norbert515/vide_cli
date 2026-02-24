@@ -101,192 +101,202 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   }
 
   void _triggerShortPermission() {
-    context.read(permissionStateProvider.notifier).enqueueRequest(
-      PermissionRequest(
-        requestId: 'test-short-${DateTime.now().millisecondsSinceEpoch}',
-        toolName: 'Bash',
-        toolInput: {'command': 'ls -la'},
-        cwd: '/tmp',
-        inferredPattern: 'Bash(ls *)',
-      ),
-    );
+    context
+        .read(permissionStateProvider.notifier)
+        .enqueueRequest(
+          PermissionRequest(
+            requestId: 'test-short-${DateTime.now().millisecondsSinceEpoch}',
+            toolName: 'Bash',
+            toolInput: {'command': 'ls -la'},
+            cwd: '/tmp',
+            inferredPattern: 'Bash(ls *)',
+          ),
+        );
   }
 
   void _triggerLongPermission() {
-    context.read(permissionStateProvider.notifier).enqueueRequest(
-      PermissionRequest(
-        requestId: 'test-long-${DateTime.now().millisecondsSinceEpoch}',
-        toolName: 'Bash',
-        toolInput: {
-          'command': '#!/bin/bash\n'
-              'set -euo pipefail\n'
-              '\n'
-              '# ============================================================\n'
-              '# Flutter Project Health Check & Deployment Script\n'
-              '# ============================================================\n'
-              '\n'
-              'PROJECT_ROOT="\$(cd "\$(dirname "\$0")/.." && pwd)"\n'
-              'BUILD_DIR="\$PROJECT_ROOT/build"\n'
-              'COVERAGE_DIR="\$BUILD_DIR/coverage"\n'
-              'REPORT_FILE="\$BUILD_DIR/health_report.json"\n'
-              'MIN_COVERAGE=80\n'
-              'DART_SDK_VERSION="3.3.0"\n'
-              'FLUTTER_CHANNEL="stable"\n'
-              '\n'
-              'RED=\'\\033[0;31m\'\n'
-              'GREEN=\'\\033[0;32m\'\n'
-              'YELLOW=\'\\033[1;33m\'\n'
-              'NC=\'\\033[0m\'\n'
-              '\n'
-              'log_info() { echo -e "\${GREEN}[INFO]\${NC} \$1"; }\n'
-              'log_warn() { echo -e "\${YELLOW}[WARN]\${NC} \$1"; }\n'
-              'log_error() { echo -e "\${RED}[ERROR]\${NC} \$1"; }\n'
-              '\n'
-              '# --- Pre-flight checks ---\n'
-              'log_info "Running pre-flight checks..."\n'
-              '\n'
-              'if ! command -v flutter &> /dev/null; then\n'
-              '    log_error "Flutter not found in PATH"\n'
-              '    exit 1\n'
-              'fi\n'
-              '\n'
-              'if ! command -v dart &> /dev/null; then\n'
-              '    log_error "Dart SDK not found in PATH"\n'
-              '    exit 1\n'
-              'fi\n'
-              '\n'
-              'CURRENT_DART=\$(dart --version 2>&1 | grep -oP \'\\d+\\.\\d+\\.\\d+\')\n'
-              'log_info "Dart SDK version: \$CURRENT_DART (minimum: \$DART_SDK_VERSION)"\n'
-              '\n'
-              '# --- Clean previous build artifacts ---\n'
-              'log_info "Cleaning previous build artifacts..."\n'
-              'rm -rf "\$BUILD_DIR"\n'
-              'mkdir -p "\$COVERAGE_DIR"\n'
-              'flutter clean\n'
-              'dart pub get\n'
-              '\n'
-              '# --- Static analysis ---\n'
-              'log_info "Running static analysis..."\n'
-              'ANALYZE_OUTPUT=\$(dart analyze --fatal-infos 2>&1) || {\n'
-              '    log_error "Static analysis failed:"\n'
-              '    echo "\$ANALYZE_OUTPUT"\n'
-              '    exit 1\n'
-              '}\n'
-              'log_info "Static analysis passed"\n'
-              '\n'
-              '# --- Format check ---\n'
-              'log_info "Checking code formatting..."\n'
-              'UNFORMATTED=\$(dart format --set-exit-if-changed --output=none . 2>&1) || {\n'
-              '    log_error "Code formatting issues found:"\n'
-              '    echo "\$UNFORMATTED"\n'
-              '    exit 1\n'
-              '}\n'
-              'log_info "Code formatting OK"\n'
-              '\n'
-              '# --- Run tests with coverage ---\n'
-              'log_info "Running tests with coverage..."\n'
-              'flutter test --coverage --coverage-path="\$COVERAGE_DIR/lcov.info" \\\n'
-              '    --reporter=json > "\$BUILD_DIR/test_results.json" 2>&1 || {\n'
-              '    log_error "Tests failed! See \$BUILD_DIR/test_results.json"\n'
-              '    exit 1\n'
-              '}\n'
-              '\n'
-              'TOTAL_TESTS=\$(cat "\$BUILD_DIR/test_results.json" | grep -c \'"result":"success"\')\n'
-              'log_info "All \$TOTAL_TESTS tests passed"\n'
-              '\n'
-              '# --- Coverage analysis ---\n'
-              'log_info "Analyzing code coverage..."\n'
-              'if command -v lcov &> /dev/null; then\n'
-              '    lcov --summary "\$COVERAGE_DIR/lcov.info" 2>&1 | tee "\$COVERAGE_DIR/summary.txt"\n'
-              '    COVERAGE=\$(grep -oP \'lines\\.+:\\s+\\K[\\d.]+\' "\$COVERAGE_DIR/summary.txt")\n'
-              '    if (( \$(echo "\$COVERAGE < \$MIN_COVERAGE" | bc -l) )); then\n'
-              '        log_warn "Coverage \${COVERAGE}% is below minimum \${MIN_COVERAGE}%"\n'
-              '    else\n'
-              '        log_info "Coverage: \${COVERAGE}% (minimum: \${MIN_COVERAGE}%)"\n'
-              '    fi\n'
-              '    genhtml "\$COVERAGE_DIR/lcov.info" -o "\$COVERAGE_DIR/html" --quiet\n'
-              'else\n'
-              '    log_warn "lcov not installed, skipping coverage report"\n'
-              'fi\n'
-              '\n'
-              '# --- Build release artifacts ---\n'
-              'log_info "Building release artifacts..."\n'
-              'for platform in "web" "apk" "ios"; do\n'
-              '    log_info "  Building \$platform..."\n'
-              '    case \$platform in\n'
-              '        web)\n'
-              '            flutter build web --release --tree-shake-icons \\\n'
-              '                --dart-define=ENV=production 2>&1 | tail -5\n'
-              '            ;;\n'
-              '        apk)\n'
-              '            flutter build apk --release --split-per-abi \\\n'
-              '                --dart-define=ENV=production 2>&1 | tail -5\n'
-              '            ;;\n'
-              '        ios)\n'
-              '            flutter build ios --release --no-codesign \\\n'
-              '                --dart-define=ENV=production 2>&1 | tail -5\n'
-              '            ;;\n'
-              '    esac\n'
-              'done\n'
-              '\n'
-              '# --- Generate health report ---\n'
-              'log_info "Generating health report..."\n'
-              'cat > "\$REPORT_FILE" << EOF\n'
-              '{\n'
-              '  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%SZ)",\n'
-              '  "dart_version": "\$CURRENT_DART",\n'
-              '  "flutter_channel": "\$FLUTTER_CHANNEL",\n'
-              '  "analysis": "passed",\n'
-              '  "formatting": "passed",\n'
-              '  "tests_total": \$TOTAL_TESTS,\n'
-              '  "tests_passed": \$TOTAL_TESTS,\n'
-              '  "coverage_percent": \${COVERAGE:-"unknown"},\n'
-              '  "builds": ["web", "apk", "ios"]\n'
-              '}\n'
-              'EOF\n'
-              '\n'
-              'log_info "Health report saved to \$REPORT_FILE"\n'
-              'log_info "All checks passed successfully!"',
-        },
-        cwd: '/Users/dev/my-flutter-app',
-        inferredPattern: 'Bash(#!/bin/bash*)',
-      ),
-    );
+    context
+        .read(permissionStateProvider.notifier)
+        .enqueueRequest(
+          PermissionRequest(
+            requestId: 'test-long-${DateTime.now().millisecondsSinceEpoch}',
+            toolName: 'Bash',
+            toolInput: {
+              'command':
+                  '#!/bin/bash\n'
+                  'set -euo pipefail\n'
+                  '\n'
+                  '# ============================================================\n'
+                  '# Flutter Project Health Check & Deployment Script\n'
+                  '# ============================================================\n'
+                  '\n'
+                  'PROJECT_ROOT="\$(cd "\$(dirname "\$0")/.." && pwd)"\n'
+                  'BUILD_DIR="\$PROJECT_ROOT/build"\n'
+                  'COVERAGE_DIR="\$BUILD_DIR/coverage"\n'
+                  'REPORT_FILE="\$BUILD_DIR/health_report.json"\n'
+                  'MIN_COVERAGE=80\n'
+                  'DART_SDK_VERSION="3.3.0"\n'
+                  'FLUTTER_CHANNEL="stable"\n'
+                  '\n'
+                  'RED=\'\\033[0;31m\'\n'
+                  'GREEN=\'\\033[0;32m\'\n'
+                  'YELLOW=\'\\033[1;33m\'\n'
+                  'NC=\'\\033[0m\'\n'
+                  '\n'
+                  'log_info() { echo -e "\${GREEN}[INFO]\${NC} \$1"; }\n'
+                  'log_warn() { echo -e "\${YELLOW}[WARN]\${NC} \$1"; }\n'
+                  'log_error() { echo -e "\${RED}[ERROR]\${NC} \$1"; }\n'
+                  '\n'
+                  '# --- Pre-flight checks ---\n'
+                  'log_info "Running pre-flight checks..."\n'
+                  '\n'
+                  'if ! command -v flutter &> /dev/null; then\n'
+                  '    log_error "Flutter not found in PATH"\n'
+                  '    exit 1\n'
+                  'fi\n'
+                  '\n'
+                  'if ! command -v dart &> /dev/null; then\n'
+                  '    log_error "Dart SDK not found in PATH"\n'
+                  '    exit 1\n'
+                  'fi\n'
+                  '\n'
+                  'CURRENT_DART=\$(dart --version 2>&1 | grep -oP \'\\d+\\.\\d+\\.\\d+\')\n'
+                  'log_info "Dart SDK version: \$CURRENT_DART (minimum: \$DART_SDK_VERSION)"\n'
+                  '\n'
+                  '# --- Clean previous build artifacts ---\n'
+                  'log_info "Cleaning previous build artifacts..."\n'
+                  'rm -rf "\$BUILD_DIR"\n'
+                  'mkdir -p "\$COVERAGE_DIR"\n'
+                  'flutter clean\n'
+                  'dart pub get\n'
+                  '\n'
+                  '# --- Static analysis ---\n'
+                  'log_info "Running static analysis..."\n'
+                  'ANALYZE_OUTPUT=\$(dart analyze --fatal-infos 2>&1) || {\n'
+                  '    log_error "Static analysis failed:"\n'
+                  '    echo "\$ANALYZE_OUTPUT"\n'
+                  '    exit 1\n'
+                  '}\n'
+                  'log_info "Static analysis passed"\n'
+                  '\n'
+                  '# --- Format check ---\n'
+                  'log_info "Checking code formatting..."\n'
+                  'UNFORMATTED=\$(dart format --set-exit-if-changed --output=none . 2>&1) || {\n'
+                  '    log_error "Code formatting issues found:"\n'
+                  '    echo "\$UNFORMATTED"\n'
+                  '    exit 1\n'
+                  '}\n'
+                  'log_info "Code formatting OK"\n'
+                  '\n'
+                  '# --- Run tests with coverage ---\n'
+                  'log_info "Running tests with coverage..."\n'
+                  'flutter test --coverage --coverage-path="\$COVERAGE_DIR/lcov.info" \\\n'
+                  '    --reporter=json > "\$BUILD_DIR/test_results.json" 2>&1 || {\n'
+                  '    log_error "Tests failed! See \$BUILD_DIR/test_results.json"\n'
+                  '    exit 1\n'
+                  '}\n'
+                  '\n'
+                  'TOTAL_TESTS=\$(cat "\$BUILD_DIR/test_results.json" | grep -c \'"result":"success"\')\n'
+                  'log_info "All \$TOTAL_TESTS tests passed"\n'
+                  '\n'
+                  '# --- Coverage analysis ---\n'
+                  'log_info "Analyzing code coverage..."\n'
+                  'if command -v lcov &> /dev/null; then\n'
+                  '    lcov --summary "\$COVERAGE_DIR/lcov.info" 2>&1 | tee "\$COVERAGE_DIR/summary.txt"\n'
+                  '    COVERAGE=\$(grep -oP \'lines\\.+:\\s+\\K[\\d.]+\' "\$COVERAGE_DIR/summary.txt")\n'
+                  '    if (( \$(echo "\$COVERAGE < \$MIN_COVERAGE" | bc -l) )); then\n'
+                  '        log_warn "Coverage \${COVERAGE}% is below minimum \${MIN_COVERAGE}%"\n'
+                  '    else\n'
+                  '        log_info "Coverage: \${COVERAGE}% (minimum: \${MIN_COVERAGE}%)"\n'
+                  '    fi\n'
+                  '    genhtml "\$COVERAGE_DIR/lcov.info" -o "\$COVERAGE_DIR/html" --quiet\n'
+                  'else\n'
+                  '    log_warn "lcov not installed, skipping coverage report"\n'
+                  'fi\n'
+                  '\n'
+                  '# --- Build release artifacts ---\n'
+                  'log_info "Building release artifacts..."\n'
+                  'for platform in "web" "apk" "ios"; do\n'
+                  '    log_info "  Building \$platform..."\n'
+                  '    case \$platform in\n'
+                  '        web)\n'
+                  '            flutter build web --release --tree-shake-icons \\\n'
+                  '                --dart-define=ENV=production 2>&1 | tail -5\n'
+                  '            ;;\n'
+                  '        apk)\n'
+                  '            flutter build apk --release --split-per-abi \\\n'
+                  '                --dart-define=ENV=production 2>&1 | tail -5\n'
+                  '            ;;\n'
+                  '        ios)\n'
+                  '            flutter build ios --release --no-codesign \\\n'
+                  '                --dart-define=ENV=production 2>&1 | tail -5\n'
+                  '            ;;\n'
+                  '    esac\n'
+                  'done\n'
+                  '\n'
+                  '# --- Generate health report ---\n'
+                  'log_info "Generating health report..."\n'
+                  'cat > "\$REPORT_FILE" << EOF\n'
+                  '{\n'
+                  '  "timestamp": "\$(date -u +%Y-%m-%dT%H:%M:%SZ)",\n'
+                  '  "dart_version": "\$CURRENT_DART",\n'
+                  '  "flutter_channel": "\$FLUTTER_CHANNEL",\n'
+                  '  "analysis": "passed",\n'
+                  '  "formatting": "passed",\n'
+                  '  "tests_total": \$TOTAL_TESTS,\n'
+                  '  "tests_passed": \$TOTAL_TESTS,\n'
+                  '  "coverage_percent": \${COVERAGE:-"unknown"},\n'
+                  '  "builds": ["web", "apk", "ios"]\n'
+                  '}\n'
+                  'EOF\n'
+                  '\n'
+                  'log_info "Health report saved to \$REPORT_FILE"\n'
+                  'log_info "All checks passed successfully!"',
+            },
+            cwd: '/Users/dev/my-flutter-app',
+            inferredPattern: 'Bash(#!/bin/bash*)',
+          ),
+        );
   }
 
   void _triggerAskUserQuestion() {
-    context.read(askUserQuestionStateProvider.notifier).enqueueRequest(
-      AskUserQuestionUIRequest(
-        requestId: 'test-ask-${DateTime.now().millisecondsSinceEpoch}',
-        questions: [
-          AskUserQuestionData(
-            question: 'Which database should we use for the new feature?',
-            header: 'Database',
-            options: [
-              AskUserQuestionOptionData(
-                label: 'PostgreSQL',
-                description: 'Relational DB with strong ACID compliance',
-              ),
-              AskUserQuestionOptionData(
-                label: 'SQLite',
-                description: 'Lightweight embedded database, no server needed',
-              ),
-              AskUserQuestionOptionData(
-                label: 'Redis',
-                description: 'In-memory key-value store, very fast reads',
+    context
+        .read(askUserQuestionStateProvider.notifier)
+        .enqueueRequest(
+          AskUserQuestionUIRequest(
+            requestId: 'test-ask-${DateTime.now().millisecondsSinceEpoch}',
+            questions: [
+              AskUserQuestionData(
+                question: 'Which database should we use for the new feature?',
+                header: 'Database',
+                options: [
+                  AskUserQuestionOptionData(
+                    label: 'PostgreSQL',
+                    description: 'Relational DB with strong ACID compliance',
+                  ),
+                  AskUserQuestionOptionData(
+                    label: 'SQLite',
+                    description:
+                        'Lightweight embedded database, no server needed',
+                  ),
+                  AskUserQuestionOptionData(
+                    label: 'Redis',
+                    description: 'In-memory key-value store, very fast reads',
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-    );
+        );
   }
 
   void _triggerPlanApproval() {
-    context.read(planApprovalStateProvider.notifier).enqueueRequest(
-      PlanApprovalUIRequest(
-        requestId: 'test-plan-${DateTime.now().millisecondsSinceEpoch}',
-        planContent: '''# Implementation Plan: User Authentication
+    context
+        .read(planApprovalStateProvider.notifier)
+        .enqueueRequest(
+          PlanApprovalUIRequest(
+            requestId: 'test-plan-${DateTime.now().millisecondsSinceEpoch}',
+            planContent: '''# Implementation Plan: User Authentication
 
 ## Context
 Adding JWT-based authentication to the REST API.
@@ -315,8 +325,8 @@ Adding JWT-based authentication to the REST API.
 - Unit tests for token validation
 - Integration tests for login/refresh flow
 ''',
-      ),
-    );
+          ),
+        );
   }
 
   @override

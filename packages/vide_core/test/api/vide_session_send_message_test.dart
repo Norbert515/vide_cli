@@ -29,7 +29,7 @@ void main() {
       // At minimum one user message event with the right content.
       final userMsgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       expect(userMsgs, isNotEmpty);
       expect(userMsgs.first.content, equals('Hello'));
@@ -48,7 +48,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       final userMsgs = events.whereType<MessageEvent>().where(
-        (e) => e.role == 'user',
+        (e) => e.role == MessageRole.user,
       );
       expect(userMsgs.first.agentId, equals('sub-agent'));
       expect(subClient.sentMessages.first.text, equals('Hey sub'));
@@ -68,7 +68,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       final userMsgs = events.whereType<MessageEvent>().where(
-        (e) => e.role == 'user',
+        (e) => e.role == MessageRole.user,
       );
       expect(
         userMsgs,
@@ -170,7 +170,7 @@ void main() {
       // user message contents.
       final userMsgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       final contents = userMsgs.map((m) => m.content).toSet();
       expect(contents, containsAll(['msg1', 'msg2', 'msg3']));
@@ -185,7 +185,7 @@ void main() {
 
       final userMsgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       // We get >=2 events (direct emit + conversation stream).
       // Verify there are at least 2 distinct eventIds.

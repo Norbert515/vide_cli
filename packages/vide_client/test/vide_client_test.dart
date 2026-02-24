@@ -125,7 +125,7 @@ void main() {
       final msg = event as MessageEvent;
       expect(msg.seq, equals(1));
       expect(msg.eventId, equals('evt-123'));
-      expect(msg.role, equals('assistant'));
+      expect(msg.role, equals(MessageRole.assistant));
       expect(msg.content, equals('Hello!'));
       expect(msg.isPartial, isFalse);
     });

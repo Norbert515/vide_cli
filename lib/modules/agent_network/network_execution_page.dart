@@ -482,21 +482,7 @@ class _AgentChatState extends State<_AgentChat> {
     }).toList();
   }
 
-  List<Map<String, dynamic>>? _getLatestTodos() {
-    final conv = _conversation;
-    if (conv == null) return null;
-    for (final entry in conv.messages.reversed) {
-      for (final content in entry.content.reversed) {
-        if (content is ToolContent && content.toolName == 'TodoWrite') {
-          final todos = content.toolInput['todos'];
-          if (todos is List) {
-            return todos.cast<Map<String, dynamic>>();
-          }
-        }
-      }
-    }
-    return null;
-  }
+  List<Map<String, dynamic>>? _getLatestTodos() => _conversation?.latestTodos;
 
   void _handlePermissionResponse(
     PermissionRequest request,
@@ -593,11 +579,7 @@ class _AgentChatState extends State<_AgentChat> {
     final conv = _conversation;
     if (conv == null) return [];
     return conv.messages.reversed
-        .where(
-          (entry) =>
-              !(entry.role == 'user' && entry.text.startsWith('/')) &&
-              !MessageBubble.isAllHiddenToolsEntry(entry),
-        )
+        .where((entry) => !entry.isSlashCommand && !entry.isAllHidden)
         .toList();
   }
 
@@ -617,7 +599,7 @@ class _AgentChatState extends State<_AgentChat> {
     List<ConversationEntry>? currentToolGroup;
 
     for (final message in messages) {
-      if (MessageBubble.isToolOnlyEntry(message)) {
+      if (message.isToolOnly) {
         currentToolGroup ??= [];
         currentToolGroup.add(message);
       } else {
@@ -711,8 +693,10 @@ class _AgentChatState extends State<_AgentChat> {
           // Calculate the max height available for dialogs inside the input area.
           // Reserve space for the loading indicator line, text field, and
           // context bar (~4 lines) so the dialog doesn't push them off-screen.
-          final maxDialogHeight =
-              (constraints.maxHeight - 4).clamp(4.0, double.infinity);
+          final maxDialogHeight = (constraints.maxHeight - 4).clamp(
+            4.0,
+            double.infinity,
+          );
 
           return Container(
             child: Column(
@@ -733,18 +717,22 @@ class _AgentChatState extends State<_AgentChat> {
                       request: currentPlanApproval,
                       onResponse: (action, feedback) =>
                           _handlePlanApprovalResponse(
-                        currentPlanApproval,
-                        action,
-                        feedback,
-                      ),
+                            currentPlanApproval,
+                            action,
+                            feedback,
+                          ),
                       key: Key(
-                          'plan_approval_${currentPlanApproval.requestId}'),
+                        'plan_approval_${currentPlanApproval.requestId}',
+                      ),
                     ),
                   ),
 
                 // Input area
                 _buildChatInputArea(
-                    context, currentPlanApproval, maxDialogHeight),
+                  context,
+                  currentPlanApproval,
+                  maxDialogHeight,
+                ),
               ],
             ),
           );

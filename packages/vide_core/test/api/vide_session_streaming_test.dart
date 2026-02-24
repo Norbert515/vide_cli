@@ -31,7 +31,7 @@ void main() {
 
       final msgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
       expect(msgs, isNotEmpty);
       expect(msgs.first.content, equals('Hello from Claude'));
@@ -102,7 +102,9 @@ void main() {
         final beforeTool = allEvents.sublist(0, toolUseIndex);
         final finalizations = beforeTool
             .whereType<MessageEvent>()
-            .where((e) => e.role == 'assistant' && e.isPartial == false)
+            .where(
+              (e) => e.role == MessageRole.assistant && e.isPartial == false,
+            )
             .toList();
         expect(
           finalizations,
@@ -125,7 +127,7 @@ void main() {
 
       final msgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
       expect(msgs, isNotEmpty);
       // First chunk should appear
@@ -157,7 +159,7 @@ void main() {
 
       final msgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
 
       // The last message event should be a finalization (isPartial: false, empty content)
@@ -191,7 +193,7 @@ void main() {
 
       final msgs = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'assistant')
+          .where((e) => e.role == MessageRole.assistant)
           .toList();
 
       final eventIds = msgs.map((m) => m.eventId).toSet();
@@ -213,7 +215,7 @@ void main() {
         // Plus the conversation stream may deliver the same message from the client.
         // Either way, we should have at least one user message event.
         final userMsgs = events.whereType<MessageEvent>().where(
-          (e) => e.role == 'user',
+          (e) => e.role == MessageRole.user,
         );
         expect(userMsgs, isNotEmpty);
       },

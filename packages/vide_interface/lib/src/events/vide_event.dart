@@ -5,6 +5,7 @@
 /// single canonical hierarchy with both serialization directions.
 library;
 
+import '../models/enums.dart';
 import '../models/vide_agent.dart';
 import '../models/vide_message.dart';
 import 'agent_info.dart';
@@ -130,7 +131,7 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         eventId: eventId ?? '',
-        role: data?['role'] as String? ?? 'assistant',
+        role: MessageRole.fromString(data?['role'] as String? ?? 'assistant'),
         content: data?['content'] as String? ?? '',
         isPartial: json['is-partial'] as bool? ?? false,
         attachments: _parseAttachments(data?['attachments']),
@@ -432,8 +433,8 @@ final class MessageEvent extends VideEvent {
   /// Unique ID for this message (shared across partial chunks).
   final String eventId;
 
-  /// Message role: 'user' or 'assistant'.
-  final String role;
+  /// Message role.
+  final MessageRole role;
 
   /// Message content (may be partial chunk).
   final String content;
@@ -463,7 +464,7 @@ final class MessageEvent extends VideEvent {
 
   @override
   Map<String, dynamic> dataFields() => {
-    'role': role,
+    'role': role.toWireString(),
     'content': content,
     if (attachments != null && attachments!.isNotEmpty)
       'attachments': attachments!

@@ -93,37 +93,14 @@ class ToolInvocationRouter extends StatelessComponent {
 
   /// Whether a tool with [toolName] and [toolInput] should not be rendered.
   ///
-  /// Single source of truth used by both the router (to skip rendering) and
-  /// the message list (to skip entries consisting entirely of hidden tools).
+  /// Delegates to [ToolContent.isHidden] which is the single source of truth.
   static bool isHiddenTool(String toolName, Map<String, dynamic> toolInput) {
-    if (toolName == 'mcp__vide-agent__setTaskName' ||
-        toolName == 'mcp__vide-agent__setAgentTaskName' ||
-        toolName == 'mcp__vide-task-management__setTaskName' ||
-        toolName == 'mcp__vide-task-management__setAgentTaskName' ||
-        toolName == 'mcp__vide-agent__setAgentStatus' ||
-        toolName == 'TodoWrite' ||
-        toolName == 'EnterPlanMode') {
-      return true;
-    }
-
-    // Hide the Write tool when it writes to Claude's plans directory
-    // (the plan content is shown in the PlanApprovalDialog instead)
-    if (toolName == 'Write') {
-      final filePath = toolInput['file_path'] as String?;
-      if (filePath != null && filePath.contains('.claude/plans/')) {
-        return true;
-      }
-    }
-
-    return false;
+    return ToolContent(
+      toolUseId: '',
+      toolName: toolName,
+      toolInput: toolInput,
+    ).isHidden;
   }
-
-  /// Whether a [ToolContent] should not be rendered at all.
-  ///
-  /// Used by the message list to skip entries that consist entirely of hidden
-  /// tools so they don't produce empty padding/spacing.
-  static bool isHiddenToolContent(ToolContent tool) =>
-      isHiddenTool(tool.toolName, tool.toolInput);
 
   /// Build a display for ExitPlanMode tool results.
   ///

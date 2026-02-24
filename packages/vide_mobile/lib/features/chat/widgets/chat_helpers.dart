@@ -4,37 +4,6 @@ import 'package:vide_client/vide_client.dart';
 import '../../../core/theme/tokens.dart';
 import '../../../core/theme/vide_colors.dart';
 
-/// Whether [tool] should be hidden from the message list.
-///
-/// Hides internal tools that are not useful to show the user:
-/// plan mode entry, task naming, agent status, todo writes, and
-/// plan file writes.
-bool isHiddenTool(ToolContent tool) {
-  final name = tool.toolName;
-  if (name == 'EnterPlanMode' ||
-      name == 'mcp__vide-agent__setTaskName' ||
-      name == 'mcp__vide-agent__setAgentTaskName' ||
-      name == 'mcp__vide-task-management__setTaskName' ||
-      name == 'mcp__vide-task-management__setAgentTaskName' ||
-      name == 'mcp__vide-agent__setAgentStatus' ||
-      name == 'TodoWrite') {
-    return true;
-  }
-  // Hide Write tool targeting Claude's plans directory
-  if (name == 'Write') {
-    final filePath = tool.toolInput['file_path'] as String?;
-    if (filePath != null && filePath.contains('.claude/plans/')) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/// Whether [tool] is a spawn-agent tool invocation.
-bool isSpawnAgentTool(ToolContent tool) {
-  return tool.toolName == 'mcp__vide-agent__spawnAgent';
-}
-
 /// Inline indicator for ExitPlanMode results.
 /// Shows green "Plan accepted" or red "Plan rejected" with feedback.
 class PlanResultIndicator extends StatelessWidget {
@@ -162,53 +131,5 @@ class SpawnAgentCard extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// Strips MCP prefixes like "mcp__vide-agent__" from tool names.
-///
-/// Exported for use by other packages that need to display tool names.
-String toolDisplayName(String toolName) {
-  final mcpPrefix = RegExp(r'^mcp__[^_]+__');
-  return toolName.replaceFirst(mcpPrefix, '');
-}
-
-/// Extracts a contextual subtitle from the tool input.
-///
-/// Accepts raw [toolName] and [input] so it can be used for both
-/// [ToolContent] objects and [PermissionRequestEvent]s.
-String? toolSubtitle(String toolName, Map<String, dynamic> input) {
-  final name = toolDisplayName(toolName);
-
-  switch (name) {
-    case 'Read':
-    case 'Edit':
-    case 'Write':
-      return input['file_path'] as String?;
-    case 'Bash':
-      return input['command'] as String?;
-    case 'Grep':
-      final pattern = input['pattern'] as String?;
-      final path = input['path'] as String?;
-      if (pattern != null && path != null) return '"$pattern" in $path';
-      return pattern != null ? '"$pattern"' : null;
-    case 'Glob':
-      return input['pattern'] as String?;
-    case 'WebFetch':
-      return input['url'] as String?;
-    case 'WebSearch':
-      return input['query'] as String?;
-    case 'TodoWrite':
-      return null;
-    case 'Task':
-      return input['description'] as String?;
-    case 'NotebookEdit':
-      return input['notebook_path'] as String?;
-    default:
-      return input['file_path'] as String? ??
-          input['command'] as String? ??
-          input['pattern'] as String? ??
-          input['query'] as String? ??
-          input['description'] as String?;
   }
 }

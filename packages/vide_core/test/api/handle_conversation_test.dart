@@ -46,7 +46,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-0',
-          role: 'user',
+          role: MessageRole.user,
           content: 'Hello',
           isPartial: false,
         ),
@@ -59,7 +59,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-1',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Let me check...',
           isPartial: false,
         ),
@@ -71,7 +71,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-1',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: '',
           isPartial: false,
         ),
@@ -105,7 +105,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-2',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Reading file...',
           isPartial: false,
         ),
@@ -116,7 +116,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-2',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: '',
           isPartial: false,
         ),
@@ -150,7 +150,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-3',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Done!',
           isPartial: true,
         ),
@@ -164,12 +164,12 @@ void main() {
       expect(state!.messages.length, equals(2));
 
       // Message 0: user
-      expect(state.messages[0].role, equals('user'));
+      expect(state.messages[0].role, equals(MessageRole.user));
       expect(state.messages[0].text, equals('Hello'));
 
       // Message 1: merged assistant entry with all text blocks and tool calls
       final assistantMsg = state.messages[1];
-      expect(assistantMsg.role, equals('assistant'));
+      expect(assistantMsg.role, equals(MessageRole.assistant));
 
       // Should contain: TextContent("Let me check...") + ToolContent(Bash)
       //               + TextContent("Reading file...") + ToolContent(Read)
@@ -206,7 +206,7 @@ void main() {
             agentType: agentType,
             agentName: agentName,
             eventId: 'evt-0',
-            role: 'user',
+            role: MessageRole.user,
             content: 'Do stuff',
             isPartial: false,
           ),
@@ -219,7 +219,7 @@ void main() {
             agentType: agentType,
             agentName: agentName,
             eventId: 'evt-1',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: 'Checking...',
             isPartial: false,
           ),
@@ -253,7 +253,7 @@ void main() {
             agentType: agentType,
             agentName: agentName,
             eventId: 'evt-2',
-            role: 'assistant',
+            role: MessageRole.assistant,
             content: 'Reading...',
             isPartial: true,
           ),
@@ -310,7 +310,7 @@ void main() {
           agentType: agentType,
           agentName: agentName,
           eventId: 'evt-0',
-          role: 'assistant',
+          role: MessageRole.assistant,
           content: 'Checking multiple files...',
           isPartial: true,
         ),

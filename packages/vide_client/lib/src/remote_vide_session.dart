@@ -315,7 +315,7 @@ class RemoteVideSession implements VideSession {
         agentType: agentInfo?.type ?? 'main',
         agentName: agentInfo?.name,
         eventId: const Uuid().v4(),
-        role: 'user',
+        role: MessageRole.user,
         content: content,
         isPartial: false,
         attachments: attachments,
@@ -602,8 +602,6 @@ class RemoteVideSession implements VideSession {
   void _handleMessage(MessageEvent event, {bool isHistoryReplay = false}) {
     final agentId = event.agentId;
     final eventId = event.eventId;
-    final role = event.role == 'user' ? 'user' : 'assistant';
-
     _emit(
       MessageEvent(
         agentId: agentId,
@@ -611,7 +609,7 @@ class RemoteVideSession implements VideSession {
         agentName: _resolveAgentName(agentId, event),
         taskName: event.taskName,
         eventId: eventId,
-        role: role,
+        role: event.role,
         content: event.content,
         isPartial: event.isPartial,
       ),
@@ -1103,7 +1101,7 @@ class RemoteVideSession implements VideSession {
           agentType: _agents[targetAgentId]?.type ?? 'unknown',
           agentName: _agents[targetAgentId]?.name,
           eventId: const Uuid().v4(),
-          role: 'user',
+          role: MessageRole.user,
           content: message.text,
           isPartial: false,
           attachments: message.attachments,

@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 
+import '../models/enums.dart';
 import '../models/vide_agent.dart';
 import '../models/vide_message.dart';
 import '../events/vide_event.dart';
@@ -22,6 +23,14 @@ final class TextContent extends ConversationContent {
 
   /// Whether this text is still being streamed.
   final bool isStreaming;
+
+  /// Whether this text indicates the context window is full.
+  bool get isContextWindowError {
+    final lower = text.toLowerCase();
+    return lower.contains('prompt is too long') ||
+        lower.contains('context window') ||
+        lower.contains('token limit');
+  }
 
   const TextContent({required this.text, this.isStreaming = false});
 
@@ -52,6 +61,73 @@ final class ToolContent extends ConversationContent {
 
   /// True if the tool is still executing.
   bool get isExecuting => result == null;
+
+  /// Whether this tool should be hidden from the message list.
+  ///
+  /// Internal tools (task naming, agent status, plan mode entry, todo writes)
+  /// and plan file writes are not useful to display to the user.
+  bool get isHidden {
+    if (toolName == 'mcp__vide-agent__setTaskName' ||
+        toolName == 'mcp__vide-agent__setAgentTaskName' ||
+        toolName == 'mcp__vide-task-management__setTaskName' ||
+        toolName == 'mcp__vide-task-management__setAgentTaskName' ||
+        toolName == 'mcp__vide-agent__setAgentStatus' ||
+        toolName == 'TodoWrite' ||
+        toolName == 'EnterPlanMode') {
+      return true;
+    }
+    if (toolName == 'Write') {
+      final filePath = toolInput['file_path'] as String?;
+      if (filePath != null && filePath.contains('.claude/plans/')) return true;
+    }
+    return false;
+  }
+
+  /// Whether this is a spawn-agent tool invocation.
+  bool get isSpawnAgent => toolName == 'mcp__vide-agent__spawnAgent';
+
+  /// Whether this is an ExitPlanMode result.
+  bool get isPlanResult => toolName == 'ExitPlanMode';
+
+  /// Tool name with MCP prefixes stripped for display.
+  String get displayName {
+    final mcpPrefix = RegExp(r'^mcp__[^_]+__');
+    return toolName.replaceFirst(mcpPrefix, '');
+  }
+
+  /// A contextual subtitle extracted from the tool input.
+  String? get subtitle {
+    final name = displayName;
+    switch (name) {
+      case 'Read' || 'Edit' || 'Write':
+        return toolInput['file_path'] as String?;
+      case 'Bash':
+        return toolInput['command'] as String?;
+      case 'Grep':
+        final pattern = toolInput['pattern'] as String?;
+        final path = toolInput['path'] as String?;
+        if (pattern != null && path != null) return '"$pattern" in $path';
+        return pattern != null ? '"$pattern"' : null;
+      case 'Glob':
+        return toolInput['pattern'] as String?;
+      case 'WebFetch':
+        return toolInput['url'] as String?;
+      case 'WebSearch':
+        return toolInput['query'] as String?;
+      case 'TodoWrite':
+        return null;
+      case 'Task':
+        return toolInput['description'] as String?;
+      case 'NotebookEdit':
+        return toolInput['notebook_path'] as String?;
+      default:
+        return toolInput['file_path'] as String? ??
+            toolInput['command'] as String? ??
+            toolInput['pattern'] as String? ??
+            toolInput['query'] as String? ??
+            toolInput['description'] as String?;
+    }
+  }
 
   const ToolContent({
     required this.toolUseId,
@@ -105,8 +181,8 @@ final class AttachmentContent extends ConversationContent {
 ///
 /// Named `ConversationEntry` to avoid collision with [VideMessage] (input message type).
 final class ConversationEntry {
-  /// Role of the message sender: 'user' or 'assistant'.
-  final String role;
+  /// Role of the message sender.
+  final MessageRole role;
 
   /// Content blocks within this message.
   final List<ConversationContent> content;
@@ -118,6 +194,34 @@ final class ConversationEntry {
       if (c is ToolContent && c.isExecuting) return true;
     }
     return false;
+  }
+
+  /// Whether this is a user slash command (e.g. `/compact`, `/kill`).
+  bool get isSlashCommand => role == MessageRole.user && text.startsWith('/');
+
+  /// Whether this entry has any non-empty text or thinking content.
+  bool get hasVisibleText {
+    for (final c in content) {
+      if (c is TextContent && c.text.trim().isNotEmpty) return true;
+      if (c is ThinkingContent && c.text.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  /// Whether this is a tool-only entry (no meaningful text, only tool calls).
+  bool get isToolOnly =>
+      role == MessageRole.assistant &&
+      !hasVisibleText &&
+      content.any((c) => c is ToolContent);
+
+  /// Whether this entry consists entirely of hidden/invisible tool calls.
+  ///
+  /// These entries should be skipped to avoid empty padding in the UI.
+  bool get isAllHidden {
+    if (role != MessageRole.assistant) return false;
+    final tools = content.whereType<ToolContent>().toList();
+    if (tools.isEmpty) return false;
+    return !hasVisibleText && tools.every((t) => t.isHidden);
   }
 
   /// Get the full text content of this message.
@@ -134,7 +238,7 @@ final class ConversationEntry {
   const ConversationEntry({required this.role, required this.content});
 
   ConversationEntry copyWith({
-    String? role,
+    MessageRole? role,
     List<ConversationContent>? content,
   }) {
     return ConversationEntry(
@@ -190,6 +294,19 @@ class AgentConversationState {
       currentContextInputTokens +
       currentContextCacheReadTokens +
       currentContextCacheCreationTokens;
+
+  /// The most recent TodoWrite payload, or null if none exists.
+  List<Map<String, dynamic>>? get latestTodos {
+    for (final entry in messages.reversed) {
+      for (final content in entry.content.reversed) {
+        if (content is ToolContent && content.toolName == 'TodoWrite') {
+          final todos = content.toolInput['todos'];
+          if (todos is List) return todos.cast<Map<String, dynamic>>();
+        }
+      }
+    }
+    return null;
+  }
 
   AgentConversationState({
     required this.agentId,
@@ -337,9 +454,10 @@ class ConversationStateManager {
     // once from the conversation stream (when Claude SDK processes it). Only the
     // last message needs checking since these arrive back-to-back. Checking all
     // history would silently drop legitimate repeated messages (e.g. "yes").
-    if (event.role == 'user' && state.messages.isNotEmpty) {
+    if (event.role == MessageRole.user && state.messages.isNotEmpty) {
       final lastMessage = state.messages.last;
-      if (lastMessage.role == 'user' && lastMessage.text == event.content) {
+      if (lastMessage.role == MessageRole.user &&
+          lastMessage.text == event.content) {
         return;
       }
     }
@@ -352,9 +470,9 @@ class ConversationStateManager {
       // During live streaming, each text segment after a tool call gets a
       // new eventId, which would otherwise create a separate entry — leading
       // to extra blank lines from MarkdownText paragraph trailing newlines.
-      if (event.role == 'assistant' && state.messages.isNotEmpty) {
+      if (event.role == MessageRole.assistant && state.messages.isNotEmpty) {
         final prev = state.messages.last;
-        if (prev.role == 'assistant') {
+        if (prev.role == MessageRole.assistant) {
           final contentList = List<ConversationContent>.from(prev.content);
           if (event.content.isNotEmpty) {
             contentList.add(
@@ -409,14 +527,21 @@ class ConversationStateManager {
     state.taskName = event.taskName;
 
     // Ensure we have an assistant message to attach thinking to
-    if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
+    if (state.messages.isEmpty ||
+        state.messages.last.role != MessageRole.assistant) {
       state.messages.add(
-        const ConversationEntry(role: 'assistant', content: []),
+        const ConversationEntry(role: MessageRole.assistant, content: []),
       );
     }
 
     final lastMessage = state.messages.last;
     final contentList = List<ConversationContent>.from(lastMessage.content);
+
+    // Normalize: strip markdown bold markers (some models wrap thinking in
+    // **...**) so consumers get clean text without per-UI stripping.
+    final normalizedContent = event.content
+        .replaceAll(RegExp(r'^\*\*'), '')
+        .replaceAll(RegExp(r'\*\*$'), '');
 
     // Append or update ThinkingContent
     final lastThinkingIndex = contentList.lastIndexWhere(
@@ -425,10 +550,10 @@ class ConversationStateManager {
     if (lastThinkingIndex >= 0) {
       final existing = contentList[lastThinkingIndex] as ThinkingContent;
       contentList[lastThinkingIndex] = existing.copyWith(
-        text: existing.text + event.content,
+        text: existing.text + normalizedContent,
       );
     } else {
-      contentList.add(ThinkingContent(text: event.content));
+      contentList.add(ThinkingContent(text: normalizedContent));
     }
 
     state.messages[state.messages.length - 1] = lastMessage.copyWith(
@@ -442,9 +567,10 @@ class ConversationStateManager {
     final state = _getOrCreateAgentState(event);
     state.taskName = event.taskName;
 
-    if (state.messages.isEmpty || state.messages.last.role != 'assistant') {
+    if (state.messages.isEmpty ||
+        state.messages.last.role != MessageRole.assistant) {
       state.messages.add(
-        const ConversationEntry(role: 'assistant', content: []),
+        const ConversationEntry(role: MessageRole.assistant, content: []),
       );
     }
 

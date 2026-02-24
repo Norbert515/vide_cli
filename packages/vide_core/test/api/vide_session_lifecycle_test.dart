@@ -58,7 +58,7 @@ void main() {
 
       final userMessages = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       expect(userMessages, hasLength(1));
       expect(userMessages.first.content, equals('Hello, world!'));
@@ -213,7 +213,7 @@ void main() {
 
       final userMessages = events
           .whereType<MessageEvent>()
-          .where((e) => e.role == 'user')
+          .where((e) => e.role == MessageRole.user)
           .toList();
       expect(userMessages, isEmpty);
 

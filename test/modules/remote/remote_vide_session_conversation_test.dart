@@ -26,7 +26,7 @@ void main() {
         final conversation = session.getConversation(agentId);
         expect(conversation, isNotNull);
         expect(conversation!.messages.length, equals(1));
-        expect(conversation.messages[0].role, equals('user'));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
         expect(conversation.messages[0].text, equals('Hello, world!'));
         expect(conversation.messages[0].isStreaming, isFalse);
       });
@@ -49,9 +49,9 @@ void main() {
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(3));
-        expect(conversation.messages[0].role, equals('assistant'));
-        expect(conversation.messages[1].role, equals('user'));
-        expect(conversation.messages[2].role, equals('assistant'));
+        expect(conversation.messages[0].role, equals(MessageRole.assistant));
+        expect(conversation.messages[1].role, equals(MessageRole.user));
+        expect(conversation.messages[2].role, equals(MessageRole.assistant));
       });
     });
 
@@ -253,7 +253,7 @@ void main() {
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(1));
-        expect(conversation.messages[0].role, equals('assistant'));
+        expect(conversation.messages[0].role, equals(MessageRole.assistant));
         expect(conversation.messages[0].content[0], isA<ToolContent>());
       });
 
@@ -378,13 +378,13 @@ void main() {
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(4));
-        expect(conversation.messages[0].role, equals('user'));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
         expect(conversation.messages[0].text, equals('Question 1?'));
-        expect(conversation.messages[1].role, equals('assistant'));
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
         expect(conversation.messages[1].text, equals('Answer 1'));
-        expect(conversation.messages[2].role, equals('user'));
+        expect(conversation.messages[2].role, equals(MessageRole.user));
         expect(conversation.messages[2].text, equals('Question 2?'));
-        expect(conversation.messages[3].role, equals('assistant'));
+        expect(conversation.messages[3].role, equals(MessageRole.assistant));
         expect(conversation.messages[3].text, equals('Answer 2'));
       });
 
@@ -975,11 +975,11 @@ void main() {
         expect(conversation!.messages.length, equals(2));
 
         // User message should be correct
-        expect(conversation.messages[0].role, equals('user'));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
         expect(conversation.messages[0].text, equals('Hello'));
 
         // Assistant message should be consolidated (not "Hello! Hello! How can How can I help?I help?")
-        expect(conversation.messages[1].role, equals('assistant'));
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
         expect(conversation.messages[1].text, equals('Hello! How can I help?'));
       });
     });
@@ -1049,8 +1049,8 @@ void main() {
 
         final conversation = session.getConversation(agentId);
         expect(conversation!.messages.length, equals(2));
-        expect(conversation.messages[0].role, equals('user'));
-        expect(conversation.messages[1].role, equals('assistant'));
+        expect(conversation.messages[0].role, equals(MessageRole.user));
+        expect(conversation.messages[1].role, equals(MessageRole.assistant));
       });
     });
   });

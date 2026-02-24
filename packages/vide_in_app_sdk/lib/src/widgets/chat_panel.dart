@@ -794,7 +794,7 @@ class _VideChatPanelState extends State<VideChatPanel> {
               items.add(_TextRenderItem(entry, content));
             }
           case ToolContent():
-            if (!isHiddenTool(content)) {
+            if (!content.isHidden) {
               items.add(_ToolRenderItem(entry, content));
             }
           case AttachmentContent():
@@ -845,10 +845,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
           case _TextRenderItem(:final entry, :final content):
             return _MessageBubble(entry: entry, content: content);
           case _ToolRenderItem(:final tool):
-            if (isSpawnAgentTool(tool)) {
+            if (tool.isSpawnAgent) {
               return SpawnAgentCard(tool: tool, agents: agents);
             }
-            if (tool.toolName == 'ExitPlanMode') {
+            if (tool.isPlanResult) {
               return PlanResultIndicator(tool: tool);
             }
             return ToolCard(tool: tool);
@@ -1254,7 +1254,7 @@ class _MessageList extends StatelessWidget {
               items.add(_TextRenderItem(entry, content));
             }
           case ToolContent():
-            if (!isHiddenTool(content)) {
+            if (!content.isHidden) {
               items.add(_ToolRenderItem(entry, content));
             }
           case AttachmentContent():
@@ -1296,14 +1296,14 @@ class _MessageList extends StatelessWidget {
             case _TextRenderItem(:final entry, :final content):
               return _MessageBubble(entry: entry, content: content);
             case _ToolRenderItem(:final tool):
-              if (isSpawnAgentTool(tool)) {
+              if (tool.isSpawnAgent) {
                 return SpawnAgentCard(
                   tool: tool,
                   agents: agents,
                   onTap: onAgentTap,
                 );
               }
-              if (tool.toolName == 'ExitPlanMode') {
+              if (tool.isPlanResult) {
                 return PlanResultIndicator(tool: tool);
               }
               return ToolCard(tool: tool, onTap: () => onToolTap?.call(tool));
@@ -1326,7 +1326,7 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUser = entry.role == 'user';
+    final isUser = entry.role == MessageRole.user;
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 

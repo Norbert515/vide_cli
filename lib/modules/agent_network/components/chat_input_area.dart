@@ -90,10 +90,7 @@ class ChatInputArea extends StatelessComponent {
       children: [
         // Show queued message indicator above the generating indicator
         if (queuedMessage != null)
-          QueueIndicator(
-            queuedText: queuedMessage!,
-            onClear: onClearQueue,
-          ),
+          QueueIndicator(queuedText: queuedMessage!, onClear: onClearQueue),
 
         // Loading indicator row - always 1 cell height to prevent layout jumps
         if (isAgentWorking &&
@@ -109,9 +106,7 @@ class ChatInputArea extends StatelessComponent {
               Text(
                 '(Press ESC to stop)',
                 style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(
-                    TextOpacity.tertiary,
-                  ),
+                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
                 ),
               ),
             ],
@@ -123,9 +118,7 @@ class ChatInputArea extends StatelessComponent {
           Text(
             '(Press Ctrl+C again to exit)',
             style: TextStyle(
-              color: theme.base.onSurface.withOpacity(
-                TextOpacity.tertiary,
-              ),
+              color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
             ),
           ),
 
@@ -162,21 +155,20 @@ class ChatInputArea extends StatelessComponent {
                 : null,
             child: PermissionDialog.fromRequest(
               request: currentPermissionRequest,
-              onResponse: (
-                granted,
-                remember, {
-                String? patternOverride,
-                String? denyReason,
-              }) => onPermissionResponse(
-                currentPermissionRequest,
-                granted,
-                remember,
-                patternOverride: patternOverride,
-                denyReason: denyReason,
-              ),
-              key: Key(
-                'permission_${currentPermissionRequest.requestId}',
-              ),
+              onResponse:
+                  (
+                    granted,
+                    remember, {
+                    String? patternOverride,
+                    String? denyReason,
+                  }) => onPermissionResponse(
+                    currentPermissionRequest,
+                    granted,
+                    remember,
+                    patternOverride: patternOverride,
+                    denyReason: denyReason,
+                  ),
+              key: Key('permission_${currentPermissionRequest.requestId}'),
             ),
           ),
 

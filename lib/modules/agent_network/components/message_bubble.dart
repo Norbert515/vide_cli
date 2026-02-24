@@ -26,47 +26,11 @@ class MessageBubble extends StatelessComponent {
     super.key,
   });
 
-  /// Returns true if an entry is an assistant message containing only tool
-  /// calls (no meaningful text). Used by the message list to group consecutive
-  /// tool-only entries into a single bordered container.
-  static bool isToolOnlyEntry(ConversationEntry entry) {
-    if (entry.role != 'assistant') return false;
-    for (final content in entry.content) {
-      if (content is TextContent && content.text.trim().isNotEmpty) {
-        return false;
-      }
-      if (content is ThinkingContent && content.text.trim().isNotEmpty) {
-        return false;
-      }
-    }
-    return entry.content.any((c) => c is ToolContent);
-  }
-
-  /// Returns true if an entry consists entirely of hidden/invisible tool calls
-  /// (e.g. setTaskName, setAgentStatus, TodoWrite, EnterPlanMode).
-  ///
-  /// These entries should be skipped entirely to avoid producing empty padding.
-  static bool isAllHiddenToolsEntry(ConversationEntry entry) {
-    if (entry.role != 'assistant') return false;
-    final tools = entry.content.whereType<ToolContent>().toList();
-    if (tools.isEmpty) return false;
-    // Check there's no visible text/thinking content
-    for (final content in entry.content) {
-      if (content is TextContent && content.text.trim().isNotEmpty) {
-        return false;
-      }
-      if (content is ThinkingContent && content.text.trim().isNotEmpty) {
-        return false;
-      }
-    }
-    return tools.every(ToolInvocationRouter.isHiddenToolContent);
-  }
-
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
 
-    if (entry.role == 'user') {
+    if (entry.role == MessageRole.user) {
       return _buildUserMessage(theme);
     } else {
       return _buildAssistantMessage(context, theme);
@@ -139,28 +103,21 @@ class MessageBubble extends StatelessComponent {
     for (final content in entry.content) {
       if (content is ThinkingContent) {
         flushToolGroup();
-        if (content.text.isNotEmpty) {
-          // Strip markdown bold markers (Codex wraps reasoning in **...**)
-          final thinkingText = content.text
-              .replaceAll(RegExp(r'^\*\*'), '')
-              .replaceAll(RegExp(r'\*\*$'), '')
-              .trim();
-          if (thinkingText.isNotEmpty) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(bottom: 1),
-                child: Text(
-                  thinkingText,
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                    fontStyle: FontStyle.italic,
+        if (content.text.trim().isNotEmpty) {
+          widgets.add(
+            Container(
+              padding: EdgeInsets.only(bottom: 1),
+              child: Text(
+                content.text.trim(),
+                style: TextStyle(
+                  color: theme.base.onSurface.withOpacity(
+                    TextOpacity.secondary,
                   ),
+                  fontStyle: FontStyle.italic,
                 ),
               ),
-            );
-          }
+            ),
+          );
         }
       } else if (content is TextContent) {
         final hadTools = pendingTools.isNotEmpty;
@@ -170,16 +127,12 @@ class MessageBubble extends StatelessComponent {
           if (hadTools && widgets.isNotEmpty) {
             widgets.add(SizedBox(height: 1));
           }
-          final isContextFullError =
-              content.text.toLowerCase().contains('prompt is too long') ||
-              content.text.toLowerCase().contains('context window') ||
-              content.text.toLowerCase().contains('token limit');
 
           widgets.add(
             MarkdownText(content.text, styleSheet: theme.markdownStyleSheet),
           );
 
-          if (isContextFullError) {
+          if (content.isContextWindowError) {
             widgets.add(
               Container(
                 padding: EdgeInsets.only(top: 1),

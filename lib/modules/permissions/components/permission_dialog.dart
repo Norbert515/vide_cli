@@ -254,7 +254,6 @@ class _PermissionDialogState extends State<PermissionDialog> {
             // List of options
             for (int i = 0; i < _options.length; i++)
               _buildListItem(i, _options[i], theme),
-
           ],
         ),
       ),

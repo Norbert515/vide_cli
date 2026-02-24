@@ -242,10 +242,7 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Tab bar
-          _TabBar(
-            activeTab: _activeTab,
-            focused: component.focused,
-          ),
+          _TabBar(activeTab: _activeTab, focused: component.focused),
 
           // Tab content
           Expanded(
@@ -288,8 +285,7 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
         children: [
           // Team definition item
           _AgentItem(
-            label:
-                '${activeTeam.icon ?? ''} Team: ${activeTeam.name}'.trim(),
+            label: '${activeTeam.icon ?? ''} Team: ${activeTeam.name}'.trim(),
             description: activeTeam.description,
             isSelected: component.focused && _selectedIndex == 0,
             onTap: () {
@@ -302,11 +298,11 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
             _AgentItem(
               label:
                   _agents?[agentNames[i]]?.effectiveDisplayName ??
-                      agentNames[i],
+                  agentNames[i],
               description:
                   _agents?[agentNames[i]]?.shortDescription ??
-                      _agents?[agentNames[i]]?.description ??
-                      '',
+                  _agents?[agentNames[i]]?.description ??
+                  '',
               isSelected: component.focused && _selectedIndex == i + 1,
               onTap: () {
                 setState(() => _selectedIndex = i + 1);
@@ -442,8 +438,8 @@ class _TabItem extends StatelessComponent {
             color: isActive && focused
                 ? theme.base.primary
                 : isActive
-                    ? theme.base.outline
-                    : null,
+                ? theme.base.outline
+                : null,
           ),
         ),
       ],

@@ -22,7 +22,7 @@ void main() {
         agentName: 'Main Agent',
         taskName: 'Fix bugs',
         eventId: 'evt-123',
-        role: 'assistant',
+        role: MessageRole.assistant,
         content: 'Hello, world!',
         isPartial: true,
       );
@@ -45,7 +45,7 @@ void main() {
         agentId: 'agent-1',
         agentType: 'main',
         eventId: 'evt-456',
-        role: 'user',
+        role: MessageRole.user,
         content: 'Check this file',
         isPartial: false,
         attachments: [
