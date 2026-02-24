@@ -163,6 +163,35 @@ class ResponseProcessor {
     CompletionResponse response,
     Conversation currentConversation,
   ) {
+    final isCompaction = response.stopReason == 'compaction';
+    final isUsageUpdate = response.stopReason == 'usage_update';
+
+    // Codex emits thread/tokenUsage/updated as a CompletionResponse shim so we
+    // can reuse token accounting. This is NOT a turn completion and must not
+    // finalize the assistant message or transition the conversation to idle.
+    if (isUsageUpdate) {
+      final updatedConversation = currentConversation.copyWith(
+        totalInputTokens:
+            currentConversation.totalInputTokens + (response.inputTokens ?? 0),
+        totalOutputTokens:
+            currentConversation.totalOutputTokens +
+            (response.outputTokens ?? 0),
+        totalCacheReadInputTokens:
+            currentConversation.totalCacheReadInputTokens +
+            (response.cacheReadInputTokens ?? 0),
+        totalCacheCreationInputTokens:
+            currentConversation.totalCacheCreationInputTokens +
+            (response.cacheCreationInputTokens ?? 0),
+        totalCostUsd:
+            currentConversation.totalCostUsd + (response.totalCostUsd ?? 0.0),
+      );
+
+      return ProcessResult(
+        updatedConversation: updatedConversation,
+        turnComplete: false,
+      );
+    }
+
     final context = _getAssistantMessageContext(currentConversation);
     final responses = _appendResponse(context, response);
 
@@ -179,8 +208,6 @@ class ResponseProcessor {
     } else {
       updatedConversation = currentConversation.addMessage(message);
     }
-
-    final isCompaction = response.stopReason == 'compaction';
 
     // Don't set idle or mark turn complete for compaction completions —
     // compaction is followed by a compact summary and a new assistant turn,

@@ -39,8 +39,10 @@ class CodexEventMapper {
       // Token usage
       TokenUsageUpdatedEvent e => _mapTokenUsage(e),
 
-      // Legacy events
-      TaskCompleteEvent e => _mapTaskComplete(e),
+      // Legacy events — TaskCompleteEvent duplicates TurnCompletedEvent and must
+      // be ignored. When both fire, the late-arriving TaskComplete causes a
+      // spurious turnComplete that breaks multi-turn conversations.
+      TaskCompleteEvent _ => [],
       McpStartupCompleteEvent _ => [],
 
       // Errors
@@ -151,19 +153,6 @@ class CodexEventMapper {
     ];
   }
 
-  // --------------------------------------------------------------------------
-  // Legacy events
-  // --------------------------------------------------------------------------
-
-  List<ClaudeResponse> _mapTaskComplete(TaskCompleteEvent event) {
-    return [
-      CompletionResponse(
-        id: _nextId(),
-        timestamp: DateTime.now(),
-        stopReason: 'completed',
-      ),
-    ];
-  }
 
   // --------------------------------------------------------------------------
   // Errors

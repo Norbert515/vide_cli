@@ -98,6 +98,9 @@ class CodexClient {
     // Subscribe to server requests → approval pipeline
     _transport.serverRequests.listen(_onServerRequest);
 
+    // Subscribe to unexpected process exit
+    _transport.onProcessExit.listen(_onProcessExit);
+
     // Initialize handshake
     final initResponse = await _transport.sendRequest('initialize', {
       'clientInfo': {'name': 'vide', 'version': '0.1.0', 'title': 'Vide'},
@@ -315,17 +318,21 @@ class CodexClient {
   // ============================================================
 
   Future<void> _startTurn(String prompt) async {
-    final turnResponse = await _transport.sendRequest('turn/start', {
-      'threadId': _threadId,
-      'input': [
-        {'type': 'text', 'text': prompt},
-      ],
-    });
+    try {
+      final turnResponse = await _transport.sendRequest('turn/start', {
+        'threadId': _threadId,
+        'input': [
+          {'type': 'text', 'text': prompt},
+        ],
+      });
 
-    if (turnResponse.isError) {
-      _handleError(
-        'turn/start failed: ${turnResponse.error?.message ?? 'unknown'}',
-      );
+      if (turnResponse.isError) {
+        _handleError(
+          'turn/start failed: ${turnResponse.error?.message ?? 'unknown'}',
+        );
+      }
+    } catch (e) {
+      _handleError('Failed to start turn: $e');
     }
   }
 
@@ -334,6 +341,14 @@ class CodexClient {
 
     final event = _parser.parseNotification(notification);
     _handleEvent(event);
+  }
+
+  void _onProcessExit(String stderr) {
+    if (_isClosed) return;
+    _handleError(
+      'Codex process exited unexpectedly'
+      '${stderr.isNotEmpty ? ': $stderr' : ''}',
+    );
   }
 
   void _onServerRequest(JsonRpcRequest request) {

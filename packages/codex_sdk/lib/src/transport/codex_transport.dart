@@ -29,8 +29,15 @@ class CodexTransport {
   /// Raw stderr output for error diagnostics.
   final _stderrBuffer = StringBuffer();
 
+  /// Fires when the subprocess exits unexpectedly (not via [close]).
+  /// Emits the stderr output captured so far.
+  final _processExitController = StreamController<String>.broadcast();
+
   /// Whether the transport is currently connected to a subprocess.
   bool get isRunning => _process != null && !_closed;
+
+  /// Stream that fires when the subprocess exits unexpectedly.
+  Stream<String> get onProcessExit => _processExitController.stream;
 
   /// Server notifications stream.
   Stream<JsonRpcNotification> get notifications =>
@@ -131,6 +138,7 @@ class CodexTransport {
 
     await _notificationController.close();
     await _serverRequestController.close();
+    await _processExitController.close();
   }
 
   // --------------------------------------------------------------------------
@@ -197,6 +205,11 @@ class CodexTransport {
     }
     _pendingRequests.clear();
     _process = null;
+
+    // Notify listeners that the process exited unexpectedly
+    if (!_processExitController.isClosed) {
+      _processExitController.add(_stderrBuffer.toString());
+    }
   }
 
   void _writeLine(String json) {

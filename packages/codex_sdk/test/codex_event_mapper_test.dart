@@ -54,12 +54,10 @@ void main() {
     });
 
     group('task_complete', () {
-      test('maps to CompletionResponse', () {
+      test('is ignored (legacy duplicate of turn/completed)', () {
         const event = TaskCompleteEvent(lastAgentMessage: 'Done!', params: {});
         final responses = mapper.mapEvent(event);
-        expect(responses, hasLength(1));
-        expect(responses[0], isA<CompletionResponse>());
-        expect((responses[0] as CompletionResponse).stopReason, 'completed');
+        expect(responses, isEmpty);
       });
     });
 

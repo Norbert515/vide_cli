@@ -484,6 +484,66 @@ void main() {
           expect(result.updatedConversation.totalInputTokens, equals(50));
           expect(result.updatedConversation.totalOutputTokens, equals(25));
         });
+
+        test('usage_update updates usage without completing the turn', () {
+          final existingMessage = ConversationMessage.assistant(
+            id: 'msg-1',
+            responses: [
+              TextResponse(
+                id: 'text-1',
+                timestamp: DateTime.now(),
+                content: 'Running command...',
+              ),
+            ],
+            isStreaming: true,
+          );
+          final conversation = Conversation(
+            messages: [existingMessage],
+            state: ConversationState.processing,
+            totalInputTokens: 10,
+            totalOutputTokens: 20,
+            totalCacheReadInputTokens: 5,
+            totalCacheCreationInputTokens: 3,
+            totalCostUsd: 1.25,
+          );
+
+          final response = CompletionResponse(
+            id: 'completion-usage-1',
+            timestamp: DateTime.now(),
+            stopReason: 'usage_update',
+            inputTokens: 100,
+            outputTokens: 75,
+            cacheReadInputTokens: 50,
+            cacheCreationInputTokens: 25,
+            totalCostUsd: 0.5,
+          );
+
+          final result = processor.processResponse(response, conversation);
+
+          expect(result.turnComplete, isFalse);
+          expect(
+            result.updatedConversation.state,
+            equals(ConversationState.processing),
+          );
+          expect(result.updatedConversation.messages.length, equals(1));
+          expect(result.updatedConversation.messages.last.isStreaming, isTrue);
+          expect(result.updatedConversation.messages.last.isComplete, isFalse);
+          expect(
+            result.updatedConversation.messages.last.responses.length,
+            equals(1),
+          );
+          expect(result.updatedConversation.totalInputTokens, equals(110));
+          expect(result.updatedConversation.totalOutputTokens, equals(95));
+          expect(
+            result.updatedConversation.totalCacheReadInputTokens,
+            equals(55),
+          );
+          expect(
+            result.updatedConversation.totalCacheCreationInputTokens,
+            equals(28),
+          );
+          expect(result.updatedConversation.totalCostUsd, equals(1.75));
+        });
       });
 
       group('ErrorResponse', () {
