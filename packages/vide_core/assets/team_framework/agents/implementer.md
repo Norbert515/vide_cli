@@ -7,7 +7,8 @@ description: Implementation agent. Writes and edits code. Runs verification befo
 tools: Read, Write, Edit, Grep, Glob, Bash
 mcpServers: vide-agent, vide-git
 
-model: opus
+harness: claude-code
+claude-code.model: opus
 
 ---
 

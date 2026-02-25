@@ -20,6 +20,8 @@ class AgentMetadata {
     this.shortDescription,
     this.teamTag,
     this.workingDirectory,
+    this.harness,
+    this.model,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -63,6 +65,12 @@ class AgentMetadata {
   /// If null, uses the session's effective working directory.
   final String? workingDirectory;
 
+  /// Which harness this agent runs on (e.g., 'claude-code', 'codex-cli').
+  final String? harness;
+
+  /// The model this agent uses (e.g., 'opus', 'sonnet', 'haiku').
+  final String? model;
+
   /// Total input tokens used by this agent
   final int totalInputTokens;
 
@@ -96,6 +104,8 @@ class AgentMetadata {
     String? shortDescription,
     String? teamTag,
     String? workingDirectory,
+    String? harness,
+    String? model,
     int? totalInputTokens,
     int? totalOutputTokens,
     int? totalCacheReadInputTokens,
@@ -113,6 +123,8 @@ class AgentMetadata {
       shortDescription: shortDescription ?? this.shortDescription,
       teamTag: teamTag ?? this.teamTag,
       workingDirectory: workingDirectory ?? this.workingDirectory,
+      harness: harness ?? this.harness,
+      model: model ?? this.model,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
       totalCacheReadInputTokens:
@@ -135,6 +147,8 @@ class AgentMetadata {
       'shortDescription': shortDescription,
       'teamTag': teamTag,
       'workingDirectory': workingDirectory,
+      'harness': harness,
+      'model': model,
       'totalInputTokens': totalInputTokens,
       'totalOutputTokens': totalOutputTokens,
       'totalCacheReadInputTokens': totalCacheReadInputTokens,
@@ -155,6 +169,8 @@ class AgentMetadata {
       shortDescription: json['shortDescription'] as String?,
       teamTag: json['teamTag'] as String?,
       workingDirectory: json['workingDirectory'] as String?,
+      harness: json['harness'] as String?,
+      model: json['model'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
       totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
       totalCacheReadInputTokens:

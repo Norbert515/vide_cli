@@ -104,6 +104,12 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
                 'uses the session working directory. Use this to spawn an agent '
                 'in a different directory (e.g., a git worktree).',
           },
+          'harness': {
+            'type': 'string',
+            'description':
+                'Optional harness override (e.g., "claude-code", "codex-cli"). '
+                'If not provided, uses the personality default or session default.',
+          },
         },
         required: ['agentType', 'name', 'initialPrompt'],
       ),
@@ -118,13 +124,15 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
         final name = args['name'] as String;
         final initialPrompt = args['initialPrompt'] as String;
         final workingDirectory = args['workingDirectory'] as String?;
+        final harness = args['harness'] as String?;
 
         try {
           final networkId = _networkManager.currentState.currentNetwork?.id;
           VideLogger.instance.info(
             'AgentMCPServer',
             'spawnAgent: type=$agentType name="$name" caller=$callerAgentId '
-                'workDir=${workingDirectory ?? '(session default)'}',
+                'workDir=${workingDirectory ?? '(session default)'} '
+                'harness=${harness ?? '(default)'}',
             sessionId: networkId,
           );
 
@@ -134,6 +142,7 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             initialPrompt: initialPrompt,
             spawnedBy: callerAgentId,
             workingDirectory: workingDirectory,
+            harness: harness,
           );
 
           VideLogger.instance.info(

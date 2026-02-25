@@ -19,7 +19,8 @@ class AgentPersonality {
     this.tools = const [],
     this.disallowedTools = const [],
     this.mcpServers = const [],
-    this.model,
+    this.harness,
+    this.allHarnessConfigs = const {},
     this.permissionMode,
     this.traits = const [],
     this.avoids = const [],
@@ -61,8 +62,18 @@ class AgentPersonality {
   /// MCP servers this agent can access
   final List<String> mcpServers;
 
-  /// Model to use (sonnet, opus, haiku)
-  final String? model;
+  /// Default harness for this agent (e.g., 'claude-code', 'codex-cli').
+  /// If null, the session default harness is used.
+  final String? harness;
+
+  /// Harness-specific configuration maps, grouped by harness name.
+  ///
+  /// Parsed from flat-prefix YAML keys like `claude-code.model: opus`.
+  /// Structure: `{'claude-code': {'model': 'opus'}, 'codex-cli': {'model': 'o3'}}`
+  ///
+  /// A personality can define config for multiple harnesses, allowing it
+  /// to be spawned on different backends with appropriate settings.
+  final Map<String, Map<String, dynamic>> allHarnessConfigs;
 
   /// Permission mode for this agent (acceptEdits, plan, ask, etc.)
   final String? permissionMode;
@@ -117,6 +128,9 @@ class AgentPersonality {
       );
     }
 
+    // Parse harness-specific configs from flat-prefix keys (e.g., 'claude-code.model')
+    final allHarnessConfigs = _parseHarnessConfigs(yaml);
+
     return AgentPersonality(
       name: name,
       description: description,
@@ -128,7 +142,8 @@ class AgentPersonality {
       tools: _parseStringList(yaml['tools']),
       disallowedTools: _parseStringList(yaml['disallowedTools']),
       mcpServers: _parseStringList(yaml['mcpServers']),
-      model: yaml['model'] as String?,
+      harness: yaml['harness'] as String?,
+      allHarnessConfigs: allHarnessConfigs,
       permissionMode: yaml['permissionMode'] as String?,
       traits: _parseStringList(yaml['traits']),
       avoids: _parseStringList(yaml['avoids']),
@@ -139,8 +154,30 @@ class AgentPersonality {
     );
   }
 
+  /// Get the resolved harness config for a specific harness name.
+  ///
+  /// Returns the config map for the given harness, or an empty map if
+  /// no config is defined for that harness.
+  Map<String, dynamic> harnessConfigFor(String harness) {
+    return allHarnessConfigs[harness] ?? const {};
+  }
+
   /// Create a copy with fields from another agent merged in (for inheritance).
   AgentPersonality mergeWith(AgentPersonality base) {
+    // Deep-merge harness configs: base first, child overrides per-key
+    final mergedHarnessConfigs = <String, Map<String, dynamic>>{};
+    for (final entry in base.allHarnessConfigs.entries) {
+      mergedHarnessConfigs[entry.key] = Map.of(entry.value);
+    }
+    for (final entry in allHarnessConfigs.entries) {
+      final existing = mergedHarnessConfigs[entry.key];
+      if (existing != null) {
+        existing.addAll(entry.value);
+      } else {
+        mergedHarnessConfigs[entry.key] = Map.of(entry.value);
+      }
+    }
+
     return AgentPersonality(
       name: name,
       description: description,
@@ -154,7 +191,8 @@ class AgentPersonality {
           ? disallowedTools
           : base.disallowedTools,
       mcpServers: mcpServers.isNotEmpty ? mcpServers : base.mcpServers,
-      model: model ?? base.model,
+      harness: harness ?? base.harness,
+      allHarnessConfigs: mergedHarnessConfigs,
       permissionMode: permissionMode ?? base.permissionMode,
       traits: [...base.traits, ...traits],
       avoids: [...base.avoids, ...avoids],
@@ -172,6 +210,26 @@ class AgentPersonality {
   String toString() {
     return 'AgentPersonality(name: $name, archetype: $archetype)';
   }
+}
+
+/// Parse harness-specific configs from flat-prefix YAML keys.
+///
+/// Scans all keys in the YAML map for keys containing a `.` separator.
+/// Keys like `claude-code.model` are split into harness `claude-code` and
+/// config key `model`, grouped into a map-of-maps.
+Map<String, Map<String, dynamic>> _parseHarnessConfigs(YamlMap yaml) {
+  final configs = <String, Map<String, dynamic>>{};
+  for (final entry in yaml.entries) {
+    final key = entry.key as String;
+    final dotIndex = key.indexOf('.');
+    if (dotIndex > 0 && dotIndex < key.length - 1) {
+      final harnessName = key.substring(0, dotIndex);
+      final configKey = key.substring(dotIndex + 1);
+      configs.putIfAbsent(harnessName, () => {});
+      configs[harnessName]![configKey] = entry.value;
+    }
+  }
+  return configs;
 }
 
 /// Parse a YAML field as a list of strings.

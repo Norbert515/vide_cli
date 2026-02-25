@@ -17,6 +17,7 @@ import 'agent_lifecycle_service.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
 import '../analytics/bashboard_service.dart';
+import '../claude/agent_client_factory_registry.dart';
 import '../claude/claude_client_factory.dart';
 import '../claude/codex_client_factory.dart';
 import '../claude/claude_manager.dart';
@@ -53,28 +54,16 @@ agentNetworkManagerProvider =
       // the manager is constructed, so effectiveWorkingDirectory is available.
       AgentNetworkManager? managerRef;
 
-      final useCodex = config.configManager
-          .readGlobalSettings()
-          .useCodexBackend;
-
-      final AgentClientFactory clientFactory;
-      if (config.clientFactory != null) {
-        clientFactory = config.clientFactory!;
-      } else if (useCodex) {
-        clientFactory = CodexAgentClientFactory(
-          getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
-          createMcpServer: (agentId, type, projectPath) => ref.read(
-            genericMcpServerProvider(
-              AgentIdAndMcpServerType(
-                agentId: agentId,
-                mcpServerType: type,
-                projectPath: projectPath,
-              ),
-            ),
-          ),
-        );
+      final AgentClientFactoryRegistry factoryRegistry;
+      if (config.factoryRegistry != null) {
+        factoryRegistry = config.factoryRegistry!;
       } else {
-        clientFactory = ClaudeAgentClientFactory(
+        final useCodex = config.configManager
+            .readGlobalSettings()
+            .useCodexBackend;
+
+        // Build both factories so any agent can use either harness
+        final claudeFactory = ClaudeAgentClientFactory(
           getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
           configManager: config.configManager,
           getDangerouslySkipPermissions: () =>
@@ -90,6 +79,29 @@ agentNetworkManagerProvider =
           ),
           permissionHandler: config.permissionHandler,
         );
+
+        final codexFactory = CodexAgentClientFactory(
+          getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
+          createMcpServer: (agentId, type, projectPath) => ref.read(
+            genericMcpServerProvider(
+              AgentIdAndMcpServerType(
+                agentId: agentId,
+                mcpServerType: type,
+                projectPath: projectPath,
+              ),
+            ),
+          ),
+        );
+
+        factoryRegistry = AgentClientFactoryRegistry(
+          factories: {
+            AgentClientFactoryRegistry.claudeCode: claudeFactory,
+            AgentClientFactoryRegistry.codexCli: codexFactory,
+          },
+          defaultHarness: useCodex
+              ? AgentClientFactoryRegistry.codexCli
+              : AgentClientFactoryRegistry.claudeCode,
+        );
       }
 
       final manager = AgentNetworkManager(
@@ -97,7 +109,7 @@ agentNetworkManagerProvider =
         claudeManager: ref.read(agentClientManagerProvider.notifier),
         persistenceManager: ref.read(agentNetworkPersistenceManagerProvider),
         getTriggerService: () => ref.read(triggerServiceProvider),
-        clientFactory: clientFactory,
+        factoryRegistry: factoryRegistry,
         getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
         getStatus: (id) => ref.read(agentStatusProvider(id)),
       );
@@ -112,7 +124,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required AgentClientManagerStateNotifier claudeManager,
     required AgentNetworkPersistenceManager persistenceManager,
     required TriggerService Function() getTriggerService,
-    required AgentClientFactory clientFactory,
+    required AgentClientFactoryRegistry factoryRegistry,
     required AgentStatusNotifier Function(AgentId) getStatusNotifier,
     required AgentStatus Function(AgentId) getStatus,
   }) : _claudeManager = claudeManager,
@@ -120,7 +132,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
        _getTriggerService = getTriggerService,
        _getStatusNotifier = getStatusNotifier,
        super(AgentNetworkState()) {
-    _clientFactory = clientFactory;
+    _factoryRegistry = factoryRegistry;
     _teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,
     );
@@ -139,7 +151,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       getCurrentNetwork: () => state.currentNetwork,
       updateState: (network) =>
           state = AgentNetworkState(currentNetwork: network),
-      clientFactory: _clientFactory,
+      factoryRegistry: _factoryRegistry,
       statusSyncService: _statusSyncService,
       configResolver: _configResolver,
     );
@@ -149,7 +161,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       getCurrentNetwork: () => state.currentNetwork,
       updateState: (network) =>
           state = AgentNetworkState(currentNetwork: network),
-      clientFactory: _clientFactory,
+      factoryRegistry: _factoryRegistry,
       statusSyncService: _statusSyncService,
       configResolver: _configResolver,
       teamFrameworkLoader: _teamFrameworkLoader,
@@ -163,7 +175,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final AgentNetworkPersistenceManager _persistenceManager;
   final TriggerService Function() _getTriggerService;
   final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
-  late final AgentClientFactory _clientFactory;
+  late final AgentClientFactoryRegistry _factoryRegistry;
   late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;
   late final AgentConfigResolver _configResolver;
@@ -250,12 +262,14 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Create client synchronously - initialization happens in background
     // The client queues messages until ready, enabling instant navigation
-    final mainAgentClient = _clientFactory.createSync(
-      agentId: mainAgentId,
-      config: leadConfig,
-      networkId: networkId,
-      agentType: 'main',
-    );
+    final mainAgentClient = _factoryRegistry
+        .getFactory(leadConfig.harness)
+        .createSync(
+          agentId: mainAgentId,
+          config: leadConfig,
+          networkId: networkId,
+          agentType: 'main',
+        );
 
     // Use display name from personality, fallback to 'Klaus'
     final mainAgentDisplayName =
@@ -268,6 +282,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       createdAt: DateTime.now(),
       shortDescription: mainAgentPersonality?.shortDescription,
       teamTag: mainAgentPersonality?.team,
+      harness: leadConfig.harness,
+      model: leadConfig.harnessConfig['model'] as String?,
     );
 
     final network = AgentNetwork(
@@ -377,13 +393,15 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         );
         // Use sessionId if available (for forked agents), otherwise use agent id
         final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
-        final client = _clientFactory.createSync(
-          agentId: sessionIdToUse,
-          config: config,
-          networkId: updatedNetwork.id,
-          agentType: agentMetadata.type,
-          workingDirectory: agentMetadata.workingDirectory,
-        );
+        final client = _factoryRegistry
+            .getFactory(config.harness)
+            .createSync(
+              agentId: sessionIdToUse,
+              config: config,
+              networkId: updatedNetwork.id,
+              agentType: agentMetadata.type,
+              workingDirectory: agentMetadata.workingDirectory,
+            );
         _claudeManager.addAgent(agentMetadata.id, client);
         // Set up status sync to auto-update agent status when turn completes
         _statusSyncService.setupStatusSync(agentMetadata.id, client);
@@ -565,6 +583,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   /// [spawnedBy] - The ID of the agent that is spawning this one (for context)
   /// [workingDirectory] - Optional working directory for this agent.
   /// If null, uses the session's effective working directory.
+  /// [harness] - Optional harness override (e.g., 'claude-code', 'codex-cli').
+  /// If null, uses the personality's default harness or the session default.
   ///
   /// Returns the ID of the newly spawned agent.
   ///
@@ -575,6 +595,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required String initialPrompt,
     required AgentId spawnedBy,
     String? workingDirectory,
+    String? harness,
   }) {
     return _lifecycleService.spawnAgent(
       agentType: agentType,
@@ -582,6 +603,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       initialPrompt: initialPrompt,
       spawnedBy: spawnedBy,
       workingDirectory: workingDirectory,
+      harness: harness,
     );
   }
 

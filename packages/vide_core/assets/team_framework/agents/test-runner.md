@@ -7,7 +7,8 @@ description: Single-purpose Flutter tester. Runs one test scope using provided b
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent
 
-model: haiku
+harness: claude-code
+claude-code.model: haiku
 
 ---
 

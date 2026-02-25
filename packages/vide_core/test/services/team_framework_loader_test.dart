@@ -116,7 +116,8 @@ void main() {
 
         expect(agent, isNotNull);
         expect(agent!.name, 'main');
-        expect(agent.model, 'opus');
+        expect(agent.harness, 'claude-code');
+        expect(agent.harnessConfigFor('claude-code')['model'], 'opus');
       });
 
       test('implementer agent exists', () async {
@@ -159,7 +160,8 @@ void main() {
 
         expect(config, isNotNull);
         expect(config!.systemPrompt, isNotEmpty);
-        expect(config.model, isNotNull);
+        expect(config.harness, 'claude-code');
+        expect(config.harnessConfig['model'], isNotNull);
       });
 
       test('buildAgentConfiguration includes etiquette from team', () async {

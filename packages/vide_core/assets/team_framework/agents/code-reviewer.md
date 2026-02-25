@@ -7,7 +7,8 @@ description: Triggered on task completion to review code changes for bugs, secur
 tools: Read, Grep, Glob, Bash
 mcpServers: vide-agent
 
-model: sonnet
+harness: claude-code
+claude-code.model: sonnet
 
 ---
 

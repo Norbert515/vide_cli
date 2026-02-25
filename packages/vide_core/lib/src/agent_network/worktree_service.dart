@@ -5,7 +5,7 @@ import '../models/agent_network.dart';
 import '../claude/agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
-import '../claude/claude_client_factory.dart';
+import '../claude/agent_client_factory_registry.dart';
 import '../claude/claude_manager.dart';
 
 /// Manages worktree path resolution and switching for agent networks.
@@ -21,14 +21,14 @@ class WorktreeService {
     required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
-    required AgentClientFactory clientFactory,
+    required AgentClientFactoryRegistry factoryRegistry,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
   }) : _claudeManager = claudeManager,
        _persistenceManager = persistenceManager,
        _getCurrentNetwork = getCurrentNetwork,
        _updateState = updateState,
-       _clientFactory = clientFactory,
+       _factoryRegistry = factoryRegistry,
        _statusSyncService = statusSyncService,
        _configResolver = configResolver;
 
@@ -37,7 +37,7 @@ class WorktreeService {
   final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
-  final AgentClientFactory _clientFactory;
+  final AgentClientFactoryRegistry _factoryRegistry;
   final AgentStatusSyncService _statusSyncService;
   final AgentConfigResolver _configResolver;
 
@@ -140,13 +140,15 @@ class WorktreeService {
           agentMetadata.type,
           teamName: updated.team,
         );
-        final client = _clientFactory.createSync(
-          agentId: agentMetadata.id,
-          config: config,
-          networkId: updated.id,
-          agentType: agentMetadata.type,
-          workingDirectory: agentMetadata.workingDirectory,
-        );
+        final client = _factoryRegistry
+            .getFactory(config.harness)
+            .createSync(
+              agentId: agentMetadata.id,
+              config: config,
+              networkId: updated.id,
+              agentType: agentMetadata.type,
+              workingDirectory: agentMetadata.workingDirectory,
+            );
         _claudeManager.addAgent(agentMetadata.id, client);
         // Set up status sync for the recreated client
         _statusSyncService.setupStatusSync(agentMetadata.id, client);

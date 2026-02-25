@@ -7,7 +7,8 @@ description: Enterprise orchestrator. Breaks work into features, spawns feature 
 tools: Skill
 mcpServers: vide-agent, vide-git
 
-model: opus
+harness: claude-code
+claude-code.model: opus
 
 agents:
   - feature-lead

@@ -175,11 +175,12 @@ void main() {
         expect(config.allowedTools, contains('Edit'));
       });
 
-      test('model is set correctly', () async {
+      test('harness config is set correctly', () async {
         final config = await loader.buildAgentConfiguration('implementer');
 
         expect(config, isNotNull);
-        expect(config!.model, 'opus');
+        expect(config!.harness, 'claude-code');
+        expect(config.harnessConfig['model'], 'opus');
       });
 
       test('implementer has no permission mode (managed externally)', () async {

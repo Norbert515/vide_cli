@@ -10,7 +10,7 @@ import '../claude/agent_config_resolver.dart';
 import 'agent_network_persistence_manager.dart';
 import 'agent_status_sync_service.dart';
 import '../analytics/bashboard_service.dart';
-import '../claude/claude_client_factory.dart';
+import '../claude/agent_client_factory_registry.dart';
 import '../claude/claude_manager.dart';
 import '../team_framework/team_framework_loader.dart';
 
@@ -25,7 +25,7 @@ class AgentLifecycleService {
     required AgentNetworkPersistenceManager persistenceManager,
     required AgentNetwork? Function() getCurrentNetwork,
     required void Function(AgentNetwork) updateState,
-    required AgentClientFactory clientFactory,
+    required AgentClientFactoryRegistry factoryRegistry,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
     required TeamFrameworkLoader teamFrameworkLoader,
@@ -35,7 +35,7 @@ class AgentLifecycleService {
        _persistenceManager = persistenceManager,
        _getCurrentNetwork = getCurrentNetwork,
        _updateState = updateState,
-       _clientFactory = clientFactory,
+       _factoryRegistry = factoryRegistry,
        _statusSyncService = statusSyncService,
        _configResolver = configResolver,
        _teamFrameworkLoader = teamFrameworkLoader,
@@ -46,7 +46,7 @@ class AgentLifecycleService {
   final AgentNetworkPersistenceManager _persistenceManager;
   final AgentNetwork? Function() _getCurrentNetwork;
   final void Function(AgentNetwork) _updateState;
-  final AgentClientFactory _clientFactory;
+  final AgentClientFactoryRegistry _factoryRegistry;
   final AgentStatusSyncService _statusSyncService;
   final AgentConfigResolver _configResolver;
   final TeamFrameworkLoader _teamFrameworkLoader;
@@ -64,7 +64,7 @@ class AgentLifecycleService {
       throw StateError('No active network to add agent to');
     }
 
-    final client = await _clientFactory.create(
+    final client = await _factoryRegistry.getFactory(config.harness).create(
       agentId: agentId,
       config: config,
       networkId: network.id,
@@ -94,6 +94,7 @@ class AgentLifecycleService {
   /// [initialPrompt] - The initial message/task to send to the new agent
   /// [spawnedBy] - The ID of the agent that is spawning this one
   /// [workingDirectory] - Optional working directory for this agent.
+  /// [harness] - Optional harness override (e.g., 'claude-code', 'codex-cli').
   ///
   /// Returns the ID of the newly spawned agent.
   Future<AgentId> spawnAgent({
@@ -102,6 +103,7 @@ class AgentLifecycleService {
     required String initialPrompt,
     required AgentId spawnedBy,
     String? workingDirectory,
+    String? harness,
   }) async {
     final network = _getCurrentNetwork();
     if (network == null) {
@@ -136,6 +138,7 @@ class AgentLifecycleService {
     final config = await _teamFrameworkLoader.buildAgentConfiguration(
       agentType,
       teamName: teamName,
+      harnessOverride: harness,
     );
     if (config == null) {
       throw Exception('Agent configuration not found for: $agentType');
@@ -161,6 +164,8 @@ class AgentLifecycleService {
       shortDescription: personality?.shortDescription,
       teamTag: personality?.team,
       workingDirectory: workingDirectory,
+      harness: config.harness,
+      model: config.harnessConfig['model'] as String?,
     );
 
     // Add agent to network with metadata
@@ -274,18 +279,25 @@ $initialPrompt''';
       throw StateError('No active network to fork agent in');
     }
 
-    if (!_clientFactory.supportsFork) {
-      throw UnsupportedError(
-        'The current agent backend does not support session forking',
-      );
-    }
-
     // Find source agent metadata
     final sourceAgent = network.agents
         .where((a) => a.id == sourceAgentId)
         .firstOrNull;
     if (sourceAgent == null) {
       throw Exception('Agent not found: $sourceAgentId');
+    }
+
+    // Get the configuration for this agent type
+    final config = await _configResolver.getConfigurationForType(
+      sourceAgent.type,
+      teamName: network.team,
+    );
+
+    if (!_factoryRegistry.supportsFork(config.harness)) {
+      throw UnsupportedError(
+        'The agent backend "${config.harness ?? _factoryRegistry.defaultHarness}" '
+        'does not support session forking',
+      );
     }
 
     // Get source agent's client to get the session ID
@@ -298,12 +310,6 @@ $initialPrompt''';
     final newAgentId = const Uuid().v4();
     final forkName = name ?? '[Fork] ${sourceAgent.name}';
 
-    // Get the configuration for this agent type
-    final config = await _configResolver.getConfigurationForType(
-      sourceAgent.type,
-      teamName: network.team,
-    );
-
     // Create metadata for the forked agent
     final metadata = AgentMetadata(
       id: newAgentId,
@@ -314,14 +320,16 @@ $initialPrompt''';
     );
 
     // Create the agent client with fork configuration.
-    final client = await _clientFactory.createForked(
-      agentId: newAgentId,
-      config: config,
-      networkId: network.id,
-      agentType: metadata.type,
-      resumeSessionId: sourceClient.sessionId,
-      sourceConversation: sourceClient.currentConversation,
-    );
+    final client = await _factoryRegistry
+        .getFactory(config.harness)
+        .createForked(
+          agentId: newAgentId,
+          config: config,
+          networkId: network.id,
+          agentType: metadata.type,
+          resumeSessionId: sourceClient.sessionId,
+          sourceConversation: sourceClient.currentConversation,
+        );
 
     _claudeManager.addAgent(newAgentId, client);
     // Set up status sync for the forked agent

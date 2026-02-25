@@ -501,6 +501,15 @@ class _AgentRowItemState extends State<_AgentRowItem>
     return '${text.substring(0, maxLength - 1)}…';
   }
 
+  Color _getModelColor(String? model, VideThemeData theme) {
+    return switch (model) {
+      'opus' => theme.base.primary,
+      'sonnet' => theme.base.secondary,
+      'haiku' => theme.base.outline,
+      _ => theme.base.outline,
+    };
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -528,11 +537,13 @@ class _AgentRowItemState extends State<_AgentRowItem>
         component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
-    // Account for tree prefix width + status indicator + spacing in truncation
+    // Account for tree prefix width + status indicator + model tag + spacing in truncation
     final prefixWidth = treeLine.length + connector.length;
+    final modelTag = component.agent.model;
+    final modelTagWidth = modelTag != null ? modelTag.length + 1 : 0; // +1 for space
     displayName = _truncateText(
       displayName,
-      component.availableWidth - prefixWidth - 4,
+      component.availableWidth - prefixWidth - 4 - modelTagWidth,
     );
 
     final bgColor = component.isSelected && component.isFocused
@@ -584,6 +595,15 @@ class _AgentRowItemState extends State<_AgentRowItem>
                   maxLines: 1,
                 ),
               ),
+              // Model tag (e.g., "opus", "sonnet", "haiku")
+              if (modelTag != null)
+                Text(
+                  ' $modelTag',
+                  style: TextStyle(
+                    color: _getModelColor(modelTag, theme)
+                        .withOpacity(TextOpacity.tertiary),
+                  ),
+                ),
               // View indicator for currently viewed agent
               if (component.isSelectedById)
                 Text(

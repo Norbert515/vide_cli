@@ -126,12 +126,14 @@ class CodexAgentClientFactory implements AgentClientFactory {
     AgentId agentId,
     String cwd,
   ) {
+    final hc = config.harnessConfig;
     return CodexConfig(
-      // Don't pass config.model — AgentConfiguration uses Claude model names
-      // (e.g., "opus") which are invalid for Codex. Let Codex use its default.
+      model: hc['model'] as String?,
       workingDirectory: cwd,
       sessionId: agentId.toString(),
       appendSystemPrompt: config.systemPrompt,
+      sandboxMode: hc['sandbox'] as String? ?? 'workspace-write',
+      approvalPolicy: hc['approvalPolicy'] as String? ?? 'on-failure',
     );
   }
 }

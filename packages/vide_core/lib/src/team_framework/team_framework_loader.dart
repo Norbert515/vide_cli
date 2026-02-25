@@ -183,11 +183,14 @@ class TeamFrameworkLoader {
   ///
   /// [agentName] - The name of the agent personality to load
   /// [teamName] - Optional team name to inject available roles context
+  /// [harnessOverride] - Optional harness override (from spawn-time).
+  ///   Takes precedence over the personality's default harness.
   ///
   /// Returns null if the agent is not found, with a warning logged.
   Future<AgentConfiguration?> buildAgentConfiguration(
     String agentName, {
     String? teamName,
+    String? harnessOverride,
   }) async {
     final agent = await getAgent(agentName);
     if (agent == null) {
@@ -243,6 +246,15 @@ class TeamFrameworkLoader {
         ? mergedDisallowedTools
         : null;
 
+    // Resolve effective harness: spawn override > personality default
+    // Session default is applied later by the registry if still null.
+    final effectiveHarness = harnessOverride ?? agent.harness;
+
+    // Resolve harness-specific config for the active harness
+    final harnessConfig = effectiveHarness != null
+        ? agent.harnessConfigFor(effectiveHarness)
+        : const <String, dynamic>{};
+
     // Build the AgentConfiguration
     return AgentConfiguration(
       name: agent.name,
@@ -251,7 +263,8 @@ class TeamFrameworkLoader {
       mcpServers: mcpServers.isNotEmpty ? mcpServers : null,
       allowedTools: allowedTools,
       disallowedTools: disallowedTools,
-      model: agent.model,
+      harness: effectiveHarness,
+      harnessConfig: harnessConfig,
       permissionMode: agent.permissionMode,
     );
   }

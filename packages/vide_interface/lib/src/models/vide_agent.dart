@@ -54,6 +54,12 @@ class VideAgent {
   /// When this agent was created.
   final DateTime createdAt;
 
+  /// Which harness this agent runs on (e.g., 'claude-code', 'codex-cli').
+  final String? harness;
+
+  /// The model this agent uses (e.g., 'opus', 'sonnet', 'haiku').
+  final String? model;
+
   /// Token usage statistics.
   final int totalInputTokens;
   final int totalOutputTokens;
@@ -69,6 +75,8 @@ class VideAgent {
     this.spawnedBy,
     this.taskName,
     required this.createdAt,
+    this.harness,
+    this.model,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -95,8 +103,11 @@ class VideAgent {
           type == other.type &&
           status == other.status &&
           spawnedBy == other.spawnedBy &&
-          taskName == other.taskName;
+          taskName == other.taskName &&
+          harness == other.harness &&
+          model == other.model;
 
   @override
-  int get hashCode => Object.hash(id, name, type, status, spawnedBy, taskName);
+  int get hashCode =>
+      Object.hash(id, name, type, status, spawnedBy, taskName, harness, model);
 }

@@ -7,7 +7,8 @@ description: Research agent. Explores codebases, gathers context. Read-only.
 tools: Read, Grep, Glob, WebSearch, WebFetch
 mcpServers: vide-agent, vide-knowledge
 
-model: sonnet
+harness: claude-code
+claude-code.model: sonnet
 
 ---
 

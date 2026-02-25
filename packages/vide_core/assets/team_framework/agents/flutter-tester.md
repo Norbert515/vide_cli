@@ -7,7 +7,8 @@ description: Flutter testing agent. Runs Flutter apps, interacts via semantic el
 tools: Read, Grep, Glob, Bash
 mcpServers: flutter-runtime, vide-agent
 
-model: haiku
+harness: claude-code
+claude-code.model: haiku
 
 ---
 

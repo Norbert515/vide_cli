@@ -198,7 +198,7 @@ class UserDefinedAgent {
       systemPrompt: systemPrompt,
       mcpServers: parsedMcpServers,
       allowedTools: tools,
-      model: model,
+      harnessConfig: model != null ? {'model': model} : const {},
     );
   }
 

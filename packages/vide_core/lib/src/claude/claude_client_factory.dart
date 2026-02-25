@@ -3,6 +3,7 @@ import 'package:claude_sdk/claude_sdk.dart';
 
 import '../logging/vide_logger.dart';
 import '../models/agent_id.dart';
+import '../models/permission_mode.dart';
 import 'agent_configuration.dart';
 import '../mcp/mcp_server_type.dart';
 import '../permissions/permission_provider.dart';
@@ -124,6 +125,42 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
     return _getDangerouslySkipPermissions();
   }
 
+  /// Build a ClaudeConfig from an AgentConfiguration.
+  ///
+  /// Reads harness-specific parameters (model, temperature, maxTokens) from
+  /// [config.harnessConfig] and framework-level parameters (permissionMode)
+  /// from [config] directly.
+  ClaudeConfig _buildClaudeConfig(
+    AgentConfiguration config, {
+    required String sessionId,
+    required String workingDirectory,
+  }) {
+    final hc = config.harnessConfig;
+
+    // Translate permission mode to CLI-compatible value.
+    // 'ask' is vide-specific and maps to 'default' for the CLI.
+    final mode = config.permissionMode;
+    final cliPermissionMode = mode != null
+        ? (PermissionMode.tryParse(mode)?.cliValue ?? mode)
+        : PermissionMode.acceptEdits.value;
+
+    return ClaudeConfig(
+      appendSystemPrompt: config.systemPrompt,
+      allowedTools: config.allowedTools,
+      disallowedTools: config.disallowedTools,
+      model: hc['model'] as String?,
+      permissionMode: cliPermissionMode,
+      temperature: hc['temperature'] as double?,
+      maxTokens: hc['maxTokens'] as int?,
+      sessionId: sessionId,
+      workingDirectory: workingDirectory,
+      enableStreaming: _enableStreaming,
+      dangerouslySkipPermissions: _dangerouslySkipPermissions,
+      settingSources: (hc['settingSources'] as List?)?.cast<String>() ??
+          ['user', 'project', 'local'],
+    );
+  }
+
   @override
   AgentClient createSync({
     required AgentId agentId,
@@ -139,11 +176,10 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
           'permissionHandler=${_permissionHandler != null}',
       sessionId: networkId,
     );
-    final claudeConfig = config.toClaudeConfig(
-      workingDirectory: cwd,
+    final claudeConfig = _buildClaudeConfig(
+      config,
       sessionId: agentId.toString(),
-      enableStreaming: _enableStreaming,
-      dangerouslySkipPermissions: _dangerouslySkipPermissions,
+      workingDirectory: cwd,
     );
 
     final mcpServers =
@@ -183,11 +219,10 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
       'create (async): agent=$agentId type=$agentType cwd=$cwd',
       sessionId: networkId,
     );
-    final claudeConfig = config.toClaudeConfig(
-      workingDirectory: cwd,
+    final claudeConfig = _buildClaudeConfig(
+      config,
       sessionId: agentId.toString(),
-      enableStreaming: _enableStreaming,
-      dangerouslySkipPermissions: _dangerouslySkipPermissions,
+      workingDirectory: cwd,
     );
 
     final mcpServers =
@@ -232,11 +267,10 @@ class ClaudeAgentClientFactory implements AgentClientFactory {
     );
 
     // Create config with fork settings
-    final baseConfig = config.toClaudeConfig(
-      workingDirectory: cwd,
+    final baseConfig = _buildClaudeConfig(
+      config,
       sessionId: agentId.toString(),
-      enableStreaming: _enableStreaming,
-      dangerouslySkipPermissions: _dangerouslySkipPermissions,
+      workingDirectory: cwd,
     );
 
     // Apply fork settings

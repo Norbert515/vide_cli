@@ -162,6 +162,8 @@ class RemoteVideSessionManager implements VideSessionManager {
                 spawnedBy: agent.spawnedBy,
                 taskName: agent.taskName,
                 createdAt: agent.createdAt,
+                harness: agent.harness,
+                model: agent.model,
                 totalInputTokens: agent.totalInputTokens,
                 totalOutputTokens: agent.totalOutputTokens,
                 totalCacheReadInputTokens: agent.totalCacheReadInputTokens,
