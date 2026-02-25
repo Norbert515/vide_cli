@@ -4,6 +4,7 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
+import 'package:vide_cli/services/sound_service.dart';
 import 'permission_service.dart';
 
 /// State for permission requests - includes queue and current request
@@ -231,6 +232,9 @@ class _PermissionScopeState extends State<PermissionScope> {
     // If no session or already subscribed, skip
     if (session == null || _sessionEventSub != null) return;
 
+    final configManager = ProviderScope.containerOf(context)
+        .read(videConfigManagerProvider);
+
     // Subscribe to session events for both permission types
     _sessionEventSub = session.events.listen((event) {
       switch (event) {
@@ -242,6 +246,7 @@ class _PermissionScopeState extends State<PermissionScope> {
           context
               .read(permissionStateProvider.notifier)
               .enqueueRequest(request);
+          SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PermissionResolvedEvent():
           context
@@ -253,12 +258,14 @@ class _PermissionScopeState extends State<PermissionScope> {
           context
               .read(askUserQuestionStateProvider.notifier)
               .enqueueRequest(request);
+          SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PlanApprovalRequestEvent():
           final request = PlanApprovalUIRequest.fromEvent(event);
           context
               .read(planApprovalStateProvider.notifier)
               .enqueueRequest(request);
+          SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PlanApprovalResolvedEvent():
           context
@@ -269,6 +276,15 @@ class _PermissionScopeState extends State<PermissionScope> {
           context
               .read(askUserQuestionStateProvider.notifier)
               .removeByRequestId(event.requestId);
+
+        case StatusEvent(status: VideAgentStatus.idle):
+          final allIdle = session.state.agents.every(
+            (a) => a.status == VideAgentStatus.idle ||
+                a.status == VideAgentStatus.waitingForUser,
+          );
+          if (allIdle) {
+            SoundService.play(SoundType.taskComplete, configManager);
+          }
 
         default:
           break;

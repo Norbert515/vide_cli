@@ -87,6 +87,21 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool experimentVerboseHandoffs;
 
+  /// Whether to play sounds when agents finish or need user attention.
+  @JsonKey(defaultValue: true)
+  final bool soundNotificationsEnabled;
+
+  /// Custom audio file path for the task-complete sound.
+  /// When set, plays this file instead of the system default.
+  /// Supports formats handled by the OS player (mp3, wav, aiff on macOS).
+  @JsonKey(includeIfNull: false)
+  final String? customTaskCompleteSound;
+
+  /// Custom audio file path for the attention-needed sound.
+  /// When set, plays this file instead of the system default.
+  @JsonKey(includeIfNull: false)
+  final String? customAttentionNeededSound;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -105,6 +120,9 @@ class VideGlobalSettings {
     this.experimentParallelAgents = false,
     this.experimentAgentMemory = false,
     this.experimentVerboseHandoffs = false,
+    this.soundNotificationsEnabled = true,
+    this.customTaskCompleteSound,
+    this.customAttentionNeededSound,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -132,6 +150,9 @@ class VideGlobalSettings {
     bool? experimentParallelAgents,
     bool? experimentAgentMemory,
     bool? experimentVerboseHandoffs,
+    bool? soundNotificationsEnabled,
+    String? Function()? customTaskCompleteSound,
+    String? Function()? customAttentionNeededSound,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -156,6 +177,14 @@ class VideGlobalSettings {
           experimentAgentMemory ?? this.experimentAgentMemory,
       experimentVerboseHandoffs:
           experimentVerboseHandoffs ?? this.experimentVerboseHandoffs,
+      soundNotificationsEnabled:
+          soundNotificationsEnabled ?? this.soundNotificationsEnabled,
+      customTaskCompleteSound: customTaskCompleteSound != null
+          ? customTaskCompleteSound()
+          : this.customTaskCompleteSound,
+      customAttentionNeededSound: customAttentionNeededSound != null
+          ? customAttentionNeededSound()
+          : this.customAttentionNeededSound,
     );
   }
 }
