@@ -365,11 +365,11 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Set state IMMEDIATELY before any async work to prevent flash of empty state
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
-    // Persist in background - UI already has the data
-    await _persistenceManager.saveNetwork(updatedNetwork);
+    // Persist in background (fire-and-forget) — only updating lastActiveAt
+    _persistenceManager.saveNetwork(updatedNetwork);
 
-    // Recreate agent clients for each agent in the network
-    for (final agentMetadata in updatedNetwork.agents) {
+    // Recreate agent clients for each agent in the network (in parallel)
+    await Future.wait(updatedNetwork.agents.map((agentMetadata) async {
       try {
         final config = await _configResolver.getConfigurationForType(
           agentMetadata.type,
@@ -395,7 +395,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         );
         rethrow;
       }
-    }
+    }));
 
     // Agent status is purely runtime state. On resume, all agents start as idle
     // (the AgentStatusNotifier default) since no turns are running yet.
