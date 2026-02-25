@@ -381,8 +381,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Set state IMMEDIATELY before any async work to prevent flash of empty state
     state = AgentNetworkState(currentNetwork: updatedNetwork);
 
-    // Persist in background (fire-and-forget) — only updating lastActiveAt
-    _persistenceManager.saveNetwork(updatedNetwork);
+    // Persist updated network (e.g. lastActiveAt)
+    await _persistenceManager.saveNetwork(updatedNetwork);
 
     // Recreate agent clients for each agent in the network (in parallel)
     await Future.wait(updatedNetwork.agents.map((agentMetadata) async {
