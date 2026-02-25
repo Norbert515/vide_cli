@@ -384,8 +384,8 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     // Persist updated network (e.g. lastActiveAt)
     await _persistenceManager.saveNetwork(updatedNetwork);
 
-    // Recreate agent clients for each agent in the network (in parallel)
-    await Future.wait(updatedNetwork.agents.map((agentMetadata) async {
+    // Recreate agent clients for each agent in the network
+    for (final agentMetadata in updatedNetwork.agents) {
       try {
         final config = await _configResolver.getConfigurationForType(
           agentMetadata.type,
@@ -413,7 +413,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         );
         rethrow;
       }
-    }));
+    }
 
     // Agent status is purely runtime state. On resume, all agents start as idle
     // (the AgentStatusNotifier default) since no turns are running yet.

@@ -272,19 +272,22 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     () async {
       try {
         String wsUrl;
-        if (workingDirectory != null) {
-          // Working directory provided — this is a cold resume from persistence.
-          // Skip the getSession() probe (it would 404) and go straight to resume.
-          // resumeSession() handles the case where the session is already running.
+        try {
+          final details = await daemonClient.getSession(sessionId);
+          wsUrl = details.wsUrl;
+        } on SessionNotFoundException {
+          // Session not running on daemon — resume from persistence.
+          if (workingDirectory == null) {
+            throw StateError(
+              'Session $sessionId not found on daemon and no working directory '
+              'provided for resume',
+            );
+          }
           final response = await daemonClient.resumeSession(
             sessionId: sessionId,
             workingDirectory: workingDirectory,
           );
           wsUrl = response.wsUrl;
-        } else {
-          // No working directory — session should already be running on daemon.
-          final details = await daemonClient.getSession(sessionId);
-          wsUrl = details.wsUrl;
         }
 
         pendingSession.completeWithConnection(
