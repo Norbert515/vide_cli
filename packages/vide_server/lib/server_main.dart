@@ -195,6 +195,10 @@ Handler _createHandler(
     return createDirectory(request, serverConfig);
   });
 
+  router.get('/api/v1/filesystem/search', (Request request) {
+    return searchFiles(request, serverConfig);
+  });
+
   // Git API
   router.get('/api/v1/git/status', (Request request) {
     return gitStatus(request, serverConfig);

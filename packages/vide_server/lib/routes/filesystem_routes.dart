@@ -384,6 +384,142 @@ Future<Response> createDirectory(Request request, ServerConfig config) async {
   );
 }
 
+/// GET /api/v1/filesystem/search - Search for files by name
+///
+/// Uses ripgrep for fast, .gitignore-aware file searching.
+/// Falls back to dart:io directory listing if rg is not available.
+///
+/// Query params:
+///   query: string (required) - text to filter file paths by
+///   root: string (optional) - directory to search within; defaults to server root
+///
+/// Returns:
+/// ```json
+/// {
+///   "entries": [
+///     {"name": "main.dart", "path": "/abs/path/src/main.dart", "relative-path": "src/main.dart", "is-directory": false}
+///   ]
+/// }
+/// ```
+Future<Response> searchFiles(Request request, ServerConfig config) async {
+  final queryParam = request.url.queryParameters['query'];
+  if (queryParam == null || queryParam.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final query = queryParam.trim().toLowerCase();
+  final rootParam = request.url.queryParameters['root'];
+  final filesystemRoot = p.canonicalize(config.filesystemRoot);
+  final rootPath = rootParam?.trim().isNotEmpty == true
+      ? p.canonicalize(rootParam!)
+      : filesystemRoot;
+
+  _log.fine('GET /filesystem/search: query=$queryParam, root=$rootPath');
+
+  // Security: Validate path is within filesystem root
+  if (!_isWithinRoot(rootPath, filesystemRoot)) {
+    _log.warning(
+      'Path traversal attempt: $rootPath is outside root $filesystemRoot',
+    );
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Path is outside allowed filesystem root',
+        'code': 'PATH_TRAVERSAL',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Check if root exists and is a directory
+  final rootType = FileSystemEntity.typeSync(rootPath, followLinks: false);
+  if (rootType != FileSystemEntityType.directory) {
+    return Response.notFound(
+      jsonEncode({
+        'error': 'Directory not found: $rootPath',
+        'code': 'NOT_FOUND',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Get file list — try rg first, fall back to dart:io
+  List<String> filePaths;
+  try {
+    final result = await Process.run(
+      'rg',
+      ['--files'],
+      workingDirectory: rootPath,
+    ).timeout(const Duration(seconds: 5));
+
+    if (result.exitCode == 0) {
+      filePaths = (result.stdout as String)
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
+    } else {
+      // rg failed (e.g. empty directory), fall back
+      filePaths = await _listFilesRecursive(rootPath);
+    }
+  } catch (_) {
+    // rg not found or timed out, fall back to dart:io
+    filePaths = await _listFilesRecursive(rootPath);
+  }
+
+  // Filter by query (case-insensitive substring match)
+  final matched = filePaths
+      .where((filePath) => filePath.toLowerCase().contains(query))
+      .take(50)
+      .toList();
+
+  // Build response entries
+  final entries = <Map<String, dynamic>>[];
+  for (final relativePath in matched) {
+    final absolutePath = p.join(rootPath, relativePath);
+    final name = p.basename(relativePath);
+    final entityType = FileSystemEntity.typeSync(
+      absolutePath,
+      followLinks: false,
+    );
+    final isDirectory = entityType == FileSystemEntityType.directory;
+
+    entries.add({
+      'name': name,
+      'path': absolutePath,
+      'relative-path': relativePath,
+      'is-directory': isDirectory,
+    });
+  }
+
+  _log.fine('Search found ${entries.length} entries for query "$queryParam"');
+
+  return Response.ok(
+    jsonEncode({'entries': entries}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// Fallback file listing using dart:io when rg is not available.
+Future<List<String>> _listFilesRecursive(String rootPath) async {
+  final results = <String>[];
+  await for (final entity
+      in Directory(rootPath).list(recursive: true, followLinks: false)) {
+    final entityType = FileSystemEntity.typeSync(
+      entity.path,
+      followLinks: false,
+    );
+    if (entityType == FileSystemEntityType.link) continue;
+
+    results.add(p.relative(entity.path, from: rootPath));
+  }
+  return results;
+}
+
 /// Check if a path is within the allowed root directory.
 ///
 /// Both paths should already be canonicalized.

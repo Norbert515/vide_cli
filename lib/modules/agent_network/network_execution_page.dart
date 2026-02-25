@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
@@ -264,6 +265,10 @@ class _AgentChatState extends State<_AgentChat> {
   String? _queuedMessage;
   String? _model;
 
+  /// Cached file list from git ls-files for @mention suggestions.
+  List<String>? _cachedFileList;
+  DateTime? _cachedFileListTimestamp;
+
   /// Tracks attachments sent with user messages (keyed by message content).
   final Map<String, List<VideAttachment>> _sentAttachments = {};
 
@@ -440,6 +445,48 @@ class _AgentChatState extends State<_AgentChat> {
     return matching.map((cmd) {
       return CommandSuggestion(name: cmd.name, description: cmd.description);
     }).toList();
+  }
+
+  Future<List<CommandSuggestion>> _getFileSuggestions(String query) async {
+    final session = context.read(currentVideSessionProvider);
+    final workingDir = session?.state.workingDirectory;
+    if (workingDir == null) return [];
+
+    final now = DateTime.now();
+    if (_cachedFileList == null ||
+        _cachedFileListTimestamp == null ||
+        now.difference(_cachedFileListTimestamp!) >
+            const Duration(seconds: 10)) {
+      try {
+        final result = await Process.run(
+          'git',
+          ['ls-files', '--cached', '--others', '--exclude-standard'],
+          workingDirectory: workingDir,
+        );
+        if (result.exitCode == 0) {
+          _cachedFileList = (result.stdout as String)
+              .split('\n')
+              .where((l) => l.isNotEmpty)
+              .toList();
+          _cachedFileListTimestamp = now;
+        }
+      } catch (_) {
+        return [];
+      }
+    }
+
+    if (_cachedFileList == null) return [];
+
+    // Empty query: show first N files. Non-empty: filter by substring match.
+    final results = query.isEmpty
+        ? _cachedFileList!.take(10)
+        : _cachedFileList!
+            .where((f) => f.toLowerCase().contains(query.toLowerCase()))
+            .take(10);
+
+    return results
+        .map((f) => CommandSuggestion(name: f, description: 'file'))
+        .toList();
   }
 
   List<Map<String, dynamic>>? _getLatestTodos() => _conversation?.latestTodos;
@@ -672,6 +719,7 @@ class _AgentChatState extends State<_AgentChat> {
                   onAskUserQuestionResponse: _handleAskUserQuestionResponse,
                   onEscape: _handleEscape,
                   commandSuggestions: _getCommandSuggestions,
+                  fileSuggestions: _getFileSuggestions,
                 ),
               ],
             ),

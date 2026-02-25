@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart' show VideMessage, VideAttachment;
@@ -34,6 +35,10 @@ class AttachmentTextField extends StatefulComponent {
   /// Provides command suggestions based on current input.
   /// Called with the text after "/" and should return matching command names.
   final List<CommandSuggestion> Function(String prefix)? commandSuggestions;
+
+  /// Provides file suggestions for @mention completion.
+  /// Called with the text after "@" and should return matching file paths.
+  final Future<List<CommandSuggestion>> Function(String query)? fileSuggestions;
 
   /// Called when the left arrow key is pressed and the cursor is at position 0.
   /// Used to enable focus navigation to a sidebar.
@@ -75,6 +80,7 @@ class AttachmentTextField extends StatefulComponent {
     this.onEscape,
     this.onCommand,
     this.commandSuggestions,
+    this.fileSuggestions,
     this.onLeftEdge,
     this.onRightEdge,
     this.onDownEdge,
@@ -101,6 +107,11 @@ class CommandSuggestion {
 class _AttachmentTextFieldState extends State<AttachmentTextField> {
   late final _AttachmentTextEditingController _controller;
   int _selectedSuggestionIndex = 0;
+
+  List<CommandSuggestion> _fileSuggestionResults = [];
+  int _selectedFileSuggestionIndex = 0;
+  Timer? _fileSuggestionDebounce;
+  int _fileSuggestionGeneration = 0;
 
   /// Current position in history. -1 means not browsing history (showing current input).
   int _historyIndex = -1;
@@ -136,6 +147,8 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     if (!_isBrowsingHistory) {
       _historyIndex = -1;
     }
+    // Fetch file suggestions based on @mention at cursor
+    _fetchFileSuggestions();
     // Notify parent of text changes for external persistence
     component.onTextChanged?.call(_controller.text);
   }
@@ -206,11 +219,97 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
     });
   }
 
+  /// Returns the file query if the cursor is in an @mention, or null.
+  String? _getFileMentionQuery() {
+    final text = _controller.text;
+    final cursorPos = _controller.selection.baseOffset;
+    if (cursorPos <= 0 || cursorPos > text.length) return null;
+
+    final textBeforeCursor = text.substring(0, cursorPos);
+
+    // Find the last @ before cursor
+    final atIndex = textBeforeCursor.lastIndexOf('@');
+    if (atIndex == -1) return null;
+
+    // @ must be at start or preceded by whitespace
+    if (atIndex > 0 && !RegExp(r'\s').hasMatch(text[atIndex - 1])) return null;
+
+    // Extract the query (everything between @ and cursor)
+    final query = textBeforeCursor.substring(atIndex + 1);
+
+    // Don't trigger if query contains spaces (user moved past the mention)
+    if (query.contains(' ')) return null;
+
+    return query;
+  }
+
+  void _fetchFileSuggestions() {
+    _fileSuggestionDebounce?.cancel();
+
+    final query = _getFileMentionQuery();
+    if (query == null || component.fileSuggestions == null) {
+      if (_fileSuggestionResults.isNotEmpty) {
+        setState(() {
+          _fileSuggestionResults = [];
+          _selectedFileSuggestionIndex = 0;
+        });
+      }
+      return;
+    }
+
+    _fileSuggestionDebounce = Timer(
+      const Duration(milliseconds: 150),
+      () async {
+        final generation = ++_fileSuggestionGeneration;
+        try {
+          final results = await component.fileSuggestions!(query);
+          if (mounted && generation == _fileSuggestionGeneration) {
+            setState(() {
+              _fileSuggestionResults = results;
+              _selectedFileSuggestionIndex = 0;
+            });
+          }
+        } catch (_) {
+          if (mounted && generation == _fileSuggestionGeneration) {
+            setState(() {
+              _fileSuggestionResults = [];
+              _selectedFileSuggestionIndex = 0;
+            });
+          }
+        }
+      },
+    );
+  }
+
+  void _applyFileSuggestion(CommandSuggestion suggestion) {
+    final text = _controller.text;
+    final cursorPos = _controller.selection.baseOffset;
+    final textBeforeCursor = text.substring(0, cursorPos);
+    final atIndex = textBeforeCursor.lastIndexOf('@');
+
+    if (atIndex == -1) return;
+
+    // Replace @query with @selected/path + space
+    final before = text.substring(0, atIndex);
+    final after = text.substring(cursorPos);
+    final replacement = '@${suggestion.name} ';
+    _controller.text = '$before$replacement$after';
+    _controller.selection = TextSelection.collapsed(
+      offset: before.length + replacement.length,
+    );
+
+    setState(() {
+      _fileSuggestionResults = [];
+      _selectedFileSuggestionIndex = 0;
+    });
+  }
+
   Component _buildSuggestionItem(
     VideThemeData theme,
     CommandSuggestion suggestion,
-    bool isSelected,
-  ) {
+    bool isSelected, {
+    String prefix = '/',
+  }) {
     return Container(
       padding: EdgeInsets.symmetric(horizontal: 1),
       decoration: isSelected
@@ -220,7 +319,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            '/${suggestion.name}',
+            '$prefix${suggestion.name}',
             style: TextStyle(
               color: isSelected ? theme.base.primary : theme.base.onSurface,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -240,6 +339,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
   @override
   void dispose() {
+    _fileSuggestionDebounce?.cancel();
     _controller.removeListener(_onTextChanged);
     _controller.dispose();
     super.dispose();
@@ -332,6 +432,14 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
       onKeyEvent: (event) {
         // Check for Escape
         if (event.logicalKey == LogicalKey.escape) {
+          // First dismiss file suggestions if showing
+          if (_fileSuggestionResults.isNotEmpty) {
+            setState(() {
+              _fileSuggestionResults = [];
+              _selectedFileSuggestionIndex = 0;
+            });
+            return true;
+          }
           // If we have text or attachments, clear them and consume the event
           if (_controller.text.isNotEmpty ||
               _controller.attachments.isNotEmpty) {
@@ -345,7 +453,26 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
           return true;
         }
 
-        // Tab: Apply selected suggestion or cycle through suggestions
+        // Tab: Apply file suggestion (takes priority)
+        if (event.logicalKey == LogicalKey.tab &&
+            _fileSuggestionResults.isNotEmpty) {
+          if (event.isShiftPressed) {
+            setState(() {
+              _selectedFileSuggestionIndex =
+                  (_selectedFileSuggestionIndex -
+                      1 +
+                      _fileSuggestionResults.length) %
+                  _fileSuggestionResults.length;
+            });
+          } else {
+            _applyFileSuggestion(
+              _fileSuggestionResults[_selectedFileSuggestionIndex],
+            );
+          }
+          return true;
+        }
+
+        // Tab: Apply command suggestion
         if (event.logicalKey == LogicalKey.tab && suggestions.isNotEmpty) {
           if (event.isShiftPressed) {
             // Shift+Tab: Move selection up
@@ -367,8 +494,26 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          // File suggestions (take priority over command suggestions)
+          if (_fileSuggestionResults.isNotEmpty)
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 1),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < _fileSuggestionResults.length; i++)
+                    _buildSuggestionItem(
+                      theme,
+                      _fileSuggestionResults[i],
+                      i == _selectedFileSuggestionIndex,
+                      prefix: '@',
+                    ),
+                ],
+              ),
+            )
           // Command suggestions
-          if (suggestions.isNotEmpty)
+          else if (suggestions.isNotEmpty)
             Container(
               padding: EdgeInsets.symmetric(horizontal: 1),
               child: Column(
@@ -458,8 +603,29 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                         }
                       }
 
-                      // Arrow keys: Navigate suggestion selection if visible
-                      if (suggestions.isNotEmpty) {
+                      // Arrow keys: Navigate file suggestion selection (takes priority)
+                      if (_fileSuggestionResults.isNotEmpty) {
+                        if (event.logicalKey == LogicalKey.arrowUp) {
+                          setState(() {
+                            _selectedFileSuggestionIndex =
+                                (_selectedFileSuggestionIndex -
+                                    1 +
+                                    _fileSuggestionResults.length) %
+                                _fileSuggestionResults.length;
+                          });
+                          return true;
+                        }
+                        if (event.logicalKey == LogicalKey.arrowDown) {
+                          setState(() {
+                            _selectedFileSuggestionIndex =
+                                (_selectedFileSuggestionIndex + 1) %
+                                _fileSuggestionResults.length;
+                          });
+                          return true;
+                        }
+                      }
+                      // Arrow keys: Navigate command suggestion selection
+                      else if (suggestions.isNotEmpty) {
                         if (event.logicalKey == LogicalKey.arrowUp) {
                           setState(() {
                             _selectedSuggestionIndex =
@@ -532,6 +698,15 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
                       return false;
                     },
                     onSubmitted: (_) {
+                      // If file suggestions are visible, apply the selection
+                      // instead of sending the message.
+                      if (_fileSuggestionResults.isNotEmpty) {
+                        _applyFileSuggestion(
+                          _fileSuggestionResults[
+                              _selectedFileSuggestionIndex],
+                        );
+                        return;
+                      }
                       _handleSubmit();
                     },
                   ),

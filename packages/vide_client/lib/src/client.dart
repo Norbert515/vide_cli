@@ -362,6 +362,31 @@ class VideClient {
         .toList();
   }
 
+  /// Search for files matching a query within a directory.
+  ///
+  /// Uses ripgrep for fast, .gitignore-aware searching.
+  /// If [root] is null, searches the server's configured filesystem root.
+  Future<List<FileEntry>> searchFiles(String query, {String? root}) async {
+    final uri = Uri.parse('$_httpUrl/api/v1/filesystem/search').replace(
+      queryParameters: {
+        'query': query,
+        if (root != null) 'root': root,
+      },
+    );
+
+    final response = await http.get(uri);
+
+    if (response.statusCode != 200) {
+      throw VideClientException('Failed to search files: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final entries = data['entries'] as List<dynamic>;
+    return entries
+        .map((e) => FileEntry.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   // ==========================================================================
   // Git API
   // ==========================================================================

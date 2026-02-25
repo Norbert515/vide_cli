@@ -45,6 +45,7 @@ class ChatInputArea extends StatelessComponent {
   onAskUserQuestionResponse;
   final VoidCallback onEscape;
   final List<CommandSuggestion> Function(String prefix) commandSuggestions;
+  final Future<List<CommandSuggestion>> Function(String query)? fileSuggestions;
   final double? maxDialogHeight;
 
   const ChatInputArea({
@@ -64,6 +65,7 @@ class ChatInputArea extends StatelessComponent {
     required this.onAskUserQuestionResponse,
     required this.onEscape,
     required this.commandSuggestions,
+    this.fileSuggestions,
     this.maxDialogHeight,
     super.key,
   });
@@ -263,6 +265,7 @@ class ChatInputArea extends StatelessComponent {
             onCommand(cmd);
           },
           commandSuggestions: commandSuggestions,
+          fileSuggestions: fileSuggestions,
           promptHistory: promptHistory,
           onPromptSubmitted: (prompt) =>
               context.read(promptHistoryProvider.notifier).addPrompt(prompt),

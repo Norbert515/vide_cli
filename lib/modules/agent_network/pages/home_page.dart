@@ -37,6 +37,10 @@ class _HomePageState extends State<HomePage> {
 
   _HomeSection _focusSection = _HomeSection.input;
 
+  /// Cached file list from git ls-files for @mention suggestions.
+  List<String>? _cachedFileList;
+  DateTime? _cachedFileListTimestamp;
+
   @override
   void initState() {
     super.initState();
@@ -186,6 +190,46 @@ class _HomePageState extends State<HomePage> {
     }).toList();
   }
 
+  Future<List<CommandSuggestion>> _getFileSuggestions(String query) async {
+    final workingDir = context.read(currentRepoPathProvider);
+
+    final now = DateTime.now();
+    if (_cachedFileList == null ||
+        _cachedFileListTimestamp == null ||
+        now.difference(_cachedFileListTimestamp!) >
+            const Duration(seconds: 10)) {
+      try {
+        final result = await Process.run(
+          'git',
+          ['ls-files', '--cached', '--others', '--exclude-standard'],
+          workingDirectory: workingDir,
+        );
+        if (result.exitCode == 0) {
+          _cachedFileList = (result.stdout as String)
+              .split('\n')
+              .where((l) => l.isNotEmpty)
+              .toList();
+          _cachedFileListTimestamp = now;
+        }
+      } catch (_) {
+        return [];
+      }
+    }
+
+    if (_cachedFileList == null) return [];
+
+    // Empty query: show first N files. Non-empty: filter by substring match.
+    final results = query.isEmpty
+        ? _cachedFileList!.take(10)
+        : _cachedFileList!
+            .where((f) => f.toLowerCase().contains(query.toLowerCase()))
+            .take(10);
+
+    return results
+        .map((f) => CommandSuggestion(name: f, description: 'file'))
+        .toList();
+  }
+
   // Height of the main content section (logo + path + input + result)
   // This is approximate: logo ~6 + spacing 1 + path 1 + spacing 1 + input 3 + padding 4 = ~16
   static const double _mainContentHeight = 16;
@@ -273,6 +317,7 @@ class _HomePageState extends State<HomePage> {
                                   onSubmit: _handleSubmit,
                                   onCommand: _handleCommand,
                                   commandSuggestions: _getCommandSuggestions,
+                                  fileSuggestions: _getFileSuggestions,
                                   promptHistory: promptHistory,
                                   onPromptSubmitted: (prompt) => context
                                       .read(promptHistoryProvider.notifier)

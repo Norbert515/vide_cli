@@ -5,8 +5,10 @@
 library;
 
 import 'dart:async';
+import 'dart:io';
 
 import 'package:agent_sdk/agent_sdk.dart' hide AgentConversationState;
+import 'package:path/path.dart' as p;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:vide_interface/vide_interface.dart';
@@ -275,8 +277,11 @@ class LocalVideSession implements VideSession {
       );
     }
 
+    // Expand @file mentions into document attachments
+    final expandedMessage = _expandAtMentions(message);
+
     // Convert VideMessage to AgentMessage
-    final agentAttachments = message.attachments?.map((a) {
+    final agentAttachments = expandedMessage.attachments?.map((a) {
       return AgentAttachment(
         type: a.type,
         path: a.filePath,
@@ -285,7 +290,7 @@ class LocalVideSession implements VideSession {
       );
     }).toList();
     final agentMessage = AgentMessage(
-      text: message.text,
+      text: expandedMessage.text,
       attachments: agentAttachments,
     );
     manager.sendMessage(targetAgent, agentMessage);
@@ -300,6 +305,73 @@ class LocalVideSession implements VideSession {
       );
       statusNotifier.setStatus(internal.AgentStatus.working);
     }
+  }
+
+  /// Expands @path/to/file mentions in message text by reading files
+  /// and attaching their content as document attachments.
+  VideMessage _expandAtMentions(VideMessage message) {
+    final workingDir = _currentWorkingDirectory();
+
+    // Match @path patterns: @ followed by path characters ending with a file extension.
+    // Must be preceded by whitespace or start of string.
+    final regex = RegExp(r'(?:^|\s)@([\w./\-]+\.\w+)');
+    final matches = regex.allMatches(message.text);
+
+    if (matches.isEmpty) return message;
+
+    final expandedAttachments = <VideAttachment>[...?message.attachments];
+    final seenPaths = <String>{};
+    final canonicalWorkingDir = p.canonicalize(workingDir);
+    const maxMentions = 10;
+    var expandedCount = 0;
+
+    for (final match in matches) {
+      if (expandedCount >= maxMentions) break;
+
+      final relativePath = match.group(1)!;
+      if (seenPaths.contains(relativePath)) continue;
+      seenPaths.add(relativePath);
+
+      // Security: reject paths that escape the working directory
+      final resolvedPath = p.canonicalize(p.join(workingDir, relativePath));
+      if (!resolvedPath.startsWith('$canonicalWorkingDir${p.separator}') &&
+          resolvedPath != canonicalWorkingDir) {
+        continue;
+      }
+
+      final file = File(resolvedPath);
+      if (!file.existsSync()) continue;
+
+      final stat = file.statSync();
+      if (stat.size > 1024 * 1024) continue; // skip files > 1MB
+
+      try {
+        final content = file.readAsStringSync();
+        expandedAttachments.add(
+          VideAttachment.documentText(text: content, title: relativePath),
+        );
+        expandedCount++;
+      } catch (_) {
+        // Skip binary files or read errors
+        continue;
+      }
+    }
+
+    if (expandedCount == 0) {
+      return message; // nothing was expanded
+    }
+
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Expanded $expandedCount @mentions in message',
+      sessionId: _networkId,
+    );
+
+    return VideMessage(
+      text: message.text,
+      attachments: expandedAttachments,
+      metadata: message.metadata,
+    );
   }
 
   void _emitUserMessage(
