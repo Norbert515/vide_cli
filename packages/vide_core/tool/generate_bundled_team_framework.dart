@@ -30,7 +30,7 @@ void main() async {
     videCorePath,
     'lib',
     'src',
-    'generated',
+    'team_framework',
     'bundled_team_framework.dart',
   );
 
