@@ -1,8 +1,14 @@
 import 'dart:io';
+import 'dart:math' show max;
 
 import 'package:nocterm/nocterm.dart';
+import 'package:nocterm/src/text/text_layout_engine.dart';
 import 'package:vide_core/vide_core.dart' show GitService;
 import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/code_diff.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/line_pairer.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/side_by_side_code_diff.dart';
+import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/side_by_side_models.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/shared/syntax_highlighter.dart';
 import 'package:vide_cli/components/scrollbar_with_markers.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -43,6 +49,12 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
   /// Map of line numbers to their change type (1-indexed)
   Map<int, _LineChangeType> _lineChanges = {};
 
+  /// Side-by-side diff rows computed from the unified diff.
+  List<SideBySideDiffRow>? _sideBySideRows;
+  bool _sideBySideHighlighted = false;
+  /// Theme used for the last highlighting pass (to detect theme changes).
+  VideThemeData? _highlightedWithTheme;
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +64,8 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
   void _syncGutterFromContent() {
     if (_syncingScroll) return;
+    // Skip sync in side-by-side mode where gutter is inline (no separate ListView).
+    if (_sideBySideRows != null && _sideBySideRows!.isNotEmpty) return;
     _syncingScroll = true;
     _gutterScrollController.jumpTo(_scrollController.offset);
     _syncingScroll = false;
@@ -72,6 +86,8 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         setState(() {
           _fileContent = file.readAsStringSync();
           _error = null;
+          _sideBySideRows = null;
+          _sideBySideHighlighted = false;
         });
         // Load git diff info after file content
         _loadGitDiff();
@@ -79,12 +95,16 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
         setState(() {
           _fileContent = null;
           _error = 'File not found';
+          _sideBySideRows = null;
+          _sideBySideHighlighted = false;
         });
       }
     } catch (e) {
       setState(() {
         _fileContent = null;
         _error = 'Error reading file: $e';
+        _sideBySideRows = null;
+        _sideBySideHighlighted = false;
       });
     }
   }
@@ -119,9 +139,25 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
       _parseDiffOutput(unstagedDiff, changes);
       _parseDiffOutput(stagedDiff, changes);
 
+      // Compute side-by-side rows from the combined diff against HEAD
+      List<SideBySideDiffRow>? sideBySideRows;
+      if (changes.isNotEmpty) {
+        final headDiff = await git.runCommand(
+          ['diff', 'HEAD', '--', relativePath],
+        );
+        if (headDiff.isNotEmpty) {
+          final diffLines = DiffParser.parseUnifiedDiff(headDiff);
+          // Filter out header lines (---, +++, @@) — they're not code content.
+          final codeLines = diffLines.where((l) => l.type != DiffLineType.header).toList();
+          sideBySideRows = LinePairer.pairLines(codeLines);
+        }
+      }
+
       if (mounted) {
         setState(() {
           _lineChanges = changes;
+          _sideBySideRows = sideBySideRows;
+          _sideBySideHighlighted = false;
         });
       }
     } catch (e) {
@@ -323,6 +359,16 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
       );
     }
 
+    // Show side-by-side diff when git changes exist
+    if (_sideBySideRows != null && _sideBySideRows!.isNotEmpty) {
+      return _buildSideBySideDiff(theme);
+    }
+
+    return _buildSinglePaneContent(theme);
+  }
+
+  /// Builds the single-pane file viewer (original behavior).
+  Component _buildSinglePaneContent(VideThemeData theme) {
     final lines = _fileContent!.split('\n');
     final lineNumberWidth = lines.length.toString().length;
     final language = SyntaxHighlighter.detectLanguage(component.filePath);
@@ -369,6 +415,374 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Builds the side-by-side diff view with scrollbar.
+  Component _buildSideBySideDiff(VideThemeData theme) {
+    final rows = _sideBySideRows!;
+    final language = SyntaxHighlighter.detectLanguage(component.filePath);
+
+    // Pre-compute syntax highlighting lazily; invalidate on theme change.
+    if (language != null && (!_sideBySideHighlighted || _highlightedWithTheme != theme)) {
+      // Clear stale highlights when theme changed.
+      if (_highlightedWithTheme != null && _highlightedWithTheme != theme) {
+        for (final row in rows) {
+          row.leftHighlighted = null;
+          row.rightHighlighted = null;
+        }
+      }
+      _computeSideBySideHighlighting(rows, language, theme);
+      _sideBySideHighlighted = true;
+      _highlightedWithTheme = theme;
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Subtract scrollbar + marker width (2 chars) to avoid clipping right gutter.
+        final totalWidth = constraints.maxWidth.toInt() - 2;
+        if (totalWidth < 20) {
+          return const Text('(too narrow for side-by-side diff)');
+        }
+
+        // Compute gutter width from the new file line count (most reliable).
+        // Use the same width for both sides for visual symmetry.
+        final newFileLines = _fileContent?.split('\n').length ?? 0;
+        int maxLineNum = newFileLines;
+        for (final row in rows) {
+          if (row.leftLineNum != null && row.leftLineNum! > maxLineNum) {
+            maxLineNum = row.leftLineNum!;
+          }
+          if (row.rightLineNum != null && row.rightLineNum! > maxLineNum) {
+            maxLineNum = row.rightLineNum!;
+          }
+        }
+        final gutterWidth = _gutterWidthForMax(maxLineNum);
+        final leftGutterWidth = gutterWidth;
+        final rightGutterWidth = gutterWidth;
+
+        // Layout: [leftGutter][space][leftContent] | [rightContent][space][rightGutter]
+        const separatorWidth = 3; // ' | '
+        const spacers = 2; // one space after each gutter
+        final chrome =
+            leftGutterWidth + rightGutterWidth + separatorWidth + spacers;
+        final contentBudget = totalWidth - chrome;
+        if (contentBudget < 4) {
+          return const Text('(too narrow for side-by-side diff)');
+        }
+        final leftContentWidth = contentBudget ~/ 2;
+        final rightContentWidth = contentBudget - leftContentWidth;
+
+        // Apply context folding (3 context lines).
+        final displayRows = _foldContext(rows, 3);
+
+        // Build scrollbar markers from side-by-side rows.
+        final markers = <ScrollbarMarker>[];
+        for (var i = 0; i < displayRows.length; i++) {
+          final entry = displayRows[i];
+          if (entry.isFold) continue;
+          final rowType = entry.row!.type;
+          final color = switch (rowType) {
+            DiffRowType.added => theme.base.success,
+            DiffRowType.deleted => theme.base.error,
+            DiffRowType.modified => theme.base.warning,
+            _ => null,
+          };
+          if (color != null) {
+            markers.add(ScrollbarMarker(
+              position: i,
+              totalPositions: displayRows.length,
+              color: color,
+            ));
+          }
+        }
+
+        return SelectionArea(
+          onSelectionCompleted: ClipboardManager.copy,
+          child: ScrollbarWithMarkers(
+            controller: _scrollController,
+            thumbVisibility: true,
+            thumbColor: theme.base.primary,
+            trackColor: theme.base.surface,
+            markers: markers,
+            child: ListView(
+              lazy: false,
+              controller: _scrollController,
+              children: [
+                for (final entry in displayRows)
+                  if (entry.isFold)
+                    _buildDiffFoldRow(theme, totalWidth, entry.hiddenCount)
+                  else
+                    _buildDiffRow(
+                      theme,
+                      entry.row!,
+                      leftGutterWidth,
+                      rightGutterWidth,
+                      leftContentWidth,
+                      rightContentWidth,
+                    ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Pre-compute syntax highlighting for all side-by-side rows.
+  void _computeSideBySideHighlighting(
+    List<SideBySideDiffRow> rows,
+    String language,
+    VideThemeData theme,
+  ) {
+    for (final row in rows) {
+      if (row.leftContent != null && row.leftHighlighted == null) {
+        final bg = _diffBackgroundForSide(theme, row.type, isLeft: true);
+        row.leftHighlighted = SyntaxHighlighter.highlightCode(
+          row.leftContent!,
+          language,
+          backgroundColor: bg,
+          syntaxColors: theme.syntax,
+        );
+        if (row.leftCharHighlights != null &&
+            row.leftCharHighlights!.isNotEmpty) {
+          row.leftHighlighted = applyCharHighlights(
+            row.leftHighlighted!,
+            row.leftCharHighlights!,
+            theme.diff.removedCharHighlight,
+          );
+        }
+      }
+      if (row.rightContent != null && row.rightHighlighted == null) {
+        final bg = _diffBackgroundForSide(theme, row.type, isLeft: false);
+        row.rightHighlighted = SyntaxHighlighter.highlightCode(
+          row.rightContent!,
+          language,
+          backgroundColor: bg,
+          syntaxColors: theme.syntax,
+        );
+        if (row.rightCharHighlights != null &&
+            row.rightCharHighlights!.isNotEmpty) {
+          row.rightHighlighted = applyCharHighlights(
+            row.rightHighlighted!,
+            row.rightCharHighlights!,
+            theme.diff.addedCharHighlight,
+          );
+        }
+      }
+    }
+  }
+
+  /// Get the background color for a side of a diff row.
+  Color? _diffBackgroundForSide(
+    VideThemeData theme,
+    DiffRowType type, {
+    required bool isLeft,
+  }) {
+    switch (type) {
+      case DiffRowType.deleted:
+        return isLeft ? theme.diff.removedBackground : null;
+      case DiffRowType.added:
+        return isLeft ? null : theme.diff.addedBackground;
+      case DiffRowType.modified:
+        return isLeft
+            ? theme.diff.removedBackground
+            : theme.diff.addedBackground;
+      case DiffRowType.unchanged:
+      case DiffRowType.header:
+        return null;
+    }
+  }
+
+  /// Compute gutter width from max line number.
+  int _gutterWidthForMax(int maxLineNum) {
+    if (maxLineNum <= 0) return 1;
+    return maxLineNum.toString().length;
+  }
+
+  /// Context folding: collapse long runs of unchanged lines.
+  List<_SideBySideDisplayEntry> _foldContext(
+    List<SideBySideDiffRow> rows,
+    int contextLines,
+  ) {
+    final result = <_SideBySideDisplayEntry>[];
+    final threshold = 2 * contextLines + 1;
+
+    int i = 0;
+    while (i < rows.length) {
+      if (rows[i].type == DiffRowType.unchanged) {
+        final runStart = i;
+        while (i < rows.length && rows[i].type == DiffRowType.unchanged) {
+          i++;
+        }
+        final runLength = i - runStart;
+
+        if (runLength > threshold) {
+          for (int j = runStart; j < runStart + contextLines; j++) {
+            result.add(_SideBySideDisplayEntry.row(rows[j]));
+          }
+          result.add(
+            _SideBySideDisplayEntry.fold(runLength - 2 * contextLines),
+          );
+          for (int j = i - contextLines; j < i; j++) {
+            result.add(_SideBySideDisplayEntry.row(rows[j]));
+          }
+        } else {
+          for (int j = runStart; j < i; j++) {
+            result.add(_SideBySideDisplayEntry.row(rows[j]));
+          }
+        }
+      } else {
+        result.add(_SideBySideDisplayEntry.row(rows[i]));
+        i++;
+      }
+    }
+    return result;
+  }
+
+  /// Build a single row in the side-by-side diff.
+  Component _buildDiffRow(
+    VideThemeData theme,
+    SideBySideDiffRow row,
+    int leftGutterWidth,
+    int rightGutterWidth,
+    int leftContentWidth,
+    int rightContentWidth,
+  ) {
+    // Compute visual height for line wrapping alignment.
+    final leftHeight = row.leftContent != null
+        ? TextLayoutEngine.layout(
+            row.leftContent!,
+            TextLayoutConfig(maxWidth: leftContentWidth, softWrap: true),
+          ).actualHeight
+        : 1;
+    final rightHeight = row.rightContent != null
+        ? TextLayoutEngine.layout(
+            row.rightContent!,
+            TextLayoutConfig(maxWidth: rightContentWidth, softWrap: true),
+          ).actualHeight
+        : 1;
+    final maxHeight = max(leftHeight, rightHeight);
+
+    final leftBg = _diffBackgroundForSide(theme, row.type, isLeft: true);
+    final rightBg = _diffBackgroundForSide(theme, row.type, isLeft: false);
+    final gutterStyle = TextStyle(
+      color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+    );
+
+    return SizedBox(
+      height: maxHeight.toDouble(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Left gutter
+          SizedBox(
+            width: leftGutterWidth.toDouble(),
+            child: Text(
+              row.leftLineNum?.toString().padLeft(leftGutterWidth) ??
+                  ' ' * leftGutterWidth,
+              style: gutterStyle,
+            ),
+          ),
+          // Space + left content
+          SizedBox(
+            width: (leftContentWidth + 1).toDouble(),
+            child: Row(
+              children: [
+                Text(' ', style: TextStyle(backgroundColor: leftBg)),
+                SizedBox(
+                  width: leftContentWidth.toDouble(),
+                  child: _buildDiffContentWidget(
+                    theme,
+                    row.leftContent,
+                    row.leftHighlighted,
+                    leftBg,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Separator (fill full row height for wrapped lines)
+          SizedBox(
+            width: 3,
+            child: Column(
+              children: List.generate(
+                maxHeight,
+                (_) => Text(' │ ', style: TextStyle(color: theme.base.outline)),
+              ),
+            ),
+          ),
+          // Right content + space
+          SizedBox(
+            width: (rightContentWidth + 1).toDouble(),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: rightContentWidth.toDouble(),
+                  child: _buildDiffContentWidget(
+                    theme,
+                    row.rightContent,
+                    row.rightHighlighted,
+                    rightBg,
+                  ),
+                ),
+                Text(' ', style: TextStyle(backgroundColor: rightBg)),
+              ],
+            ),
+          ),
+          // Right gutter
+          SizedBox(
+            width: rightGutterWidth.toDouble(),
+            child: Text(
+              row.rightLineNum?.toString().padLeft(rightGutterWidth) ??
+                  ' ' * rightGutterWidth,
+              style: gutterStyle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build a content widget for one side of a diff row.
+  Component _buildDiffContentWidget(
+    VideThemeData theme,
+    String? content,
+    TextSpan? highlighted,
+    Color? backgroundColor,
+  ) {
+    if (content == null) {
+      return const Text('');
+    }
+    if (highlighted != null) {
+      return RichText(text: highlighted, softWrap: true);
+    }
+    return Text(
+      content,
+      style: TextStyle(
+        color: theme.base.onSurface,
+        backgroundColor: backgroundColor,
+      ),
+      overflow: TextOverflow.visible,
+    );
+  }
+
+  /// Build a fold marker row for hidden unchanged lines.
+  Component _buildDiffFoldRow(
+    VideThemeData theme,
+    int totalWidth,
+    int hiddenCount,
+  ) {
+    final label = '···· $hiddenCount lines hidden ····';
+    final padding = totalWidth - label.length;
+    final leftPad = padding > 0 ? padding ~/ 2 : 0;
+    return SizedBox(
+      height: 1,
+      width: totalWidth.toDouble(),
+      child: Text(
+        '${' ' * leftPad}$label',
+        style: TextStyle(color: theme.base.outline),
+      ),
     );
   }
 
@@ -489,4 +903,15 @@ class _FilePreviewOverlayState extends State<FilePreviewOverlay> {
 
     return contentComponent;
   }
+}
+
+/// Entry in the side-by-side display list after context folding.
+class _SideBySideDisplayEntry {
+  final SideBySideDiffRow? row;
+  final int hiddenCount;
+
+  const _SideBySideDisplayEntry.row(this.row) : hiddenCount = 0;
+  const _SideBySideDisplayEntry.fold(this.hiddenCount) : row = null;
+
+  bool get isFold => row == null;
 }

@@ -6,6 +6,8 @@ enum DiffLineType { added, removed, unchanged, header }
 
 class DiffLine {
   final int? lineNumber;
+  final int? oldLineNumber;
+  final int? newLineNumber;
   final DiffLineType type;
   final String content;
   final String? language;
@@ -13,7 +15,7 @@ class DiffLine {
   /// Pre-computed highlighted content. If null, highlighting will be computed during build.
   final TextSpan? highlightedContent;
 
-  const DiffLine({this.lineNumber, required this.type, required this.content, this.language, this.highlightedContent});
+  const DiffLine({this.lineNumber, this.oldLineNumber, this.newLineNumber, required this.type, required this.content, this.language, this.highlightedContent});
 }
 
 class CodeDiff extends StatelessComponent {
@@ -161,11 +163,14 @@ class DiffParser {
         }
         lines.add(DiffLine(type: DiffLineType.header, content: line));
       } else if (line.startsWith('+')) {
-        lines.add(DiffLine(lineNumber: addedLineNumber++, type: DiffLineType.added, content: line.substring(1)));
+        lines.add(DiffLine(lineNumber: addedLineNumber, newLineNumber: addedLineNumber, type: DiffLineType.added, content: line.substring(1)));
+        addedLineNumber++;
       } else if (line.startsWith('-')) {
-        lines.add(DiffLine(lineNumber: removedLineNumber++, type: DiffLineType.removed, content: line.substring(1)));
+        lines.add(DiffLine(lineNumber: removedLineNumber, oldLineNumber: removedLineNumber, type: DiffLineType.removed, content: line.substring(1)));
+        removedLineNumber++;
       } else if (line.startsWith(' ')) {
-        lines.add(DiffLine(lineNumber: addedLineNumber++, type: DiffLineType.unchanged, content: line.substring(1)));
+        lines.add(DiffLine(lineNumber: addedLineNumber, oldLineNumber: removedLineNumber, newLineNumber: addedLineNumber, type: DiffLineType.unchanged, content: line.substring(1)));
+        addedLineNumber++;
         removedLineNumber++;
       }
     }
@@ -181,7 +186,7 @@ class DiffParser {
       // New file - all lines are additions
       final newLines = newContent.split('\n');
       for (int i = 0; i < newLines.length; i++) {
-        lines.add(DiffLine(lineNumber: i + 1, type: DiffLineType.added, content: newLines[i]));
+        lines.add(DiffLine(lineNumber: i + 1, newLineNumber: i + 1, type: DiffLineType.added, content: newLines[i]));
       }
     } else {
       // For now, show a simple before/after diff
@@ -191,12 +196,12 @@ class DiffParser {
 
       // Show removed lines
       for (int i = 0; i < oldLines.length; i++) {
-        lines.add(DiffLine(lineNumber: i + 1, type: DiffLineType.removed, content: oldLines[i]));
+        lines.add(DiffLine(lineNumber: i + 1, oldLineNumber: i + 1, type: DiffLineType.removed, content: oldLines[i]));
       }
 
       // Show added lines
       for (int i = 0; i < newLines.length; i++) {
-        lines.add(DiffLine(lineNumber: i + 1, type: DiffLineType.added, content: newLines[i]));
+        lines.add(DiffLine(lineNumber: i + 1, newLineNumber: i + 1, type: DiffLineType.added, content: newLines[i]));
       }
     }
 
