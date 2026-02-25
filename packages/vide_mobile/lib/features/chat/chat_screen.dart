@@ -22,6 +22,7 @@ import 'widgets/chat_helpers.dart';
 import 'widgets/connection_status_banner.dart';
 import 'widgets/input_bar.dart';
 import 'widgets/message_bubble.dart';
+import 'widgets/thinking_bubble.dart';
 import 'widgets/tool_card.dart';
 import 'widgets/typing_indicator.dart';
 
@@ -656,6 +657,10 @@ class _MessageList extends StatelessWidget {
             if (!content.isHidden) {
               items.add(_RenderItem.tool(entry, content));
             }
+          case ThinkingContent():
+            if (content.text.isNotEmpty) {
+              items.add(_RenderItem.thinking(entry, content));
+            }
           case AttachmentContent():
             break;
         }
@@ -710,6 +715,8 @@ class _MessageList extends StatelessWidget {
             switch (item) {
               case _TextRenderItem(:final entry):
                 return MessageBubble(entry: entry);
+              case _ThinkingRenderItem(:final content):
+                return ThinkingBubble(content: content);
               case _ToolRenderItem(:final tool):
                 if (tool.isSpawnAgent) {
                   return SpawnAgentCard(
@@ -733,6 +740,9 @@ sealed class _RenderItem {
       _TextRenderItem;
   factory _RenderItem.tool(ConversationEntry entry, ToolContent tool) =
       _ToolRenderItem;
+  factory _RenderItem.thinking(
+          ConversationEntry entry, ThinkingContent content) =
+      _ThinkingRenderItem;
 }
 
 class _TextRenderItem implements _RenderItem {
@@ -747,4 +757,11 @@ class _ToolRenderItem implements _RenderItem {
   final ToolContent tool;
 
   _ToolRenderItem(this.entry, this.tool);
+}
+
+class _ThinkingRenderItem implements _RenderItem {
+  final ConversationEntry entry;
+  final ThinkingContent content;
+
+  _ThinkingRenderItem(this.entry, this.content);
 }
