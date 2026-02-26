@@ -8,6 +8,7 @@ import 'package:vide_mobile/core/theme/tokens.dart';
 import 'package:vide_mobile/core/theme/vide_colors.dart';
 import 'package:vide_mobile/features/chat/widgets/chat_helpers.dart';
 import 'package:vide_mobile/features/chat/widgets/tool_card.dart';
+import 'package:vide_mobile/features/chat/widgets/thinking_bubble.dart';
 import 'package:vide_mobile/features/chat/widgets/typing_indicator.dart';
 
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
@@ -797,6 +798,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
             if (!content.isHidden) {
               items.add(_ToolRenderItem(entry, content));
             }
+          case ThinkingContent():
+            if (content.text.isNotEmpty) {
+              items.add(_ThinkingRenderItem(entry, content));
+            }
           case AttachmentContent():
             break;
         }
@@ -844,6 +849,8 @@ class _VideChatPanelState extends State<VideChatPanel> {
         switch (item) {
           case _TextRenderItem(:final entry, :final content):
             return _MessageBubble(entry: entry, content: content);
+          case _ThinkingRenderItem(:final content):
+            return ThinkingBubble(content: content);
           case _ToolRenderItem(:final tool):
             if (tool.isSpawnAgent) {
               return SpawnAgentCard(tool: tool, agents: agents);
@@ -1203,6 +1210,13 @@ class _ToolRenderItem implements _RenderItem {
   _ToolRenderItem(this.entry, this.tool);
 }
 
+class _ThinkingRenderItem implements _RenderItem {
+  final ConversationEntry entry;
+  final ThinkingContent content;
+
+  _ThinkingRenderItem(this.entry, this.content);
+}
+
 // =============================================================================
 // Per-agent message list — mirrors vide_mobile _MessageList
 // =============================================================================
@@ -1257,6 +1271,10 @@ class _MessageList extends StatelessWidget {
             if (!content.isHidden) {
               items.add(_ToolRenderItem(entry, content));
             }
+          case ThinkingContent():
+            if (content.text.isNotEmpty) {
+              items.add(_ThinkingRenderItem(entry, content));
+            }
           case AttachmentContent():
             break;
         }
@@ -1295,6 +1313,8 @@ class _MessageList extends StatelessWidget {
           switch (item) {
             case _TextRenderItem(:final entry, :final content):
               return _MessageBubble(entry: entry, content: content);
+            case _ThinkingRenderItem(:final content):
+              return ThinkingBubble(content: content);
             case _ToolRenderItem(:final tool):
               if (tool.isSpawnAgent) {
                 return SpawnAgentCard(
