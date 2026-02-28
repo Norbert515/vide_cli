@@ -24,6 +24,12 @@ export 'src/events/vide_event.dart';
 export 'src/events/agent_info.dart';
 
 // =============================================================================
+// Re-exports from agent_sdk
+// =============================================================================
+export 'package:agent_sdk/src/models/agent_status.dart'
+    show AgentProcessingStatus;
+
+// =============================================================================
 // Models
 // =============================================================================
 export 'src/models/enums.dart';

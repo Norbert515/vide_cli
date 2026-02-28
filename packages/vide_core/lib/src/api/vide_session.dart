@@ -53,6 +53,9 @@ class LocalVideSession implements VideSession {
   final Map<String, List<ProviderSubscription<dynamic>>>
   _agentProviderSubscriptions = {};
 
+  /// Per-agent processing phase for UI display (thinking, responding, etc.).
+  final Map<String, AgentProcessingStatus?> _agentProcessingPhases = {};
+
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
 
@@ -1414,6 +1417,12 @@ class LocalVideSession implements VideSession {
     });
     agentStreamSubs.add(turnCompleteSub);
 
+    final processingPhaseSub = client.statusStream.listen((processingStatus) {
+      _agentProcessingPhases[agent.id] = processingStatus;
+      _emitState();
+    });
+    agentStreamSubs.add(processingPhaseSub);
+
     final statusSub = _container.listen<internal.AgentStatus>(
       agentStatusProvider(agent.id),
       (previous, next) {
@@ -1445,6 +1454,7 @@ class LocalVideSession implements VideSession {
 
   void _unsubscribeFromAgent(String agentId) {
     _agentStates.remove(agentId);
+    _agentProcessingPhases.remove(agentId);
 
     final streamSubs = _agentSubscriptions.remove(agentId);
     if (streamSubs != null) {
@@ -1639,6 +1649,7 @@ class LocalVideSession implements VideSession {
       name: agent.name,
       type: agent.type,
       status: _mapStatus(status),
+      processingPhase: _agentProcessingPhases[agent.id],
       spawnedBy: agent.spawnedBy,
       taskName: agent.taskName,
       createdAt: agent.createdAt,
@@ -1660,6 +1671,7 @@ class LocalVideSession implements VideSession {
       internal.AgentStatus.idle => VideAgentStatus.idle,
     };
   }
+
 }
 
 /// Base class for any pending user-interaction request.

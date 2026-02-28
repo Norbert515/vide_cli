@@ -8,6 +8,8 @@ environment:
   sdk: ^3.8.0
 
 dependencies:
+  agent_sdk:
+    path: ../agent_sdk
   uuid: ^4.0.0
   meta: ^1.9.0
 

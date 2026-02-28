@@ -1,6 +1,8 @@
 /// Public agent model for the Vide API.
 library;
 
+import 'package:agent_sdk/agent_sdk.dart';
+
 /// Status of an agent in the network.
 enum VideAgentStatus {
   /// Agent is actively working on a task.
@@ -45,6 +47,12 @@ class VideAgent {
   /// Current status of the agent.
   final VideAgentStatus status;
 
+  /// Current processing phase for UI display (e.g., thinking, responding).
+  ///
+  /// Null when the agent is idle or the phase is unknown (e.g., daemon mode
+  /// where the wire protocol doesn't yet send this field).
+  final AgentProcessingStatus? processingPhase;
+
   /// ID of the agent that spawned this one (null for main agent).
   final String? spawnedBy;
 
@@ -72,6 +80,7 @@ class VideAgent {
     required this.name,
     required this.type,
     required this.status,
+    this.processingPhase,
     this.spawnedBy,
     this.taskName,
     required this.createdAt,
@@ -102,12 +111,14 @@ class VideAgent {
           name == other.name &&
           type == other.type &&
           status == other.status &&
+          processingPhase == other.processingPhase &&
           spawnedBy == other.spawnedBy &&
           taskName == other.taskName &&
           harness == other.harness &&
           model == other.model;
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, type, status, spawnedBy, taskName, harness, model);
+  int get hashCode => Object.hash(
+    id, name, type, status, processingPhase, spawnedBy, taskName, harness, model,
+  );
 }

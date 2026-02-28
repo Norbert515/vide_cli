@@ -175,6 +175,9 @@ class RemoteVideSession implements VideSession {
   /// Current status per agent.
   final Map<String, VideAgentStatus> _agentStatuses = {};
 
+  /// Current processing phase per agent (for UI display).
+  final Map<String, AgentProcessingStatus?> _agentProcessingPhases = {};
+
   /// Agents that have optimistic "working" status from a client-side sendMessage.
   ///
   /// When the client sends a message, it optimistically sets the agent to
@@ -673,6 +676,7 @@ class RemoteVideSession implements VideSession {
     }
 
     _agentStatuses[agentId] = event.status;
+    _agentProcessingPhases[agentId] = event.processingPhase;
     _refreshQueuedMessage(agentId);
     _refreshModel(agentId);
 
@@ -773,6 +777,7 @@ class RemoteVideSession implements VideSession {
 
     _agents.remove(agentId);
     _agentStatuses.remove(agentId);
+    _agentProcessingPhases.remove(agentId);
     _models.remove(agentId);
     _queuedMessages.remove(agentId);
     _modelRefreshInFlight.remove(agentId);
@@ -1022,6 +1027,7 @@ class RemoteVideSession implements VideSession {
             name: a.name ?? a.type,
             type: a.type,
             status: _agentStatuses[a.id] ?? VideAgentStatus.idle,
+            processingPhase: _agentProcessingPhases[a.id],
             createdAt: DateTime.now(),
             spawnedBy: a.spawnedBy,
           ),
@@ -1201,6 +1207,7 @@ class RemoteVideSession implements VideSession {
     _mcpServers = null;
     _queuedMessages.clear();
     _agentStatuses.clear();
+    _agentProcessingPhases.clear();
     _modelRefreshInFlight.clear();
     _mcpServersRefreshInFlight = false;
     _queuedRefreshInFlight.clear();

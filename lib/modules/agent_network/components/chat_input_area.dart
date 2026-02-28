@@ -12,6 +12,7 @@ import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
+import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// The bottom input area of the agent chat, containing the queue indicator,
@@ -103,10 +104,13 @@ class ChatInputArea extends StatelessComponent {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              EnhancedLoadingIndicator(
-                agentId: agentId,
-                isThinking: conversation?.isThinking ?? false,
-              ),
+              Builder(builder: (context) {
+                final agents = context.watch(videSessionAgentsProvider).valueOrNull ?? [];
+                final agent = agents.where((a) => a.id == agentId).firstOrNull;
+                return EnhancedLoadingIndicator(
+                  processingPhase: agent?.processingPhase,
+                );
+              }),
               SizedBox(width: 2),
               Text(
                 '(Press ESC to stop)',

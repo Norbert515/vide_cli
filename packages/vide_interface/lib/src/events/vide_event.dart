@@ -5,6 +5,8 @@
 /// single canonical hierarchy with both serialization directions.
 library;
 
+import 'package:agent_sdk/agent_sdk.dart';
+
 import '../models/enums.dart';
 import '../models/vide_agent.dart';
 import '../models/vide_message.dart';
@@ -154,6 +156,9 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         status: VideAgentStatus.fromWireString(data?['status'] as String?),
+        processingPhase: _parseProcessingPhase(
+          data?['processing-phase'] as String?,
+        ),
       ),
       'tool-use' => ToolUseEvent(
         seq: seq,
@@ -616,6 +621,10 @@ final class StatusEvent extends VideEvent {
   /// New status of the agent.
   final VideAgentStatus status;
 
+  /// Fine-grained processing phase for UI display (e.g., thinking, responding).
+  /// Null when unknown or not applicable.
+  final AgentProcessingStatus? processingPhase;
+
   StatusEvent({
     super.seq,
     required super.agentId,
@@ -624,16 +633,21 @@ final class StatusEvent extends VideEvent {
     super.taskName,
     super.timestamp,
     required this.status,
+    this.processingPhase,
   });
 
   @override
   String get wireType => 'status';
 
   @override
-  Map<String, dynamic> dataFields() => {'status': status.toWireString()};
+  Map<String, dynamic> dataFields() => {
+    'status': status.toWireString(),
+    if (processingPhase != null)
+      'processing-phase': processingPhase!.name,
+  };
 
   @override
-  String toString() => 'StatusEvent($status)';
+  String toString() => 'StatusEvent($status, phase=$processingPhase)';
 }
 
 /// Agent completed its turn.
@@ -1169,6 +1183,13 @@ final class UnknownEvent extends VideEvent {
 // ---------------------------------------------------------------------------
 // Parsing helpers
 // ---------------------------------------------------------------------------
+
+AgentProcessingStatus? _parseProcessingPhase(String? value) {
+  if (value == null) return null;
+  return AgentProcessingStatus.values
+      .where((e) => e.name == value)
+      .firstOrNull;
+}
 
 String? _extractInferredPattern(dynamic tool) {
   if (tool is! Map<String, dynamic>) return null;

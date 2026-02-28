@@ -1,21 +1,15 @@
 import 'dart:math';
-import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/vide_core.dart';
+import 'package:vide_interface/vide_interface.dart';
 
 class EnhancedLoadingIndicator extends StatefulComponent {
-  const EnhancedLoadingIndicator({super.key, this.agentId, this.isThinking = false});
+  const EnhancedLoadingIndicator({super.key, this.processingPhase});
 
-  /// Optional agent ID to show status-aware loading messages.
-  /// If provided, the indicator will show messages based on Claude's actual status.
-  final String? agentId;
-
-  /// Whether the agent is currently producing thinking content.
-  /// Derived from the conversation state by the parent widget.
-  final bool isThinking;
+  /// Optional processing phase to show status-aware loading messages.
+  /// If provided, the indicator will show a label like "Thinking" or "Responding".
+  final AgentProcessingStatus? processingPhase;
 
   @override
   State<EnhancedLoadingIndicator> createState() =>
@@ -151,14 +145,14 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     super.dispose();
   }
 
-  /// Get the display text based on the agent's processing status.
+  /// Get the display text based on the agent's processing phase.
   /// Shows status prefix when available, otherwise just the fun activity.
-  String _getDisplayText(AgentProcessingStatus? status) {
+  String _getDisplayText(AgentProcessingStatus? phase) {
     final activity = _activities[_activityIndex];
 
-    // If we have a meaningful status, show it as a prefix
-    if (status != null && _statusMessages.containsKey(status)) {
-      return '${_statusMessages[status]}: $activity';
+    // If we have a meaningful phase, show it as a prefix
+    if (phase != null && _statusMessages.containsKey(phase)) {
+      return '${_statusMessages[phase]}: $activity';
     }
 
     // Fallback to just the activity
@@ -170,21 +164,7 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     final theme = VideTheme.of(context);
     final braille = _brailleFrames[_frameIndex];
 
-    // Get agent processing status if agent ID is provided
-    AgentProcessingStatus? processingStatus;
-    if (component.agentId != null) {
-      final statusAsync = context.watch(
-        agentProcessingStatusProvider(component.agentId!),
-      );
-      processingStatus = statusAsync.valueOrNull;
-    }
-
-    // Override with thinking status from conversation state if available
-    if (component.isThinking) {
-      processingStatus = AgentProcessingStatus.thinking;
-    }
-
-    final displayText = _getDisplayText(processingStatus);
+    final displayText = _getDisplayText(component.processingPhase);
 
     return Row(
       mainAxisSize: MainAxisSize.min,

@@ -73,7 +73,7 @@ class AssistantEntryRenderer extends StatelessComponent {
 
     // Show loading indicator if streaming with no content yet
     if (children.isEmpty && entry.isStreaming) {
-      children.add(EnhancedLoadingIndicator(agentId: agentId));
+      children.add(EnhancedLoadingIndicator());
     }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: children);
