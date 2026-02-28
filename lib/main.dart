@@ -11,6 +11,7 @@ import 'package:vide_cli/modules/remote/remote_config.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/modules/remote/remote_vide_session_manager.dart';
 import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_cli/components/bottom_hint_bar.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/services/sentry_service.dart';
 
@@ -248,11 +249,18 @@ class _VideAppContent extends StatelessComponent {
       color: theme.background,
       child: WelcomeScope(
         child: SetupScope(
-          child: Navigator(
-            key: _navigatorKey,
-            home: HomePage(),
-            // Disable Navigator's ESC handling - pages handle it
-            popBehavior: PopBehavior(escapeEnabled: false),
+          child: Column(
+            children: [
+              Expanded(
+                child: Navigator(
+                  key: _navigatorKey,
+                  home: HomePage(),
+                  // Disable Navigator's ESC handling - pages handle it
+                  popBehavior: PopBehavior(escapeEnabled: false),
+                ),
+              ),
+              const BottomHintBar(),
+            ],
           ),
         ),
       ),

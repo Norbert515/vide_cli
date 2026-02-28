@@ -17,7 +17,6 @@ import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
 import 'package:vide_cli/modules/toast/components/toast_overlay.dart';
-import 'package:vide_cli/components/version_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
@@ -154,23 +153,9 @@ class _VideScaffoldState extends State<VideScaffold> {
 
             // Main content area
             Expanded(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(left: 1, right: 1, top: 1),
-                      child: component.child,
-                    ),
-                  ),
-                  // Navigation breadcrumb + version
-                  _buildBottomBar(
-                    context,
-                    theme,
-                    sidebarFocused,
-                    gitSidebarFocused,
-                    showSidebars && showGitSidebar,
-                  ),
-                ],
+              child: Padding(
+                padding: EdgeInsets.only(left: 1, right: 1, top: 1),
+                child: component.child,
               ),
             ),
 
@@ -270,7 +255,7 @@ class _VideScaffoldState extends State<VideScaffold> {
                   final selectedAgentId = context.read(selectedAgentIdProvider);
                   if (selectedAgentId != null) {
                     session?.sendMessage(
-                      VideMessage(text: message),
+                      AgentMessage(text: message),
                       agentId: selectedAgentId,
                     );
                   }
@@ -285,24 +270,6 @@ class _VideScaffoldState extends State<VideScaffold> {
           ),
         ),
       ],
-    );
-  }
-
-  Component _buildBottomBar(
-    BuildContext context,
-    VideThemeData theme,
-    bool sidebarFocused,
-    bool gitSidebarFocused,
-    bool hasRightSidebar,
-  ) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Row(
-        children: [
-          Expanded(child: SizedBox()),
-          VersionIndicator(),
-        ],
-      ),
     );
   }
 

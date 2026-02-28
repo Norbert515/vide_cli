@@ -19,7 +19,6 @@ import 'package:vide_cli/modules/git/git_popup.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/modules/remote/daemon_sessions_dialog.dart';
-import 'package:vide_cli/components/version_indicator.dart';
 
 enum _HomeSection { input, daemonIndicator, networksList }
 
@@ -91,7 +90,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  Future<void> _handleSubmit(VideMessage message) async {
+  Future<void> _handleSubmit(AgentMessage message) async {
     try {
       final worktreePath = context.read(repoPathOverrideProvider);
       final sessionManager = context.read(videSessionManagerProvider);
@@ -358,21 +357,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
 
-                  // Flexible space between main content and networks
-                  if (networks.isEmpty)
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          'Enter: start a new conversation',
-                          style: TextStyle(
-                            color: theme.base.onSurface.withOpacity(
-                              TextOpacity.tertiary,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-
                   // Previous conversations section
                   if (networks.isNotEmpty)
                     NetworkListSection(
@@ -398,8 +382,6 @@ class _HomePageState extends State<HomePage> {
                     ),
                 ],
               ),
-              // Version indicator in bottom-right corner
-              Positioned(bottom: 1, right: 1, child: const VersionIndicator()),
             ],
           );
         },
