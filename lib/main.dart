@@ -17,15 +17,6 @@ import 'package:vide_cli/services/sentry_service.dart';
 
 export 'package:vide_cli/modules/remote/remote_config.dart';
 
-/// Provider for left sidebar focus state, shared across the app.
-/// Pages can update this to give focus to the sidebar.
-/// When focused, the sidebar expands; when unfocused, it collapses.
-final sidebarFocusProvider = StateProvider<bool>((ref) => false);
-
-/// Provider for right sidebar (git) focus state.
-/// When true, the git sidebar is focused and receives keyboard input.
-final gitSidebarFocusProvider = StateProvider<bool>((ref) => false);
-
 /// Provider for IDE mode state. When true, the team sidebar is shown.
 /// Initialized from global settings and can be toggled via /ide command.
 final ideModeEnabledProvider = StateProvider<bool>((ref) {

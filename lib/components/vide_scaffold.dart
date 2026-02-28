@@ -2,8 +2,6 @@ import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/main.dart'
     show
-        sidebarFocusProvider,
-        gitSidebarFocusProvider,
         gitSidebarEnabledProvider,
         currentDirIsGitRepoProvider,
         filePreviewPathProvider,
@@ -21,6 +19,9 @@ import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_core/vide_core.dart';
 
+/// Which panel currently holds keyboard focus.
+enum FocusedPanel { content, leftSidebar, rightSidebar }
+
 /// Provider to expose the current sidebar width for pages to read.
 /// This allows pages to know how much space the sidebar takes without coupling.
 final sidebarWidthProvider = StateProvider<double>((ref) => 0.0);
@@ -34,17 +35,18 @@ final sidebarWidthProvider = StateProvider<double>((ref) => 0.0);
 /// The key insight: wrap ALL content (sidebars + main) inside the Navigator's
 /// home page. This way, the Navigator's dialogs render on top of everything.
 ///
-/// Usage in main.dart:
-/// ```dart
-/// Navigator(
-///   home: VideScaffold(
-///     child: HomePage(),
-///   ),
-/// )
-/// ```
+/// The [childBuilder] receives focus state so the content can react to sidebar
+/// focus changes without needing providers or inherited widgets:
+/// - `contentFocused`: true when neither sidebar has keyboard focus
+/// - `focusLeftSidebar` / `focusRightSidebar`: callbacks to shift focus
 class VideScaffold extends StatefulComponent {
-  /// The main content to display in the center area.
-  final Component child;
+  /// Builder for the main content. Receives sidebar focus state so the content
+  /// area can adjust (e.g. defocus the text field when a sidebar is focused).
+  final Component Function({
+    required bool contentFocused,
+    required VoidCallback focusLeftSidebar,
+    required VoidCallback focusRightSidebar,
+  }) childBuilder;
 
   /// Width of the left sidebar when expanded.
   final double sidebarWidth;
@@ -56,7 +58,7 @@ class VideScaffold extends StatefulComponent {
   final double minWidthForSidebar;
 
   const VideScaffold({
-    required this.child,
+    required this.childBuilder,
     this.sidebarWidth = 28,
     this.gitSidebarWidth = 30,
     this.minWidthForSidebar = 100,
@@ -68,6 +70,7 @@ class VideScaffold extends StatefulComponent {
 }
 
 class _VideScaffoldState extends State<VideScaffold> {
+  FocusedPanel _focusedPanel = FocusedPanel.content;
   String? _currentFilePreviewPath;
   bool _dialogShowing = false;
 
@@ -97,8 +100,8 @@ class _VideScaffoldState extends State<VideScaffold> {
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-    final sidebarFocused = context.watch(sidebarFocusProvider);
-    final gitSidebarFocused = context.watch(gitSidebarFocusProvider);
+    final sidebarFocused = _focusedPanel == FocusedPanel.leftSidebar;
+    final gitSidebarFocused = _focusedPanel == FocusedPanel.rightSidebar;
     final gitSidebarEnabled = context.watch(gitSidebarEnabledProvider);
     final isGitRepo = context.watch(currentDirIsGitRepoProvider);
     final filePreviewPath = context.watch(filePreviewPathProvider);
@@ -155,7 +158,13 @@ class _VideScaffoldState extends State<VideScaffold> {
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(left: 1, right: 1, top: 1),
-                child: component.child,
+                child: component.childBuilder(
+                  contentFocused: _focusedPanel == FocusedPanel.content,
+                  focusLeftSidebar: () =>
+                      setState(() => _focusedPanel = FocusedPanel.leftSidebar),
+                  focusRightSidebar: () =>
+                      setState(() => _focusedPanel = FocusedPanel.rightSidebar),
+                ),
               ),
             ),
 
@@ -203,12 +212,12 @@ class _VideScaffoldState extends State<VideScaffold> {
                 focused: focused,
                 expanded: true,
                 onExitRight: () {
-                  context.read(sidebarFocusProvider.notifier).state = false;
+                  setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSelectAgent: (agentId) {
                   context.read(selectedAgentIdProvider.notifier).state =
                       agentId;
-                  context.read(sidebarFocusProvider.notifier).state = false;
+                  setState(() => _focusedPanel = FocusedPanel.content);
                 },
               ),
             ),
@@ -249,7 +258,7 @@ class _VideScaffoldState extends State<VideScaffold> {
                 expanded: true,
                 repoPath: repoPath,
                 onExitLeft: () {
-                  context.read(gitSidebarFocusProvider.notifier).state = false;
+                  setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSendMessage: (message) {
                   final selectedAgentId = context.read(selectedAgentIdProvider);

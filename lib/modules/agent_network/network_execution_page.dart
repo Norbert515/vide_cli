@@ -96,7 +96,13 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     super.dispose();
   }
 
-  Component _buildAgentChat(BuildContext context, List<String> agentIds) {
+  Component _buildAgentChat(
+    BuildContext context,
+    List<String> agentIds, {
+    required bool contentFocused,
+    required VoidCallback focusLeftSidebar,
+    required VoidCallback focusRightSidebar,
+  }) {
     // Get selected agent ID from provider, or use the first agent
     final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
     final selectedAgentId = context.watch(selectedAgentIdProvider);
@@ -118,6 +124,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         networkId: session.id,
         showQuitWarning: _showQuitWarning,
         onExit: _exitWithDaemonCleanup,
+        contentFocused: contentFocused,
+        focusLeftSidebar: focusLeftSidebar,
+        focusRightSidebar: focusRightSidebar,
       ),
     );
   }
@@ -196,32 +205,46 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       }
     }
 
-    // Build the main content column
-    final content = Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [if (agentIds.isEmpty) Center(child: Text('No agents')) else _buildAgentChat(context, agentIds)],
-      ),
+    return VideScaffold(
+      childBuilder: ({
+        required contentFocused,
+        required focusLeftSidebar,
+        required focusRightSidebar,
+      }) {
+        final content = Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (agentIds.isEmpty)
+                Center(child: Text('No agents'))
+              else
+                _buildAgentChat(
+                  context,
+                  agentIds,
+                  contentFocused: contentFocused,
+                  focusLeftSidebar: focusLeftSidebar,
+                  focusRightSidebar: focusRightSidebar,
+                ),
+            ],
+          ),
+        );
+
+        return PermissionScope(
+          child: Focusable(
+            focused: true,
+            onKeyEvent: (event) {
+              if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
+                _handleCtrlC();
+                return true;
+              }
+              return false;
+            },
+            child: MouseRegion(child: content),
+          ),
+        );
+      },
     );
-
-    final innerContent = PermissionScope(
-      child: Focusable(
-        focused: true,
-        onKeyEvent: (event) {
-          // Ctrl+C: Show quit warning (double press to quit)
-          if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-            _handleCtrlC();
-            return true;
-          }
-
-          return false;
-        },
-        child: MouseRegion(child: content),
-      ),
-    );
-
-    return VideScaffold(child: innerContent);
   }
 
   /// Full-screen loading state shown while connecting to a remote session
@@ -241,11 +264,17 @@ class _AgentChat extends StatefulComponent {
   final String networkId;
   final bool showQuitWarning;
   final Future<void> Function() onExit;
+  final bool contentFocused;
+  final VoidCallback focusLeftSidebar;
+  final VoidCallback focusRightSidebar;
 
   const _AgentChat({
     required this.agentId,
     required this.networkId,
     required this.onExit,
+    required this.contentFocused,
+    required this.focusLeftSidebar,
+    required this.focusRightSidebar,
     this.showQuitWarning = false,
     super.key,
   });
@@ -720,6 +749,9 @@ class _AgentChatState extends State<_AgentChat> {
                   onEscape: _handleEscape,
                   commandSuggestions: _getCommandSuggestions,
                   fileSuggestions: _getFileSuggestions,
+                  contentFocused: component.contentFocused,
+                  onFocusLeftSidebar: component.focusLeftSidebar,
+                  onFocusRightSidebar: component.focusRightSidebar,
                 ),
               ],
             ),

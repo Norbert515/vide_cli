@@ -3,7 +3,6 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/components/queue_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
 import 'package:vide_cli/modules/agent_network/components/context_usage_section.dart';
 import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog.dart';
@@ -48,6 +47,9 @@ class ChatInputArea extends StatelessComponent {
   final List<CommandSuggestion> Function(String prefix) commandSuggestions;
   final Future<List<CommandSuggestion>> Function(String query)? fileSuggestions;
   final double? maxDialogHeight;
+  final bool contentFocused;
+  final VoidCallback? onFocusLeftSidebar;
+  final VoidCallback? onFocusRightSidebar;
 
   const ChatInputArea({
     required this.agentId,
@@ -68,6 +70,9 @@ class ChatInputArea extends StatelessComponent {
     required this.commandSuggestions,
     this.fileSuggestions,
     this.maxDialogHeight,
+    this.contentFocused = true,
+    this.onFocusLeftSidebar,
+    this.onFocusRightSidebar,
     super.key,
   });
 
@@ -246,13 +251,9 @@ class ChatInputArea extends StatelessComponent {
       builder: (context) {
         final promptHistory = context.watch(promptHistoryProvider);
         final pendingText = context.watch(pendingInputTextProvider);
-        // Text field is focused when neither sidebar has focus
-        final leftSidebarFocused = context.watch(sidebarFocusProvider);
-        final rightSidebarFocused = context.watch(gitSidebarFocusProvider);
-        final textFieldFocused = !leftSidebarFocused && !rightSidebarFocused;
 
         return AttachmentTextField(
-          focused: textFieldFocused,
+          focused: contentFocused,
           enabled: true, // Always enabled - messages queue during processing
           placeholder: 'Type a message...',
           initialText: pendingText,
@@ -273,10 +274,8 @@ class ChatInputArea extends StatelessComponent {
           promptHistory: promptHistory,
           onPromptSubmitted: (prompt) =>
               context.read(promptHistoryProvider.notifier).addPrompt(prompt),
-          onLeftEdge: () =>
-              context.read(sidebarFocusProvider.notifier).state = true,
-          onRightEdge: () =>
-              context.read(gitSidebarFocusProvider.notifier).state = true,
+          onLeftEdge: onFocusLeftSidebar,
+          onRightEdge: onFocusRightSidebar,
           onEscape: onEscape,
         );
       },

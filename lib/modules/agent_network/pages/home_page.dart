@@ -206,7 +206,6 @@ class _HomePageState extends State<HomePage> {
 
     final theme = VideTheme.of(context);
     final currentDir = context.watch(currentRepoPathProvider);
-    final sidebarFocused = context.watch(sidebarFocusProvider);
     final networks = context.watch(agentNetworksStateNotifierProvider).sessions;
 
     final daemonEnabled = context.watch(daemonModeEnabledProvider);
@@ -216,7 +215,7 @@ class _HomePageState extends State<HomePage> {
         _focusSection == _HomeSection.daemonIndicator;
 
     return Focusable(
-      focused: !sidebarFocused,
+      focused: true,
       onKeyEvent: (event) {
         if (event.logicalKey == LogicalKey.tab) {
           SettingsPopup.show(context);
@@ -276,8 +275,7 @@ class _HomePageState extends State<HomePage> {
                                 );
                                 return AttachmentTextField(
                                   focused:
-                                      _focusSection == _HomeSection.input &&
-                                      !sidebarFocused,
+                                      _focusSection == _HomeSection.input,
                                   placeholder:
                                       'Describe your goal (you can attach images)',
                                   onSubmit: _handleSubmit,
