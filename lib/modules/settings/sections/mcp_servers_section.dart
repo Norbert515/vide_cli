@@ -67,8 +67,7 @@ class _McpServersSectionState extends State<McpServersSection> {
   }
 
   void _tryLiveStatus() {
-    final session = context.read(currentVideSessionProvider) ??
-        context.read(pendingSessionProvider);
+    final session = context.read(currentVideSessionProvider);
     if (session == null) return;
 
     session.getMcpServers().then((servers) {

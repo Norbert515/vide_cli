@@ -40,28 +40,6 @@ class _HomePageState extends State<HomePage> {
   List<String>? _cachedFileList;
   DateTime? _cachedFileListTimestamp;
 
-  @override
-  void initState() {
-    super.initState();
-    _preCreateSession();
-  }
-
-  Future<void> _preCreateSession() async {
-    final sessionManager = context.read(videSessionManagerProvider);
-    final worktreePath = context.read(repoPathOverrideProvider);
-    try {
-      final session = await sessionManager.createSession(
-        workingDirectory: worktreePath ?? Directory.current.path,
-        team: 'enterprise',
-      );
-      if (mounted) {
-        context.read(pendingSessionProvider.notifier).state = session;
-      }
-    } catch (e) {
-      print('[HomePage] Pre-creation failed: $e');
-    }
-  }
-
   void _tryAutoConnectConfiguredSession() {
     if (_startupSessionConnectAttempted) return;
 
@@ -95,23 +73,12 @@ class _HomePageState extends State<HomePage> {
       final worktreePath = context.read(repoPathOverrideProvider);
       final sessionManager = context.read(videSessionManagerProvider);
 
-      // Try to use pre-created session
-      var session = context.read(pendingSessionProvider);
-
-      if (session != null) {
-        // Consume the pending session
-        context.read(pendingSessionProvider.notifier).state = null;
-        // Send the first message — this activates the session
-        session.sendMessage(message);
-      } else {
-        // Fallback: create with message (pre-creation failed or not ready)
-        session = await sessionManager.createSession(
-          initialMessage: message.text,
-          workingDirectory: worktreePath ?? Directory.current.path,
-          team: 'enterprise',
-          attachments: message.attachments,
-        );
-      }
+      final session = await sessionManager.createSession(
+        initialMessage: message.text,
+        workingDirectory: worktreePath ?? Directory.current.path,
+        team: 'enterprise',
+        attachments: message.attachments,
+      );
 
       await NetworkExecutionPage.push(context, session: session);
     } catch (e) {
