@@ -17,13 +17,6 @@ import 'package:vide_cli/services/sentry_service.dart';
 
 export 'package:vide_cli/modules/remote/remote_config.dart';
 
-/// Provider for IDE mode state. When true, the team sidebar is shown.
-/// Initialized from global settings and can be toggled via /ide command.
-final ideModeEnabledProvider = StateProvider<bool>((ref) {
-  final config = ref.read(videCoreConfigProvider);
-  return config.configManager.readGlobalSettings().ideModeEnabled;
-});
-
 /// Provider for git sidebar setting. When true, the git sidebar will show
 /// (if the current directory is a git repo).
 final gitSidebarEnabledProvider = StateProvider<bool>((ref) {

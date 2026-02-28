@@ -107,17 +107,6 @@ class _HomePageState extends State<HomePage> {
       clearConversation: null,
       exitApp: () async => shutdownApp(),
       detachApp: shutdownApp,
-      toggleIdeMode: () {
-        final container = ProviderScope.containerOf(context);
-        final current = container.read(ideModeEnabledProvider);
-        container.read(ideModeEnabledProvider.notifier).state = !current;
-
-        final configManager = container.read(videConfigManagerProvider);
-        final settings = configManager.readGlobalSettings();
-        configManager.writeGlobalSettings(
-          settings.copyWith(ideModeEnabled: !current),
-        );
-      },
       showGitPopup: () async {
         final repoPath = context.read(currentRepoPathProvider);
         await GitPopup.show(context, repoPath: repoPath);

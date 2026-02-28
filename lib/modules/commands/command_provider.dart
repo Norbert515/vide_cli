@@ -8,7 +8,6 @@ import 'commands/detach_command.dart';
 import 'commands/exit_command.dart';
 import 'commands/fork_command.dart';
 import 'commands/git_command.dart';
-import 'commands/ide_command.dart';
 import 'commands/kill_command.dart';
 import 'commands/logs_command.dart';
 import 'commands/settings_command.dart';
@@ -25,7 +24,6 @@ final commandRegistryProvider = Provider<CommandRegistry>((ref) {
     ExitCommand(),
     ForkCommand(),
     GitCommand(),
-    IdeCommand(),
     KillCommand(),
     LogsCommand(),
     SettingsCommand(),

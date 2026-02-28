@@ -33,7 +33,6 @@ class CommandContext {
     this.clearConversation,
     this.exitApp,
     this.detachApp,
-    this.toggleIdeMode,
     this.forkAgent,
     this.killAgent,
     this.isLastAgent = false,
@@ -63,10 +62,6 @@ class CommandContext {
   /// Callback to detach from the session (exits TUI, leaves daemon running).
   /// Used by /detach command.
   final void Function()? detachApp;
-
-  /// Callback to toggle IDE mode (show/hide git sidebar).
-  /// Used by /ide command.
-  final void Function()? toggleIdeMode;
 
   /// Callback to fork the current agent, creating a new agent with the same context.
   /// Returns the ID of the forked agent.
