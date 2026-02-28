@@ -35,11 +35,6 @@ class ConnectCommand extends Command<void> {
     final sessionId = argResults!['session'] as String?;
     final authToken = argResults!['auth-token'] as String?;
 
-    final forceLocal = globalResults!['local'] as bool;
-    if (forceLocal) {
-      usageException('--local cannot be used with the connect command');
-    }
-
     final remoteConfig = _parseConnectArg(connectArg, sessionId, authToken);
 
     final dangerouslySkipPermissions =

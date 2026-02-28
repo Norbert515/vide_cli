@@ -1,9 +1,7 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart' show videConfigManagerProvider;
-import 'package:vide_cli/main.dart' show daemonModeEnabledProvider;
 import 'package:vide_cli/modules/settings/components/settings_card.dart';
-import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 import 'package:vide_cli/modules/settings/components/settings_text_input.dart';
 
 /// Daemon settings: mode toggle, host, and port.
@@ -24,8 +22,8 @@ class DaemonSettingsSection extends StatefulComponent {
 class _DaemonSettingsSectionState extends State<DaemonSettingsSection> {
   int _selectedIndex = 0;
 
-  // [0] = Daemon mode, [1] = Host, [2] = Port
-  static const int _totalItems = 3;
+  // [0] = Host, [1] = Port
+  static const int _totalItems = 2;
 
   int? _editingIndex;
   final _hostController = TextEditingController();
@@ -75,32 +73,17 @@ class _DaemonSettingsSectionState extends State<DaemonSettingsSection> {
   }
 
   void _activateCurrentItem() {
-    if (_selectedIndex == 1) {
+    if (_selectedIndex == 0) {
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _hostController.text = settings.daemonHost;
-      setState(() => _editingIndex = 1);
-    } else if (_selectedIndex == 2) {
+      setState(() => _editingIndex = 0);
+    } else if (_selectedIndex == 1) {
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _portController.text = settings.daemonPort.toString();
-      setState(() => _editingIndex = 2);
-    } else {
-      _toggleCurrentItem();
+      setState(() => _editingIndex = 1);
     }
-  }
-
-  void _toggleCurrentItem() {
-    if (_selectedIndex != 0) return;
-    final container = ProviderScope.containerOf(context);
-    final configManager = container.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
-    final newValue = !settings.daemonModeEnabled;
-    configManager.writeGlobalSettings(
-      settings.copyWith(daemonModeEnabled: newValue),
-    );
-    container.read(daemonModeEnabledProvider.notifier).state = newValue;
-    setState(() {});
   }
 
   void _saveDaemonHost(String value) {
@@ -126,7 +109,6 @@ class _DaemonSettingsSectionState extends State<DaemonSettingsSection> {
   Component build(BuildContext context) {
     final configManager = context.read(videConfigManagerProvider);
     final settings = configManager.readGlobalSettings();
-    final daemonModeEnabled = settings.daemonModeEnabled;
 
     return Focusable(
       focused: component.focused,
@@ -141,31 +123,18 @@ class _DaemonSettingsSectionState extends State<DaemonSettingsSection> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SettingsToggleItem(
-                    label: 'Daemon Mode',
-                    description: 'Run sessions on a persistent daemon process',
-                    value: daemonModeEnabled,
-                    isSelected:
-                        component.focused &&
-                        _selectedIndex == 0 &&
-                        _editingIndex == null,
-                    onTap: () {
-                      setState(() => _selectedIndex = 0);
-                      _activateCurrentItem();
-                    },
-                  ),
                   SettingsTextInput(
                     label: 'Host',
                     description: 'Hostname or IP address of the daemon',
                     value: settings.daemonHost,
                     isSelected:
                         component.focused &&
-                        _selectedIndex == 1 &&
+                        _selectedIndex == 0 &&
                         _editingIndex == null,
-                    isEditing: _editingIndex == 1,
+                    isEditing: _editingIndex == 0,
                     controller: _hostController,
                     onTap: () {
-                      setState(() => _selectedIndex = 1);
+                      setState(() => _selectedIndex = 0);
                       _activateCurrentItem();
                     },
                     onSubmitted: _saveDaemonHost,
@@ -176,12 +145,12 @@ class _DaemonSettingsSectionState extends State<DaemonSettingsSection> {
                     value: settings.daemonPort.toString(),
                     isSelected:
                         component.focused &&
-                        _selectedIndex == 2 &&
+                        _selectedIndex == 1 &&
                         _editingIndex == null,
-                    isEditing: _editingIndex == 2,
+                    isEditing: _editingIndex == 1,
                     controller: _portController,
                     onTap: () {
-                      setState(() => _selectedIndex = 2);
+                      setState(() => _selectedIndex = 1);
                       _activateCurrentItem();
                     },
                     onSubmitted: _saveDaemonPort,

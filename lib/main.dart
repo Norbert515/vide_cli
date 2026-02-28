@@ -24,12 +24,6 @@ final gitSidebarEnabledProvider = StateProvider<bool>((ref) {
   return config.configManager.readGlobalSettings().gitSidebarEnabled;
 });
 
-/// Provider for daemon mode setting. When true, sessions run on a persistent daemon.
-/// Initialized from global settings and can be toggled in settings.
-final daemonModeEnabledProvider = StateProvider<bool>((ref) {
-  final config = ref.read(videCoreConfigProvider);
-  return config.configManager.readGlobalSettings().daemonModeEnabled;
-});
 
 /// Provider that checks if the current repo path is a git repository.
 /// Returns true if .git directory exists in the current or any parent directory.
@@ -92,27 +86,13 @@ final currentRepoPathProvider = Provider<String>((ref) {
   return Directory.current.path;
 });
 
-/// Global permission handler for late session binding.
-///
-/// This is used by the TUI to enable permission checking. After a network is
-/// created and wrapped as a session, call `setSession()` to bind it.
-final _tuiPermissionHandler = PermissionHandler();
-
 /// Provider for remote configuration. When set, TUI operates in remote mode.
 final remoteConfigProvider = StateProvider<RemoteConfig?>((ref) => null);
-
-/// Provider for force local mode flag.
-final forceLocalModeProvider = StateProvider<bool>((ref) => false);
-
-/// Provider for force daemon mode flag.
-final forceDaemonModeProvider = StateProvider<bool>((ref) => false);
 
 Future<void> main(
   List<String> args, {
   List<Override> overrides = const [],
   RemoteConfig? remoteConfig,
-  bool forceLocal = false,
-  bool forceDaemon = false,
   bool dangerouslySkipPermissions = false,
 }) async {
   // Initialize structured logging
@@ -122,52 +102,39 @@ Future<void> main(
   await SentryService.init();
 
   // Create provider container with overrides from entry point.
-  // Late reference needed because the session manager provider needs access
-  // to the container that's still being constructed.
-  late final ProviderContainer container;
-  container = ProviderContainer(
+  final container = ProviderContainer(
     overrides: [
-      // Core configuration for vide_core. This is the single override that
-      // replaces individual provider overrides for working directory, config
-      // manager, permission handler, and skip-permissions flag.
+      // Core configuration for vide_core.
       videCoreConfigProvider.overrideWithValue(
         VideCoreConfig(
           workingDirectory: Directory.current.path,
           configManager: VideConfigManager(),
-          permissionHandler: _tuiPermissionHandler,
           dangerouslySkipPermissions: dangerouslySkipPermissions,
         ),
       ),
       // Remote mode configuration
       if (remoteConfig != null)
         remoteConfigProvider.overrideWith((ref) => remoteConfig),
-      if (forceLocal) forceLocalModeProvider.overrideWith((ref) => true),
-      if (forceDaemon) forceDaemonModeProvider.overrideWith((ref) => true),
-      if (forceLocal)
-        daemonModeEnabledProvider.overrideWith((ref) => false)
-      else if (forceDaemon || remoteConfig != null)
-        daemonModeEnabledProvider.overrideWith((ref) => true),
-      // Unified session manager — switches between local and remote based on
-      // daemon connection state.
+      // Session manager — always uses daemon (remote) sessions.
       videSessionManagerProvider.overrideWith((ref) {
         final daemonState = ref.watch(daemonConnectionProvider);
-        final VideSessionManager manager;
-        if (daemonState.isConnected) {
-          final notifier = ref.read(daemonConnectionProvider.notifier);
-          final persistenceManager = ref.read(
-            agentNetworkPersistenceManagerProvider,
+        if (!daemonState.isConnected) {
+          throw StateError(
+            'Daemon not connected. Vide requires a running daemon.',
           );
-          final configManager = ref.read(videConfigManagerProvider);
-          final workingDir = ref.read(workingDirProvider);
-          manager = RemoteVideSessionManager(
-            notifier,
-            persistenceManager,
-            configManager,
-            workingDir,
-          );
-        } else {
-          manager = LocalVideSessionManager(container, _tuiPermissionHandler);
         }
+        final notifier = ref.read(daemonConnectionProvider.notifier);
+        final persistenceManager = ref.read(
+          agentNetworkPersistenceManagerProvider,
+        );
+        final configManager = ref.read(videConfigManagerProvider);
+        final workingDir = ref.read(workingDirProvider);
+        final manager = RemoteVideSessionManager(
+          notifier,
+          persistenceManager,
+          configManager,
+          workingDir,
+        );
         ref.onDispose(() => manager.dispose());
         return manager;
       }),

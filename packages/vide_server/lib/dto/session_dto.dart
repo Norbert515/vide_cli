@@ -629,12 +629,14 @@ class AgentInfo {
   final String type;
   final String name;
   final String? spawnedBy;
+  final String? harness;
 
   AgentInfo({
     required this.id,
     required this.type,
     required this.name,
     this.spawnedBy,
+    this.harness,
   });
 
   Map<String, dynamic> toJson() => {
@@ -642,6 +644,7 @@ class AgentInfo {
     'type': type,
     'name': name,
     if (spawnedBy != null) 'spawned-by': spawnedBy,
+    if (harness != null) 'harness': harness,
   };
 }
 

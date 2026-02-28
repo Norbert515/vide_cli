@@ -16,7 +16,6 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:vide_core/vide_core.dart';
 
-import 'middleware/cors_middleware.dart';
 import 'routes/filesystem_routes.dart';
 import 'routes/git_routes.dart';
 import 'routes/session_routes.dart';
@@ -276,9 +275,9 @@ Handler _createHandler(
   // Build middleware pipeline
   // NOTE: logRequests() buffers the entire response, so it breaks streaming (WebSocket/SSE)
   // We use custom logging in the routes instead
-  final pipeline = Pipeline()
-      .addMiddleware(corsMiddleware())
-      .addHandler(router);
+  // No CORS middleware — vide_server is only accessed by the daemon proxy
+  // on localhost, not by browsers.
+  final pipeline = Pipeline().addHandler(router);
 
   return pipeline;
 }

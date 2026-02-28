@@ -160,10 +160,17 @@ class DaemonStarter {
     // Restore any existing sessions
     await registry.restore();
 
+    // Load or generate a persistent auth token.
+    // The token file survives daemon restarts so remote clients
+    // (mobile app, SSH tunnels) don't need to reconfigure.
+    final authToken = DaemonInfo.loadOrGenerateAuthToken(stateDir: stateDir);
+    _log.info('Auth token loaded (persistent across restarts)');
+
     // Create and start server
     final server = DaemonServer(
       registry: registry,
       port: config.port,
+      authToken: authToken,
       bindAddress: config.bindAddress,
     );
 
@@ -178,6 +185,7 @@ class DaemonStarter {
       stateDir: stateDir,
       sessionCount: registry.sessionCount,
       bindAddress: config.bindAddress,
+      authToken: authToken,
     );
 
     // Invoke ready callback if provided
@@ -194,6 +202,7 @@ class DaemonStarter {
         host: config.bindAddress,
         startedAt: DateTime.now().toUtc(),
         logFile: DaemonInfo.logFilePath(stateDir: stateDir),
+        authToken: authToken,
       ),
       stateDir: stateDir,
     );
@@ -284,6 +293,7 @@ class DaemonStarter {
     required String stateDir,
     required int sessionCount,
     required String bindAddress,
+    required String authToken,
   }) {
     final url = 'http://$bindAddress:$port';
     print('');
@@ -293,6 +303,9 @@ class DaemonStarter {
     print('║  URL: ${url.padRight(54)}║');
     print('║  State: ${stateDir.padRight(52)}║');
     print('║  Sessions: ${sessionCount.toString().padRight(49)}║');
+    print('╠══════════════════════════════════════════════════════════════╣');
+    print('║  Auth: Bearer token required (except /health)               ║');
+    print('║  Token: ${authToken.substring(0, 16)}...${' '.padRight(37)}║');
     print('╠══════════════════════════════════════════════════════════════╣');
     print('║  Endpoints:                                                  ║');
     print('║    POST   /sessions        - Create new session              ║');
@@ -364,7 +377,7 @@ class DaemonStarter {
       print('║    • Create sessions                                         ║');
       print('║    • Execute commands on your machine                        ║');
       print('║                                                              ║');
-      print('║  ❌ NO AUTHENTICATION - Traffic is NOT encrypted             ║');
+      print('║  ❌ Traffic is NOT encrypted (bearer token sent in cleartext) ║');
       print('║                                                              ║');
       print('║  🔐 RECOMMENDED: Use Tailscale instead                       ║');
       print('║     • Encrypted WireGuard connection                         ║');

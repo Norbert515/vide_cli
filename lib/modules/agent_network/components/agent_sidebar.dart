@@ -510,6 +510,20 @@ class _AgentRowItemState extends State<_AgentRowItem>
     };
   }
 
+  /// Build display tag combining harness abbreviation and model.
+  /// e.g. "cc:opus", "codex:o3", or just "opus" if harness is null.
+  String? _buildDisplayTag(String? harness, String? model) {
+    if (model == null && harness == null) return null;
+    final harnessAbbrev = switch (harness) {
+      'claude-code' => 'cc',
+      'codex-cli' => 'codex',
+      null => null,
+      final h => h.length > 5 ? h.substring(0, 5) : h,
+    };
+    if (harnessAbbrev != null && model != null) return '$harnessAbbrev:$model';
+    return model ?? harnessAbbrev;
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
@@ -537,13 +551,16 @@ class _AgentRowItemState extends State<_AgentRowItem>
         component.agent.taskName!.isNotEmpty) {
       displayName = '${component.agent.taskName}';
     }
-    // Account for tree prefix width + status indicator + model tag + spacing in truncation
+    // Account for tree prefix width + status indicator + display tag + spacing in truncation
     final prefixWidth = treeLine.length + connector.length;
-    final modelTag = component.agent.model;
-    final modelTagWidth = modelTag != null ? modelTag.length + 1 : 0; // +1 for space
+    final displayTag = _buildDisplayTag(
+      component.agent.harness,
+      component.agent.model,
+    );
+    final displayTagWidth = displayTag != null ? displayTag.length + 1 : 0; // +1 for space
     displayName = _truncateText(
       displayName,
-      component.availableWidth - prefixWidth - 4 - modelTagWidth,
+      component.availableWidth - prefixWidth - 4 - displayTagWidth,
     );
 
     final bgColor = component.isSelected && component.isFocused
@@ -595,12 +612,12 @@ class _AgentRowItemState extends State<_AgentRowItem>
                   maxLines: 1,
                 ),
               ),
-              // Model tag (e.g., "opus", "sonnet", "haiku")
-              if (modelTag != null)
+              // Harness:model tag (e.g., "cc:opus", "codex:o3")
+              if (displayTag != null)
                 Text(
-                  ' $modelTag',
+                  ' $displayTag',
                   style: TextStyle(
-                    color: _getModelColor(modelTag, theme)
+                    color: _getModelColor(component.agent.model, theme)
                         .withOpacity(TextOpacity.tertiary),
                   ),
                 ),

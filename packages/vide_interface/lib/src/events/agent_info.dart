@@ -17,6 +17,9 @@ class AgentInfo {
   /// ID of the agent that spawned this one (null for main agent).
   final String? spawnedBy;
 
+  /// Which harness this agent runs on (e.g. 'claude-code', 'codex-cli').
+  final String? harness;
+
   const AgentInfo({
     required this.id,
     required this.type,
@@ -24,6 +27,7 @@ class AgentInfo {
     this.taskName,
     this.status,
     this.spawnedBy,
+    this.harness,
   });
 
   factory AgentInfo.fromJson(Map<String, dynamic> json) => AgentInfo(
@@ -33,6 +37,7 @@ class AgentInfo {
     taskName: json['task-name'] as String?,
     status: json['status'] as String?,
     spawnedBy: json['spawned-by'] as String?,
+    harness: json['harness'] as String?,
   );
 
   Map<String, dynamic> toJson() => {
@@ -42,5 +47,6 @@ class AgentInfo {
     if (taskName != null) 'task-name': taskName,
     if (status != null) 'status': status,
     if (spawnedBy != null) 'spawned-by': spawnedBy,
+    if (harness != null) 'harness': harness,
   };
 }

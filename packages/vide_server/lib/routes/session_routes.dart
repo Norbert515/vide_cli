@@ -329,6 +329,7 @@ class _SimplifiedStreamHandler {
               type: a.type,
               name: a.name,
               spawnedBy: a.spawnedBy,
+              harness: a.harness,
             ),
           )
           .toList(),

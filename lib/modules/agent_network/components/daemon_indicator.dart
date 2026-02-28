@@ -1,7 +1,6 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/main.dart' show daemonModeEnabledProvider;
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 
@@ -38,8 +37,6 @@ class _DaemonIndicatorState extends State<DaemonIndicator> {
   Component build(BuildContext context) {
     final theme = VideTheme.of(context);
     final daemonState = context.watch(daemonConnectionProvider);
-    final daemonEnabled = context.watch(daemonModeEnabledProvider);
-    if (!daemonEnabled) return const SizedBox.shrink();
 
     return Focusable(
       focused: component.focused,

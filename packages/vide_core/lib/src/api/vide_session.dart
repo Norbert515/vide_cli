@@ -1272,6 +1272,7 @@ class LocalVideSession implements VideSession {
             agentName: agent.name,
             taskName: agent.taskName,
             spawnedBy: agent.spawnedBy ?? 'unknown',
+            harness: agent.harness,
           ),
         );
 

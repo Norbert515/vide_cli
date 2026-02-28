@@ -29,12 +29,6 @@ class VideCommandRunner extends CommandRunner<void> {
             'Skip all permission checks (DANGEROUS: only for sandboxed environments)',
       )
       ..addFlag(
-        'local',
-        negatable: false,
-        help: 'Force local session mode (ignore daemon setting)',
-      )
-      ..addFlag('daemon', negatable: false, help: 'Force daemon session mode')
-      ..addFlag(
         'flutter-mcp',
         negatable: false,
         help: 'Run as a standalone Flutter MCP server (stdio mode)',
@@ -95,14 +89,8 @@ SAFETY:
     }
 
     // No subcommand: launch the TUI
-    final forceLocal = topLevelResults['local'] as bool;
-    final forceDaemon = topLevelResults['daemon'] as bool;
     final dangerouslySkipPermissions =
         topLevelResults['dangerously-skip-permissions'] as bool;
-
-    if (forceLocal && forceDaemon) {
-      usageException('--local and --daemon cannot be used together');
-    }
 
     final configManager = VideConfigManager();
     final overrides = [
@@ -113,8 +101,6 @@ SAFETY:
     await app.main(
       topLevelResults.rest,
       overrides: overrides,
-      forceLocal: forceLocal,
-      forceDaemon: forceDaemon,
       dangerouslySkipPermissions: dangerouslySkipPermissions,
     );
   }

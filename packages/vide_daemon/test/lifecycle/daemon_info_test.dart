@@ -23,6 +23,7 @@ void main() {
         host: '100.69.74.9',
         startedAt: DateTime.utc(2026, 2, 15, 10, 30),
         logFile: '/tmp/daemon.log',
+        authToken: 'test-token-abc123',
       );
 
       final json = info.toJson();
@@ -32,6 +33,7 @@ void main() {
       expect(json['host'], '100.69.74.9');
       expect(json['started_at'], '2026-02-15T10:30:00.000Z');
       expect(json['log_file'], '/tmp/daemon.log');
+      expect(json['auth_token'], 'test-token-abc123');
     });
 
     test('fromJson deserializes all fields', () {
@@ -41,6 +43,7 @@ void main() {
         'host': '127.0.0.1',
         'started_at': '2026-01-01T00:00:00.000Z',
         'log_file': '/var/log/daemon.log',
+        'auth_token': 'token-xyz',
       };
 
       final info = DaemonInfo.fromJson(json);
@@ -50,6 +53,7 @@ void main() {
       expect(info.host, '127.0.0.1');
       expect(info.startedAt, DateTime.utc(2026, 1, 1));
       expect(info.logFile, '/var/log/daemon.log');
+      expect(info.authToken, 'token-xyz');
     });
 
     test('fromJson handles null logFile', () {
@@ -59,6 +63,7 @@ void main() {
         'host': '127.0.0.1',
         'started_at': '2026-01-01T00:00:00.000Z',
         'log_file': null,
+        'auth_token': 'token',
       };
 
       final info = DaemonInfo.fromJson(json);
@@ -72,6 +77,7 @@ void main() {
         host: '0.0.0.0',
         startedAt: DateTime.utc(2026, 6, 15, 12, 0, 0),
         logFile: '/tmp/test.log',
+        authToken: 'roundtrip-token',
       );
 
       final json = original.toJson();
@@ -82,6 +88,7 @@ void main() {
       expect(restored.host, original.host);
       expect(restored.startedAt, original.startedAt);
       expect(restored.logFile, original.logFile);
+      expect(restored.authToken, original.authToken);
     });
 
     test('url getter returns correct URL', () {
@@ -90,6 +97,7 @@ void main() {
         port: 8093,
         host: '100.69.74.9',
         startedAt: DateTime.now(),
+        authToken: 'token',
       );
 
       expect(info.url, 'http://100.69.74.9:8093');
@@ -104,6 +112,7 @@ void main() {
         host: '127.0.0.1',
         startedAt: DateTime.utc(2026, 2, 15, 10, 30),
         logFile: '/tmp/daemon.log',
+        authToken: 'write-test-token',
       );
 
       DaemonInfo.write(info, stateDir: tempDir.path);
@@ -114,6 +123,7 @@ void main() {
       final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       expect(json['pid'], 12345);
       expect(json['port'], 8080);
+      expect(json['auth_token'], 'write-test-token');
     });
 
     test('read returns info from file', () {
@@ -122,6 +132,7 @@ void main() {
         port: 9000,
         host: '10.0.0.1',
         startedAt: DateTime.utc(2026, 3, 1),
+        authToken: 'read-test-token',
       );
 
       DaemonInfo.write(info, stateDir: tempDir.path);
@@ -131,6 +142,7 @@ void main() {
       expect(read!.pid, 555);
       expect(read.port, 9000);
       expect(read.host, '10.0.0.1');
+      expect(read.authToken, 'read-test-token');
     });
 
     test('read returns null when file does not exist', () {
@@ -144,6 +156,7 @@ void main() {
         port: 8080,
         host: '127.0.0.1',
         startedAt: DateTime.now(),
+        authToken: 'token',
       );
 
       DaemonInfo.write(info, stateDir: tempDir.path);
@@ -162,6 +175,53 @@ void main() {
     test('delete is idempotent when file does not exist', () {
       // Should not throw
       DaemonInfo.delete(stateDir: tempDir.path);
+    });
+  });
+
+  group('Persistent auth token', () {
+    test('loadOrGenerateAuthToken creates new token when none exists', () {
+      final token = DaemonInfo.loadOrGenerateAuthToken(stateDir: tempDir.path);
+
+      expect(token, isNotEmpty);
+      expect(token.length, 64); // 32 bytes = 64 hex chars
+
+      // Verify persisted to file
+      final file = File(DaemonInfo.authTokenFilePath(stateDir: tempDir.path));
+      expect(file.existsSync(), isTrue);
+      expect(file.readAsStringSync(), token);
+    });
+
+    test('loadOrGenerateAuthToken reuses existing token', () {
+      final first = DaemonInfo.loadOrGenerateAuthToken(stateDir: tempDir.path);
+      final second = DaemonInfo.loadOrGenerateAuthToken(stateDir: tempDir.path);
+
+      expect(second, first);
+    });
+
+    test('loadOrGenerateAuthToken regenerates if file is empty', () {
+      final file = File(DaemonInfo.authTokenFilePath(stateDir: tempDir.path));
+      file.parent.createSync(recursive: true);
+      file.writeAsStringSync('');
+
+      final token = DaemonInfo.loadOrGenerateAuthToken(stateDir: tempDir.path);
+
+      expect(token, isNotEmpty);
+      expect(token.length, 64);
+    });
+
+    test('generated tokens are unique', () {
+      final dir1 = Directory.systemTemp.createTempSync('token_test_1_');
+      final dir2 = Directory.systemTemp.createTempSync('token_test_2_');
+
+      try {
+        final token1 = DaemonInfo.loadOrGenerateAuthToken(stateDir: dir1.path);
+        final token2 = DaemonInfo.loadOrGenerateAuthToken(stateDir: dir2.path);
+
+        expect(token1, isNot(token2));
+      } finally {
+        dir1.deleteSync(recursive: true);
+        dir2.deleteSync(recursive: true);
+      }
     });
   });
 }

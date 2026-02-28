@@ -11,12 +11,7 @@ import 'package:vide_core/vide_core.dart'
 import 'package:vide_daemon/vide_daemon.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import 'package:vide_cli/main.dart'
-    show
-        daemonModeEnabledProvider,
-        forceDaemonModeProvider,
-        forceLocalModeProvider,
-        remoteConfigProvider;
+import 'package:vide_cli/main.dart' show remoteConfigProvider;
 
 /// State for daemon connection.
 class DaemonConnectionState {
@@ -63,6 +58,7 @@ class DaemonConnectionState {
 class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   final Ref _ref;
   StreamSubscription<DaemonEvent>? _eventSubscription;
+  String? _authToken;
 
   DaemonConnectionNotifier(this._ref) : super(const DaemonConnectionState()) {
     _initialize();
@@ -70,25 +66,16 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
 
   /// Initialize connection based on current settings.
   Future<void> _initialize() async {
-    final forceLocalMode = _ref.read(forceLocalModeProvider);
-    final forceDaemonMode = _ref.read(forceDaemonModeProvider);
     final remoteConfig = _ref.read(remoteConfigProvider);
-    final daemonEnabledInSettings = _ref.read(daemonModeEnabledProvider);
-    final daemonEnabled =
-        !forceLocalMode &&
-        (forceDaemonMode || remoteConfig != null || daemonEnabledInSettings);
-
-    if (!daemonEnabled) {
-      _disconnect();
-      return;
-    }
 
     final String targetHost;
     final int targetPort;
+    String? authToken;
 
     if (remoteConfig != null) {
       targetHost = remoteConfig.host;
       targetPort = remoteConfig.port;
+      authToken = remoteConfig.authToken;
     } else {
       final configManager = _ref.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
@@ -104,23 +91,32 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
       return; // Already connected with same target
     }
 
-    await _connect(targetHost, targetPort);
+    await _connect(targetHost, targetPort, authToken: authToken);
   }
 
   /// Connect to daemon at the given host/port.
   ///
   /// If the daemon is not running and this is a local connection (not via
   /// `vide connect`), attempts to auto-start it.
-  Future<void> _connect(String host, int port) async {
+  ///
+  /// [authToken] is used for remote connections (from RemoteConfig).
+  /// For local daemons, the token is read from the DaemonInfo file.
+  Future<void> _connect(
+    String host,
+    int port, {
+    String? authToken,
+  }) async {
     // Clean up existing connection
     _disconnect();
 
     state = DaemonConnectionState(isConnecting: true, host: host, port: port);
 
-    final client = DaemonClient(host: host, port: port);
+    // Health check doesn't need auth (exempt endpoint)
+    final healthClient = DaemonClient(host: host, port: port);
 
     try {
-      var healthy = await client.isHealthy();
+      var healthy = await healthClient.isHealthy();
+      healthClient.close();
 
       // If not healthy and this is a local daemon (not remote config),
       // attempt to auto-start.
@@ -135,6 +131,16 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
         );
         return;
       }
+
+      // For local daemons, read the auth token from the DaemonInfo file.
+      final resolvedToken = authToken ?? DaemonInfo.read()?.authToken;
+      _authToken = resolvedToken;
+
+      final client = DaemonClient(
+        host: host,
+        port: port,
+        authToken: resolvedToken,
+      );
 
       state = DaemonConnectionState(
         client: client,
@@ -370,8 +376,12 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   }
 
   Uri _applySessionStreamAuth(Uri wsUri) {
-    // No auth token needed - relying on Tailscale for security
-    return wsUri;
+    if (_authToken == null) return wsUri;
+    // Add auth token as query parameter for WebSocket upgrade requests
+    // (browsers can't set Authorization headers on WS upgrades).
+    return wsUri.replace(
+      queryParameters: {...wsUri.queryParameters, 'token': _authToken!},
+    );
   }
 
   /// List sessions from the daemon.
@@ -452,23 +462,12 @@ final daemonConnectionProvider =
     ) {
       final notifier = DaemonConnectionNotifier(ref);
 
-      // Watch for daemon mode changes and reinitialize
-      ref.listen(daemonModeEnabledProvider, (_, __) {
-        notifier.reconnect();
-      });
-
-      // Watch for runtime mode overrides and remote config.
-      ref.listen(forceLocalModeProvider, (_, __) {
-        notifier.reconnect();
-      });
-      ref.listen(forceDaemonModeProvider, (_, __) {
-        notifier.reconnect();
-      });
+      // Watch for remote config changes and reinitialize.
       ref.listen(remoteConfigProvider, (_, __) {
         notifier.reconnect();
       });
 
-      // Watch for settings changes
+      // Watch for settings changes (host/port).
       ref.listen(videConfigManagerProvider, (_, __) {
         notifier.reconnect();
       });

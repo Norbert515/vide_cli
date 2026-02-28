@@ -197,8 +197,6 @@ class _HomePageState extends State<HomePage> {
     final currentDir = context.watch(currentRepoPathProvider);
     final networks = context.watch(agentNetworksStateNotifierProvider).sessions;
 
-    final daemonEnabled = context.watch(daemonModeEnabledProvider);
-
     final textFieldFocused =
         _focusSection == _HomeSection.input ||
         _focusSection == _HomeSection.daemonIndicator;
@@ -281,12 +279,10 @@ class _HomePageState extends State<HomePage> {
                                               _HomeSection.networksList;
                                         })
                                       : null,
-                                  onUpEdge: daemonEnabled
-                                      ? () => setState(() {
-                                          _focusSection =
-                                              _HomeSection.daemonIndicator;
-                                        })
-                                      : null,
+                                  onUpEdge: () => setState(() {
+                                    _focusSection =
+                                        _HomeSection.daemonIndicator;
+                                  }),
                                 );
                               },
                             ),

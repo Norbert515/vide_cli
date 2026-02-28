@@ -391,6 +391,93 @@ void main() {
         daemonClient.close();
       });
     });
+
+    group('auth token', () {
+      test('includes Authorization header when token provided', () async {
+        final mockClient = MockClient((request) async {
+          expect(
+            request.headers['authorization'],
+            'Bearer my-secret-token',
+          );
+          return http.Response(jsonEncode({'sessions': []}), 200);
+        });
+
+        final daemonClient = DaemonClient(
+          port: 8080,
+          authToken: 'my-secret-token',
+          httpClient: mockClient,
+        );
+
+        await daemonClient.listSessions();
+        daemonClient.close();
+      });
+
+      test('omits Authorization header when no token', () async {
+        final mockClient = MockClient((request) async {
+          expect(request.headers.containsKey('authorization'), isFalse);
+          return http.Response(jsonEncode({'sessions': []}), 200);
+        });
+
+        final daemonClient = DaemonClient(port: 8080, httpClient: mockClient);
+
+        await daemonClient.listSessions();
+        daemonClient.close();
+      });
+
+      test('sends auth header on POST requests', () async {
+        final mockClient = MockClient((request) async {
+          expect(
+            request.headers['authorization'],
+            'Bearer post-token',
+          );
+          return http.Response(
+            jsonEncode({
+              'session-id': 'sid',
+              'main-agent-id': 'aid',
+              'ws-url': 'ws://localhost:8080/stream',
+              'http-url': 'http://localhost:8080',
+              'port': 8080,
+              'created-at': '2026-01-01T00:00:00.000Z',
+            }),
+            201,
+          );
+        });
+
+        final daemonClient = DaemonClient(
+          port: 8080,
+          authToken: 'post-token',
+          httpClient: mockClient,
+        );
+
+        await daemonClient.createSession(
+          initialMessage: 'test',
+          workingDirectory: '/tmp',
+        );
+        daemonClient.close();
+      });
+
+      test('sends auth header on DELETE requests', () async {
+        final mockClient = MockClient((request) async {
+          expect(
+            request.headers['authorization'],
+            'Bearer delete-token',
+          );
+          return http.Response(
+            jsonEncode({'status': 'stopped', 'session-id': 'sid'}),
+            200,
+          );
+        });
+
+        final daemonClient = DaemonClient(
+          port: 8080,
+          authToken: 'delete-token',
+          httpClient: mockClient,
+        );
+
+        await daemonClient.stopSession('sid');
+        daemonClient.close();
+      });
+    });
   });
 
   group('DaemonClientException', () {

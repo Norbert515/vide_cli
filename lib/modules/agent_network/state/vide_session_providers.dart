@@ -5,11 +5,10 @@ import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_client/src/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 
-/// Provider for the unified session manager.
+/// Provider for the session manager.
 ///
-/// Automatically selects [LocalVideSessionManager] or [RemoteVideSessionManager]
-/// based on daemon connection state. All session lifecycle operations (create,
-/// list, resume, delete) go through this provider.
+/// Uses [RemoteVideSessionManager] backed by the daemon. All session lifecycle
+/// operations (create, list, resume, delete) go through this provider.
 final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
   // Import is deferred to avoid circular dependency — the provider watches
   // daemonConnectionProvider which lives in the remote module.
@@ -56,8 +55,7 @@ final sessionSelectionProvider =
 
 /// Provider that triggers rebuilds when the selected session connection changes.
 ///
-/// For local sessions this stream is empty. Transport-backed sessions emit
-/// connectivity changes via their concrete type's connectionStateStream.
+/// Remote sessions emit connectivity changes via their connectionStateStream.
 final sessionConnectionProvider = StreamProvider<bool>((ref) {
   final session = ref.watch(sessionSelectionProvider.select((s) => s.session));
   if (session is RemoteVideSession) {
@@ -70,8 +68,7 @@ final sessionConnectionProvider = StreamProvider<bool>((ref) {
 ///
 /// Returns null if no session is currently active.
 ///
-/// This is the unified session accessor - use this to get the current session
-/// regardless of whether it's local or remote.
+/// This is the session accessor for the current active session.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
   final session = ref.watch(sessionSelectionProvider).session;
   if (session != null) {
@@ -105,8 +102,7 @@ final sessionWorkingDirectoryStreamProvider = StreamProvider<String>((ref) {
 
 /// Provider that emits the current agents list whenever it changes.
 ///
-/// This is a unified provider that works for both local and remote sessions.
-/// It watches the session's [stateStream] to detect when agents are
+/// Watches the session's [stateStream] to detect when agents are
 /// spawned or terminated, triggering UI rebuilds.
 ///
 /// Usage:

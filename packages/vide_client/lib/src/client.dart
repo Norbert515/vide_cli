@@ -109,8 +109,9 @@ class SessionDetails {
 class VideClient {
   final String host;
   final int port;
+  final String? authToken;
 
-  VideClient({String host = '127.0.0.1', required this.port})
+  VideClient({String host = '127.0.0.1', required this.port, this.authToken})
     : host = _cleanHost(host);
 
   /// Strip protocol prefix and trailing slashes from host.
@@ -128,12 +129,31 @@ class VideClient {
   String get _httpUrl => 'http://$host:$port';
   String get _wsUrl => 'ws://$host:$port';
 
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (authToken != null) 'Authorization': 'Bearer $authToken',
+  };
+
+  /// Build a WebSocket URI with auth token as query parameter.
+  Uri _wsUri(String path) {
+    return _authenticateWsUrl('$_wsUrl$path');
+  }
+
+  /// Add auth token to a WebSocket URL as a query parameter.
+  Uri _authenticateWsUrl(String url) {
+    final uri = Uri.parse(url);
+    if (authToken == null) return uri;
+    return uri.replace(
+      queryParameters: {...uri.queryParameters, 'token': authToken!},
+    );
+  }
+
   /// Connect to the daemon WebSocket for real-time session events.
   ///
   /// Returns a [DaemonConnection] that provides a stream of [DaemonEvent]s
   /// and can be disposed when no longer needed.
   DaemonConnection connectToDaemon() {
-    final channel = WebSocketChannel.connect(Uri.parse('$_wsUrl/daemon'));
+    final channel = WebSocketChannel.connect(_wsUri('/daemon'));
     return DaemonConnection._(channel);
   }
 
@@ -157,7 +177,7 @@ class VideClient {
   Future<List<SessionSummary>> listSessions() async {
     final response = await http.get(
       Uri.parse('$_httpUrl/sessions'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
     );
 
     if (response.statusCode != 200) {
@@ -175,7 +195,7 @@ class VideClient {
   Future<SessionDetails> getSession(String sessionId) async {
     final response = await http.get(
       Uri.parse('$_httpUrl/sessions/$sessionId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
     );
 
     if (response.statusCode == 404) {
@@ -196,7 +216,7 @@ class VideClient {
   Future<List<TeamInfo>> listTeams() async {
     final response = await http.get(
       Uri.parse('$_httpUrl/api/v1/teams'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
     );
 
     if (response.statusCode != 200) {
@@ -227,7 +247,7 @@ class VideClient {
       team: team,
     );
 
-    final channel = WebSocketChannel.connect(Uri.parse(info.wsUrl));
+    final channel = WebSocketChannel.connect(_authenticateWsUrl(info.wsUrl));
     return RemoteVideSession.fromConnection(
       sessionId: info.sessionId,
       channel: channel,
@@ -246,7 +266,7 @@ class VideClient {
   }) async {
     final response = await http.post(
       Uri.parse('$_httpUrl/sessions'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'initial-message': initialMessage,
         'working-directory': workingDirectory,
@@ -271,7 +291,7 @@ class VideClient {
   /// Fetches session details and connects via WebSocket.
   Future<RemoteVideSession> connectToSession(String sessionId) async {
     final details = await getSession(sessionId);
-    final channel = WebSocketChannel.connect(Uri.parse(details.wsUrl));
+    final channel = WebSocketChannel.connect(_authenticateWsUrl(details.wsUrl));
     return RemoteVideSession.fromConnection(
       sessionId: sessionId,
       channel: channel,
@@ -284,13 +304,14 @@ class VideClient {
   /// on an existing session without losing UI state.
   Future<WebSocketChannel> openChannel(String sessionId) async {
     final details = await getSession(sessionId);
-    return WebSocketChannel.connect(Uri.parse(details.wsUrl));
+    return WebSocketChannel.connect(_authenticateWsUrl(details.wsUrl));
   }
 
   /// Mark a session as seen by the user.
   Future<void> markSessionSeen(String sessionId) async {
     final response = await http.post(
       Uri.parse('$_httpUrl/sessions/$sessionId/seen'),
+      headers: _headers,
     );
 
     if (response.statusCode == 404) {
@@ -310,7 +331,7 @@ class VideClient {
         ? '$_httpUrl/sessions/$sessionId?force=true'
         : '$_httpUrl/sessions/$sessionId';
 
-    final response = await http.delete(Uri.parse(url));
+    final response = await http.delete(Uri.parse(url), headers: _headers);
 
     if (response.statusCode == 404) {
       throw VideClientException('Session not found: $sessionId');
@@ -331,7 +352,7 @@ class VideClient {
       '$_httpUrl/api/v1/filesystem/content',
     ).replace(queryParameters: {'path': path});
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to read file: ${response.body}');
@@ -349,7 +370,7 @@ class VideClient {
       '$_httpUrl/api/v1/filesystem',
     ).replace(queryParameters: {if (parent != null) 'parent': parent});
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to list directory: ${response.body}');
@@ -374,7 +395,7 @@ class VideClient {
       },
     );
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to search files: ${response.body}');
@@ -397,7 +418,7 @@ class VideClient {
       queryParameters: {'path': path, if (detailed) 'detailed': 'true'},
     );
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to get git status: ${response.body}');
@@ -413,7 +434,7 @@ class VideClient {
       '$_httpUrl/api/v1/git/log',
     ).replace(queryParameters: {'path': path, 'count': count.toString()});
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to get git log: ${response.body}');
@@ -435,7 +456,7 @@ class VideClient {
       '$_httpUrl/api/v1/git/branches',
     ).replace(queryParameters: {'path': path, if (all) 'all': 'true'});
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to get git branches: ${response.body}');
@@ -452,7 +473,7 @@ class VideClient {
   Future<void> gitStage(String path, List<String> files) async {
     final response = await http.post(
       Uri.parse('$_httpUrl/api/v1/git/stage'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({'path': path, 'files': files}),
     );
 
@@ -469,7 +490,7 @@ class VideClient {
   }) async {
     final response = await http.post(
       Uri.parse('$_httpUrl/api/v1/git/commit'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers,
       body: jsonEncode({
         'path': path,
         'message': message,
@@ -488,7 +509,7 @@ class VideClient {
       '$_httpUrl/api/v1/git/diff',
     ).replace(queryParameters: {'path': path, if (staged) 'staged': 'true'});
 
-    final response = await http.get(uri);
+    final response = await http.get(uri, headers: _headers);
 
     if (response.statusCode != 200) {
       throw VideClientException('Failed to get git diff: ${response.body}');

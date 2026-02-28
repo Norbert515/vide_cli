@@ -32,10 +32,19 @@ void main() {
         ),
       );
 
-      daemonServer = DaemonServer(registry: registry!, port: daemonPort);
+      const testAuthToken = 'test-e2e-auth-token';
+      daemonServer = DaemonServer(
+        registry: registry!,
+        port: daemonPort,
+        authToken: testAuthToken,
+      );
       await daemonServer!.start();
 
-      daemonClient = DaemonClient(host: '127.0.0.1', port: daemonPort);
+      daemonClient = DaemonClient(
+        host: '127.0.0.1',
+        port: daemonPort,
+        authToken: testAuthToken,
+      );
     });
 
     tearDown(() async {
@@ -80,7 +89,8 @@ void main() {
         );
         expect(details.httpUrl, equals('http://127.0.0.1:$daemonPort'));
 
-        final socket = await WebSocket.connect(details.wsUrl);
+        final wsUrlWithAuth = '${details.wsUrl}?token=test-e2e-auth-token';
+        final socket = await WebSocket.connect(wsUrlWithAuth);
         socket.add('ping');
 
         final echoed = await socket.first.timeout(const Duration(seconds: 5));

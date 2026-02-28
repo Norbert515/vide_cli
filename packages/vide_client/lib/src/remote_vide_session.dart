@@ -533,6 +533,7 @@ class RemoteVideSession implements VideSession {
         type: agent.type,
         name: agent.name,
         spawnedBy: agent.spawnedBy,
+        harness: agent.harness,
       );
 
       final isMainWithInitialMessage =
@@ -733,15 +734,19 @@ class RemoteVideSession implements VideSession {
     final agentId = event.agentId;
 
     // If agent already exists (e.g. from ConnectedEvent before history replay),
-    // update spawnedBy if it was missing (ConnectedEvent doesn't carry it).
+    // update spawnedBy/harness if they were missing.
     if (_agents.containsKey(agentId)) {
       final existing = _agents[agentId]!;
-      if (existing.spawnedBy == null && event.spawnedBy.isNotEmpty) {
+      final needsUpdate =
+          (existing.spawnedBy == null && event.spawnedBy.isNotEmpty) ||
+          (existing.harness == null && event.harness != null);
+      if (needsUpdate) {
         _agents[agentId] = _RemoteAgentInfo(
           id: existing.id,
           type: existing.type,
           name: existing.name,
-          spawnedBy: event.spawnedBy,
+          spawnedBy: existing.spawnedBy ?? event.spawnedBy,
+          harness: existing.harness ?? event.harness,
         );
         _emitState();
       }
@@ -753,6 +758,7 @@ class RemoteVideSession implements VideSession {
       type: event.agentType,
       name: event.agentName,
       spawnedBy: event.spawnedBy.isNotEmpty ? event.spawnedBy : null,
+      harness: event.harness,
     );
     _agentStatuses[agentId] = VideAgentStatus.idle;
     _refreshModel(agentId);
@@ -765,6 +771,7 @@ class RemoteVideSession implements VideSession {
         agentName: _resolveAgentName(agentId, event),
         taskName: event.taskName,
         spawnedBy: event.spawnedBy,
+        harness: event.harness,
       ),
     );
     _emitState();
@@ -962,6 +969,7 @@ class RemoteVideSession implements VideSession {
     required Set<String> inFlight,
     required StreamController<T?> Function(String) getController,
     required Future<T?> Function(TransportSession, String) fetch,
+    void Function()? onUpdated,
   }) {
     final session = _clientSession;
     if (session == null) return;
@@ -973,6 +981,7 @@ class RemoteVideSession implements VideSession {
         if (cache[agentId] != value) {
           cache[agentId] = value;
           getController(agentId).add(value);
+          onUpdated?.call();
         }
       } catch (_) {
         // Best-effort cache refresh.
@@ -996,6 +1005,7 @@ class RemoteVideSession implements VideSession {
     inFlight: _modelRefreshInFlight,
     getController: _getOrCreateModelController,
     fetch: (s, id) => s.getModel(id),
+    onUpdated: _emitState,
   );
 
   void _applyConnectedMetadata(Map<String, dynamic> metadata) {
@@ -1031,6 +1041,8 @@ class RemoteVideSession implements VideSession {
             processingPhase: _agentProcessingPhases[a.id],
             createdAt: DateTime.now(),
             spawnedBy: a.spawnedBy,
+            harness: a.harness,
+            model: _models[a.id],
           ),
         )
         .toList();
@@ -1487,11 +1499,13 @@ class _RemoteAgentInfo {
   final String type;
   final String? name;
   final String? spawnedBy;
+  final String? harness;
 
   _RemoteAgentInfo({
     required this.id,
     required this.type,
     this.name,
     this.spawnedBy,
+    this.harness,
   });
 }

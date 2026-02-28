@@ -181,6 +181,11 @@ class PermissionCallbackContext {
 }
 
 /// Provider for the permission handler. Reads from [videCoreConfigProvider].
+///
+/// Returns the configured handler, or a default no-session handler if none
+/// was provided (e.g., TUI in daemon-only mode where permissions are handled
+/// remotely).
 final permissionHandlerProvider = Provider<PermissionHandler>((ref) {
-  return ref.watch(videCoreConfigProvider).permissionHandler;
+  return ref.watch(videCoreConfigProvider).permissionHandler ??
+      PermissionHandler();
 });

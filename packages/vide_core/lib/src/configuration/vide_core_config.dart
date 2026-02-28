@@ -11,7 +11,7 @@ import 'vide_config_manager.dart';
 class VideCoreConfig {
   final String workingDirectory;
   final VideConfigManager configManager;
-  final PermissionHandler permissionHandler;
+  final PermissionHandler? permissionHandler;
   final bool dangerouslySkipPermissions;
 
   /// Optional override for the agent client factory registry.
@@ -25,7 +25,7 @@ class VideCoreConfig {
   const VideCoreConfig({
     required this.workingDirectory,
     required this.configManager,
-    required this.permissionHandler,
+    this.permissionHandler,
     this.dangerouslySkipPermissions = false,
     this.factoryRegistry,
   });

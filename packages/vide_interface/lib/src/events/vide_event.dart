@@ -253,6 +253,7 @@ sealed class VideEvent {
         taskName: taskName,
         timestamp: timestamp,
         spawnedBy: data?['spawned-by'] as String? ?? '',
+        harness: data?['harness'] as String?,
       ),
       'agent-terminated' => AgentTerminatedEvent(
         seq: seq,
@@ -721,6 +722,9 @@ final class AgentSpawnedEvent extends VideEvent {
   /// ID of the agent that spawned this one.
   final String spawnedBy;
 
+  /// Which harness this agent runs on (e.g. 'claude-code', 'codex-cli').
+  final String? harness;
+
   AgentSpawnedEvent({
     super.seq,
     required super.agentId,
@@ -729,13 +733,17 @@ final class AgentSpawnedEvent extends VideEvent {
     super.taskName,
     super.timestamp,
     required this.spawnedBy,
+    this.harness,
   });
 
   @override
   String get wireType => 'agent-spawned';
 
   @override
-  Map<String, dynamic> dataFields() => {'spawned-by': spawnedBy};
+  Map<String, dynamic> dataFields() => {
+    'spawned-by': spawnedBy,
+    if (harness != null) 'harness': harness,
+  };
 
   @override
   String toString() => 'AgentSpawnedEvent($agentName, by $spawnedBy)';

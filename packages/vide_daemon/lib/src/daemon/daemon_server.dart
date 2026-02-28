@@ -20,6 +20,7 @@ class DaemonServer {
   final SessionRegistry registry;
   final int port;
   final String bindAddress;
+  final String authToken;
   final DateTime startedAt = DateTime.now();
 
   HttpServer? _server;
@@ -31,6 +32,7 @@ class DaemonServer {
   DaemonServer({
     required this.registry,
     required this.port,
+    required this.authToken,
     this.bindAddress = '127.0.0.1',
   });
 
@@ -155,30 +157,60 @@ class DaemonServer {
     // WebSocket for daemon events
     router.get('/daemon', _handleDaemonWebSocket);
 
-    // Build middleware pipeline
+    // Build middleware pipeline with bearer token auth.
+    // /health is exempt — needed for process liveness checks.
     final pipeline = Pipeline()
-        .addMiddleware(_corsMiddleware())
+        .addMiddleware(_authMiddleware(authToken))
         .addHandler(router);
 
     return pipeline;
   }
 
-  Middleware _corsMiddleware() {
+  /// Bearer token authentication middleware.
+  ///
+  /// Validates the token from either:
+  /// - `Authorization: Bearer <token>` header (HTTP requests)
+  /// - `?token=<token>` query parameter (WebSocket upgrades)
+  ///
+  /// The `/health` endpoint is exempt to allow unauthenticated liveness checks.
+  static Middleware _authMiddleware(String token) {
     return (Handler handler) {
       return (Request request) async {
-        if (request.method == 'OPTIONS') {
-          return Response.ok(
-            '',
-            headers: {
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-              'Access-Control-Allow-Headers': 'Content-Type',
-            },
+        // /health is exempt — used for process liveness checks
+        if (request.url.path == 'health') {
+          return handler(request);
+        }
+
+        // Check Authorization header first
+        final authHeader = request.headers['authorization'];
+        if (authHeader != null) {
+          if (authHeader == 'Bearer $token') {
+            return handler(request);
+          }
+          return Response(
+            401,
+            body: jsonEncode({
+              'error': 'Invalid authentication token',
+              'code': 'UNAUTHORIZED',
+            }),
+            headers: {'Content-Type': 'application/json'},
           );
         }
 
-        final response = await handler(request);
-        return response.change(headers: {'Access-Control-Allow-Origin': '*'});
+        // Check query parameter (for WebSocket upgrades)
+        final queryToken = request.requestedUri.queryParameters['token'];
+        if (queryToken == token) {
+          return handler(request);
+        }
+
+        return Response(
+          401,
+          body: jsonEncode({
+            'error': 'Authentication required',
+            'code': 'UNAUTHORIZED',
+          }),
+          headers: {'Content-Type': 'application/json'},
+        );
       };
     };
   }

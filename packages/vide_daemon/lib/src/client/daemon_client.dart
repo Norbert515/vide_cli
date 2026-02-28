@@ -11,6 +11,7 @@ import '../protocol/daemon_messages.dart';
 class DaemonClient {
   final String host;
   final int port;
+  final String? authToken;
 
   final http.Client _httpClient;
   WebSocketChannel? _wsChannel;
@@ -19,13 +20,17 @@ class DaemonClient {
   DaemonClient({
     this.host = '127.0.0.1',
     required this.port,
+    this.authToken,
     http.Client? httpClient,
   }) : _httpClient = httpClient ?? http.Client();
 
   String get _baseUrl => 'http://$host:$port';
   String get _wsUrl => 'ws://$host:$port';
 
-  Map<String, String> get _headers => {'Content-Type': 'application/json'};
+  Map<String, String> get _headers => {
+    'Content-Type': 'application/json',
+    if (authToken != null) 'Authorization': 'Bearer $authToken',
+  };
 
   /// Check if the daemon is running and healthy.
   Future<bool> isHealthy() async {
@@ -208,7 +213,10 @@ class DaemonClient {
       },
     );
 
-    _wsChannel = WebSocketChannel.connect(Uri.parse('$_wsUrl/daemon'));
+    final wsUri = authToken != null
+        ? Uri.parse('$_wsUrl/daemon?token=$authToken')
+        : Uri.parse('$_wsUrl/daemon');
+    _wsChannel = WebSocketChannel.connect(wsUri);
 
     _wsChannel!.stream.listen(
       (message) {

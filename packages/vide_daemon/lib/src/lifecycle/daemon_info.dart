@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:path/path.dart' as path;
 
@@ -14,6 +15,7 @@ class DaemonInfo {
   final String host;
   final DateTime startedAt;
   final String? logFile;
+  final String authToken;
 
   DaemonInfo({
     required this.pid,
@@ -21,6 +23,7 @@ class DaemonInfo {
     required this.host,
     required this.startedAt,
     this.logFile,
+    required this.authToken,
   });
 
   String get url => 'http://$host:$port';
@@ -32,6 +35,7 @@ class DaemonInfo {
       host: json['host'] as String,
       startedAt: DateTime.parse(json['started_at'] as String),
       logFile: json['log_file'] as String?,
+      authToken: json['auth_token'] as String,
     );
   }
 
@@ -41,6 +45,7 @@ class DaemonInfo {
     'host': host,
     'started_at': startedAt.toUtc().toIso8601String(),
     'log_file': logFile,
+    'auth_token': authToken,
   };
 
   /// Default directory for daemon state: `~/.vide/daemon`.
@@ -102,5 +107,39 @@ class DaemonInfo {
     if (file.existsSync()) {
       file.deleteSync();
     }
+  }
+
+  /// Path to the persistent auth token file.
+  ///
+  /// This file survives daemon restarts (unlike daemon.json which is deleted
+  /// on shutdown). The token is reused across restarts so that clients
+  /// (mobile app, remote TUI) don't need to reconfigure after a restart.
+  static String authTokenFilePath({String? stateDir}) {
+    return path.join(stateDir ?? defaultStateDir(), 'auth-token');
+  }
+
+  /// Load or generate the auth token.
+  ///
+  /// Reads from the persistent `auth-token` file if it exists.
+  /// Otherwise generates a new 32-byte hex token and persists it.
+  static String loadOrGenerateAuthToken({String? stateDir}) {
+    final file = File(authTokenFilePath(stateDir: stateDir));
+
+    if (file.existsSync()) {
+      final token = file.readAsStringSync().trim();
+      if (token.isNotEmpty) return token;
+    }
+
+    final token = _generateToken();
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(token);
+    return token;
+  }
+
+  /// Generate a cryptographically random 32-byte hex token.
+  static String _generateToken() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+    return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 }
