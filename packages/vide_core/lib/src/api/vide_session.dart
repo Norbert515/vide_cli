@@ -442,7 +442,6 @@ class LocalVideSession implements VideSession {
     } else {
       final settingsManager = LocalSettingsManager(
         projectRoot: pending.cwd,
-        parrottRoot: pending.cwd,
       );
       unawaited(
         settingsManager.addToAllowList(pattern).then((_) {

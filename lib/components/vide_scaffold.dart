@@ -22,10 +22,6 @@ import 'package:vide_core/vide_core.dart';
 /// Which panel currently holds keyboard focus.
 enum FocusedPanel { content, leftSidebar, rightSidebar }
 
-/// Provider to expose the current sidebar width for pages to read.
-/// This allows pages to know how much space the sidebar takes without coupling.
-final sidebarWidthProvider = StateProvider<double>((ref) => 0.0);
-
 /// A scaffold that provides the standard Vide layout with:
 /// - Optional left sidebar (agent list)
 /// - Main content area
@@ -138,10 +134,6 @@ class _VideScaffoldState extends State<VideScaffold> {
             (showSidebars && hasEnoughWidth && showGitSidebar)
             ? component.gitSidebarWidth
             : 0.0;
-
-        // Update the provider so pages can know the sidebar width
-        context.read(sidebarWidthProvider.notifier).state =
-            effectiveSidebarWidth;
 
         final panelRow = Row(
           children: [

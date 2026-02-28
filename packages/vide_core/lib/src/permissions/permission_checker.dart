@@ -156,7 +156,6 @@ class PermissionChecker {
       } else {
         final settingsManager = LocalSettingsManager(
           projectRoot: cwd,
-          parrottRoot: cwd,
         );
         settings = await settingsManager.readSettings();
         _cachedSettings = settings;

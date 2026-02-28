@@ -22,7 +22,6 @@ void main() {
       projectRoot = tempDir.path;
       settingsManager = LocalSettingsManager(
         projectRoot: projectRoot,
-        parrottRoot: projectRoot,
       );
       permissionChecker = PermissionChecker();
     });

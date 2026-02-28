@@ -15,7 +15,6 @@ void main() {
       projectRoot = tempDir.path;
       manager = LocalSettingsManager(
         projectRoot: projectRoot,
-        parrottRoot: projectRoot,
       );
     });
 

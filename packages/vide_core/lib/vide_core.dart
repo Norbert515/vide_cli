@@ -48,7 +48,6 @@ export 'src/claude/codex_client_factory.dart' show CodexAgentClientFactory;
 export 'src/claude/claude_manager.dart'
     show
         agentClientProvider,
-        agentProcessingStatusProvider,
         agentClientManagerProvider,
         AgentClientManagerStateNotifier;
 
@@ -95,7 +94,7 @@ export 'src/analytics/auto_update_service.dart';
 export 'src/mcp/git/git_client.dart';
 export 'src/mcp/git/git_models.dart';
 export 'src/mcp/git/git_providers.dart'
-    show gitStatusStreamProvider, isGitRepoProvider;
+    show gitStatusStreamProvider;
 export 'src/git/git_service.dart';
 
 // =============================================================================

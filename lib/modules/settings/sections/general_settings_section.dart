@@ -7,7 +7,7 @@ import 'package:vide_cli/modules/settings/components/settings_text_input.dart';
 import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 import 'package:vide_cli/services/sound_service.dart';
 
-/// General settings: Interface toggles (IDE Mode, Git Sidebar, Streaming).
+/// General settings: Interface toggles (Git Sidebar, Streaming, Sound).
 class GeneralSettingsSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;

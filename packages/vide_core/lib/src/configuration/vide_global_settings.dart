@@ -28,10 +28,6 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool autoUpdatesEnabled;
 
-  /// Whether IDE mode (git sidebar) is enabled
-  @JsonKey(defaultValue: false)
-  final bool ideModeEnabled;
-
   /// Whether to skip all permission checks.
   ///
   /// DANGEROUS: Only use in sandboxed environments (Docker) where filesystem
@@ -71,22 +67,6 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: false)
   final bool useCodexBackend;
 
-  /// Auto-select team based on task description.
-  @JsonKey(defaultValue: false)
-  final bool experimentAutoTeamSelection;
-
-  /// Allow agents to work in parallel.
-  @JsonKey(defaultValue: false)
-  final bool experimentParallelAgents;
-
-  /// Enable persistent agent memory across sessions.
-  @JsonKey(defaultValue: false)
-  final bool experimentAgentMemory;
-
-  /// Verbose handoff details between agents.
-  @JsonKey(defaultValue: false)
-  final bool experimentVerboseHandoffs;
-
   /// Whether to play sounds when agents finish or need user attention.
   @JsonKey(defaultValue: true)
   final bool soundNotificationsEnabled;
@@ -107,7 +87,6 @@ class VideGlobalSettings {
     this.theme,
     this.enableStreaming = true,
     this.autoUpdatesEnabled = true,
-    this.ideModeEnabled = false,
     this.dangerouslySkipPermissions = false,
     this.gitSidebarEnabled = true,
     this.daemonModeEnabled = true,
@@ -116,10 +95,6 @@ class VideGlobalSettings {
     this.telemetryEnabled = true,
     this.showThinking = true,
     this.useCodexBackend = false,
-    this.experimentAutoTeamSelection = false,
-    this.experimentParallelAgents = false,
-    this.experimentAgentMemory = false,
-    this.experimentVerboseHandoffs = false,
     this.soundNotificationsEnabled = true,
     this.customTaskCompleteSound,
     this.customAttentionNeededSound,
@@ -137,7 +112,6 @@ class VideGlobalSettings {
     String? Function()? theme,
     bool? enableStreaming,
     bool? autoUpdatesEnabled,
-    bool? ideModeEnabled,
     bool? dangerouslySkipPermissions,
     bool? gitSidebarEnabled,
     bool? daemonModeEnabled,
@@ -146,10 +120,6 @@ class VideGlobalSettings {
     bool? telemetryEnabled,
     bool? showThinking,
     bool? useCodexBackend,
-    bool? experimentAutoTeamSelection,
-    bool? experimentParallelAgents,
-    bool? experimentAgentMemory,
-    bool? experimentVerboseHandoffs,
     bool? soundNotificationsEnabled,
     String? Function()? customTaskCompleteSound,
     String? Function()? customAttentionNeededSound,
@@ -159,7 +129,6 @@ class VideGlobalSettings {
       theme: theme != null ? theme() : this.theme,
       enableStreaming: enableStreaming ?? this.enableStreaming,
       autoUpdatesEnabled: autoUpdatesEnabled ?? this.autoUpdatesEnabled,
-      ideModeEnabled: ideModeEnabled ?? this.ideModeEnabled,
       dangerouslySkipPermissions:
           dangerouslySkipPermissions ?? this.dangerouslySkipPermissions,
       gitSidebarEnabled: gitSidebarEnabled ?? this.gitSidebarEnabled,
@@ -169,14 +138,6 @@ class VideGlobalSettings {
       telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
       showThinking: showThinking ?? this.showThinking,
       useCodexBackend: useCodexBackend ?? this.useCodexBackend,
-      experimentAutoTeamSelection:
-          experimentAutoTeamSelection ?? this.experimentAutoTeamSelection,
-      experimentParallelAgents:
-          experimentParallelAgents ?? this.experimentParallelAgents,
-      experimentAgentMemory:
-          experimentAgentMemory ?? this.experimentAgentMemory,
-      experimentVerboseHandoffs:
-          experimentVerboseHandoffs ?? this.experimentVerboseHandoffs,
       soundNotificationsEnabled:
           soundNotificationsEnabled ?? this.soundNotificationsEnabled,
       customTaskCompleteSound: customTaskCompleteSound != null

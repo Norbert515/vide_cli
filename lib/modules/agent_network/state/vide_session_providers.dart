@@ -81,14 +81,6 @@ final currentVideSessionProvider = Provider<VideSession?>((ref) {
   return session;
 });
 
-/// Provider for the current session's goal/task name.
-///
-/// This is reactive - it will update when the goal changes via setTaskName MCP tool.
-final currentSessionGoalProvider = Provider<String>((ref) {
-  final session = ref.watch(currentVideSessionProvider);
-  return session?.state.goal ?? 'Session';
-});
-
 /// Stream provider that emits when the goal changes.
 ///
 /// This allows widgets to reactively rebuild when the task name is updated.

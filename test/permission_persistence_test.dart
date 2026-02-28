@@ -13,7 +13,6 @@ void main() {
       tempDir = await Directory.systemTemp.createTemp('permission_test_');
       settingsManager = LocalSettingsManager(
         projectRoot: tempDir.path,
-        parrottRoot: tempDir.path,
       );
     });
 

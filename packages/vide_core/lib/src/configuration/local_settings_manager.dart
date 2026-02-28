@@ -6,9 +6,8 @@ import 'claude_settings.dart';
 
 class LocalSettingsManager {
   final String projectRoot;
-  final String parrottRoot;
 
-  LocalSettingsManager({required this.projectRoot, required this.parrottRoot});
+  LocalSettingsManager({required this.projectRoot});
 
   /// Detects if we're running as a compiled executable.
   ///

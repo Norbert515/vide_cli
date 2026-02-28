@@ -24,10 +24,7 @@ class VideConfigManager {
   /// If [configRoot] is not specified, defaults to `~/.vide`.
   /// Only override this for testing or custom deployments.
   VideConfigManager({String? configRoot})
-    : _configRoot = configRoot ?? _defaultConfigRoot() {
-    // Migrate from legacy parott config if needed
-    _migrateFromLegacyConfig();
-  }
+    : _configRoot = configRoot ?? _defaultConfigRoot();
 
   static String _defaultConfigRoot() {
     final home =
@@ -38,18 +35,6 @@ class VideConfigManager {
       );
     }
     return '$home/.vide';
-  }
-
-  /// Migrate configuration from legacy ~/.config/parott directory
-  void _migrateFromLegacyConfig() {
-    // Note: This migration uses app_dirs which is only available in the TUI
-    // For REST API, this will be a no-op since we're not migrating legacy config
-    try {
-      // Skip migration if app_dirs is not available (e.g., in REST server context)
-      // This will be handled by the TUI when it creates its VideConfigManager instance
-    } catch (e) {
-      // Silently skip migration if it fails
-    }
   }
 
   /// Get the storage directory for a specific project
@@ -168,11 +153,6 @@ class VideConfigManager {
     return readGlobalSettings().telemetryEnabled;
   }
 
-  /// Enable or disable telemetry (anonymous usage analytics).
-  void setTelemetryEnabled(bool enabled) {
-    final settings = readGlobalSettings();
-    writeGlobalSettings(settings.copyWith(telemetryEnabled: enabled));
-  }
 }
 
 /// Riverpod provider for VideConfigManager. Reads from [videCoreConfigProvider].
