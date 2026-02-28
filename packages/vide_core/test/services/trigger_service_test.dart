@@ -19,11 +19,11 @@ void main() {
     test('fromYaml parses enabled and spawn', () {
       final config = LifecycleTriggerConfig.fromYaml({
         'enabled': true,
-        'spawn': 'session-synthesizer',
+        'spawn': 'code-reviewer',
       });
 
       expect(config.enabled, isTrue);
-      expect(config.spawn, equals('session-synthesizer'));
+      expect(config.spawn, equals('code-reviewer'));
     });
 
     test('fromYaml defaults enabled to true', () {
@@ -128,13 +128,12 @@ main-agent: main
 
 agents:
   - implementer
-  - session-synthesizer
   - code-reviewer
 
 lifecycle-triggers:
   onSessionEnd:
     enabled: true
-    spawn: session-synthesizer
+    spawn: code-reviewer
   onTaskComplete:
     enabled: true
     spawn: code-reviewer
@@ -152,7 +151,7 @@ lifecycle-triggers:
       expect(team.lifecycleTriggers['onSessionEnd']?.enabled, isTrue);
       expect(
         team.lifecycleTriggers['onSessionEnd']?.spawn,
-        equals('session-synthesizer'),
+        equals('code-reviewer'),
       );
 
       expect(team.lifecycleTriggers['onTaskComplete']?.enabled, isTrue);

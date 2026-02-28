@@ -3,7 +3,7 @@
 // This test verifies that:
 // 1. When an agent's turn completes, their status is auto-set to idle
 // 2. When all agents are idle, onAllAgentsIdle trigger fires
-// 3. The trigger spawns the configured agent (session-synthesizer for enterprise team)
+// 3. The trigger spawns the configured agent (code-reviewer for enterprise team)
 
 import 'dart:async';
 

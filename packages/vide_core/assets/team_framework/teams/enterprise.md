@@ -11,7 +11,6 @@ agents:
   - implementer
   - researcher
   - qa-breaker
-  - session-synthesizer
   - code-reviewer
 
 disallowedTools: Task

@@ -33,7 +33,7 @@ class AgentPersonality {
   /// Unique identifier for the agent (e.g., "implementer", "researcher")
   final String name;
 
-  /// Display name shown in UI (e.g., "Bert", "Rex", "Sage")
+  /// Display name shown in UI (e.g., "Bert", "Rex", "Tim")
   /// If not set, falls back to [name]
   final String? displayName;
 

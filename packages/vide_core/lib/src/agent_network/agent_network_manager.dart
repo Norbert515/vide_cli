@@ -706,7 +706,7 @@ $message''';
   /// Fire the onSessionEnd trigger for the current network.
   ///
   /// Call this when the session is being closed or disposed.
-  /// This will spawn any configured agents (e.g., session-synthesizer).
+  /// This will spawn any configured agents (e.g., code-reviewer).
   ///
   /// Returns the spawned agent ID if a trigger was configured and fired,
   /// or null if no trigger was configured or firing failed.

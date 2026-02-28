@@ -71,20 +71,6 @@ void main() {
         );
       });
 
-      test('session-synthesizer agent exists and can be loaded', () async {
-        final agent = await loader.getAgent('session-synthesizer');
-
-        expect(
-          agent,
-          isNotNull,
-          reason: 'session-synthesizer agent should exist',
-        );
-        expect(agent!.name, equals('session-synthesizer'));
-        expect(agent.displayName, equals('Sage'));
-        expect(agent.mcpServers, contains('vide-knowledge'));
-        expect(agent.mcpServers, contains('vide-agent'));
-      });
-
       test('code-reviewer agent exists and can be loaded', () async {
         final agent = await loader.getAgent('code-reviewer');
 
@@ -95,15 +81,6 @@ void main() {
       });
 
       test('buildAgentConfiguration works for triggered agents', () async {
-        final synthConfig = await loader.buildAgentConfiguration(
-          'session-synthesizer',
-          teamName: 'enterprise',
-        );
-
-        expect(synthConfig, isNotNull);
-        expect(synthConfig!.name, equals('session-synthesizer'));
-        expect(synthConfig.systemPrompt, contains('Session Synthesizer'));
-
         final reviewerConfig = await loader.buildAgentConfiguration(
           'code-reviewer',
           teamName: 'enterprise',
