@@ -47,7 +47,7 @@ class VideGlobalSettings {
   /// Whether daemon mode is enabled.
   /// When true, sessions run on a persistent daemon process.
   /// When false, sessions run locally in the TUI process.
-  @JsonKey(defaultValue: false)
+  @JsonKey(defaultValue: true)
   final bool daemonModeEnabled;
 
   /// Host for the daemon when daemon mode is enabled.
@@ -110,7 +110,7 @@ class VideGlobalSettings {
     this.ideModeEnabled = false,
     this.dangerouslySkipPermissions = false,
     this.gitSidebarEnabled = true,
-    this.daemonModeEnabled = false,
+    this.daemonModeEnabled = true,
     this.daemonHost = '127.0.0.1',
     this.daemonPort = 8080,
     this.telemetryEnabled = true,

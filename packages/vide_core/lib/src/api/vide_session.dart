@@ -108,7 +108,7 @@ class LocalVideSession implements VideSession {
   /// set up, so the message is captured in history for replay to clients.
   void emitInitialUserMessage(
     String message, {
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) {
     final mainAgentId = state.mainAgent?.id;
     if (mainAgentId != null) {
@@ -248,7 +248,7 @@ class LocalVideSession implements VideSession {
   List<VideEvent> get eventHistory => _conversationState.eventHistory;
 
   @override
-  void sendMessage(VideMessage message, {String? agentId}) {
+  void sendMessage(AgentMessage message, {String? agentId}) {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     final targetAgent = agentId ?? state.mainAgent?.id;
@@ -282,21 +282,7 @@ class LocalVideSession implements VideSession {
 
     // Expand @file mentions into document attachments
     final expandedMessage = _expandAtMentions(message);
-
-    // Convert VideMessage to AgentMessage
-    final agentAttachments = expandedMessage.attachments?.map((a) {
-      return AgentAttachment(
-        type: a.type,
-        path: a.filePath,
-        content: a.content,
-        mimeType: a.mimeType,
-      );
-    }).toList();
-    final agentMessage = AgentMessage(
-      text: expandedMessage.text,
-      attachments: agentAttachments,
-    );
-    manager.sendMessage(targetAgent, agentMessage);
+    manager.sendMessage(targetAgent, expandedMessage);
 
     // Optimization: Set status to working immediately for instant UI feedback.
     // AgentStatusSyncService will also set this when AgentClient emits
@@ -312,7 +298,7 @@ class LocalVideSession implements VideSession {
 
   /// Expands @path/to/file mentions in message text by reading files
   /// and attaching their content as document attachments.
-  VideMessage _expandAtMentions(VideMessage message) {
+  AgentMessage _expandAtMentions(AgentMessage message) {
     final workingDir = _currentWorkingDirectory();
 
     // Match @path patterns: @ followed by path characters ending with a file extension.
@@ -322,7 +308,7 @@ class LocalVideSession implements VideSession {
 
     if (matches.isEmpty) return message;
 
-    final expandedAttachments = <VideAttachment>[...?message.attachments];
+    final expandedAttachments = <AgentAttachment>[...?message.attachments];
     final seenPaths = <String>{};
     final canonicalWorkingDir = p.canonicalize(workingDir);
     const maxMentions = 10;
@@ -351,7 +337,7 @@ class LocalVideSession implements VideSession {
       try {
         final content = file.readAsStringSync();
         expandedAttachments.add(
-          VideAttachment.documentText(text: content, title: relativePath),
+          AgentAttachment.documentText(text: content, title: relativePath),
         );
         expandedCount++;
       } catch (_) {
@@ -370,7 +356,7 @@ class LocalVideSession implements VideSession {
       sessionId: _networkId,
     );
 
-    return VideMessage(
+    return AgentMessage(
       text: message.text,
       attachments: expandedAttachments,
       metadata: message.metadata,
@@ -380,7 +366,7 @@ class LocalVideSession implements VideSession {
   void _emitUserMessage(
     String content, {
     required String agentId,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) {
     _emit(
       MessageEvent(
@@ -1506,6 +1492,7 @@ class LocalVideSession implements VideSession {
               role: _mapRole(message.role),
               content: message.content,
               isPartial: isLastMessage && conversation.isProcessing,
+              attachments: message.attachments,
             ),
           );
         }

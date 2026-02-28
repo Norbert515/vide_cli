@@ -9,7 +9,6 @@ import 'package:agent_sdk/agent_sdk.dart';
 
 import '../models/enums.dart';
 import '../models/vide_agent.dart';
-import '../models/vide_message.dart';
 import 'agent_info.dart';
 
 /// Base class for all session events.
@@ -449,7 +448,7 @@ final class MessageEvent extends VideEvent {
   final bool isPartial;
 
   /// Attachments included with this message (only for user messages, first chunk).
-  final List<VideAttachment>? attachments;
+  final List<AgentAttachment>? attachments;
 
   MessageEvent({
     super.seq,
@@ -477,7 +476,7 @@ final class MessageEvent extends VideEvent {
           .map(
             (a) => {
               'type': a.type,
-              if (a.filePath != null) 'file-path': a.filePath,
+              if (a.path != null) 'file-path': a.path,
               if (a.content != null) 'content': a.content,
               if (a.mimeType != null) 'mime-type': a.mimeType,
             },
@@ -1198,13 +1197,13 @@ String? _extractInferredPattern(dynamic tool) {
   return suggestions.first as String?;
 }
 
-List<VideAttachment>? _parseAttachments(dynamic attachmentsJson) {
+List<AgentAttachment>? _parseAttachments(dynamic attachmentsJson) {
   if (attachmentsJson is! List || attachmentsJson.isEmpty) return null;
   return attachmentsJson.map((a) {
     final map = a is Map<String, dynamic> ? a : <String, dynamic>{};
-    return VideAttachment(
+    return AgentAttachment(
       type: map['type'] as String? ?? 'file',
-      filePath: map['file-path'] as String?,
+      path: map['file-path'] as String?,
       content: map['content'] as String?,
       mimeType: map['mime-type'] as String?,
     );

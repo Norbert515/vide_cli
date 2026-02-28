@@ -9,7 +9,7 @@ import 'dart:async';
 
 import 'package:vide_client/vide_client.dart'
     show
-        VideAttachment,
+        AgentAttachment,
         VideSession,
         VideSessionInfo,
         VideSessionManager,
@@ -66,7 +66,7 @@ class RemoteVideSessionManager implements VideSessionManager {
     required String workingDirectory,
     String? permissionMode,
     String? team,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) async {
     if (initialMessage == null) {
       throw ArgumentError('initialMessage is required for remote sessions');

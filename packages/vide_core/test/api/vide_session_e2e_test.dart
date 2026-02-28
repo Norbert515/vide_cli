@@ -376,7 +376,7 @@ void main() {
       expect(convState!.messages, isNotEmpty);
 
       // Turn 2: User follows up
-      h.session.sendMessage(VideMessage(text: 'How are you?'));
+      h.session.sendMessage(AgentMessage(text: 'How are you?'));
       await Future<void>.delayed(Duration.zero);
 
       h.mockClient.simulateTextResponse('I am doing well!');
@@ -736,7 +736,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // === Turn 2 (follow-up) ===
-      h.session.sendMessage(VideMessage(text: 'A login page'));
+      h.session.sendMessage(AgentMessage(text: 'A login page'));
       await Future<void>.delayed(Duration.zero);
 
       h.mockClient.simulateAssistantWithToolCall(

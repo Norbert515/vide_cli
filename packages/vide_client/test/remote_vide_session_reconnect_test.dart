@@ -409,7 +409,7 @@ void main() {
         expect(_agent(session, 'agent-1').status, equals(VideAgentStatus.idle));
 
         // User sends a message → optimistic working
-        session.sendMessage(VideMessage(text: 'Hello'));
+        session.sendMessage(AgentMessage(text: 'Hello'));
         await Future<void>.delayed(Duration.zero);
 
         expect(
@@ -448,7 +448,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         // Send message → optimistic working
-        session.sendMessage(VideMessage(text: 'Hello'));
+        session.sendMessage(AgentMessage(text: 'Hello'));
         await Future<void>.delayed(Duration.zero);
 
         // Server confirms working
@@ -497,7 +497,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // Send message → optimistic working
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       expect(
@@ -533,7 +533,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
 
         // 1. User sends message → optimistic working
-        session.sendMessage(VideMessage(text: 'Hello'));
+        session.sendMessage(AgentMessage(text: 'Hello'));
         await Future<void>.delayed(Duration.zero);
         expect(
           _agent(session, 'agent-1').status,
@@ -615,7 +615,7 @@ void main() {
       addTearDown(session.dispose);
       await Future<void>.delayed(Duration.zero);
 
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       // Multiple stale idles
@@ -645,7 +645,7 @@ void main() {
       addTearDown(session.dispose);
       await Future<void>.delayed(Duration.zero);
 
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       // Server sends waitingForAgent (non-idle, non-working)
@@ -673,7 +673,7 @@ void main() {
       addTearDown(session.dispose);
       await Future<void>.delayed(Duration.zero);
 
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       session.handleWebSocketMessage(
@@ -700,7 +700,7 @@ void main() {
       addTearDown(session.dispose);
       await Future<void>.delayed(Duration.zero);
 
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       // Reconnect event arrives (e.g. from WebSocket reconnection)
@@ -769,7 +769,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       // Send message to agent-1 only
-      session.sendMessage(VideMessage(text: 'Hello'));
+      session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       expect(

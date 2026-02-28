@@ -49,12 +49,12 @@ void main() {
         content: 'Check this file',
         isPartial: false,
         attachments: [
-          VideAttachment(
+          AgentAttachment(
             type: 'image',
-            filePath: '/tmp/screenshot.png',
+            path: '/tmp/screenshot.png',
             mimeType: 'image/png',
           ),
-          VideAttachment(type: 'file', content: 'base64data=='),
+          AgentAttachment(type: 'file', content: 'base64data=='),
         ],
       );
 
@@ -64,7 +64,7 @@ void main() {
       expect(restored.attachments, isNotNull);
       expect(restored.attachments, hasLength(2));
       expect(restored.attachments![0].type, 'image');
-      expect(restored.attachments![0].filePath, '/tmp/screenshot.png');
+      expect(restored.attachments![0].path, '/tmp/screenshot.png');
       expect(restored.attachments![0].mimeType, 'image/png');
       expect(restored.attachments![1].type, 'file');
       expect(restored.attachments![1].content, 'base64data==');

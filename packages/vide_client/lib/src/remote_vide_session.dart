@@ -51,7 +51,7 @@ class PendingRemoteVideSession {
 /// Create a pending remote session handle for optimistic UI flows.
 PendingRemoteVideSession createPendingRemoteVideSession({
   String? initialMessage,
-  List<VideAttachment>? attachments,
+  List<AgentAttachment>? attachments,
   void Function()? onReady,
 }) {
   final session = RemoteVideSession.pending();
@@ -312,7 +312,7 @@ class RemoteVideSession implements VideSession {
   /// displays activity immediately.
   void addPendingUserMessage(
     String content, {
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) {
     final agentId = _mainAgentId;
     if (agentId == null) return;
@@ -623,6 +623,7 @@ class RemoteVideSession implements VideSession {
         role: event.role,
         content: event.content,
         isPartial: event.isPartial,
+        attachments: event.attachments,
       ),
     );
   }
@@ -1093,7 +1094,7 @@ class RemoteVideSession implements VideSession {
   List<VideEvent> get eventHistory => _conversationState.eventHistory;
 
   @override
-  void sendMessage(VideMessage message, {String? agentId}) {
+  void sendMessage(AgentMessage message, {String? agentId}) {
     _checkNotDisposed();
     final targetAgentId = agentId ?? _mainAgentId;
     _clientSession?.sendMessage(

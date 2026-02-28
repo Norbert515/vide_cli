@@ -9,7 +9,7 @@ class UserMessageRenderer extends StatelessComponent {
 
   /// Locally tracked attachments keyed by message text, used as fallback
   /// when [AttachmentContent] is not present in the entry.
-  final Map<String, List<VideAttachment>> sentAttachments;
+  final Map<String, List<AgentAttachment>> sentAttachments;
 
   const UserMessageRenderer({
     required this.entry,
@@ -17,7 +17,7 @@ class UserMessageRenderer extends StatelessComponent {
     super.key,
   });
 
-  static String _formatAttachment(VideAttachment attachment, int index) {
+  static String _formatAttachment(AgentAttachment attachment, int index) {
     final label = switch (attachment.type) {
       'image' => 'Image',
       'document' => 'Document',
@@ -31,7 +31,7 @@ class UserMessageRenderer extends StatelessComponent {
     final theme = VideTheme.of(context);
 
     // Resolve attachments from entry content or locally tracked
-    List<VideAttachment>? attachments;
+    List<AgentAttachment>? attachments;
     for (final c in entry.content) {
       if (c is AttachmentContent) {
         attachments = c.attachments;

@@ -12,7 +12,6 @@ library;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:agent_sdk/agent_sdk.dart' show AgentMessage, AgentAttachment;
 import 'package:riverpod/riverpod.dart';
 import 'package:vide_interface/vide_interface.dart';
 
@@ -81,7 +80,7 @@ class LocalVideSessionManager implements VideSessionManager {
     required String workingDirectory,
     String? permissionMode,
     String? team,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) async {
     VideLogger.instance.info(
       'LocalVideSessionManager',
@@ -94,18 +93,9 @@ class LocalVideSessionManager implements VideSessionManager {
     // Build agent message only if initialMessage provided.
     AgentMessage? agentMessage;
     if (initialMessage != null) {
-      final agentAttachments = attachments?.map((a) {
-        return AgentAttachment(
-          type: a.type,
-          path: a.filePath,
-          content: a.content,
-          mimeType: a.mimeType,
-        );
-      }).toList();
-
       agentMessage = AgentMessage(
         text: initialMessage,
-        attachments: agentAttachments,
+        attachments: attachments,
       );
     }
 

@@ -208,7 +208,7 @@ void main() {
 
         // When sendMessage is called, MockAgentClient adds a user message
         // to the conversation and notifies. The session should detect it.
-        h.session.sendMessage(VideMessage(text: 'From user'));
+        h.session.sendMessage(AgentMessage(text: 'From user'));
         await Future<void>.delayed(Duration.zero);
 
         // The session emits its own user MessageEvent synchronously in sendMessage.
@@ -357,7 +357,7 @@ void main() {
       h.mockClient.setConversationState(
         agent_sdk.AgentConversationState.receivingResponse,
       );
-      h.session.sendMessage(VideMessage(text: 'queued'));
+      h.session.sendMessage(AgentMessage(text: 'queued'));
       await Future<void>.delayed(Duration.zero);
 
       expect(h.mockClient.currentQueuedMessage, equals('queued'));
@@ -375,7 +375,7 @@ void main() {
       );
 
       // Queue a message
-      h.session.sendMessage(VideMessage(text: 'first'));
+      h.session.sendMessage(AgentMessage(text: 'first'));
       await Future<void>.delayed(Duration.zero);
 
       // Clear it

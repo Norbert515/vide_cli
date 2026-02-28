@@ -47,11 +47,13 @@ class AgentAttachment {
       mimeType = null;
 
   /// Create an image attachment from a path.
-  const AgentAttachment.image(String path, {String? mimeType})
+  ///
+  /// If [mimeType] is not provided, it is auto-detected from the file extension.
+  AgentAttachment.image(String path, {String? mimeType})
     : type = 'image',
       path = path,
       content = null,
-      mimeType = mimeType;
+      mimeType = mimeType ?? _detectMediaType(path);
 
   /// Create an image attachment from base64 data.
   const AgentAttachment.imageBase64(String base64Data, String mediaType)
@@ -66,4 +68,13 @@ class AgentAttachment {
       path = title,
       content = text,
       mimeType = 'text/plain';
+
+  static String? _detectMediaType(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return null;
+  }
 }

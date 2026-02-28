@@ -29,7 +29,7 @@ class ChatInputArea extends StatelessComponent {
   final AgentConversationState? conversation;
   final String? model;
   final VoidCallback onClearQueue;
-  final void Function(VideMessage message) onSendMessage;
+  final void Function(AgentMessage message) onSendMessage;
   final void Function(String command) onCommand;
   final void Function(
     PermissionRequest request,

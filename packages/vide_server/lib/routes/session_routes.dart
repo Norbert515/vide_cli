@@ -103,12 +103,12 @@ Future<Response> createSession(
     );
   }
 
-  // Convert DTO attachments to VideAttachment for the session manager.
+  // Convert DTO attachments to AgentAttachment for the session manager.
   final attachments = req.attachments
       ?.map(
-        (a) => VideAttachment(
+        (a) => AgentAttachment(
           type: a.type,
-          filePath: a.filePath,
+          path: a.filePath,
           content: a.content,
           mimeType: a.mimeType,
         ),
@@ -420,16 +420,16 @@ class _SimplifiedStreamHandler {
     );
     final attachments = msg.attachments
         ?.map(
-          (a) => VideAttachment(
+          (a) => AgentAttachment(
             type: a.type,
-            filePath: a.filePath,
+            path: a.filePath,
             content: a.content,
             mimeType: a.mimeType,
           ),
         )
         .toList();
     session.sendMessage(
-      VideMessage(text: msg.content, attachments: attachments),
+      AgentMessage(text: msg.content, attachments: attachments),
       agentId: msg.agentId,
     );
   }

@@ -71,21 +71,21 @@ void main() {
 
       h.session.emitInitialUserMessage(
         'Check this file',
-        attachments: [VideAttachment(type: 'file', filePath: '/tmp/test.dart')],
+        attachments: [AgentAttachment(type: 'file', path: '/tmp/test.dart')],
       );
       await Future<void>.delayed(Duration.zero);
 
       final msg = events.whereType<MessageEvent>().first;
       expect(msg.attachments, isNotNull);
       expect(msg.attachments, hasLength(1));
-      expect(msg.attachments!.first.filePath, equals('/tmp/test.dart'));
+      expect(msg.attachments!.first.path, equals('/tmp/test.dart'));
     });
 
     test('dispose completes without error', () async {
       await h.session.dispose(fireEndTrigger: false);
       // Verify it's marked disposed by trying an operation
       expect(
-        () => h.session.sendMessage(VideMessage(text: 'after dispose')),
+        () => h.session.sendMessage(AgentMessage(text: 'after dispose')),
         throwsStateError,
       );
     });
@@ -100,7 +100,7 @@ void main() {
       await h.session.dispose(fireEndTrigger: false);
 
       expect(
-        () => h.session.sendMessage(VideMessage(text: 'test')),
+        () => h.session.sendMessage(AgentMessage(text: 'test')),
         throwsStateError,
       );
       expect(
@@ -253,7 +253,7 @@ void main() {
       );
 
       expect(
-        () => session.sendMessage(VideMessage(text: 'Hello')),
+        () => session.sendMessage(AgentMessage(text: 'Hello')),
         throwsStateError,
       );
 

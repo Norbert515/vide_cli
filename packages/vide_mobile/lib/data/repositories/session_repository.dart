@@ -388,7 +388,7 @@ class SessionRepository extends _$SessionRepository {
     if (session == null || !state.isActive) {
       throw SessionException('No active session');
     }
-    session.sendMessage(VideMessage(text: content));
+    session.sendMessage(AgentMessage(text: content));
   }
 
   /// Responds to a permission request.

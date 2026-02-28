@@ -172,14 +172,14 @@ final class ThinkingContent extends ConversationContent {
 /// An attachment included with a user message (image, file, etc.).
 final class AttachmentContent extends ConversationContent {
   /// The attachments.
-  final List<VideAttachment> attachments;
+  final List<AgentAttachment> attachments;
 
   const AttachmentContent({required this.attachments});
 }
 
 /// A message entry in the conversation (for UI rendering).
 ///
-/// Named `ConversationEntry` to avoid collision with [VideMessage] (input message type).
+/// Named `ConversationEntry` to avoid collision with [AgentMessage] (input message type).
 final class ConversationEntry {
   /// Role of the message sender.
   final MessageRole role;

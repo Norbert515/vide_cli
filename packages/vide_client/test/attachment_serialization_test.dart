@@ -15,7 +15,7 @@ void main() {
     Map<String, dynamic> buildUserMessageJson(
       String content, {
       String? agentId,
-      List<VideAttachment>? attachments,
+      List<AgentAttachment>? attachments,
     }) {
       return {
         'type': 'user-message',
@@ -26,7 +26,7 @@ void main() {
               .map(
                 (a) => {
                   'type': a.type,
-                  if (a.filePath != null) 'file-path': a.filePath,
+                  if (a.path != null) 'file-path': a.path,
                   if (a.content != null) 'content': a.content,
                   if (a.mimeType != null) 'mime-type': a.mimeType,
                 },
@@ -58,7 +58,7 @@ void main() {
     test('image file attachment uses kebab-case keys', () {
       final json = buildUserMessageJson(
         'Check this',
-        attachments: [VideAttachment.image('/path/to/screenshot.png')],
+        attachments: [AgentAttachment.image('/path/to/screenshot.png')],
       );
 
       expect(json['attachments'], hasLength(1));
@@ -74,7 +74,7 @@ void main() {
       final json = buildUserMessageJson(
         'Pasted',
         attachments: [
-          VideAttachment(
+          AgentAttachment(
             type: 'image',
             content: 'iVBORw0KGgo=',
             mimeType: 'image/png',
@@ -94,9 +94,9 @@ void main() {
       final json = buildUserMessageJson(
         'Multiple',
         attachments: [
-          VideAttachment.image('/a.png'),
-          VideAttachment.image('/b.jpg'),
-          VideAttachment(
+          AgentAttachment.image('/a.png'),
+          AgentAttachment.image('/b.jpg'),
+          AgentAttachment(
             type: 'image',
             content: 'base64data',
             mimeType: 'image/jpeg',
@@ -110,7 +110,7 @@ void main() {
     test('minimal attachment only has type', () {
       final json = buildUserMessageJson(
         'Minimal',
-        attachments: [VideAttachment(type: 'file')],
+        attachments: [AgentAttachment(type: 'file')],
       );
 
       final att = json['attachments'][0] as Map<String, dynamic>;
@@ -122,7 +122,7 @@ void main() {
       final json = buildUserMessageJson(
         'Hello',
         agentId: 'agent-2',
-        attachments: [VideAttachment.image('/a.png')],
+        attachments: [AgentAttachment.image('/a.png')],
       );
 
       expect(json['agent-id'], 'agent-2');
@@ -133,8 +133,8 @@ void main() {
       final original = buildUserMessageJson(
         'Round trip',
         attachments: [
-          VideAttachment.image('/path/to/img.png'),
-          VideAttachment(
+          AgentAttachment.image('/path/to/img.png'),
+          AgentAttachment(
             type: 'image',
             content: 'base64==',
             mimeType: 'image/jpeg',
@@ -204,15 +204,15 @@ void main() {
     });
   });
 
-  group('End-to-end contract: VideAttachment → client JSON → server parse', () {
-    test('VideAttachment.image file path round-trip', () {
+  group('End-to-end contract: AgentAttachment → client JSON → server parse', () {
+    test('AgentAttachment.image file path round-trip', () {
       // 1. TUI creates attachment
-      final attachment = VideAttachment.image('/screenshots/test.png');
+      final attachment = AgentAttachment.image('/screenshots/test.png');
 
       // 2. Client serializes (Session.sendMessage logic)
       final clientAttJson = {
         'type': attachment.type,
-        if (attachment.filePath != null) 'file-path': attachment.filePath,
+        if (attachment.path != null) 'file-path': attachment.path,
         if (attachment.content != null) 'content': attachment.content,
         if (attachment.mimeType != null) 'mime-type': attachment.mimeType,
       };
@@ -227,23 +227,23 @@ void main() {
       final serverContent = wireJson['content'] as String?;
       final serverMimeType = wireJson['mime-type'] as String?;
 
-      // 5. Server creates VideAttachment for LocalVideSession
-      final serverAttachment = VideAttachment(
+      // 5. Server creates AgentAttachment for LocalVideSession
+      final serverAttachment = AgentAttachment(
         type: serverType,
-        filePath: serverFilePath,
+        path: serverFilePath,
         content: serverContent,
         mimeType: serverMimeType,
       );
 
       // 6. Verify all fields match the original
       expect(serverAttachment.type, attachment.type);
-      expect(serverAttachment.filePath, attachment.filePath);
+      expect(serverAttachment.path, attachment.path);
       expect(serverAttachment.content, attachment.content);
       expect(serverAttachment.mimeType, attachment.mimeType);
     });
 
-    test('VideAttachment base64 round-trip', () {
-      final attachment = VideAttachment(
+    test('AgentAttachment base64 round-trip', () {
+      final attachment = AgentAttachment(
         type: 'image',
         content: 'iVBORw0KGgoAAAANSUhEUgAAAAE=',
         mimeType: 'image/png',
@@ -251,7 +251,7 @@ void main() {
 
       final clientAttJson = {
         'type': attachment.type,
-        if (attachment.filePath != null) 'file-path': attachment.filePath,
+        if (attachment.path != null) 'file-path': attachment.path,
         if (attachment.content != null) 'content': attachment.content,
         if (attachment.mimeType != null) 'mime-type': attachment.mimeType,
       };
@@ -259,15 +259,15 @@ void main() {
       final wireJson =
           jsonDecode(jsonEncode(clientAttJson)) as Map<String, dynamic>;
 
-      final serverAttachment = VideAttachment(
+      final serverAttachment = AgentAttachment(
         type: wireJson['type'] as String,
-        filePath: wireJson['file-path'] as String?,
+        path: wireJson['file-path'] as String?,
         content: wireJson['content'] as String?,
         mimeType: wireJson['mime-type'] as String?,
       );
 
       expect(serverAttachment.type, attachment.type);
-      expect(serverAttachment.filePath, attachment.filePath);
+      expect(serverAttachment.path, attachment.path);
       expect(serverAttachment.content, attachment.content);
       expect(serverAttachment.mimeType, attachment.mimeType);
     });

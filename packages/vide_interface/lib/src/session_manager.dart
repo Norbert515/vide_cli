@@ -51,7 +51,7 @@ abstract interface class VideSessionManager {
     required String workingDirectory,
     String? permissionMode,
     String? team,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   });
 
   /// Resume an existing session by its ID.

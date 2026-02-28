@@ -270,7 +270,7 @@ class _AgentChatState extends State<_AgentChat> {
   DateTime? _cachedFileListTimestamp;
 
   /// Tracks attachments sent with user messages (keyed by message content).
-  final Map<String, List<VideAttachment>> _sentAttachments = {};
+  final Map<String, List<AgentAttachment>> _sentAttachments = {};
 
   Future<void> _loadInitialAgentRuntimeMetadata(VideSession session) async {
     final queuedMessage = await session.getQueuedMessage(component.agentId);
@@ -334,7 +334,7 @@ class _AgentChatState extends State<_AgentChat> {
     super.dispose();
   }
 
-  void _sendMessage(VideMessage message) {
+  void _sendMessage(AgentMessage message) {
     if (message.attachments != null && message.attachments!.isNotEmpty) {
       _sentAttachments[message.text] = message.attachments!;
     }
@@ -356,7 +356,7 @@ class _AgentChatState extends State<_AgentChat> {
       workingDirectory: session?.state.workingDirectory ?? '',
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
+        session?.sendMessage(AgentMessage(text: message), agentId: component.agentId);
       },
       clearConversation: () async {
         await session?.clearConversation(agentId: component.agentId);
@@ -394,7 +394,7 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(VideMessage(text: message), agentId: component.agentId);
+            session?.sendMessage(AgentMessage(text: message), agentId: component.agentId);
           },
           onSwitchWorktree: (path) async {
             final container = ProviderScope.containerOf(context);

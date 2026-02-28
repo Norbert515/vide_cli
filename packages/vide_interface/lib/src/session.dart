@@ -172,7 +172,7 @@ abstract class VideSession {
   /// optimistic UI updates — the message appears immediately regardless
   /// of whether the backend has acknowledged it. Remote implementations
   /// handle deduplication internally when the server echoes the message.
-  void sendMessage(VideMessage message, {String? agentId});
+  void sendMessage(AgentMessage message, {String? agentId});
 
   // ============================================================
   // Permission handling

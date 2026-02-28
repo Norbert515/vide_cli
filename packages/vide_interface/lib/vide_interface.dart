@@ -3,7 +3,7 @@
 /// This package defines the canonical types used across all Vide packages:
 /// - [VideSession] - Abstract session interface
 /// - [VideEvent] hierarchy - Unified event types with serialization
-/// - [VideAgent], [VideMessage] - Core models
+/// - [VideAgent], [AgentMessage] - Core models
 /// - [ConversationStateManager] - UI state accumulator
 ///
 /// ```dart

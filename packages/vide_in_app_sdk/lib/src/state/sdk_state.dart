@@ -188,7 +188,7 @@ class VideSdkState extends ChangeNotifier {
   /// Connect to the server and create a new session with the given message.
   Future<void> createSession(
     String initialMessage, {
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) async {
     _connectionState = VideSdkConnectionState.connecting;
     _errorMessage = null;
@@ -277,8 +277,8 @@ class VideSdkState extends ChangeNotifier {
   }
 
   /// Send a message to the main agent.
-  void sendMessage(String text, {List<VideAttachment>? attachments}) {
-    _session?.sendMessage(VideMessage(text: text, attachments: attachments));
+  void sendMessage(String text, {List<AgentAttachment>? attachments}) {
+    _session?.sendMessage(AgentMessage(text: text, attachments: attachments));
     notifyListeners();
   }
 

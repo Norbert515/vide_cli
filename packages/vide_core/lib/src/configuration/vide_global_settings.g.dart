@@ -17,7 +17,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(
   dangerouslySkipPermissions:
       json['dangerouslySkipPermissions'] as bool? ?? false,
   gitSidebarEnabled: json['gitSidebarEnabled'] as bool? ?? true,
-  daemonModeEnabled: json['daemonModeEnabled'] as bool? ?? false,
+  daemonModeEnabled: json['daemonModeEnabled'] as bool? ?? true,
   daemonHost: json['daemonHost'] as String? ?? '127.0.0.1',
   daemonPort: (json['daemonPort'] as num?)?.toInt() ?? 8080,
   telemetryEnabled: json['telemetryEnabled'] as bool? ?? true,

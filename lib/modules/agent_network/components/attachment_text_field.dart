@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart' show VideMessage, VideAttachment;
+import 'package:vide_core/vide_core.dart' show AgentAttachment, AgentMessage;
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
@@ -21,8 +21,8 @@ class AttachmentTextField extends StatefulComponent {
   final bool enabled;
   final bool focused;
   final String? placeholder;
-  final void Function(VideMessage message)? onSubmit;
-  final void Function(List<VideAttachment> attachments)? onAttachmentsChanged;
+  final void Function(AgentMessage message)? onSubmit;
+  final void Function(List<AgentAttachment> attachments)? onAttachmentsChanged;
   final Component? agentTag;
 
   /// Called when Escape is pressed and the text field is empty.
@@ -381,7 +381,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
     // Replace placeholders with actual content
     var finalText = text;
-    final imageAttachments = <VideAttachment>[];
+    final imageAttachments = <AgentAttachment>[];
 
     // Process attachments in reverse order to maintain correct indices
     for (var i = _controller.attachments.length - 1; i >= 0; i--) {
@@ -404,7 +404,7 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
         ? 'Attached image(s)'
         : finalText;
 
-    final message = VideMessage(
+    final message = AgentMessage(
       text: messageText,
       attachments: imageAttachments.isEmpty ? null : imageAttachments,
     );
@@ -722,13 +722,13 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
 /// Custom TextEditingController that manages attachments and text updates natively
 class _AttachmentTextEditingController extends TextEditingController {
-  final List<VideAttachment> attachments = [];
+  final List<AgentAttachment> attachments = [];
   final Map<int, String> _placeholderToPath = {};
   final Map<int, String> _placeholderToContent = {}; // Store full text content
   bool _isInternalUpdate = false; // Flag to prevent recursive updates
   static const _longTextThreshold = 500; // Characters
 
-  void Function(List<VideAttachment>)? onAttachmentsChanged;
+  void Function(List<AgentAttachment>)? onAttachmentsChanged;
 
   @override
   void dispose() {
@@ -878,7 +878,7 @@ class _AttachmentTextEditingController extends TextEditingController {
 
     // Check for duplicates
     final isDuplicate = attachments.any(
-      (attachment) => attachment.filePath == unescapedPath,
+      (attachment) => attachment.path == unescapedPath,
     );
     if (isDuplicate) {
       return; // Don't add duplicate, don't modify text
@@ -887,7 +887,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     final index = attachments.length;
     final placeholder = '[Image #${index + 1}]';
 
-    attachments.add(VideAttachment.image(unescapedPath));
+    attachments.add(AgentAttachment.image(unescapedPath));
     _placeholderToPath[index] = imagePath;
 
     // Insert placeholder at cursor position
@@ -911,7 +911,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     final index = attachments.length;
     final placeholder = '[Pasted Content #${index + 1}]';
 
-    attachments.add(VideAttachment.documentText(text: content));
+    attachments.add(AgentAttachment.documentText(text: content));
     _placeholderToContent[index] = content;
 
     // Insert placeholder at cursor position
@@ -944,7 +944,7 @@ class _AttachmentTextEditingController extends TextEditingController {
     }
 
     if (existingPlaceholders.length != attachments.length) {
-      final newAttachments = <VideAttachment>[];
+      final newAttachments = <AgentAttachment>[];
       final newPlaceholderToPath = <int, String>{};
       final newPlaceholderToContent = <int, String>{};
 

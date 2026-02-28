@@ -5,7 +5,7 @@ import 'package:vide_client/vide_client.dart'
     show
         createPendingRemoteVideSession,
         createRemoteVideSession,
-        VideAttachment;
+        AgentAttachment;
 import 'package:vide_core/vide_core.dart'
     show videConfigManagerProvider, VideSession;
 import 'package:vide_daemon/vide_daemon.dart';
@@ -108,6 +108,9 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
   }
 
   /// Connect to daemon at the given host/port.
+  ///
+  /// If the daemon is not running and this is a local connection (not via
+  /// `vide connect`), attempts to auto-start it.
   Future<void> _connect(String host, int port) async {
     // Clean up existing connection
     _disconnect();
@@ -117,7 +120,14 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     final client = DaemonClient(host: host, port: port);
 
     try {
-      final healthy = await client.isHealthy();
+      var healthy = await client.isHealthy();
+
+      // If not healthy and this is a local daemon (not remote config),
+      // attempt to auto-start.
+      if (!healthy && _shouldAutoStart()) {
+        healthy = await _tryAutoStart(host, port);
+      }
+
       if (!healthy) {
         state = state.copyWith(
           isConnecting: false,
@@ -136,6 +146,40 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
         isConnecting: false,
         error: 'Failed to connect to daemon: $e',
       );
+    }
+  }
+
+  /// Whether auto-start should be attempted.
+  ///
+  /// Only auto-start for local daemon connections, not when connected to a
+  /// remote daemon via `vide connect`.
+  bool _shouldAutoStart() {
+    final remoteConfig = _ref.read(remoteConfigProvider);
+    return remoteConfig == null;
+  }
+
+  /// Attempt to auto-start the daemon as a detached background process.
+  ///
+  /// Returns true if the daemon is now healthy after starting.
+  Future<bool> _tryAutoStart(String host, int port) async {
+    final lifecycle = DaemonLifecycle();
+    try {
+      await lifecycle.startDetached(host: host, port: port);
+      // startDetached polls health for 15s, so if we get here it's healthy.
+      return true;
+    } on DaemonAlreadyRunningException {
+      // Race condition: daemon started between our check and now.
+      // Re-check health.
+      final client = DaemonClient(host: host, port: port);
+      try {
+        return await client.isHealthy();
+      } finally {
+        client.close();
+      }
+    } on DaemonStartFailedException {
+      return false;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -167,7 +211,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
     required String workingDirectory,
     String? permissionMode,
     String? team,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
     void Function()? onReady,
   }) {
     final daemonClient = state.client;
@@ -187,7 +231,7 @@ class DaemonConnectionNotifier extends StateNotifier<DaemonConnectionState> {
         ?.map(
           (a) => <String, dynamic>{
             'type': a.type,
-            if (a.filePath != null) 'file-path': a.filePath,
+            if (a.path != null) 'file-path': a.path,
             if (a.content != null) 'content': a.content,
             if (a.mimeType != null) 'mime-type': a.mimeType,
           },

@@ -86,7 +86,7 @@ void main() {
 
       // Send message while agent is processing
       session.sendMessage(
-        VideMessage(text: 'This should be queued, not shown in chat'),
+        AgentMessage(text: 'This should be queued, not shown in chat'),
       );
 
       // Allow any async events to settle
@@ -112,7 +112,7 @@ void main() {
       final events = <VideEvent>[];
       session.events.listen(events.add);
 
-      session.sendMessage(VideMessage(text: 'This should appear in chat'));
+      session.sendMessage(AgentMessage(text: 'This should appear in chat'));
 
       await Future<void>.delayed(Duration.zero);
 
@@ -148,7 +148,7 @@ void main() {
           if (e is StatusEvent) statusEvents.add(e);
         });
 
-        session.sendMessage(VideMessage(text: 'Queued message'));
+        session.sendMessage(AgentMessage(text: 'Queued message'));
 
         await Future<void>.delayed(Duration.zero);
 

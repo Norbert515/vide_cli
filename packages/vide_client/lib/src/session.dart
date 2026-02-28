@@ -72,7 +72,7 @@ class TransportSession {
   void sendMessage(
     String content, {
     String? agentId,
-    List<VideAttachment>? attachments,
+    List<AgentAttachment>? attachments,
   }) {
     _send({
       'type': 'user-message',
@@ -83,7 +83,7 @@ class TransportSession {
             .map(
               (a) => {
                 'type': a.type,
-                if (a.filePath != null) 'file-path': a.filePath,
+                if (a.path != null) 'file-path': a.path,
                 if (a.content != null) 'content': a.content,
                 if (a.mimeType != null) 'mime-type': a.mimeType,
               },

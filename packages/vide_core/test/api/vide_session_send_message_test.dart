@@ -21,7 +21,7 @@ void main() {
     test('sends message to main agent by default', () async {
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'Hello'));
+      h.session.sendMessage(AgentMessage(text: 'Hello'));
       await Future<void>.delayed(Duration.zero);
 
       // Session emits a user event directly AND _handleConversation emits
@@ -44,7 +44,7 @@ void main() {
       final subClient = h.addAgent(id: 'sub-agent');
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'Hey sub'), agentId: 'sub-agent');
+      h.session.sendMessage(AgentMessage(text: 'Hey sub'), agentId: 'sub-agent');
       await Future<void>.delayed(Duration.zero);
 
       final userMsgs = events.whereType<MessageEvent>().where(
@@ -64,7 +64,7 @@ void main() {
 
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'While processing'));
+      h.session.sendMessage(AgentMessage(text: 'While processing'));
       await Future<void>.delayed(Duration.zero);
 
       final userMsgs = events.whereType<MessageEvent>().where(
@@ -82,7 +82,7 @@ void main() {
         agent_sdk.AgentConversationState.receivingResponse,
       );
 
-      h.session.sendMessage(VideMessage(text: 'Queued!'));
+      h.session.sendMessage(AgentMessage(text: 'Queued!'));
       await Future<void>.delayed(Duration.zero);
 
       expect(h.mockClient.currentQueuedMessage, equals('Queued!'));
@@ -91,7 +91,7 @@ void main() {
     test('non-queued messages set agent status to working', () async {
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'Go'));
+      h.session.sendMessage(AgentMessage(text: 'Go'));
       await Future<void>.delayed(Duration.zero);
 
       final statusEvents = events.whereType<StatusEvent>().toList();
@@ -112,7 +112,7 @@ void main() {
 
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'Queued'));
+      h.session.sendMessage(AgentMessage(text: 'Queued'));
       await Future<void>.delayed(Duration.zero);
 
       final statusEvents = events.whereType<StatusEvent>();
@@ -121,11 +121,11 @@ void main() {
 
     test('message with attachments forwards them to claude client', () async {
       h.session.sendMessage(
-        VideMessage(
+        AgentMessage(
           text: 'Check this',
           attachments: [
-            VideAttachment(type: 'file', filePath: '/tmp/test.dart'),
-            VideAttachment(
+            AgentAttachment(type: 'file', path: '/tmp/test.dart'),
+            AgentAttachment(
               type: 'text',
               content: 'inline content',
               mimeType: 'text/plain',
@@ -145,24 +145,24 @@ void main() {
       final events = h.collectEvents();
 
       h.session.sendMessage(
-        VideMessage(
+        AgentMessage(
           text: 'Attached',
-          attachments: [VideAttachment(type: 'file', filePath: '/tmp/a.dart')],
+          attachments: [AgentAttachment(type: 'file', path: '/tmp/a.dart')],
         ),
       );
       await Future<void>.delayed(Duration.zero);
 
       final msg = events.whereType<MessageEvent>().first;
       expect(msg.attachments, isNotNull);
-      expect(msg.attachments!.first.filePath, equals('/tmp/a.dart'));
+      expect(msg.attachments!.first.path, equals('/tmp/a.dart'));
     });
 
     test('multiple rapid messages all produce events', () async {
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'msg1'));
-      h.session.sendMessage(VideMessage(text: 'msg2'));
-      h.session.sendMessage(VideMessage(text: 'msg3'));
+      h.session.sendMessage(AgentMessage(text: 'msg1'));
+      h.session.sendMessage(AgentMessage(text: 'msg2'));
+      h.session.sendMessage(AgentMessage(text: 'msg3'));
       await Future<void>.delayed(Duration.zero);
 
       // Session emits events directly AND _handleConversation also emits
@@ -179,8 +179,8 @@ void main() {
     test('each user message gets a unique eventId', () async {
       final events = h.collectEvents();
 
-      h.session.sendMessage(VideMessage(text: 'msg1'));
-      h.session.sendMessage(VideMessage(text: 'msg2'));
+      h.session.sendMessage(AgentMessage(text: 'msg1'));
+      h.session.sendMessage(AgentMessage(text: 'msg2'));
       await Future<void>.delayed(Duration.zero);
 
       final userMsgs = events

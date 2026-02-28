@@ -87,10 +87,10 @@ class _VideChatPanelState extends State<VideChatPanel> {
     final text = _textController.text.trim();
     if (text.isEmpty && widget.pendingScreenshot == null) return;
 
-    List<VideAttachment>? attachments;
+    List<AgentAttachment>? attachments;
     if (widget.pendingScreenshot != null) {
       attachments = [
-        VideAttachment(
+        AgentAttachment(
           type: 'image',
           content: base64Encode(widget.pendingScreenshot!),
           mimeType: 'image/png',
