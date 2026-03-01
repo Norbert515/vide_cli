@@ -10,16 +10,18 @@ import '../../../core/theme/vide_colors.dart';
 /// User messages get a subtle accent left border.
 /// Agent messages have no border — just content.
 class MessageBubble extends StatelessWidget {
-  final ConversationEntry entry;
+  final MessageRole role;
+  final String text;
 
   const MessageBubble({
     super.key,
-    required this.entry,
+    required this.role,
+    required this.text,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isUser = entry.role == MessageRole.user;
+    final isUser = role == MessageRole.user;
     final colorScheme = Theme.of(context).colorScheme;
     final videColors = Theme.of(context).extension<VideThemeColors>()!;
 
@@ -37,11 +39,11 @@ class MessageBubble extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: isUser
             ? Text(
-                entry.text,
+                text,
                 style: TextStyle(color: colorScheme.onSurface),
               )
             : MarkdownBody(
-                data: entry.text,
+                data: text,
                 styleSheet: MarkdownStyleSheet(
                   p: TextStyle(
                     color: colorScheme.onSurface,

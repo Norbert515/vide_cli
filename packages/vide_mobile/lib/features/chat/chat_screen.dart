@@ -713,8 +713,9 @@ class _MessageList extends StatelessWidget {
                 (showTypingIndicator ? reverseIndex - 1 : reverseIndex);
             final item = items[itemIndex];
             switch (item) {
-              case _TextRenderItem(:final entry):
-                return MessageBubble(entry: entry);
+              case _TextRenderItem(:final entry, :final content):
+                return MessageBubble(
+                    role: entry.role, text: content.text);
               case _ThinkingRenderItem(:final content):
                 return ThinkingBubble(content: content);
               case _ToolRenderItem(:final tool):
