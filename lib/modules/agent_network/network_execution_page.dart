@@ -26,7 +26,9 @@ import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/components/vide_scaffold.dart';
 
 class NetworkExecutionPage extends StatefulComponent {
-  const NetworkExecutionPage({super.key});
+  final VideSession session;
+
+  const NetworkExecutionPage({required this.session, super.key});
 
   static Future<void> push(BuildContext context, {required VideSession session}) async {
     context.read(sessionSelectionProvider.notifier).selectSession(session);
@@ -39,7 +41,7 @@ class NetworkExecutionPage extends StatefulComponent {
 
     return Navigator.of(
       context,
-    ).push<void>(PageRoute(builder: (context) => const NetworkExecutionPage(), settings: RouteSettings()));
+    ).push<void>(PageRoute(builder: (context) => NetworkExecutionPage(session: session), settings: RouteSettings()));
   }
 
   @override
@@ -104,8 +106,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     required VoidCallback focusRightSidebar,
   }) {
     // Get selected agent ID from provider, or use the first agent
-    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider.notifier);
-    final selectedAgentId = context.watch(selectedAgentIdProvider);
+    final sessionId = component.session.id;
+    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider(sessionId).notifier);
+    final selectedAgentId = context.watch(selectedAgentIdProvider(sessionId));
 
     // Find the selected agent, or default to the first agent
     String agentId = selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
@@ -116,10 +119,11 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       selectedAgentIdNotifier.state = agentId;
     }
 
-    final session = context.read(currentVideSessionProvider)!;
+    final session = component.session;
     return Expanded(
       child: _AgentChat(
         key: ValueKey(agentId),
+        session: session,
         agentId: agentId,
         networkId: session.id,
         showQuitWarning: _showQuitWarning,
@@ -132,19 +136,16 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   }
 
   Future<void> _exitWithDaemonCleanup() async {
-    final session = context.read(currentVideSessionProvider);
-    final sessionId = session?.id;
-    if (sessionId != null) {
-      final daemonState = context.read(daemonConnectionProvider);
-      if (daemonState.isConnected) {
-        try {
-          await context
-              .read(daemonConnectionProvider.notifier)
-              .stopSession(sessionId)
-              .timeout(const Duration(seconds: 3));
-        } catch (_) {
-          // Best-effort — don't block exit if stop fails or times out.
-        }
+    final sessionId = component.session.id;
+    final daemonState = context.read(daemonConnectionProvider);
+    if (daemonState.isConnected) {
+      try {
+        await context
+            .read(daemonConnectionProvider.notifier)
+            .stopSession(sessionId)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // Best-effort — don't block exit if stop fails or times out.
       }
     }
     shutdownApp();
@@ -181,9 +182,9 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     // Remote sessions start disconnected while the WebSocket connects.
     final connectionAsync = context.watch(sessionConnectionProvider);
     final isConnected = connectionAsync.valueOrNull ?? true;
-    final session = context.watch(currentVideSessionProvider);
+    final session = component.session;
 
-    if (session == null || !isConnected) {
+    if (!isConnected) {
       return _buildConnectingScreen(context, label: 'Connecting to session...');
     }
 
@@ -260,6 +261,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 }
 
 class _AgentChat extends StatefulComponent {
+  final VideSession session;
   final String agentId;
   final String networkId;
   final bool showQuitWarning;
@@ -269,6 +271,7 @@ class _AgentChat extends StatefulComponent {
   final VoidCallback focusRightSidebar;
 
   const _AgentChat({
+    required this.session,
     required this.agentId,
     required this.networkId,
     required this.onExit,
@@ -309,15 +312,14 @@ class _AgentChatState extends State<_AgentChat> {
       _queuedMessage = queuedMessage;
       _model = model;
     });
-    context.read(currentModelProvider.notifier).state = model;
+    context.read(currentModelProvider(component.session.id).notifier).state = model;
   }
 
   @override
   void initState() {
     super.initState();
 
-    final session = context.read(currentVideSessionProvider);
-    if (session == null) return;
+    final session = component.session;
 
     // Listen to conversation updates
     _conversationSubscription = session.conversationStream(component.agentId).listen((conversation) {
@@ -338,7 +340,7 @@ class _AgentChatState extends State<_AgentChat> {
     // Listen to model updates
     _modelSubscription = session.modelStream(component.agentId).listen((model) {
       setState(() => _model = model);
-      context.read(currentModelProvider.notifier).state = model;
+      context.read(currentModelProvider(component.session.id).notifier).state = model;
     });
 
     unawaited(_loadInitialAgentRuntimeMetadata(session));
@@ -367,28 +369,25 @@ class _AgentChatState extends State<_AgentChat> {
     if (message.attachments != null && message.attachments!.isNotEmpty) {
       _sentAttachments[message.text] = message.attachments!;
     }
-    final session = context.read(currentVideSessionProvider);
-    session?.sendMessage(message, agentId: component.agentId);
+    component.session.sendMessage(message, agentId: component.agentId);
   }
 
   bool _isLastAgent() {
-    final session = context.read(currentVideSessionProvider);
-    if (session == null) return true; // If no session, treat as last agent (safe default)
-    return session.state.agents.length <= 1;
+    return component.session.state.agents.length <= 1;
   }
 
   Future<void> _handleCommand(String commandInput) async {
-    final session = context.read(currentVideSessionProvider);
+    final session = component.session;
     final dispatcher = context.read(commandDispatcherProvider);
     final commandContext = CommandContext(
       agentId: component.agentId,
-      workingDirectory: session?.state.workingDirectory ?? '',
+      workingDirectory: session.state.workingDirectory,
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(AgentMessage(text: message), agentId: component.agentId);
+        session.sendMessage(AgentMessage(text: message), agentId: component.agentId);
       },
       clearConversation: () async {
-        await session?.clearConversation(agentId: component.agentId);
+        await session.clearConversation(agentId: component.agentId);
         setState(() {
           _conversation = null;
         });
@@ -396,11 +395,11 @@ class _AgentChatState extends State<_AgentChat> {
       exitApp: component.onExit,
       detachApp: shutdownApp,
       forkAgent: (name) async {
-        final newAgentId = await session?.forkAgent(component.agentId, name: name);
-        return newAgentId ?? '';
+        final newAgentId = await session.forkAgent(component.agentId, name: name);
+        return newAgentId;
       },
       killAgent: () async {
-        await session?.terminateAgent(
+        await session.terminateAgent(
           component.agentId,
           terminatedBy: component.agentId, // Self-termination
           reason: 'User invoked /kill command',
@@ -413,13 +412,13 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(AgentMessage(text: message), agentId: component.agentId);
+            session.sendMessage(AgentMessage(text: message), agentId: component.agentId);
           },
           onSwitchWorktree: (path) async {
             final container = ProviderScope.containerOf(context);
             container.read(repoPathOverrideProvider.notifier).state = path;
             // Use VideSession.setWorktreePath() instead of direct provider access
-            await session?.setWorktreePath(path);
+            await session.setWorktreePath(path);
           },
         );
       },
@@ -427,8 +426,7 @@ class _AgentChatState extends State<_AgentChat> {
         await SettingsPopup.show(context);
       },
       showSessionLogs: () {
-        final sessionId = session?.id;
-        if (sessionId == null) return;
+        final sessionId = session.id;
         final logPath = VideLogger.instance.sessionLogPath(sessionId);
         context.read(filePreviewPathProvider.notifier).state = logPath;
       },
@@ -467,9 +465,8 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   Future<List<CommandSuggestion>> _getFileSuggestions(String query) async {
-    final session = context.read(currentVideSessionProvider);
-    final workingDir = session?.state.workingDirectory;
-    if (workingDir == null) return [];
+    final workingDir = component.session.state.workingDirectory;
+    if (workingDir.isEmpty) return [];
 
     final now = DateTime.now();
     if (_cachedFileList == null ||
@@ -517,8 +514,6 @@ class _AgentChatState extends State<_AgentChat> {
     String? patternOverride,
     String? denyReason,
   }) {
-    final session = context.read(currentVideSessionProvider);
-
     String reason;
     if (granted) {
       reason = 'User approved';
@@ -528,7 +523,7 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    session?.respondToPermission(
+    component.session.respondToPermission(
       request.requestId,
       allow: granted,
       message: reason,
@@ -541,34 +536,27 @@ class _AgentChatState extends State<_AgentChat> {
   }
 
   void _handleAskUserQuestionResponse(AskUserQuestionUIRequest request, Map<String, String> answers) {
-    final session = context.read(currentVideSessionProvider);
-
     // Send the response through the session (unified path for local and remote)
-    session?.respondToAskUserQuestion(request.requestId, answers: answers);
+    component.session.respondToAskUserQuestion(request.requestId, answers: answers);
 
     // Dequeue the current request to show the next one
     context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
   }
 
   void _handlePlanApprovalResponse(PlanApprovalUIRequest request, String action, String? feedback) {
-    final session = context.read(currentVideSessionProvider);
-
-    session?.respondToPlanApproval(request.requestId, action: action, feedback: feedback);
+    component.session.respondToPlanApproval(request.requestId, action: action, feedback: feedback);
 
     // Dequeue the current request to show the next one
     context.read(planApprovalStateProvider.notifier).dequeueRequest();
   }
 
   void _handleEscape() {
-    final session = context.read(currentVideSessionProvider);
-    if (session == null) return;
-
     // If there's a queued message, clear it first
     if (_queuedMessage != null) {
-      unawaited(session.clearQueuedMessage(component.agentId));
+      unawaited(component.session.clearQueuedMessage(component.agentId));
     } else {
       // Otherwise abort the current processing
-      session.abortAgent(component.agentId);
+      component.session.abortAgent(component.agentId);
     }
   }
 
@@ -624,8 +612,7 @@ class _AgentChatState extends State<_AgentChat> {
         itemBuilder: (context, index) {
           final messageIndex = index;
           final message = filteredMessages[messageIndex];
-          final session = context.read(currentVideSessionProvider);
-          final workingDir = session?.state.workingDirectory ?? '';
+          final workingDir = component.session.state.workingDirectory;
 
           // Render system-like user messages (e.g. "[Request interrupted by user]")
           // as dimmed inline text instead of a full user message bubble.
@@ -727,10 +714,7 @@ class _AgentChatState extends State<_AgentChat> {
                   model: _model,
                   maxDialogHeight: maxDialogHeight,
                   onClearQueue: () {
-                    final session = context.read(currentVideSessionProvider);
-                    if (session != null) {
-                      unawaited(session.clearQueuedMessage(component.agentId));
-                    }
+                    unawaited(component.session.clearQueuedMessage(component.agentId));
                   },
                   onSendMessage: _sendMessage,
                   onCommand: _handleCommand,

@@ -121,10 +121,10 @@ final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
 ///
 /// When null, no agent is selected.
 /// Used by AgentSidebar for keyboard navigation and selection.
-final selectedAgentIdProvider = StateProvider<String?>((ref) => null);
+final selectedAgentIdProvider = StateProvider.family<String?, String>((ref, sessionId) => null);
 
 /// Provider for the currently displayed model name (e.g. "opus", "sonnet").
 ///
 /// Updated by the active chat view when the model stream emits.
 /// Read by the scaffold bottom bar to display the model inline.
-final currentModelProvider = StateProvider<String?>((ref) => null);
+final currentModelProvider = StateProvider.family<String?, String>((ref, sessionId) => null);

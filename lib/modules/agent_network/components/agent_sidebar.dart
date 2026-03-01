@@ -12,6 +12,7 @@ import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart
 /// - Enter/Space: Select agent
 /// - Escape or Right Arrow: Exit sidebar
 class AgentSidebar extends StatefulComponent {
+  final String sessionId;
   final bool focused;
   final bool expanded;
   final int width;
@@ -19,6 +20,7 @@ class AgentSidebar extends StatefulComponent {
   final void Function(String agentId)? onSelectAgent;
 
   const AgentSidebar({
+    required this.sessionId,
     required this.focused,
     required this.expanded,
     this.width = 50,
@@ -191,7 +193,7 @@ class _AgentSidebarState extends State<AgentSidebar>
         final item = items[_selectedIndex];
         if (item.agent != null) {
           // Select spawned agent - just update the provider, keep focus in sidebar
-          context.read(selectedAgentIdProvider.notifier).state = item.agent!.id;
+          context.read(selectedAgentIdProvider(component.sessionId).notifier).state = item.agent!.id;
           // Note: We intentionally don't call onSelectAgent here to keep focus in sidebar
         }
       }
@@ -212,11 +214,11 @@ class _AgentSidebarState extends State<AgentSidebar>
         agentsAsync.valueOrNull ?? session?.state.agents ?? [];
 
     // Auto-select first agent if none selected
-    final currentSelectedId = context.read(selectedAgentIdProvider);
+    final currentSelectedId = context.read(selectedAgentIdProvider(component.sessionId));
     if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
       // Schedule the state update for after build
       Future.microtask(() {
-        context.read(selectedAgentIdProvider.notifier).state =
+        context.read(selectedAgentIdProvider(component.sessionId).notifier).state =
             spawnedAgents.first.id;
       });
     }
@@ -274,7 +276,7 @@ class _AgentSidebarState extends State<AgentSidebar>
     VideThemeData theme,
     List<VideAgent> spawnedAgents,
   ) {
-    final selectedAgentId = context.watch(selectedAgentIdProvider);
+    final selectedAgentId = context.watch(selectedAgentIdProvider(component.sessionId));
 
     // Build items
     final items = _buildItems(spawnedAgents);
@@ -360,7 +362,7 @@ class _AgentSidebarState extends State<AgentSidebar>
       onHoverExit: () => setState(() => _hoveredIndex = null),
       onTap: () {
         setState(() => _selectedIndex = index);
-        context.read(selectedAgentIdProvider.notifier).state = agent.id;
+        context.read(selectedAgentIdProvider(component.sessionId).notifier).state = agent.id;
         component.onSelectAgent?.call(agent.id);
       },
     );

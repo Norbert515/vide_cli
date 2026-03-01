@@ -200,6 +200,7 @@ class _VideScaffoldState extends State<VideScaffold> {
               minWidth: component.sidebarWidth - 1,
               maxWidth: component.sidebarWidth - 1,
               child: AgentSidebar(
+                sessionId: context.read(sessionSelectionProvider).sessionId ?? '',
                 width: (component.sidebarWidth - 1).toInt(),
                 focused: focused,
                 expanded: true,
@@ -207,7 +208,8 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSelectAgent: (agentId) {
-                  context.read(selectedAgentIdProvider.notifier).state =
+                  final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
+                  context.read(selectedAgentIdProvider(sessionId).notifier).state =
                       agentId;
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
@@ -253,7 +255,8 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSendMessage: (message) {
-                  final selectedAgentId = context.read(selectedAgentIdProvider);
+                  final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
+                  final selectedAgentId = context.read(selectedAgentIdProvider(sessionId));
                   if (selectedAgentId != null) {
                     session?.sendMessage(
                       AgentMessage(text: message),
@@ -284,7 +287,8 @@ class _VideScaffoldState extends State<VideScaffold> {
     final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
-    final model = context.watch(currentModelProvider);
+    final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
+    final model = context.watch(currentModelProvider(sessionId));
     return Container(
       decoration: BoxDecoration(
         border: BoxBorder(bottom: BorderSide(color: theme.base.outlineVariant)),
