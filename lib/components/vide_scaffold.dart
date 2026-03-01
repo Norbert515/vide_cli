@@ -10,7 +10,6 @@ import 'package:vide_cli/main.dart'
         currentRepoPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_section.dart';
 import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -288,7 +287,6 @@ class _VideScaffoldState extends State<VideScaffold> {
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
     final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
-    final model = context.watch(currentModelProvider(sessionId));
     return Container(
       decoration: BoxDecoration(
         border: BoxBorder(bottom: BorderSide(color: theme.base.outlineVariant)),
@@ -300,13 +298,6 @@ class _VideScaffoldState extends State<VideScaffold> {
             'VIDE',
             style: TextStyle(color: primary, fontWeight: FontWeight.bold),
           ),
-          if (model != null) ...[
-            Text(' ', style: TextStyle(color: dimmer)),
-            Text(
-              ContextUsageSection.formatModelName(model),
-              style: TextStyle(color: dimmer),
-            ),
-          ],
           Text(' \u2502 ', style: TextStyle(color: dimmer)),
           Expanded(
             child: Text(
