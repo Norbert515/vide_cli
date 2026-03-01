@@ -79,8 +79,12 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
     final theme = VideTheme.of(context);
 
     return MouseRegion(
-      onEnter: (_) => setState(() => isHovered = true),
-      onExit: (_) => setState(() => isHovered = false),
+      onEnter: (_) {
+        if (mounted) setState(() => isHovered = true);
+      },
+      onExit: (_) {
+        if (mounted) setState(() => isHovered = false);
+      },
       child: GestureDetector(
         onTap: () => setState(() => isExpanded = !isExpanded),
         child: Column(
