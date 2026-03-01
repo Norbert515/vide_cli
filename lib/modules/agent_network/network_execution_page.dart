@@ -19,6 +19,7 @@ import 'package:vide_cli/modules/permissions/components/plan_approval_dialog.dar
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/settings_dialog.dart';
+import 'package:vide_client/src/remote_vide_session.dart';
 import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
@@ -60,11 +61,35 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   StreamSubscription<AgentConversationState>? _conversationReadySub;
   String? _trackedAgentId;
 
+  /// Agents list, updated via direct session stream subscription.
+  List<VideAgent> _agents = const [];
+  StreamSubscription<List<VideAgent>>? _agentsSub;
+
+  /// Connection state for remote sessions.
+  bool _isConnected = true;
+  StreamSubscription<bool>? _connectionSub;
+
   @override
   void initState() {
     super.initState();
     // We're not on the home page anymore - set this early so sidebar shows
     context.read(isOnHomePageProvider.notifier).state = false;
+
+    final session = component.session;
+
+    // Subscribe to agents stream
+    _agents = session.state.agents;
+    _agentsSub = session.stateStream.map((s) => s.agents).listen((agents) {
+      if (mounted) setState(() => _agents = agents);
+    });
+
+    // Subscribe to connection stream (remote sessions only)
+    if (session is RemoteVideSession) {
+      _isConnected = session.isConnected;
+      _connectionSub = session.connectionStateStream.listen((connected) {
+        if (mounted) setState(() => _isConnected = connected);
+      });
+    }
   }
 
   void _trackConversationReady(VideSession session, String agentId) {
@@ -92,6 +117,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   @override
   void dispose() {
     _conversationReadySub?.cancel();
+    _agentsSub?.cancel();
+    _connectionSub?.cancel();
     // Back to home page
     context.read(isOnHomePageProvider.notifier).state = true;
     context.read(sessionSelectionProvider.notifier).clear();
@@ -126,6 +153,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         session: session,
         agentId: agentId,
         networkId: session.id,
+        agents: _agents,
         showQuitWarning: _showQuitWarning,
         onExit: _exitWithDaemonCleanup,
         contentFocused: contentFocused,
@@ -180,21 +208,13 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   Component build(BuildContext context) {
     // Check connection state before building the full scaffold.
     // Remote sessions start disconnected while the WebSocket connects.
-    final connectionAsync = context.watch(sessionConnectionProvider);
-    final isConnected = connectionAsync.valueOrNull ?? true;
     final session = component.session;
 
-    if (!isConnected) {
+    if (!_isConnected) {
       return _buildConnectingScreen(context, label: 'Connecting to session...');
     }
 
-    final sessionState = session.state;
-
-    // Watch for agent changes - this is crucial for remote sessions where
-    // agents are populated asynchronously from history/connected events
-    final agentsAsync = context.watch(videSessionAgentsProvider);
-    final agents = agentsAsync.valueOrNull ?? sessionState.agents;
-    final agentIds = agents.map((a) => a.id).toList();
+    final agentIds = _agents.map((a) => a.id).toList();
 
     // For remote sessions, conversation data loads asynchronously after
     // the WebSocket connects. Show loading screen until it arrives to
@@ -207,6 +227,8 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     }
 
     return VideScaffold(
+      session: session,
+      agents: _agents,
       childBuilder: ({
         required contentFocused,
         required focusLeftSidebar,
@@ -265,6 +287,7 @@ class _AgentChat extends StatefulComponent {
   final VideSession session;
   final String agentId;
   final String networkId;
+  final List<VideAgent> agents;
   final bool showQuitWarning;
   final Future<void> Function() onExit;
   final bool contentFocused;
@@ -275,6 +298,7 @@ class _AgentChat extends StatefulComponent {
     required this.session,
     required this.agentId,
     required this.networkId,
+    required this.agents,
     required this.onExit,
     required this.contentFocused,
     required this.focusLeftSidebar,
@@ -706,6 +730,7 @@ class _AgentChatState extends State<_AgentChat> {
                 ChatInputArea(
                   agentId: component.agentId,
                   sessionId: component.session.id,
+                  agents: component.agents,
                   queuedMessage: _queuedMessage,
                   isAgentWorking: _isAgentWorking,
                   showQuitWarning: component.showQuitWarning,

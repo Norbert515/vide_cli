@@ -11,7 +11,6 @@ import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
-import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_core/vide_core.dart';
 
 /// The bottom input area of the agent chat, containing the queue indicator,
@@ -20,6 +19,7 @@ import 'package:vide_core/vide_core.dart';
 class ChatInputArea extends StatelessComponent {
   final String agentId;
   final String sessionId;
+  final List<VideAgent> agents;
   final String? queuedMessage;
   final bool isAgentWorking;
   final bool showQuitWarning;
@@ -55,6 +55,7 @@ class ChatInputArea extends StatelessComponent {
   const ChatInputArea({
     required this.agentId,
     required this.sessionId,
+    required this.agents,
     required this.queuedMessage,
     required this.isAgentWorking,
     required this.showQuitWarning,
@@ -112,7 +113,6 @@ class ChatInputArea extends StatelessComponent {
             mainAxisSize: MainAxisSize.min,
             children: [
               Builder(builder: (context) {
-                final agents = context.watch(videSessionAgentsProvider).valueOrNull ?? [];
                 final agent = agents.where((a) => a.id == agentId).firstOrNull;
                 return EnhancedLoadingIndicator(
                   processingPhase: agent?.processingPhase,

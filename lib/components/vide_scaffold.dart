@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/main.dart'
@@ -35,6 +37,12 @@ enum FocusedPanel { content, leftSidebar, rightSidebar }
 /// - `contentFocused`: true when neither sidebar has keyboard focus
 /// - `focusLeftSidebar` / `focusRightSidebar`: callbacks to shift focus
 class VideScaffold extends StatefulComponent {
+  /// The current session (threaded from NetworkExecutionPage).
+  final VideSession session;
+
+  /// The current agents list (streamed from NetworkExecutionPage).
+  final List<VideAgent> agents;
+
   /// Builder for the main content. Receives sidebar focus state so the content
   /// area can adjust (e.g. defocus the text field when a sidebar is focused).
   final Component Function({
@@ -53,6 +61,8 @@ class VideScaffold extends StatefulComponent {
   final double minWidthForSidebar;
 
   const VideScaffold({
+    required this.session,
+    required this.agents,
     required this.childBuilder,
     this.sidebarWidth = 28,
     this.gitSidebarWidth = 30,
@@ -68,6 +78,28 @@ class _VideScaffoldState extends State<VideScaffold> {
   FocusedPanel _focusedPanel = FocusedPanel.content;
   String? _currentFilePreviewPath;
   bool _dialogShowing = false;
+
+  /// Goal text, updated via direct session stream subscription.
+  String _goalText = 'Session';
+  StreamSubscription<String>? _goalSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _goalText = component.session.state.goal;
+    _goalSub = component.session.stateStream
+        .map((s) => s.goal)
+        .distinct()
+        .listen((goal) {
+      if (mounted) setState(() => _goalText = goal);
+    });
+  }
+
+  @override
+  void dispose() {
+    _goalSub?.cancel();
+    super.dispose();
+  }
 
   void _showFilePreviewDialog(BuildContext context, String filePath) {
     if (_dialogShowing) return;
@@ -199,7 +231,8 @@ class _VideScaffoldState extends State<VideScaffold> {
               minWidth: component.sidebarWidth - 1,
               maxWidth: component.sidebarWidth - 1,
               child: AgentSidebar(
-                sessionId: context.read(sessionSelectionProvider).sessionId ?? '',
+                session: component.session,
+                agents: component.agents,
                 width: (component.sidebarWidth - 1).toInt(),
                 focused: focused,
                 expanded: true,
@@ -207,8 +240,7 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSelectAgent: (agentId) {
-                  final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
-                  context.read(selectedAgentIdProvider(sessionId).notifier).state =
+                  context.read(selectedAgentIdProvider(component.session.id).notifier).state =
                       agentId;
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
@@ -231,7 +263,7 @@ class _VideScaffoldState extends State<VideScaffold> {
     bool focused,
     String repoPath,
   ) {
-    final session = context.read(currentVideSessionProvider);
+    final session = component.session;
     return Row(
       children: [
         VerticalDivider(
@@ -254,10 +286,9 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSendMessage: (message) {
-                  final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
-                  final selectedAgentId = context.read(selectedAgentIdProvider(sessionId));
+                  final selectedAgentId = context.read(selectedAgentIdProvider(session.id));
                   if (selectedAgentId != null) {
-                    session?.sendMessage(
+                    session.sendMessage(
                       AgentMessage(text: message),
                       agentId: selectedAgentId,
                     );
@@ -265,8 +296,7 @@ class _VideScaffoldState extends State<VideScaffold> {
                 },
                 onSwitchWorktree: (path) async {
                   context.read(repoPathOverrideProvider.notifier).state = path;
-                  final session = context.read(currentVideSessionProvider);
-                  await session?.setWorktreePath(path);
+                  await session.setWorktreePath(path);
                 },
               ),
             ),
@@ -281,9 +311,7 @@ class _VideScaffoldState extends State<VideScaffold> {
     VideThemeData theme,
     String repoPath,
   ) {
-    final session = context.watch(currentVideSessionProvider);
-    final goalAsync = context.watch(sessionGoalStreamProvider);
-    final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
+    final session = component.session;
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
     return Container(
@@ -300,7 +328,7 @@ class _VideScaffoldState extends State<VideScaffold> {
           Text(' \u2502 ', style: TextStyle(color: dimmer)),
           Expanded(
             child: Text(
-              goalText,
+              _goalText,
               style: TextStyle(
                 color: theme.base.onSurface,
                 fontWeight: FontWeight.bold,
@@ -309,13 +337,11 @@ class _VideScaffoldState extends State<VideScaffold> {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (session != null) ...[
-            Text(
-              session.id.length > 8 ? session.id.substring(0, 8) : session.id,
-              style: TextStyle(color: dimmer),
-            ),
-            Text(' \u2502 ', style: TextStyle(color: dimmer)),
-          ],
+          Text(
+            session.id.length > 8 ? session.id.substring(0, 8) : session.id,
+            style: TextStyle(color: dimmer),
+          ),
+          Text(' \u2502 ', style: TextStyle(color: dimmer)),
           GitBranchIndicator(repoPath: repoPath),
         ],
       ),
