@@ -199,7 +199,10 @@ class _HomePageState extends State<HomePage> {
 
     final theme = VideTheme.of(context);
     final currentDir = context.watch(currentRepoPathProvider);
-    final networks = context.watch(agentNetworksStateNotifierProvider).sessions;
+    final daemonState = context.watch(daemonConnectionProvider);
+    final networks = daemonState.isConnected
+        ? context.watch(agentNetworksStateNotifierProvider).sessions
+        : <VideSessionInfo>[];
 
     final textFieldFocused =
         _focusSection == _HomeSection.input ||
