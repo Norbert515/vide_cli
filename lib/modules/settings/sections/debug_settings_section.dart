@@ -88,8 +88,10 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   }
 
   void _triggerShortPermission() {
+    final sessionId = context.read(sessionSelectionProvider).sessionId;
+    if (sessionId == null) return;
     context
-        .read(permissionStateProvider.notifier)
+        .read(permissionStateProvider(sessionId).notifier)
         .enqueueRequest(
           PermissionRequest(
             requestId: 'test-short-${DateTime.now().millisecondsSinceEpoch}',
@@ -102,8 +104,10 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   }
 
   void _triggerLongPermission() {
+    final sessionId = context.read(sessionSelectionProvider).sessionId;
+    if (sessionId == null) return;
     context
-        .read(permissionStateProvider.notifier)
+        .read(permissionStateProvider(sessionId).notifier)
         .enqueueRequest(
           PermissionRequest(
             requestId: 'test-long-${DateTime.now().millisecondsSinceEpoch}',
@@ -247,8 +251,10 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   }
 
   void _triggerAskUserQuestion() {
+    final sessionId = context.read(sessionSelectionProvider).sessionId;
+    if (sessionId == null) return;
     context
-        .read(askUserQuestionStateProvider.notifier)
+        .read(askUserQuestionStateProvider(sessionId).notifier)
         .enqueueRequest(
           AskUserQuestionUIRequest(
             requestId: 'test-ask-${DateTime.now().millisecondsSinceEpoch}',
@@ -278,8 +284,10 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   }
 
   void _triggerPlanApproval() {
+    final sessionId = context.read(sessionSelectionProvider).sessionId;
+    if (sessionId == null) return;
     context
-        .read(planApprovalStateProvider.notifier)
+        .read(planApprovalStateProvider(sessionId).notifier)
         .enqueueRequest(
           PlanApprovalUIRequest(
             requestId: 'test-plan-${DateTime.now().millisecondsSinceEpoch}',

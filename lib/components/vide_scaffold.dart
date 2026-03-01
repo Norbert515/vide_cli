@@ -286,7 +286,6 @@ class _VideScaffoldState extends State<VideScaffold> {
     final goalText = goalAsync.valueOrNull ?? session?.state.goal ?? 'Session';
     final primary = theme.base.primary;
     final dimmer = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
-    final sessionId = context.read(sessionSelectionProvider).sessionId ?? '';
     return Container(
       decoration: BoxDecoration(
         border: BoxBorder(bottom: BorderSide(color: theme.base.outlineVariant)),

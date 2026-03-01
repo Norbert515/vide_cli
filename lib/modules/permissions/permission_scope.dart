@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_core/vide_core.dart';
-import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/services/sound_service.dart';
 import 'permission_service.dart';
 
@@ -51,8 +50,8 @@ class PermissionStateNotifier extends StateNotifier<PermissionQueueState> {
 
 /// Provider for the current permission request state
 final permissionStateProvider =
-    StateNotifierProvider<PermissionStateNotifier, PermissionQueueState>(
-      (ref) => PermissionStateNotifier(),
+    StateNotifierProvider.family<PermissionStateNotifier, PermissionQueueState, String>(
+      (ref, sessionId) => PermissionStateNotifier(),
     );
 
 /// UI request wrapper for AskUserQuestion events
@@ -119,10 +118,11 @@ class AskUserQuestionStateNotifier
 
 /// Provider for the current AskUserQuestion request state
 final askUserQuestionStateProvider =
-    StateNotifierProvider<
+    StateNotifierProvider.family<
       AskUserQuestionStateNotifier,
-      AskUserQuestionQueueState
-    >((ref) => AskUserQuestionStateNotifier());
+      AskUserQuestionQueueState,
+      String
+    >((ref, sessionId) => AskUserQuestionStateNotifier());
 
 /// UI request wrapper for PlanApproval events
 class PlanApprovalUIRequest {
@@ -190,8 +190,8 @@ class PlanApprovalStateNotifier extends StateNotifier<PlanApprovalQueueState> {
 
 /// Provider for the current plan approval request state
 final planApprovalStateProvider =
-    StateNotifierProvider<PlanApprovalStateNotifier, PlanApprovalQueueState>(
-      (ref) => PlanApprovalStateNotifier(),
+    StateNotifierProvider.family<PlanApprovalStateNotifier, PlanApprovalQueueState, String>(
+      (ref, sessionId) => PlanApprovalStateNotifier(),
     );
 
 /// A widget that manages permission requests by listening to VideSession events.
@@ -199,9 +199,10 @@ final planApprovalStateProvider =
 /// All permission requests (both local and remote) flow through the session's
 /// event stream as [PermissionRequestEvent] and [AskUserQuestionEvent].
 class PermissionScope extends StatefulComponent {
+  final VideSession session;
   final Component child;
 
-  const PermissionScope({required this.child, super.key});
+  const PermissionScope({required this.session, required this.child, super.key});
 
   @override
   State<PermissionScope> createState() => _PermissionScopeState();
@@ -221,16 +222,19 @@ class _PermissionScopeState extends State<PermissionScope> {
   ///
   /// All permission requests flow through the session's event stream,
   /// unifying local and remote/daemon modes.
-  void _setupSessionEventHandling(BuildContext context, VideSession? session) {
+  void _setupSessionEventHandling(BuildContext context) {
+    final session = component.session;
+    final sessionId = session.id;
+
     // If session changed, cancel old subscription
-    if (session?.state.id != _currentSessionId) {
+    if (sessionId != _currentSessionId) {
       _sessionEventSub?.cancel();
       _sessionEventSub = null;
-      _currentSessionId = session?.state.id;
+      _currentSessionId = sessionId;
     }
 
-    // If no session or already subscribed, skip
-    if (session == null || _sessionEventSub != null) return;
+    // If already subscribed, skip
+    if (_sessionEventSub != null) return;
 
     final configManager = ProviderScope.containerOf(context)
         .read(videConfigManagerProvider);
@@ -244,37 +248,37 @@ class _PermissionScopeState extends State<PermissionScope> {
             session.state.workingDirectory,
           );
           context
-              .read(permissionStateProvider.notifier)
+              .read(permissionStateProvider(sessionId).notifier)
               .enqueueRequest(request);
           SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PermissionResolvedEvent():
           context
-              .read(permissionStateProvider.notifier)
+              .read(permissionStateProvider(sessionId).notifier)
               .removeByRequestId(event.requestId);
 
         case AskUserQuestionEvent():
           final request = AskUserQuestionUIRequest.fromEvent(event);
           context
-              .read(askUserQuestionStateProvider.notifier)
+              .read(askUserQuestionStateProvider(sessionId).notifier)
               .enqueueRequest(request);
           SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PlanApprovalRequestEvent():
           final request = PlanApprovalUIRequest.fromEvent(event);
           context
-              .read(planApprovalStateProvider.notifier)
+              .read(planApprovalStateProvider(sessionId).notifier)
               .enqueueRequest(request);
           SoundService.play(SoundType.attentionNeeded, configManager);
 
         case PlanApprovalResolvedEvent():
           context
-              .read(planApprovalStateProvider.notifier)
+              .read(planApprovalStateProvider(sessionId).notifier)
               .removeByRequestId(event.requestId);
 
         case AskUserQuestionResolvedEvent():
           context
-              .read(askUserQuestionStateProvider.notifier)
+              .read(askUserQuestionStateProvider(sessionId).notifier)
               .removeByRequestId(event.requestId);
 
         case StatusEvent(status: VideAgentStatus.idle):
@@ -300,9 +304,7 @@ class _PermissionScopeState extends State<PermissionScope> {
 
   @override
   Component build(BuildContext context) {
-    // Watch for session changes to handle permission requests
-    final session = context.watch(currentVideSessionProvider);
-    _setupSessionEventHandling(context, session);
+    _setupSessionEventHandling(context);
 
     // Just return the child - no more Stack overlay
     return component.child;

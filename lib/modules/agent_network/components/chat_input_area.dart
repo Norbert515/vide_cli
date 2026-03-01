@@ -19,6 +19,7 @@ import 'package:vide_core/vide_core.dart';
 /// and context usage section.
 class ChatInputArea extends StatelessComponent {
   final String agentId;
+  final String sessionId;
   final String? queuedMessage;
   final bool isAgentWorking;
   final bool showQuitWarning;
@@ -53,6 +54,7 @@ class ChatInputArea extends StatelessComponent {
 
   const ChatInputArea({
     required this.agentId,
+    required this.sessionId,
     required this.queuedMessage,
     required this.isAgentWorking,
     required this.showQuitWarning,
@@ -81,12 +83,12 @@ class ChatInputArea extends StatelessComponent {
     final theme = VideTheme.of(context);
 
     // Get the current permission queue state from the provider
-    final permissionQueueState = context.watch(permissionStateProvider);
+    final permissionQueueState = context.watch(permissionStateProvider(sessionId));
     final currentPermissionRequest = permissionQueueState.current;
 
     // Get the current AskUserQuestion queue state from the provider
     final askUserQuestionQueueState = context.watch(
-      askUserQuestionStateProvider,
+      askUserQuestionStateProvider(sessionId),
     );
     final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
 

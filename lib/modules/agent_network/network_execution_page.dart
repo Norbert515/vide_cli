@@ -232,6 +232,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
         );
 
         return PermissionScope(
+          session: session,
           child: Focusable(
             focused: true,
             onKeyEvent: (event) {
@@ -532,7 +533,7 @@ class _AgentChatState extends State<_AgentChat> {
     );
 
     // Dequeue the current request to show the next one
-    context.read(permissionStateProvider.notifier).dequeueRequest();
+    context.read(permissionStateProvider(component.session.id).notifier).dequeueRequest();
   }
 
   void _handleAskUserQuestionResponse(AskUserQuestionUIRequest request, Map<String, String> answers) {
@@ -540,14 +541,14 @@ class _AgentChatState extends State<_AgentChat> {
     component.session.respondToAskUserQuestion(request.requestId, answers: answers);
 
     // Dequeue the current request to show the next one
-    context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
+    context.read(askUserQuestionStateProvider(component.session.id).notifier).dequeueRequest();
   }
 
   void _handlePlanApprovalResponse(PlanApprovalUIRequest request, String action, String? feedback) {
     component.session.respondToPlanApproval(request.requestId, action: action, feedback: feedback);
 
     // Dequeue the current request to show the next one
-    context.read(planApprovalStateProvider.notifier).dequeueRequest();
+    context.read(planApprovalStateProvider(component.session.id).notifier).dequeueRequest();
   }
 
   void _handleEscape() {
@@ -563,7 +564,7 @@ class _AgentChatState extends State<_AgentChat> {
   bool _handleKeyEvent(KeyboardEvent event) {
     // Don't intercept keys when plan approval dialog is active —
     // the dialog handles its own key events (Escape, Tab, etc.)
-    final planState = context.read(planApprovalStateProvider);
+    final planState = context.read(planApprovalStateProvider(component.session.id));
     if (planState.current != null) return false;
 
     if (event.logicalKey == LogicalKey.escape) {
@@ -653,7 +654,7 @@ class _AgentChatState extends State<_AgentChat> {
   @override
   Component build(BuildContext context) {
     // Get the current plan approval queue state from the provider
-    final planApprovalQueueState = context.watch(planApprovalStateProvider);
+    final planApprovalQueueState = context.watch(planApprovalStateProvider(component.session.id));
     final currentPlanApproval = planApprovalQueueState.current;
 
     return Focusable(
@@ -704,6 +705,7 @@ class _AgentChatState extends State<_AgentChat> {
                 // Input area
                 ChatInputArea(
                   agentId: component.agentId,
+                  sessionId: component.session.id,
                   queuedMessage: _queuedMessage,
                   isAgentWorking: _isAgentWorking,
                   showQuitWarning: component.showQuitWarning,

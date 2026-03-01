@@ -83,8 +83,12 @@ enum _AggregatedStatus {
 /// videSessionAgentsProvider (a StreamProvider) triggers rebuilds when
 /// status changes.
 _AggregatedStatus _getAggregatedStatus(Ref ref) {
-  final permissionState = ref.watch(permissionStateProvider);
-  final askUserQuestionState = ref.watch(askUserQuestionStateProvider);
+  final sessionId = ref.watch(sessionSelectionProvider).sessionId;
+  // No session selected = no pending permissions
+  if (sessionId == null) return _AggregatedStatus.idle;
+
+  final permissionState = ref.watch(permissionStateProvider(sessionId));
+  final askUserQuestionState = ref.watch(askUserQuestionStateProvider(sessionId));
 
   // Watch agents stream — this triggers rebuilds when agent status changes
   final agentsAsync = ref.watch(videSessionAgentsProvider);
