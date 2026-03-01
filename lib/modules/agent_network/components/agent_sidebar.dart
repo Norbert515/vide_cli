@@ -557,10 +557,9 @@ class _AgentRowItemState extends State<_AgentRowItem>
       component.agent.harness,
       component.agent.model,
     );
-    final displayTagWidth = displayTag != null ? displayTag.length + 1 : 0; // +1 for space
     displayName = _truncateText(
       displayName,
-      component.availableWidth - prefixWidth - 4 - displayTagWidth,
+      component.availableWidth - prefixWidth - 4,
     );
 
     final bgColor = component.isSelected && component.isFocused
@@ -584,49 +583,59 @@ class _AgentRowItemState extends State<_AgentRowItem>
         onTap: () => component.onTap?.call(),
         child: Container(
           decoration: BoxDecoration(color: bgColor),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Tree lines: continuation lines + connector (dim/subtle)
-              if (treeLine.isNotEmpty || connector.isNotEmpty)
-                Text(
-                  '$treeLine$connector',
-                  style: TextStyle(
-                    color: theme.base.outline.withOpacity(TextOpacity.tertiary),
+              Row(
+                children: [
+                  // Tree lines: continuation lines + connector (dim/subtle)
+                  if (treeLine.isNotEmpty || connector.isNotEmpty)
+                    Text(
+                      '$treeLine$connector',
+                      style: TextStyle(
+                        color: theme.base.outline
+                            .withOpacity(TextOpacity.tertiary),
+                      ),
+                    ),
+                  // Status indicator (colored)
+                  Text(
+                    '$statusIndicator ',
+                    style: TextStyle(color: actualStatusColor),
                   ),
-                ),
-              // Status indicator (colored)
-              Text(
-                '$statusIndicator ',
-                style: TextStyle(color: actualStatusColor),
-              ),
-              // Agent name
-              Expanded(
-                child: Text(
-                  displayName,
-                  style: TextStyle(
-                    color: textColor,
-                    fontWeight: component.isSelectedById
-                        ? FontWeight.bold
-                        : null,
+                  // Agent name
+                  Expanded(
+                    child: Text(
+                      displayName,
+                      style: TextStyle(
+                        color: textColor,
+                        fontWeight: component.isSelectedById
+                            ? FontWeight.bold
+                            : null,
+                      ),
+                      maxLines: 1,
+                    ),
                   ),
-                  maxLines: 1,
-                ),
+                  // View indicator for currently viewed agent
+                  if (component.isSelectedById)
+                    Text(
+                      '◀',
+                      style: TextStyle(
+                        color: theme.base.primary
+                            .withOpacity(TextOpacity.tertiary),
+                      ),
+                    ),
+                ],
               ),
-              // Harness:model tag (e.g., "cc:opus", "codex:o3")
+              // Harness:model tag on a separate line (e.g., "cc:opus", "codex:o3")
               if (displayTag != null)
-                Text(
-                  ' $displayTag',
-                  style: TextStyle(
-                    color: _getModelColor(component.agent.model, theme)
-                        .withOpacity(TextOpacity.tertiary),
-                  ),
-                ),
-              // View indicator for currently viewed agent
-              if (component.isSelectedById)
-                Text(
-                  '◀',
-                  style: TextStyle(
-                    color: theme.base.primary.withOpacity(TextOpacity.tertiary),
+                Padding(
+                  padding: EdgeInsets.only(left: prefixWidth + 2),
+                  child: Text(
+                    displayTag,
+                    style: TextStyle(
+                      color: _getModelColor(component.agent.model, theme)
+                          .withOpacity(TextOpacity.tertiary),
+                    ),
                   ),
                 ),
             ],

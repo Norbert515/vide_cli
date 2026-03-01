@@ -73,10 +73,14 @@ class _HomePageState extends State<HomePage> {
       final worktreePath = context.read(repoPathOverrideProvider);
       final sessionManager = context.read(videSessionManagerProvider);
 
+      final configManager = context.read(videConfigManagerProvider);
+      final settings = configManager.readGlobalSettings();
+      final team = settings.extremeTeamEnabled ? 'extreme' : 'enterprise';
+
       final session = await sessionManager.createSession(
         initialMessage: message.text,
         workingDirectory: worktreePath ?? Directory.current.path,
-        team: 'enterprise',
+        team: team,
         attachments: message.attachments,
       );
 

@@ -82,6 +82,12 @@ class VideGlobalSettings {
   @JsonKey(includeIfNull: false)
   final String? customAttentionNeededSound;
 
+  /// Whether to use the "extreme" team instead of "enterprise".
+  /// Extreme mode uses dual-harness parallel analysis with agent debates,
+  /// a dedicated verification strategist, and dual-model code review.
+  @JsonKey(defaultValue: false)
+  final bool extremeTeamEnabled;
+
   const VideGlobalSettings({
     this.firstRunComplete = false,
     this.theme,
@@ -98,6 +104,7 @@ class VideGlobalSettings {
     this.soundNotificationsEnabled = true,
     this.customTaskCompleteSound,
     this.customAttentionNeededSound,
+    this.extremeTeamEnabled = false,
   });
 
   factory VideGlobalSettings.defaults() => const VideGlobalSettings();
@@ -123,6 +130,7 @@ class VideGlobalSettings {
     bool? soundNotificationsEnabled,
     String? Function()? customTaskCompleteSound,
     String? Function()? customAttentionNeededSound,
+    bool? extremeTeamEnabled,
   }) {
     return VideGlobalSettings(
       firstRunComplete: firstRunComplete ?? this.firstRunComplete,
@@ -146,6 +154,7 @@ class VideGlobalSettings {
       customAttentionNeededSound: customAttentionNeededSound != null
           ? customAttentionNeededSound()
           : this.customAttentionNeededSound,
+      extremeTeamEnabled: extremeTeamEnabled ?? this.extremeTeamEnabled,
     );
   }
 }

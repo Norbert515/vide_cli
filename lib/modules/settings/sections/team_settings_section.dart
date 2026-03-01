@@ -4,6 +4,7 @@ import 'package:vide_core/vide_core.dart'
     show
         VideLogger,
         teamFrameworkLoaderProvider,
+        videConfigManagerProvider,
         TeamDefinition,
         AgentPersonality;
 import 'package:vide_cli/constants/text_opacity.dart';
@@ -38,10 +39,16 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
     _loadData();
   }
 
+  String get _activeTeamName {
+    final configManager = context.read(videConfigManagerProvider);
+    final settings = configManager.readGlobalSettings();
+    return settings.extremeTeamEnabled ? 'extreme' : 'enterprise';
+  }
+
   TeamDefinition? get _activeTeam {
     final teams = _teams;
     if (teams == null) return null;
-    return teams['enterprise'] ?? teams.values.firstOrNull;
+    return teams[_activeTeamName] ?? teams.values.firstOrNull;
   }
 
   int get _itemCount {
@@ -135,7 +142,7 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
     final teamLoader = context.read(teamFrameworkLoaderProvider);
     final config = await teamLoader.buildAgentConfiguration(
       agentName,
-      teamName: 'enterprise',
+      teamName: _activeTeamName,
     );
     if (config == null || !mounted) return;
 
@@ -178,7 +185,6 @@ class _TeamSettingsSectionState extends State<TeamSettingsSection> {
 
     return Scrollbar(
       controller: _scrollController,
-      thumbVisibility: true,
       thumbColor: theme.base.primary,
       trackColor: theme.base.outlineVariant,
       child: ListView(

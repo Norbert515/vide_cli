@@ -26,8 +26,9 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
   int _selectedIndex = 0;
 
   // [0] = Git sidebar, [1] = Streaming, [2] = Show Thinking,
-  // [3] = Sound Notifications, [4] = Complete Sound, [5] = Attention Sound
-  static const int _totalItems = 6;
+  // [3] = Sound Notifications, [4] = Extreme Mode,
+  // [5] = Complete Sound, [6] = Attention Sound
+  static const int _totalItems = 7;
 
   int? _editingIndex;
   final _completeSoundController = TextEditingController();
@@ -77,17 +78,17 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
   }
 
   void _activateCurrentItem() {
-    if (_selectedIndex == 4) {
+    if (_selectedIndex == 5) {
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _completeSoundController.text = settings.customTaskCompleteSound ?? '';
-      setState(() => _editingIndex = 4);
-    } else if (_selectedIndex == 5) {
+      setState(() => _editingIndex = 5);
+    } else if (_selectedIndex == 6) {
       final configManager = context.read(videConfigManagerProvider);
       final settings = configManager.readGlobalSettings();
       _attentionSoundController.text =
           settings.customAttentionNeededSound ?? '';
-      setState(() => _editingIndex = 5);
+      setState(() => _editingIndex = 6);
     } else {
       _toggleCurrentItem();
     }
@@ -127,6 +128,11 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
         );
       }
       setState(() {});
+    } else if (_selectedIndex == 4) {
+      configManager.writeGlobalSettings(
+        settings.copyWith(extremeTeamEnabled: !settings.extremeTeamEnabled),
+      );
+      setState(() {});
     }
   }
 
@@ -164,6 +170,7 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
     final streamingEnabled = settings.enableStreaming;
     final showThinking = settings.showThinking;
     final soundEnabled = settings.soundNotificationsEnabled;
+    final extremeEnabled = settings.extremeTeamEnabled;
 
     return Focusable(
       focused: component.focused,
@@ -230,18 +237,31 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
                       _activateCurrentItem();
                     },
                   ),
+                  SettingsToggleItem(
+                    label: 'Extreme Mode',
+                    description: 'Dual-harness debates + verification strategist',
+                    value: extremeEnabled,
+                    isSelected:
+                        component.focused &&
+                        _selectedIndex == 4 &&
+                        _editingIndex == null,
+                    onTap: () {
+                      setState(() => _selectedIndex = 4);
+                      _activateCurrentItem();
+                    },
+                  ),
                   SettingsTextInput(
                     label: 'Complete Sound',
                     description: 'Custom audio file for task complete',
                     value: settings.customTaskCompleteSound ?? 'default',
                     isSelected:
                         component.focused &&
-                        _selectedIndex == 4 &&
+                        _selectedIndex == 5 &&
                         _editingIndex == null,
-                    isEditing: _editingIndex == 4,
+                    isEditing: _editingIndex == 5,
                     controller: _completeSoundController,
                     onTap: () {
-                      setState(() => _selectedIndex = 4);
+                      setState(() => _selectedIndex = 5);
                       _activateCurrentItem();
                     },
                     onSubmitted: _saveCompleteSound,
@@ -252,12 +272,12 @@ class _GeneralSettingsSectionState extends State<GeneralSettingsSection> {
                     value: settings.customAttentionNeededSound ?? 'default',
                     isSelected:
                         component.focused &&
-                        _selectedIndex == 5 &&
+                        _selectedIndex == 6 &&
                         _editingIndex == null,
-                    isEditing: _editingIndex == 5,
+                    isEditing: _editingIndex == 6,
                     controller: _attentionSoundController,
                     onTap: () {
-                      setState(() => _selectedIndex = 5);
+                      setState(() => _selectedIndex = 6);
                       _activateCurrentItem();
                     },
                     onSubmitted: _saveAttentionSound,
