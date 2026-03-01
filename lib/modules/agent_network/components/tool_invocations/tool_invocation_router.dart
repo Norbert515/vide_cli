@@ -4,6 +4,7 @@ import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:vide_core/vide_core.dart' show AgentId, ToolContent;
 import 'package:vide_cli/theme/theme.dart';
+import 'plan_accepted_renderer.dart';
 import 'terminal_output_renderer.dart';
 import 'diff_renderer.dart';
 import 'shared/tool_header.dart';
@@ -20,12 +21,14 @@ class ToolInvocationRouter extends StatelessComponent {
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
+  final String? planContent;
 
   const ToolInvocationRouter({
     required this.invocation,
     required this.workingDirectory,
     required this.executionId,
     required this.agentId,
+    this.planContent,
     super.key,
   });
 
@@ -37,9 +40,12 @@ class ToolInvocationRouter extends StatelessComponent {
       return SizedBox();
     }
 
-    // Route 1: ExitPlanMode - show plan accepted/rejected indicator
+    // Route 1: ExitPlanMode - show plan accepted/rejected with preview
     if (invocation.toolName == 'ExitPlanMode') {
-      return _buildExitPlanModeResult(context);
+      return PlanAcceptedRenderer(
+        invocation: invocation,
+        planContent: planContent,
+      );
     }
 
     // Route 2: AskUserQuestion - show as a nice user response block
@@ -98,56 +104,6 @@ class ToolInvocationRouter extends StatelessComponent {
       toolName: toolName,
       toolInput: toolInput,
     ).isHidden;
-  }
-
-  /// Build a display for ExitPlanMode tool results.
-  ///
-  /// Shows "Plan accepted" (green) or "Plan rejected: reason" (red) based on
-  /// whether the tool succeeded or was denied.
-  Component _buildExitPlanModeResult(BuildContext context) {
-    // While waiting for user response, show nothing (dialog handles it)
-    if (!invocation.hasResult) {
-      return SizedBox();
-    }
-
-    final theme = VideTheme.of(context);
-
-    if (invocation.isError) {
-      // Plan was rejected - show rejection with feedback if available
-      final reason = invocation.resultContent ?? 'User rejected the plan';
-      return Container(
-        padding: EdgeInsets.symmetric(vertical: 1),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('◇ ', style: TextStyle(color: theme.base.error)),
-            Expanded(
-              child: Text(
-                'Plan rejected: $reason',
-                style: TextStyle(color: theme.base.error),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Plan was accepted
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        children: [
-          Text('◆ ', style: TextStyle(color: theme.base.success)),
-          Text(
-            'Plan accepted',
-            style: TextStyle(
-              color: theme.base.success,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   /// Build a nice display for AskUserQuestion tool results

@@ -105,6 +105,29 @@ class AssistantEntryRenderer extends StatelessComponent {
       workingDirectory: workingDirectory,
       executionId: networkId,
       agentId: agentId,
+      planContent: content.toolName == 'ExitPlanMode'
+          ? _extractPlanContent()
+          : null,
     );
+  }
+
+  /// Extracts plan content from a sibling Write tool targeting `.claude/plans/`.
+  ///
+  /// The agent writes the plan file before calling ExitPlanMode, so both tool
+  /// invocations are in the same [ConversationEntry].
+  String? _extractPlanContent() {
+    for (final content in entry.content.reversed) {
+      if (content is ToolContent &&
+          content.toolName == 'Write') {
+        final filePath = content.toolInput['file_path'] as String?;
+        final fileContent = content.toolInput['content'] as String?;
+        if (filePath != null &&
+            fileContent != null &&
+            filePath.contains('.claude/plans/')) {
+          return fileContent;
+        }
+      }
+    }
+    return null;
   }
 }
