@@ -20,7 +20,6 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
       daemonPort: (json['daemonPort'] as num?)?.toInt() ?? 8080,
       telemetryEnabled: json['telemetryEnabled'] as bool? ?? true,
       showThinking: json['showThinking'] as bool? ?? true,
-      useCodexBackend: json['useCodexBackend'] as bool? ?? false,
       soundNotificationsEnabled:
           json['soundNotificationsEnabled'] as bool? ?? true,
       customTaskCompleteSound: json['customTaskCompleteSound'] as String?,
@@ -41,7 +40,6 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
       'daemonPort': instance.daemonPort,
       'telemetryEnabled': instance.telemetryEnabled,
       'showThinking': instance.showThinking,
-      'useCodexBackend': instance.useCodexBackend,
       'soundNotificationsEnabled': instance.soundNotificationsEnabled,
       if (instance.customTaskCompleteSound case final value?)
         'customTaskCompleteSound': value,

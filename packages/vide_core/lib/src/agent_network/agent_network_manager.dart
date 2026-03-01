@@ -58,10 +58,6 @@ agentNetworkManagerProvider =
       if (config.factoryRegistry != null) {
         factoryRegistry = config.factoryRegistry!;
       } else {
-        final useCodex = config.configManager
-            .readGlobalSettings()
-            .useCodexBackend;
-
         // Build both factories so any agent can use either harness
         final claudeFactory = ClaudeAgentClientFactory(
           getWorkingDirectory: () => managerRef!.effectiveWorkingDirectory,
@@ -98,9 +94,7 @@ agentNetworkManagerProvider =
             AgentClientFactoryRegistry.claudeCode: claudeFactory,
             AgentClientFactoryRegistry.codexCli: codexFactory,
           },
-          defaultHarness: useCodex
-              ? AgentClientFactoryRegistry.codexCli
-              : AgentClientFactoryRegistry.claudeCode,
+          defaultHarness: AgentClientFactoryRegistry.claudeCode,
         );
       }
 

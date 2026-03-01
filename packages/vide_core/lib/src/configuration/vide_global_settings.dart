@@ -62,11 +62,6 @@ class VideGlobalSettings {
   @JsonKey(defaultValue: true)
   final bool showThinking;
 
-  /// Whether to use the Codex (OpenAI) backend instead of Claude.
-  /// Debug setting for testing the Codex integration.
-  @JsonKey(defaultValue: false)
-  final bool useCodexBackend;
-
   /// Whether to play sounds when agents finish or need user attention.
   @JsonKey(defaultValue: true)
   final bool soundNotificationsEnabled;
@@ -100,7 +95,6 @@ class VideGlobalSettings {
     this.daemonPort = 8080,
     this.telemetryEnabled = true,
     this.showThinking = true,
-    this.useCodexBackend = false,
     this.soundNotificationsEnabled = true,
     this.customTaskCompleteSound,
     this.customAttentionNeededSound,
@@ -126,7 +120,6 @@ class VideGlobalSettings {
     int? daemonPort,
     bool? telemetryEnabled,
     bool? showThinking,
-    bool? useCodexBackend,
     bool? soundNotificationsEnabled,
     String? Function()? customTaskCompleteSound,
     String? Function()? customAttentionNeededSound,
@@ -145,7 +138,6 @@ class VideGlobalSettings {
       daemonPort: daemonPort ?? this.daemonPort,
       telemetryEnabled: telemetryEnabled ?? this.telemetryEnabled,
       showThinking: showThinking ?? this.showThinking,
-      useCodexBackend: useCodexBackend ?? this.useCodexBackend,
       soundNotificationsEnabled:
           soundNotificationsEnabled ?? this.soundNotificationsEnabled,
       customTaskCompleteSound: customTaskCompleteSound != null

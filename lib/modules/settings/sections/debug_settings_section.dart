@@ -4,18 +4,16 @@ import 'package:vide_core/vide_core.dart'
     show
         AskUserQuestionData,
         AskUserQuestionOptionData,
-        VideLogger,
-        videConfigManagerProvider;
+        VideLogger;
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart' show filePreviewPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
 import 'package:vide_cli/modules/settings/components/settings_card.dart';
-import 'package:vide_cli/modules/settings/components/settings_toggle.dart';
 import 'package:vide_cli/theme/theme.dart';
 
-/// Debug settings: Codex backend toggle, session logs viewer, admin test triggers.
+/// Debug settings: session logs viewer, admin test triggers.
 class DebugSettingsSection extends StatefulComponent {
   final bool focused;
   final VoidCallback onExit;
@@ -33,10 +31,10 @@ class DebugSettingsSection extends StatefulComponent {
 class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   int _selectedIndex = 0;
 
-  // [0] = Codex backend, [1] = Session logs,
-  // [2] = Permission (short), [3] = Permission (long),
-  // [4] = AskUserQuestion, [5] = Plan Approval
-  static const int _totalItems = 6;
+  // [0] = Session logs,
+  // [1] = Permission (short), [2] = Permission (long),
+  // [3] = AskUserQuestion, [4] = Plan Approval
+  static const int _totalItems = 5;
 
   bool _handleKeyEvent(KeyboardEvent event) {
     if (!component.focused) return false;
@@ -69,27 +67,16 @@ class _DebugSettingsSectionState extends State<DebugSettingsSection> {
   void _activateCurrentItem() {
     switch (_selectedIndex) {
       case 0:
-        _toggleCodexBackend();
-      case 1:
         _openSessionLogs();
-      case 2:
+      case 1:
         _triggerShortPermission();
-      case 3:
+      case 2:
         _triggerLongPermission();
-      case 4:
+      case 3:
         _triggerAskUserQuestion();
-      case 5:
+      case 4:
         _triggerPlanApproval();
     }
-  }
-
-  void _toggleCodexBackend() {
-    final configManager = context.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
-    configManager.writeGlobalSettings(
-      settings.copyWith(useCodexBackend: !settings.useCodexBackend),
-    );
-    setState(() {});
   }
 
   void _openSessionLogs() {
@@ -331,10 +318,6 @@ Adding JWT-based authentication to the REST API.
 
   @override
   Component build(BuildContext context) {
-    final configManager = context.read(videConfigManagerProvider);
-    final settings = configManager.readGlobalSettings();
-    final useCodexBackend = settings.useCodexBackend;
-
     final session = context.watch(currentVideSessionProvider);
     final sessionId = session?.id;
     final logPath = sessionId != null
@@ -354,23 +337,12 @@ Adding JWT-based authentication to the REST API.
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SettingsToggleItem(
-                    label: 'Codex Backend',
-                    description:
-                        'Use OpenAI Codex instead of Claude (restart required)',
-                    value: useCodexBackend,
-                    isSelected: component.focused && _selectedIndex == 0,
-                    onTap: () {
-                      setState(() => _selectedIndex = 0);
-                      _toggleCodexBackend();
-                    },
-                  ),
                   _ActionItem(
                     label: 'Session Logs',
                     description: logPath ?? 'No active session',
-                    isSelected: component.focused && _selectedIndex == 1,
+                    isSelected: component.focused && _selectedIndex == 0,
                     onTap: () {
-                      setState(() => _selectedIndex = 1);
+                      setState(() => _selectedIndex = 0);
                       _openSessionLogs();
                     },
                   ),
@@ -386,36 +358,36 @@ Adding JWT-based authentication to the REST API.
                   _ActionItem(
                     label: 'Permission (short)',
                     description: 'Trigger a short permission dialog',
-                    isSelected: component.focused && _selectedIndex == 2,
+                    isSelected: component.focused && _selectedIndex == 1,
                     onTap: () {
-                      setState(() => _selectedIndex = 2);
+                      setState(() => _selectedIndex = 1);
                       _triggerShortPermission();
                     },
                   ),
                   _ActionItem(
                     label: 'Permission (long)',
                     description: 'Trigger a long permission dialog',
-                    isSelected: component.focused && _selectedIndex == 3,
+                    isSelected: component.focused && _selectedIndex == 2,
                     onTap: () {
-                      setState(() => _selectedIndex = 3);
+                      setState(() => _selectedIndex = 2);
                       _triggerLongPermission();
                     },
                   ),
                   _ActionItem(
                     label: 'AskUserQuestion',
                     description: 'Trigger an ask-user-question dialog',
-                    isSelected: component.focused && _selectedIndex == 4,
+                    isSelected: component.focused && _selectedIndex == 3,
                     onTap: () {
-                      setState(() => _selectedIndex = 4);
+                      setState(() => _selectedIndex = 3);
                       _triggerAskUserQuestion();
                     },
                   ),
                   _ActionItem(
                     label: 'Plan Approval',
                     description: 'Trigger a plan approval dialog',
-                    isSelected: component.focused && _selectedIndex == 5,
+                    isSelected: component.focused && _selectedIndex == 4,
                     onTap: () {
-                      setState(() => _selectedIndex = 5);
+                      setState(() => _selectedIndex = 4);
                       _triggerPlanApproval();
                     },
                   ),
