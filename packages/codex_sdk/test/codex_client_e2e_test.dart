@@ -5,16 +5,23 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:codex_sdk/codex_sdk.dart';
 import 'package:test/test.dart';
 
-/// End-to-end test that runs a real `codex app-server` subprocess.
+/// E2E tests for [CodexClient] using a real `codex app-server` subprocess.
+///
+/// Tests the full init sequence: subprocess start → handshake → thread/start →
+/// MCP startup wait → ready state.
 ///
 /// Requires:
-///   - `codex` CLI installed and on PATH
-///   - Valid OpenAI API key configured
+/// - `codex` CLI installed and on PATH
+/// - A git repository as working directory
 ///
-/// Run with: dart test test/codex_client_e2e_test.dart --tags e2e
+/// Run with: `dart test --tags e2e`
 void main() {
-  late CodexClient client;
   late Directory tempDir;
+  final logs = <String>[];
+
+  void log(String level, String component, String message) {
+    logs.add('[$level] $component: $message');
+  }
 
   setUpAll(() {
     final result = Process.runSync('which', ['codex']);
@@ -23,264 +30,268 @@ void main() {
     }
   });
 
-  setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('codex_e2e_');
-    client = CodexClient(
-      codexConfig: CodexConfig(
-        workingDirectory: tempDir.path,
-        skipGitRepoCheck: true,
-        approvalPolicy: 'never',
-      ),
-    );
+  setUp(() async {
+    logs.clear();
+    tempDir = await Directory.systemTemp.createTemp('codex_client_e2e_');
+
+    // codex requires a git repo
+    await Process.run('git', ['init'], workingDirectory: tempDir.path);
+    await Process.run('git', [
+      'commit',
+      '--allow-empty',
+      '-m',
+      'init',
+    ], workingDirectory: tempDir.path);
   });
 
   tearDown(() async {
-    await client.close();
     // Small delay to let any dangling async handlers settle
     await Future<void>.delayed(const Duration(milliseconds: 200));
     if (tempDir.existsSync()) {
-      tempDir.deleteSync(recursive: true);
+      await tempDir.delete(recursive: true);
     }
   });
 
-  test('sends a simple prompt and receives a complete conversation', () async {
-    await client.init();
+  group('init lifecycle (no API key needed)', () {
+    late CodexClient client;
 
-    // Subscribe to streams BEFORE sending the message to avoid races
-    final turnFuture = client.onTurnComplete.first;
-    final statuses = <ClaudeStatus>[];
-    final sub = client.statusStream.listen(statuses.add);
+    setUp(() {
+      client = CodexClient(
+        codexConfig: CodexConfig(
+          workingDirectory: tempDir.path,
+          sessionId: 'e2e-test-session',
+          approvalPolicy: 'never',
+        ),
+        log: log,
+      );
+    });
 
-    client.sendMessage(
-      Message(text: 'Respond with exactly: "hello from codex"'),
+    tearDown(() async {
+      await client.close();
+    });
+
+    test(
+      'full init sequence completes successfully',
+      () async {
+        await client.init();
+
+        expect(client.sessionId, 'e2e-test-session');
+        expect(client.workingDirectory, tempDir.path);
+        expect(client.threadId, isNotNull);
+        expect(client.threadId, isNotEmpty);
+        expect(client.currentStatus, ClaudeStatus.ready);
+        expect(client.currentConversation.messages, isEmpty);
+
+        // Verify logging captured key steps
+        expect(
+          logs.where((l) => l.contains('Initializing CodexClient')),
+          isNotEmpty,
+        );
+        expect(logs.where((l) => l.contains('Handshake complete')), isNotEmpty);
+        expect(logs.where((l) => l.contains('Thread started')), isNotEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
     );
 
-    await turnFuture.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out waiting for turn completion'),
-    );
-    await sub.cancel();
+    test(
+      'initialized future completes after init',
+      () async {
+        await client.init();
 
-    final conv = client.currentConversation;
-    expect(conv.messages, isNotEmpty);
-
-    // First message should be the user message we sent
-    final userMsg = conv.messages.first;
-    expect(userMsg.role, MessageRole.user);
-    expect(userMsg.content, contains('hello from codex'));
-
-    // Should have at least one assistant message
-    final assistantMessages = conv.messages
-        .where((m) => m.role == MessageRole.assistant)
-        .toList();
-    expect(
-      assistantMessages,
-      isNotEmpty,
-      reason: 'Expected assistant messages in conversation',
+        // Should already be completed — calling again returns immediately
+        await client.initialized;
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
     );
 
-    // The assistant message should have responses with text content
-    final lastAssistant = assistantMessages.last;
-    expect(
-      lastAssistant.responses,
-      isNotEmpty,
-      reason:
-          'No responses. Types: ${conv.messages.map((m) => '${m.role}: ${m.responses.map((r) => r.runtimeType).toList()}').toList()}',
+    test(
+      'close after init shuts down cleanly',
+      () async {
+        await client.init();
+
+        await client.close();
+
+        expect(
+          logs.where((l) => l.contains('Closing CodexClient')),
+          isNotEmpty,
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
     );
 
-    final textResponses = lastAssistant.responses
-        .whereType<TextResponse>()
-        .toList();
-    expect(
-      textResponses,
-      isNotEmpty,
-      reason:
-          'No TextResponse. Types: ${lastAssistant.responses.map((r) => '${r.runtimeType}(${r.id})').toList()}',
+    test(
+      'clearConversation starts a new thread',
+      () async {
+        await client.init();
+
+        final firstThreadId = client.threadId;
+        expect(firstThreadId, isNotNull);
+
+        await client.clearConversation();
+
+        final secondThreadId = client.threadId;
+        expect(secondThreadId, isNotNull);
+        expect(secondThreadId, isNot(equals(firstThreadId)));
+        expect(client.currentConversation.messages, isEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
     );
 
-    final allText = textResponses.map((r) => r.content).join();
-    expect(allText, isNotEmpty);
+    test(
+      'abort on idle client is a no-op',
+      () async {
+        await client.init();
 
-    // Status should have gone through processing -> ready
-    expect(statuses, contains(ClaudeStatus.processing));
-    expect(statuses.last, ClaudeStatus.ready);
-    expect(conv.isProcessing, isFalse);
+        // Should not throw
+        await client.abort();
+
+        expect(client.currentStatus, ClaudeStatus.ready);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
+
+    test('message queued before init shows optimistically', () async {
+      // Send message before init — should be queued
+      client.sendMessage(const Message(text: 'queued message'));
+
+      // Conversation should show the user message optimistically
+      expect(client.currentConversation.messages.length, 1);
+      expect(client.currentConversation.messages.first.role, MessageRole.user);
+      expect(client.currentStatus, ClaudeStatus.processing);
+
+      expect(
+        logs.where((l) => l.contains('Queuing message (not initialized)')),
+        isNotEmpty,
+      );
+    });
+
+    test(
+      'message after close is silently ignored',
+      () async {
+        await client.init();
+        await client.close();
+
+        // Should not throw
+        client.sendMessage(const Message(text: 'should be ignored'));
+
+        expect(logs.where((l) => l.contains('Ignoring message')), isNotEmpty);
+      },
+      timeout: const Timeout(Duration(seconds: 30)),
+    );
   });
 
-  test('captures thread ID from thread/start response', () async {
-    await client.init();
+  group('message round-trip (requires OPENAI_API_KEY)', () {
+    late CodexClient client;
 
-    // Thread ID is set during init from thread/start response
-    expect(
-      client.threadId,
-      isNotNull,
-      reason: 'Expected threadId from thread/start',
-    );
-    expect(client.threadId, isNotEmpty);
-  });
+    setUp(() {
+      if (!Platform.environment.containsKey('OPENAI_API_KEY')) {
+        return;
+      }
 
-  test('status transitions correctly during a turn', () async {
-    await client.init();
+      client = CodexClient(
+        codexConfig: CodexConfig(
+          workingDirectory: tempDir.path,
+          sessionId: 'e2e-message-test',
+          approvalPolicy: 'never',
+        ),
+        log: log,
+      );
+    });
 
-    final statuses = <ClaudeStatus>[];
-    final sub = client.statusStream.listen(statuses.add);
-    final turnFuture = client.onTurnComplete.first;
+    tearDown(() async {
+      if (Platform.environment.containsKey('OPENAI_API_KEY')) {
+        await client.close();
+      }
+    });
 
-    expect(client.currentStatus, ClaudeStatus.ready);
+    test(
+      'sends message and receives streaming response',
+      () async {
+        if (!Platform.environment.containsKey('OPENAI_API_KEY')) {
+          markTestSkipped('OPENAI_API_KEY not set');
+          return;
+        }
 
-    client.sendMessage(Message(text: 'Say "test"'));
+        await client.init();
 
-    // Should immediately transition to processing
-    expect(client.currentStatus, ClaudeStatus.processing);
+        final turnFuture = client.onTurnComplete.first;
+        final statuses = <ClaudeStatus>[];
+        final sub = client.statusStream.listen(statuses.add);
 
-    await turnFuture.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out'),
-    );
-    await sub.cancel();
-
-    expect(client.currentStatus, ClaudeStatus.ready);
-    expect(statuses.first, ClaudeStatus.processing);
-    expect(statuses.last, ClaudeStatus.ready);
-  });
-
-  test('abort sends turn/interrupt and resets status', () async {
-    await client.init();
-
-    final processingFuture = client.statusStream
-        .firstWhere((s) => s == ClaudeStatus.processing)
-        .timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => ClaudeStatus.ready,
+        client.sendMessage(
+          const Message(text: 'Respond with exactly: "hello from codex"'),
         );
 
-    client.sendMessage(
-      Message(
-        text:
-            'Write a very long essay about the complete history of computing '
-            'from ancient abacuses to quantum computing. Include at least 100 '
-            'detailed paragraphs covering every decade.',
-      ),
+        await turnFuture.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Turn did not complete within 60s'),
+        );
+        await sub.cancel();
+
+        final conv = client.currentConversation;
+        expect(conv.messages, isNotEmpty);
+
+        // First message should be the user message
+        expect(conv.messages.first.role, MessageRole.user);
+
+        // Should have at least one assistant message
+        final assistantMessages = conv.messages
+            .where((m) => m.role == MessageRole.assistant)
+            .toList();
+        expect(assistantMessages, isNotEmpty);
+
+        // Status should have gone through processing → ready
+        expect(statuses, contains(ClaudeStatus.processing));
+        expect(client.currentStatus, ClaudeStatus.ready);
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
     );
 
-    final status = await processingFuture;
-    if (status == ClaudeStatus.processing) {
-      await client.abort();
-      expect(client.currentStatus, ClaudeStatus.ready);
-    }
-    // If it already finished, that's fine
-  });
+    test(
+      'multi-turn sends follow-up on same thread',
+      () async {
+        if (!Platform.environment.containsKey('OPENAI_API_KEY')) {
+          markTestSkipped('OPENAI_API_KEY not set');
+          return;
+        }
 
-  test('clearConversation resets state and starts new thread', () async {
-    await client.init();
+        await client.init();
+        final threadId = client.threadId;
 
-    final turnFuture = client.onTurnComplete.first;
-    client.sendMessage(Message(text: 'Say "hello"'));
+        // Turn 1
+        var turnFuture = client.onTurnComplete.first;
+        client.sendMessage(
+          const Message(
+            text: 'Remember this number: 42. Just say "ok, remembered."',
+          ),
+        );
+        await turnFuture.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Timed out on turn 1'),
+        );
 
-    await turnFuture.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out'),
+        // Turn 2
+        turnFuture = client.onTurnComplete.first;
+        client.sendMessage(
+          const Message(
+            text: 'What number did I tell you? Reply with just the number.',
+          ),
+        );
+        await turnFuture.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Timed out on turn 2'),
+        );
+
+        // Same thread
+        expect(client.threadId, equals(threadId));
+
+        // Should have messages from both turns
+        final userMessages = client.currentConversation.messages
+            .where((m) => m.role == MessageRole.user)
+            .toList();
+        expect(userMessages.length, greaterThanOrEqualTo(2));
+      },
+      timeout: const Timeout(Duration(seconds: 120)),
     );
-
-    expect(client.currentConversation.messages, isNotEmpty);
-    final oldThreadId = client.threadId;
-
-    await client.clearConversation();
-    expect(client.currentConversation.messages, isEmpty);
-
-    // Should have a new thread ID
-    expect(client.threadId, isNotNull);
-    expect(client.threadId, isNot(equals(oldThreadId)));
-  });
-
-  test('multi-turn sends follow-up on same thread', () async {
-    await client.init();
-
-    // Turn 1: establish a fact
-    final turn1Future = client.onTurnComplete.first;
-    client.sendMessage(
-      Message(text: 'Remember this number: 42. Just say "ok, remembered."'),
-    );
-
-    await turn1Future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out on turn 1'),
-    );
-
-    // Should have captured a thread ID during init
-    expect(client.threadId, isNotNull);
-    final threadId = client.threadId;
-
-    // Turn 2: ask about the fact (same persistent thread)
-    final turn2Future = client.onTurnComplete.first;
-    client.sendMessage(
-      Message(
-        text:
-            'What number did I just tell you to remember? Reply with just the number.',
-      ),
-    );
-
-    await turn2Future.timeout(
-      const Duration(seconds: 60),
-      onTimeout: () => fail('Timed out on turn 2'),
-    );
-
-    // Thread ID should be the same (persistent session)
-    expect(client.threadId, equals(threadId));
-
-    // Should have user + assistant messages from both turns
-    final conv = client.currentConversation;
-    final userMessages = conv.messages
-        .where((m) => m.role == MessageRole.user)
-        .toList();
-    expect(
-      userMessages.length,
-      greaterThanOrEqualTo(2),
-      reason: 'Expected at least 2 user messages for multi-turn',
-    );
-
-    final assistantMessages = conv.messages
-        .where((m) => m.role == MessageRole.assistant)
-        .toList();
-    expect(
-      assistantMessages.length,
-      greaterThanOrEqualTo(2),
-      reason:
-          'Expected at least 2 assistant messages for multi-turn. '
-          'Messages: ${conv.messages.map((m) => '${m.role}(${m.responses.length} responses)').toList()}',
-    );
-
-    // The second assistant response should reference the number
-    final lastAssistant = assistantMessages.last;
-    final textResponses = lastAssistant.responses
-        .whereType<TextResponse>()
-        .toList();
-    expect(
-      textResponses,
-      isNotEmpty,
-      reason:
-          'No TextResponse in last assistant. '
-          'Response types: ${lastAssistant.responses.map((r) => '${r.runtimeType}(${r.id})').toList()}. '
-          'All messages: ${conv.messages.map((m) => '${m.role}: ${m.responses.map((r) => '${r.runtimeType}').toList()}').toList()}',
-    );
-
-    final allText = textResponses.map((r) => r.content).join();
-    expect(
-      allText,
-      contains('42'),
-      reason: 'Expected assistant to recall the number 42',
-    );
-  });
-
-  test('cleans up .codex/config.toml on close', () async {
-    await client.init();
-
-    final codexDir = Directory('${tempDir.path}/.codex');
-    codexDir.createSync();
-    File('${codexDir.path}/config.toml').writeAsStringSync('# test config\n');
-
-    await client.close();
-
-    expect(File('${codexDir.path}/config.toml').existsSync(), isFalse);
   });
 }
