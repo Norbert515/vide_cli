@@ -384,6 +384,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
         final config = await _configResolver.getConfigurationForType(
           agentMetadata.type,
           teamName: updatedNetwork.team,
+          harnessOverride: agentMetadata.harness,
         );
         // Use sessionId if available (for forked agents), otherwise use agent id
         final sessionIdToUse = agentMetadata.sessionId ?? agentMetadata.id;
@@ -662,6 +663,47 @@ $message''';
       'Agent $sentBy sent message to agent $targetAgentId',
       sessionId: state.currentNetwork?.id,
     );
+  }
+
+  /// Broadcast a message to all active agents in the network except the sender.
+  ///
+  /// This reuses the same system-reminder wrapping as [sendMessageToAgent]
+  /// for each recipient.
+  ///
+  /// Returns the number of agents the message was successfully delivered to.
+  int broadcastMessage({required String message, required AgentId sentBy}) {
+    final network = state.currentNetwork;
+    if (network == null) {
+      throw StateError('No active network for broadcast');
+    }
+
+    final targets = network.agentIds.where((id) => id != sentBy).toList();
+
+    var successCount = 0;
+    for (final targetId in targets) {
+      try {
+        sendMessageToAgent(
+          targetAgentId: targetId,
+          message: message,
+          sentBy: sentBy,
+        );
+        successCount++;
+      } catch (e) {
+        VideLogger.instance.warn(
+          'AgentNetworkManager',
+          'Broadcast delivery failed for agent $targetId: $e',
+          sessionId: network.id,
+        );
+      }
+    }
+
+    VideLogger.instance.info(
+      'AgentNetworkManager',
+      'Agent $sentBy broadcast message to $successCount/${targets.length} agents',
+      sessionId: network.id,
+    );
+
+    return successCount;
   }
 
   /// Set an agent to idle, guarding against active children.

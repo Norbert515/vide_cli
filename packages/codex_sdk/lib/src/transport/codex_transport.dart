@@ -4,6 +4,11 @@ import 'dart:io';
 
 import '../protocol/json_rpc_message.dart';
 
+/// Log callback: (level, component, message).
+/// Levels: 'debug', 'info', 'warn', 'error'.
+typedef CodexLogCallback =
+    void Function(String level, String component, String message);
+
 /// Persistent subprocess transport for the Codex app-server.
 ///
 /// Manages a long-lived `codex app-server` process, communicating via
@@ -12,6 +17,10 @@ import '../protocol/json_rpc_message.dart';
 /// - Routing incoming messages to typed streams
 /// - Subprocess lifecycle (start/close)
 class CodexTransport {
+  final CodexLogCallback? _log;
+
+  CodexTransport({CodexLogCallback? log}) : _log = log;
+
   Process? _process;
   int _nextId = 0;
   bool _closed = false;
@@ -60,6 +69,13 @@ class CodexTransport {
 
     final args = ['app-server', ...extraArgs];
 
+    _log?.call(
+      'info',
+      'CodexTransport',
+      'Starting codex app-server subprocess'
+          ' (args: $args, cwd: $workingDirectory)',
+    );
+
     _process = await Process.start(
       'codex',
       args,
@@ -87,6 +103,8 @@ class CodexTransport {
     final completer = Completer<JsonRpcResponse>();
     _pendingRequests[id] = completer;
 
+    _log?.call('debug', 'CodexTransport', 'Sending request: $method');
+
     final request = <String, dynamic>{
       'method': method,
       'id': id,
@@ -101,6 +119,8 @@ class CodexTransport {
   void sendNotification(String method, [Map<String, dynamic>? params]) {
     _ensureRunning();
 
+    _log?.call('debug', 'CodexTransport', 'Sending notification: $method');
+
     final notification = <String, dynamic>{
       'method': method,
       if (params != null) 'params': params,
@@ -113,6 +133,8 @@ class CodexTransport {
   void respondToRequest(dynamic requestId, Map<String, dynamic> result) {
     _ensureRunning();
 
+    _log?.call('debug', 'CodexTransport', 'Responding to request: $requestId');
+
     final response = <String, dynamic>{'id': requestId, 'result': result};
 
     _writeLine(jsonEncode(response));
@@ -122,6 +144,12 @@ class CodexTransport {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+
+    _log?.call(
+      'info',
+      'CodexTransport',
+      'Closing transport, ${_pendingRequests.length} pending requests cancelled',
+    );
 
     // Complete all pending requests with an error
     for (final completer in _pendingRequests.values) {
@@ -173,15 +201,30 @@ class CodexTransport {
 
     switch (message) {
       case JsonRpcResponse response:
+        _log?.call(
+          'debug',
+          'CodexTransport',
+          'Received response: id=${response.id}',
+        );
         final completer = _pendingRequests.remove(response.id);
         if (completer != null && !completer.isCompleted) {
           completer.complete(response);
         }
       case JsonRpcRequest request:
+        _log?.call(
+          'debug',
+          'CodexTransport',
+          'Received request: ${request.method}',
+        );
         if (!_serverRequestController.isClosed) {
           _serverRequestController.add(request);
         }
       case JsonRpcNotification notification:
+        _log?.call(
+          'debug',
+          'CodexTransport',
+          'Received notification: ${notification.method}',
+        );
         if (!_notificationController.isClosed) {
           _notificationController.add(notification);
         }
@@ -191,10 +234,17 @@ class CodexTransport {
   void _onProcessDone() {
     if (_closed) return;
 
+    final stderr = _stderrBuffer.toString();
+    _log?.call(
+      'warn',
+      'CodexTransport',
+      'codex app-server process terminated unexpectedly'
+          '${stderr.isNotEmpty ? ': $stderr' : ''}',
+    );
+
     // Complete all pending requests with an error
     for (final completer in _pendingRequests.values) {
       if (!completer.isCompleted) {
-        final stderr = _stderrBuffer.toString();
         completer.completeError(
           StateError(
             'codex app-server process terminated unexpectedly'
@@ -208,7 +258,7 @@ class CodexTransport {
 
     // Notify listeners that the process exited unexpectedly
     if (!_processExitController.isClosed) {
-      _processExitController.add(_stderrBuffer.toString());
+      _processExitController.add(stderr);
     }
   }
 

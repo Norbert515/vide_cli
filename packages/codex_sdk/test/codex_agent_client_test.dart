@@ -1,6 +1,37 @@
 import 'package:agent_sdk/agent_sdk.dart';
+import 'package:claude_sdk/claude_sdk.dart';
 import 'package:codex_sdk/codex_sdk.dart';
+import 'package:mcp_dart/mcp_dart.dart';
 import 'package:test/test.dart';
+
+class FakeMcpServer extends McpServerBase {
+  final bool _fakeIsRunning;
+
+  FakeMcpServer({
+    required super.name,
+    super.version = '0.0.1',
+    bool isRunning = true,
+  }) : _fakeIsRunning = isRunning;
+
+  @override
+  bool get isRunning => _fakeIsRunning;
+
+  @override
+  Map<String, dynamic> toClaudeConfig() => {'url': 'http://localhost:0000/mcp'};
+
+  @override
+  void registerTools(McpServer server) {}
+
+  @override
+  Future<void> start({int? port}) async {}
+
+  @override
+  Future<void> stop() async {}
+}
+
+class SpecializedMcpServer extends FakeMcpServer {
+  SpecializedMcpServer({required super.name});
+}
 
 void main() {
   group('CodexAgentClient', () {
@@ -15,10 +46,6 @@ void main() {
         ),
       );
       client = CodexAgentClient(inner);
-    });
-
-    tearDown(() async {
-      // Close streams without calling full close (no subprocess to stop)
     });
 
     test('implements AgentClient', () {
@@ -81,6 +108,63 @@ void main() {
 
     test('getMcpServer returns null for unknown server', () {
       expect(client.getMcpServer<dynamic>('nonexistent'), isNull);
+    });
+
+    group('getMcpServer typed lookup', () {
+      late CodexClient innerWithServers;
+      late CodexAgentClient clientWithServers;
+      late FakeMcpServer genericServer;
+      late SpecializedMcpServer specializedServer;
+
+      setUp(() {
+        genericServer = FakeMcpServer(name: 'generic');
+        specializedServer = SpecializedMcpServer(name: 'specialized');
+
+        innerWithServers = CodexClient(
+          codexConfig: const CodexConfig(
+            workingDirectory: '/tmp/test',
+            sessionId: 'test-session-2',
+          ),
+          mcpServers: [genericServer, specializedServer],
+        );
+        clientWithServers = CodexAgentClient(innerWithServers);
+      });
+
+      test('returns server by name with dynamic type', () {
+        final result = clientWithServers.getMcpServer<dynamic>('generic');
+        expect(result, same(genericServer));
+      });
+
+      test('returns server by name with concrete type', () {
+        final result = clientWithServers.getMcpServer<SpecializedMcpServer>(
+          'specialized',
+        );
+        expect(result, same(specializedServer));
+      });
+
+      test('returns null when name matches but type does not', () {
+        final result = clientWithServers.getMcpServer<SpecializedMcpServer>(
+          'generic',
+        );
+        expect(result, isNull);
+      });
+
+      test('returns null when type matches but name does not', () {
+        final result = clientWithServers.getMcpServer<SpecializedMcpServer>(
+          'nonexistent',
+        );
+        expect(result, isNull);
+      });
+
+      test(
+        'returns FakeMcpServer for specialized name since it is subtype',
+        () {
+          final result = clientWithServers.getMcpServer<FakeMcpServer>(
+            'specialized',
+          );
+          expect(result, same(specializedServer));
+        },
+      );
     });
   });
 }

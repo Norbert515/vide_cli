@@ -68,6 +68,7 @@ class CodexAgentClientFactory implements AgentClientFactory {
     final client = CodexClient(
       codexConfig: codexConfig,
       mcpServers: mcpServers,
+      log: _createLogger(networkId),
     );
 
     // Fire-and-forget init — client queues messages until ready
@@ -101,6 +102,7 @@ class CodexAgentClientFactory implements AgentClientFactory {
     final client = CodexClient(
       codexConfig: codexConfig,
       mcpServers: mcpServers,
+      log: _createLogger(networkId),
     );
 
     await client.init();
@@ -119,6 +121,21 @@ class CodexAgentClientFactory implements AgentClientFactory {
     String? workingDirectory,
   }) {
     throw UnsupportedError('Codex does not support session forking');
+  }
+
+  CodexLogCallback _createLogger(String? sessionId) {
+    return (String level, String component, String message) {
+      switch (level) {
+        case 'debug':
+          VideLogger.instance.debug(component, message, sessionId: sessionId);
+        case 'info':
+          VideLogger.instance.info(component, message, sessionId: sessionId);
+        case 'warn':
+          VideLogger.instance.warn(component, message, sessionId: sessionId);
+        case 'error':
+          VideLogger.instance.error(component, message, sessionId: sessionId);
+      }
+    };
   }
 
   CodexConfig _buildConfig(

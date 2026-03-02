@@ -91,12 +91,12 @@ class CodexAgentClient implements AgentClient, Interruptible {
 
   @override
   T? getMcpServer<T>(String name) {
-    final dynamic inner = _inner;
-    try {
-      return inner.getMcpServer(name) as T?;
-    } catch (_) {
-      return null;
+    for (final server in _inner.mcpServers) {
+      if (server.name == name && server is T) {
+        return server as T;
+      }
     }
+    return null;
   }
 
   // ── Interruptible ────────────────────────────────────────
