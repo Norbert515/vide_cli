@@ -18,6 +18,8 @@ class SessionServerCommand extends Command<void> {
   SessionServerCommand() {
     argParser
       ..addOption('port', abbr: 'p', help: 'Port for session server')
+      ..addOption('host',
+          help: 'Host/address to bind to (default: 127.0.0.1)')
       ..addOption('working-dir', help: 'Working directory for session server');
   }
 
@@ -46,9 +48,12 @@ class SessionServerCommand extends Command<void> {
     // Initialize structured logging
     VideLogger.init('${VideConfigManager().configRoot}/logs');
 
+    final host = argResults!['host'] as String?;
+
     await server.startServer(
       server.VideServerConfig(
         port: port,
+        host: host,
         workingDirectory: workingDir,
         dangerouslySkipPermissions: dangerouslySkipPermissions,
       ),

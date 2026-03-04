@@ -27,6 +27,10 @@ class VideServerConfig {
   /// Port to listen on (null = auto-select).
   final int? port;
 
+  /// Host/address to bind to (null = loopback/127.0.0.1).
+  /// Set to '0.0.0.0' for Docker or remote access.
+  final String? host;
+
   /// Working directory override (defaults to current directory).
   final String? workingDirectory;
 
@@ -42,6 +46,7 @@ class VideServerConfig {
 
   const VideServerConfig({
     this.port,
+    this.host,
     this.workingDirectory,
     this.dangerouslySkipPermissions = false,
     this.filesystemRoot,
@@ -120,10 +125,13 @@ Future<HttpServer> startServer(VideServerConfig config) async {
   // Create HTTP handler with routes
   final handler = _createHandler(sessionManager, sessionCache, serverConfig);
 
-  // Start server on localhost only (no authentication for MVP)
+  // Start server (defaults to localhost only — no authentication for MVP)
+  final bindAddress = config.host != null
+      ? InternetAddress(config.host!)
+      : InternetAddress.loopbackIPv4;
   final server = await shelf_io.serve(
     handler,
-    InternetAddress.loopbackIPv4,
+    bindAddress,
     config.port ?? 0, // 0 = auto-select available port
   );
 

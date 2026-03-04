@@ -35,6 +35,10 @@ class DaemonConfig {
   /// filesystem isolation protects the host system.
   final bool dangerouslySkipPermissions;
 
+  /// Whether to skip interactive confirmation prompts (e.g., 0.0.0.0 binding).
+  /// Required for non-interactive environments (Docker, CI).
+  final bool skipConfirmation;
+
   /// Callback invoked when server is ready.
   /// Receives the server URL.
   final void Function(String url)? onReady;
@@ -46,6 +50,7 @@ class DaemonConfig {
     this.verbose = false,
     this.bindAddress = '127.0.0.1',
     this.dangerouslySkipPermissions = false,
+    this.skipConfirmation = false,
     this.onReady,
   });
 }
@@ -130,7 +135,7 @@ class DaemonStarter {
     });
 
     // Check bind address and warn if dangerous
-    await _checkBindAddress(config.bindAddress);
+    await _checkBindAddress(config.bindAddress, config.skipConfirmation);
 
     if (config.dangerouslySkipPermissions) {
       _log.warning(
@@ -361,8 +366,17 @@ class DaemonStarter {
   }
 
   /// Check bind address and show warnings/prompts.
-  Future<void> _checkBindAddress(String bindAddress) async {
+  Future<void> _checkBindAddress(
+    String bindAddress,
+    bool skipConfirmation,
+  ) async {
     if (bindAddress == '0.0.0.0') {
+      if (skipConfirmation) {
+        _log.warning(
+          'Binding to 0.0.0.0 (all interfaces) — confirmed via --yes',
+        );
+        return;
+      }
       print('');
       print('╔══════════════════════════════════════════════════════════════╗');
       print(

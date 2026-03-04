@@ -64,6 +64,14 @@ class DaemonStartCommand extends Command<void> {
         help:
             'Skip all permission checks for spawned sessions. '
             'DANGEROUS: Only for sandboxed environments (Docker, VMs).',
+      )
+      ..addFlag(
+        'yes',
+        abbr: 'y',
+        negatable: false,
+        help:
+            'Skip interactive confirmation prompts. '
+            'Required for non-interactive environments (Docker, CI).',
       );
   }
 
@@ -85,9 +93,10 @@ class DaemonStartCommand extends Command<void> {
     final detach = argResults!['detach'] as bool;
     final dangerouslySkipPermissions =
         argResults!['dangerously-skip-permissions'] as bool;
+    final skipConfirmation = argResults!['yes'] as bool;
 
     // Prompt for confirmation BEFORE detaching, while stdin is still available
-    if (dangerouslySkipPermissions) {
+    if (dangerouslySkipPermissions && !skipConfirmation) {
       _confirmDangerouslySkipPermissions();
     }
 
@@ -98,6 +107,7 @@ class DaemonStartCommand extends Command<void> {
         stateDir: stateDir,
         verbose: verbose,
         dangerouslySkipPermissions: dangerouslySkipPermissions,
+        skipConfirmation: skipConfirmation,
       );
     } else {
       await _startForeground(
@@ -106,6 +116,7 @@ class DaemonStartCommand extends Command<void> {
         stateDir: stateDir,
         verbose: verbose,
         dangerouslySkipPermissions: dangerouslySkipPermissions,
+        skipConfirmation: skipConfirmation,
       );
     }
   }
@@ -158,6 +169,7 @@ class DaemonStartCommand extends Command<void> {
     String? stateDir,
     required bool verbose,
     required bool dangerouslySkipPermissions,
+    required bool skipConfirmation,
   }) async {
     final lifecycle = DaemonLifecycle(stateDir: stateDir);
 
@@ -167,6 +179,7 @@ class DaemonStartCommand extends Command<void> {
         host: host,
         verbose: verbose,
         dangerouslySkipPermissions: dangerouslySkipPermissions,
+        skipConfirmation: skipConfirmation,
       );
       print('Daemon started in background');
       print('  PID:  ${info.pid}');
@@ -189,6 +202,7 @@ class DaemonStartCommand extends Command<void> {
     String? stateDir,
     required bool verbose,
     required bool dangerouslySkipPermissions,
+    required bool skipConfirmation,
   }) async {
     final config = DaemonConfig(
       port: port,
@@ -196,6 +210,7 @@ class DaemonStartCommand extends Command<void> {
       verbose: verbose,
       bindAddress: host,
       dangerouslySkipPermissions: dangerouslySkipPermissions,
+      skipConfirmation: skipConfirmation,
     );
 
     final starter = DaemonStarter(config);
