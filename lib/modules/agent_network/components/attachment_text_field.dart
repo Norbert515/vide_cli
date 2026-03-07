@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/vide_core.dart' show AgentAttachment, AgentMessage;
+import 'package:vide_core/vide_core.dart'
+    show AgentAttachment, AgentMessage, MentionParser;
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
 
@@ -239,6 +240,15 @@ class _AttachmentTextFieldState extends State<AttachmentTextField> {
 
     // Don't trigger if query contains spaces (user moved past the mention)
     if (query.contains(' ')) return null;
+
+    // Skip file suggestions for reserved recipients (@user, @everyone)
+    if (MentionParser.reservedRecipients.contains(query.toLowerCase())) {
+      return null;
+    }
+    // Skip file suggestions when query looks like an agent ID (UUID)
+    if (MentionParser.isAgentIdPattern(query)) {
+      return null;
+    }
 
     return query;
   }

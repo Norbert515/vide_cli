@@ -195,12 +195,15 @@ This is fire-and-forget - the message is sent and you continue immediately.
 The target agent will process your message and can respond back by sending
 a message to you, which will "wake you up" with their response.
 
-Use this to coordinate with other agents in the network.''',
+Use this to coordinate with other agents in the network.
+
+Special targets:
+- Use "@everyone" as targetAgentId to broadcast to ALL active agents except yourself.''',
       toolInputSchema: ToolInputSchema(
         properties: {
           'targetAgentId': {
             'type': 'string',
-            'description': 'The ID of the agent to send the message to',
+            'description': 'The ID of the agent to send the message to. Use "@everyone" to broadcast to all active agents.',
           },
           'message': {
             'type': 'string',
@@ -227,6 +230,21 @@ Use this to coordinate with other agents in the network.''',
                 '(${message.length} chars)',
             sessionId: networkId,
           );
+
+          // Handle @everyone broadcast
+          if (targetAgentId == '@everyone') {
+            final count = _networkManager.broadcastMessage(
+              message: message,
+              sentBy: callerAgentId,
+            );
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text: 'Message broadcast to $count active agent${count == 1 ? '' : 's'}.',
+                ),
+              ],
+            );
+          }
 
           _networkManager.sendMessageToAgent(
             targetAgentId: targetAgentId,

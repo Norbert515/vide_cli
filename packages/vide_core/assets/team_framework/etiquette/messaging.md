@@ -225,3 +225,29 @@ Before finishing your turn:
 - [ ] Did I call `sendMessageToAgent` with my results?
 - [ ] Did I call `setAgentStatus("idle")`?
 - [ ] Is my message clear and complete?
+
+## @Mention Communication Protocol
+
+The user monitors a shared **#channel** view that only shows messages containing @mentions. If you don't @mention anyone, the user will NOT see your message in the channel.
+
+### CRITICAL: The user only sees @user messages
+
+**You MUST start your text response with `@user` whenever you want the human to see it.** This includes:
+- Status updates ("@user Implementation complete.")
+- Questions ("@user Should I use approach A or B?")
+- Findings ("@user Found 3 issues in the auth module.")
+- Any message intended for the human
+
+Messages without `@user` are only visible if the user clicks into your specific agent conversation. Most users monitor the #channel view, so **always use `@user` for anything the human should see.**
+
+### Recipients
+- `@user` — Address the human user. **Required** for the user to see your message in the channel.
+- `@everyone` — Broadcast to all agents. Use `targetAgentId: "@everyone"` in sendMessageToAgent.
+- `@{agentId}` — Address a specific agent by their ID. Use in sendMessageToAgent.
+
+### Rules
+1. **Always start with `@user`** when communicating with the human — otherwise they won't see it
+2. For broadcasts, use sendMessageToAgent with targetAgentId "@everyone"
+3. For direct agent-to-agent messages, use sendMessageToAgent with the specific agent ID
+4. The @mention MUST be the first token in your message (after optional whitespace)
+5. Use the agent's ID (not display name) when addressing specific agents via sendMessageToAgent

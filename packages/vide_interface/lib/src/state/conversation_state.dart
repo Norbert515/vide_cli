@@ -712,6 +712,22 @@ class ConversationStateManager {
     _changeController.add(null);
   }
 
+  /// Remove an optimistic user message from event history.
+  ///
+  /// Called when the server's authoritative echo arrives, so the echo
+  /// replaces the optimistic version (which may have a placeholder agent ID).
+  void removeOptimisticUserMessage(String content) {
+    for (int i = _eventHistory.length - 1; i >= 0; i--) {
+      final event = _eventHistory[i];
+      if (event is MessageEvent &&
+          event.role == MessageRole.user &&
+          event.content == content) {
+        _eventHistory.removeAt(i);
+        return;
+      }
+    }
+  }
+
   /// Clear all state.
   void clear() {
     _agentStates.clear();

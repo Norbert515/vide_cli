@@ -37,8 +37,9 @@ class AgentSidebar extends StatefulComponent {
 
 class _AgentSidebarState extends State<AgentSidebar>
     with SingleTickerProviderStateMixin {
-  int _selectedIndex = 1;
+  int _selectedIndex = 2;
   int? _hoveredIndex;
+  bool _hasAutoSelected = false;
   final _scrollController = ScrollController();
 
   // Animation state
@@ -101,6 +102,10 @@ class _AgentSidebarState extends State<AgentSidebar>
   /// depth-first tree based on [VideAgent.spawnedBy] relationships.
   List<_SidebarItem> _buildItems(List<VideAgent> spawnedAgents) {
     final items = <_SidebarItem>[];
+
+    // Channel entry is always first (selectable)
+    items.add(_SidebarItem.channel());
+
     if (spawnedAgents.isEmpty) return items;
 
     items.add(_SidebarItem.header('Agents'));
@@ -134,7 +139,7 @@ class _AgentSidebarState extends State<AgentSidebar>
     // If the tree walk didn't place all agents (e.g. orphans whose parent was
     // already terminated), append them at root level.
     final placed = items
-        .where((i) => !i.isHeader)
+        .where((i) => i.agent != null)
         .map((i) => i.agent!.id)
         .toSet();
     for (final agent in spawnedAgents) {
@@ -193,10 +198,13 @@ class _AgentSidebarState extends State<AgentSidebar>
         event.logicalKey == LogicalKey.space) {
       if (_selectedIndex < items.length) {
         final item = items[_selectedIndex];
-        if (item.agent != null) {
-          // Select spawned agent - just update the provider, keep focus in sidebar
-          context.read(selectedAgentIdProvider(component.session.id).notifier).state = item.agent!.id;
-          // Note: We intentionally don't call onSelectAgent here to keep focus in sidebar
+        final notifier = context.read(
+          chatViewSelectionProvider(component.session.id).notifier,
+        );
+        if (item.isChannel) {
+          notifier.state = const ChannelOverview();
+        } else if (item.agent != null) {
+          notifier.state = AgentView(item.agent!.id);
         }
       }
     }
@@ -209,14 +217,19 @@ class _AgentSidebarState extends State<AgentSidebar>
 
     final spawnedAgents = component.agents;
 
-    // Auto-select first agent if none selected
-    final currentSelectedId = context.read(selectedAgentIdProvider(component.session.id));
-    if (currentSelectedId == null && spawnedAgents.isNotEmpty) {
-      // Schedule the state update for after build
-      Future.microtask(() {
-        context.read(selectedAgentIdProvider(component.session.id).notifier).state =
-            spawnedAgents.first.id;
-      });
+    // Auto-select main agent on first load (when still showing channel overview)
+    if (!_hasAutoSelected && spawnedAgents.isNotEmpty) {
+      final currentSelection = context.read(
+        chatViewSelectionProvider(component.session.id),
+      );
+      if (currentSelection is ChannelOverview) {
+        _hasAutoSelected = true;
+        Future.microtask(() {
+          context.read(
+            chatViewSelectionProvider(component.session.id).notifier,
+          ).state = AgentView(spawnedAgents.first.id);
+        });
+      }
     }
 
     // Build items once with current state
@@ -272,7 +285,11 @@ class _AgentSidebarState extends State<AgentSidebar>
     VideThemeData theme,
     List<VideAgent> spawnedAgents,
   ) {
-    final selectedAgentId = context.watch(selectedAgentIdProvider(component.session.id));
+    final selection = context.watch(
+      chatViewSelectionProvider(component.session.id),
+    );
+    final activeAgentId = selectedAgentId(selection);
+    final isChannelActive = selection is ChannelOverview;
 
     // Build items
     final items = _buildItems(spawnedAgents);
@@ -298,8 +315,18 @@ class _AgentSidebarState extends State<AgentSidebar>
 
                     if (item.isHeader) {
                       return _buildSectionHeader(item.headerText!, theme);
+                    } else if (item.isChannel) {
+                      return _buildChannelRow(
+                        index,
+                        isSelected,
+                        isChannelActive,
+                        isHovered,
+                        theme,
+                        availableWidth,
+                      );
                     } else if (item.agent != null) {
-                      final isSelectedById = selectedAgentId == item.agent!.id;
+                      final isSelectedById =
+                          activeAgentId == item.agent!.id;
                       return _buildAgentRow(
                         index,
                         item,
@@ -335,6 +362,77 @@ class _AgentSidebarState extends State<AgentSidebar>
     );
   }
 
+  Component _buildChannelRow(
+    int index,
+    bool isSelected,
+    bool isActive,
+    bool isHovered,
+    VideThemeData theme,
+    int availableWidth,
+  ) {
+    final bgColor = isSelected && component.focused
+        ? theme.base.primary.withOpacity(0.25)
+        : isActive
+        ? theme.base.outlineVariant.withOpacity(0.4)
+        : isHovered
+        ? theme.base.outlineVariant.withOpacity(0.3)
+        : null;
+
+    final textColor = isSelected && component.focused
+        ? theme.base.primary
+        : isActive
+        ? theme.base.onSurface
+        : theme.base.onSurface.withOpacity(TextOpacity.secondary);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hoveredIndex = index),
+      onExit: (_) => setState(() => _hoveredIndex = null),
+      child: GestureDetector(
+        onTap: () {
+          setState(() => _selectedIndex = index);
+          context.read(
+            chatViewSelectionProvider(component.session.id).notifier,
+          ).state = const ChannelOverview();
+          // Empty string signals channel selection (no specific agent).
+          component.onSelectAgent?.call('');
+        },
+        child: Container(
+          decoration: BoxDecoration(color: bgColor),
+          padding: EdgeInsets.only(top: 1),
+          child: Row(
+            children: [
+              Text(
+                '  # ',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: isActive ? FontWeight.bold : null,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  'channel',
+                  style: TextStyle(
+                    color: textColor,
+                    fontWeight: isActive ? FontWeight.bold : null,
+                  ),
+                  maxLines: 1,
+                ),
+              ),
+              if (isActive)
+                Text(
+                  '\u25C0',
+                  style: TextStyle(
+                    color: theme.base.primary
+                        .withOpacity(TextOpacity.tertiary),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Component _buildAgentRow(
     int index,
     _SidebarItem item,
@@ -358,7 +456,9 @@ class _AgentSidebarState extends State<AgentSidebar>
       onHoverExit: () => setState(() => _hoveredIndex = null),
       onTap: () {
         setState(() => _selectedIndex = index);
-        context.read(selectedAgentIdProvider(component.session.id).notifier).state = agent.id;
+        context.read(
+          chatViewSelectionProvider(component.session.id).notifier,
+        ).state = AgentView(agent.id);
         component.onSelectAgent?.call(agent.id);
       },
     );
@@ -649,6 +749,7 @@ class _SidebarItem {
   final VideAgent? agent;
   final String? headerText;
   final bool isHeader;
+  final bool isChannel;
   final int depth;
 
   /// For each depth level, whether the ancestor at that level was the last
@@ -659,6 +760,15 @@ class _SidebarItem {
   _SidebarItem.header(this.headerText)
     : agent = null,
       isHeader = true,
+      isChannel = false,
+      depth = 0,
+      ancestorIsLast = const [];
+
+  _SidebarItem.channel()
+    : agent = null,
+      headerText = null,
+      isHeader = false,
+      isChannel = true,
       depth = 0,
       ancestorIsLast = const [];
 
@@ -667,5 +777,6 @@ class _SidebarItem {
     this.depth = 0,
     this.ancestorIsLast = const [],
   }) : headerText = null,
-       isHeader = false;
+       isHeader = false,
+       isChannel = false;
 }

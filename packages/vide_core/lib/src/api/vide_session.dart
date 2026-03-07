@@ -113,6 +113,7 @@ class LocalVideSession implements VideSession {
     final mainAgentId = state.mainAgent?.id;
     if (mainAgentId != null) {
       _emitUserMessage(message, agentId: mainAgentId, attachments: attachments);
+      _agentStates[mainAgentId]?.pendingOptimisticUserMessages++;
     }
   }
 
@@ -278,6 +279,9 @@ class LocalVideSession implements VideSession {
         agentId: targetAgent,
         attachments: message.attachments,
       );
+      // Track that this user message was already emitted so the agent
+      // conversation echo in _handleConversation skips the duplicate.
+      _agentStates[targetAgent]?.pendingOptimisticUserMessages++;
     }
 
     // Expand @file mentions into document attachments
@@ -1337,7 +1341,17 @@ class LocalVideSession implements VideSession {
       ),
     );
 
+    // Count user messages already in the conversation — these will be
+    // emitted by emitInitialUserMessage() or sendMessage(), so mark them
+    // as pending-optimistic to prevent _handleConversation from emitting
+    // duplicates during the initial sync.
     final currentConversation = client.currentConversation;
+    final state = _agentStates[agent.id]!;
+    for (final msg in currentConversation.messages) {
+      if (msg.role == AgentMessageRole.user) {
+        state.pendingOptimisticUserMessages++;
+      }
+    }
     if (currentConversation.messages.isNotEmpty) {
       _handleConversation(agent, currentConversation);
     }
@@ -1479,6 +1493,15 @@ class LocalVideSession implements VideSession {
         state.lastResponseCount = 0;
         if (isLastMessage) {
           state.lastContentLength = message.content.length;
+        }
+
+        // Skip user messages that were already emitted optimistically
+        // by sendMessage() to avoid duplicates in event history.
+        if (message.role == AgentMessageRole.user) {
+          if (state.pendingOptimisticUserMessages > 0) {
+            state.pendingOptimisticUserMessages--;
+            continue;
+          }
         }
 
         if (message.content.isNotEmpty) {
@@ -1777,6 +1800,12 @@ class _AgentStreamState {
 
   /// Tracks the last error that was emitted to prevent duplicate ErrorEvents.
   String? lastEmittedError;
+
+  /// Number of user messages already emitted optimistically via
+  /// [_emitUserMessage] that haven't yet appeared in the agent conversation.
+  /// When [_handleConversation] encounters a user message it decrements this
+  /// counter and skips the emit to avoid duplicates.
+  int pendingOptimisticUserMessages = 0;
 
   _AgentStreamState({
     required this.agentId,

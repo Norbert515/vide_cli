@@ -23,6 +23,12 @@ final class ToolMessageSource extends ChannelEntrySource {
   const ToolMessageSource(this.toolUseId);
 }
 
+/// Entry originated from a user message.
+final class UserMessageSource extends ChannelEntrySource {
+  final int eventIndex;
+  const UserMessageSource(this.eventIndex);
+}
+
 /// A single entry in the channel timeline.
 class ChannelTimelineEntry {
   final String senderAgentId;
@@ -51,10 +57,11 @@ abstract final class ChannelTimelineProjector {
   /// Scan event history and extract channel-relevant entries.
   ///
   /// Includes:
-  /// 1. Assistant MessageEvents whose accumulated text starts with @mention
-  /// 2. sendMessageToAgent ToolUseEvents
+  /// 1. User MessageEvents (all user messages shown in channel)
+  /// 2. Assistant MessageEvents whose accumulated text starts with @mention
+  /// 3. sendMessageToAgent ToolUseEvents
   ///
-  /// Returns entries sorted by timestamp (oldest first).
+  /// Returns entries in event arrival order (oldest first).
   static List<ChannelTimelineEntry> project(List<VideEvent> events) {
     final entries = <ChannelTimelineEntry>[];
 
@@ -63,14 +70,40 @@ abstract final class ChannelTimelineProjector {
     final accumulatedText = <String, String>{};
     // Track the last event index for each accumulated message.
     final lastEventIndex = <String, int>{};
+    // Track accumulated user message text (same streaming pattern).
+    final userAccumulatedText = <String, String>{};
+    final userLastEventIndex = <String, int>{};
 
     for (int i = 0; i < events.length; i++) {
       final event = events[i];
 
       switch (event) {
-        case MessageEvent e:
-          if (e.role != MessageRole.assistant) continue;
+        case MessageEvent e when e.role == MessageRole.user:
+          final key = '${e.agentId}:${e.eventId}';
+          userAccumulatedText[key] =
+              (userAccumulatedText[key] ?? '') + e.content;
+          userLastEventIndex[key] = i;
 
+          if (!e.isPartial) {
+            final fullText = userAccumulatedText[key]!;
+            // Skip empty messages and system-like messages (e.g. "[Request interrupted]")
+            if (fullText.isNotEmpty &&
+                !(fullText.startsWith('[') && fullText.endsWith(']'))) {
+              entries.add(ChannelTimelineEntry(
+                senderAgentId: e.agentId,
+                senderAgentName: 'You',
+                senderAgentType: 'user',
+                target: AgentMention(e.agentId),
+                content: fullText,
+                timestamp: e.timestamp,
+                source: UserMessageSource(userLastEventIndex[key]!),
+              ));
+            }
+            userAccumulatedText.remove(key);
+            userLastEventIndex.remove(key);
+          }
+
+        case MessageEvent e when e.role == MessageRole.assistant:
           final key = '${e.agentId}:${e.eventId}';
           accumulatedText[key] = (accumulatedText[key] ?? '') + e.content;
           lastEventIndex[key] = i;
@@ -99,11 +132,16 @@ abstract final class ChannelTimelineProjector {
           final message = e.toolInput['message'] as String?;
           if (targetAgentId == null || message == null) continue;
 
+          final target = switch (targetAgentId) {
+            '@everyone' => const EveryoneMention(),
+            _ => AgentMention(targetAgentId),
+          };
+
           entries.add(ChannelTimelineEntry(
             senderAgentId: e.agentId,
             senderAgentName: e.agentName,
             senderAgentType: e.agentType,
-            target: AgentMention(targetAgentId),
+            target: target,
             content: message,
             timestamp: e.timestamp,
             source: ToolMessageSource(e.toolUseId),

@@ -117,11 +117,23 @@ final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
   return session.stateStream.map((s) => s.agents);
 });
 
-/// Provider for the selected agent ID in the sidebar.
+/// Typed selection state for the chat view.
 ///
-/// When null, no agent is selected.
-/// Used by AgentSidebar for keyboard navigation and selection.
-final selectedAgentIdProvider = StateProvider.family<String?, String>((ref, sessionId) => null);
+/// Determines whether the user is viewing the channel overview or a
+/// specific agent's conversation. Defaults to [ChannelOverview]; the
+/// sidebar auto-selects the main agent on first load.
+final chatViewSelectionProvider =
+    StateProvider.family<ChatViewSelection, String>(
+  (ref, sessionId) => const ChannelOverview(),
+);
+
+/// Convenience accessor: extracts the selected agent ID (or null for channel).
+String? selectedAgentId(ChatViewSelection selection) {
+  return switch (selection) {
+    AgentView(agentId: final id) => id,
+    ChannelOverview() => null,
+  };
+}
 
 /// Provider for the currently displayed model name (e.g. "opus", "sonnet").
 ///

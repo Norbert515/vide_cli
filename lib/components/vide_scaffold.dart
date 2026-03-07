@@ -12,6 +12,7 @@ import 'package:vide_cli/main.dart'
         currentRepoPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
+import 'package:vide_cli/modules/agent_network/components/view_tab_bar.dart';
 import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -206,6 +207,7 @@ class _VideScaffoldState extends State<VideScaffold> {
         final mainLayout = Column(
           children: [
             if (showSidebars) _buildTitleBar(context, theme, repoPath),
+            if (showSidebars) _buildViewTabBar(context),
             Expanded(child: panelRow),
           ],
         );
@@ -240,8 +242,11 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSelectAgent: (agentId) {
-                  context.read(selectedAgentIdProvider(component.session.id).notifier).state =
-                      agentId;
+                  if (agentId.isNotEmpty) {
+                    context.read(
+                      chatViewSelectionProvider(component.session.id).notifier,
+                    ).state = AgentView(agentId);
+                  }
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
               ),
@@ -286,11 +291,17 @@ class _VideScaffoldState extends State<VideScaffold> {
                   setState(() => _focusedPanel = FocusedPanel.content);
                 },
                 onSendMessage: (message) {
-                  final selectedAgentId = context.read(selectedAgentIdProvider(session.id));
-                  if (selectedAgentId != null) {
+                  final selection = context.read(
+                    chatViewSelectionProvider(session.id),
+                  );
+                  final agentId = selectedAgentId(selection) ??
+                      (component.agents.isNotEmpty
+                          ? component.agents.first.id
+                          : null);
+                  if (agentId != null) {
                     session.sendMessage(
                       AgentMessage(text: message),
-                      agentId: selectedAgentId,
+                      agentId: agentId,
                     );
                   }
                 },
@@ -303,6 +314,30 @@ class _VideScaffoldState extends State<VideScaffold> {
           ),
         ),
       ],
+    );
+  }
+
+  Component _buildViewTabBar(BuildContext context) {
+    final session = component.session;
+    final selection = context.watch(chatViewSelectionProvider(session.id));
+    final notifier = context.read(
+      chatViewSelectionProvider(session.id).notifier,
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 1),
+      child: ViewTabBar(
+        isChannelActive: selection is ChannelOverview,
+        onSelectAgentView: () {
+          // If already on an agent view, keep it. Otherwise select the first.
+          if (selection is! AgentView && component.agents.isNotEmpty) {
+            notifier.state = AgentView(component.agents.first.id);
+          }
+        },
+        onSelectChannel: () {
+          notifier.state = const ChannelOverview();
+        },
+      ),
     );
   }
 

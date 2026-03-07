@@ -7,6 +7,7 @@ import 'package:vide_cli/components/enhanced_loading_indicator.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
+import 'package:vide_cli/modules/agent_network/components/channel_view.dart';
 import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
 import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
 import 'package:vide_cli/modules/agent_network/components/assistant_entry_renderer.dart';
@@ -125,42 +126,54 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
     super.dispose();
   }
 
-  Component _buildAgentChat(
+  Component _buildChatContent(
     BuildContext context,
     List<String> agentIds, {
     required bool contentFocused,
     required VoidCallback focusLeftSidebar,
     required VoidCallback focusRightSidebar,
   }) {
-    // Get selected agent ID from provider, or use the first agent
     final sessionId = component.session.id;
-    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider(sessionId).notifier);
-    final selectedAgentId = context.watch(selectedAgentIdProvider(sessionId));
+    final selection = context.watch(chatViewSelectionProvider(sessionId));
+    final selectionNotifier = context.read(
+      chatViewSelectionProvider(sessionId).notifier,
+    );
 
-    // Find the selected agent, or default to the first agent
-    String agentId = selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
-
-    // Ensure selected agent is still valid
-    if (!agentIds.contains(agentId) && agentIds.isNotEmpty) {
-      agentId = agentIds[0];
-      selectedAgentIdNotifier.state = agentId;
-    }
-
-    final session = component.session;
-    return Expanded(
-      child: _AgentChat(
-        key: ValueKey(agentId),
-        session: session,
-        agentId: agentId,
-        networkId: session.id,
+    final contentChild = switch (selection) {
+      ChannelOverview() => ChannelView(
+        session: component.session,
         agents: _agents,
-        showQuitWarning: _showQuitWarning,
-        onExit: _exitWithDaemonCleanup,
         contentFocused: contentFocused,
         focusLeftSidebar: focusLeftSidebar,
         focusRightSidebar: focusRightSidebar,
       ),
-    );
+      AgentView(agentId: final agentId) => () {
+        // Ensure selected agent is still valid
+        var effectiveId = agentId;
+        if (!agentIds.contains(effectiveId) && agentIds.isNotEmpty) {
+          effectiveId = agentIds[0];
+          selectionNotifier.state = AgentView(effectiveId);
+        }
+
+        final session = component.session;
+        return Expanded(
+          child: _AgentChat(
+            key: ValueKey(effectiveId),
+            session: session,
+            agentId: effectiveId,
+            networkId: session.id,
+            agents: _agents,
+            showQuitWarning: _showQuitWarning,
+            onExit: _exitWithDaemonCleanup,
+            contentFocused: contentFocused,
+            focusLeftSidebar: focusLeftSidebar,
+            focusRightSidebar: focusRightSidebar,
+          ),
+        );
+      }(),
+    };
+
+    return contentChild;
   }
 
   Future<void> _exitWithDaemonCleanup() async {
@@ -242,7 +255,7 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
               if (agentIds.isEmpty)
                 Center(child: Text('No agents'))
               else
-                _buildAgentChat(
+                _buildChatContent(
                   context,
                   agentIds,
                   contentFocused: contentFocused,

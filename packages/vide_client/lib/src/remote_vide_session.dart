@@ -218,6 +218,11 @@ class RemoteVideSession implements VideSession {
   /// instead of "idle", since the server is already processing that message.
   bool _hadInitialMessage = false;
 
+  /// Contents of user messages emitted optimistically on the client side
+  /// that haven't yet been echoed back by the server. Used to suppress
+  /// duplicate user message events during history replay / live streaming.
+  final _pendingOptimisticUserMessages = <String>[];
+
   /// Error that occurred during session creation (if any).
   String? _creationError;
   String? get creationError => _creationError;
@@ -334,6 +339,7 @@ class RemoteVideSession implements VideSession {
     );
 
     _hadInitialMessage = true;
+    _pendingOptimisticUserMessages.add(content);
 
     // Set optimistic working status so _buildState().isProcessing is true
     // immediately (not just after the server's ConnectedEvent arrives).
@@ -614,6 +620,16 @@ class RemoteVideSession implements VideSession {
   void _handleMessage(MessageEvent event, {bool isHistoryReplay = false}) {
     final agentId = event.agentId;
     final eventId = event.eventId;
+
+    // Replace optimistic user messages with the server's authoritative echo.
+    // The optimistic version (from addPendingUserMessage/sendMessage) may have
+    // a placeholder agent ID, while the echo has the correct agent ID/name.
+    // Remove the optimistic version from event history so only the echo remains.
+    if (event.role == MessageRole.user &&
+        _pendingOptimisticUserMessages.remove(event.content)) {
+      _conversationState.removeOptimisticUserMessage(event.content);
+    }
+
     _emit(
       MessageEvent(
         agentId: agentId,
@@ -1134,6 +1150,7 @@ class RemoteVideSession implements VideSession {
           attachments: message.attachments,
         ),
       );
+      _pendingOptimisticUserMessages.add(message.text);
       _agentStatuses[targetAgentId] = VideAgentStatus.working;
       _optimisticWorking.add(targetAgentId);
       _emitState();

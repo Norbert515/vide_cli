@@ -74,14 +74,35 @@ void main() {
       expect(ChannelTimelineProjector.project(events), isEmpty);
     });
 
-    test('user messages are excluded', () {
+    test('user messages are included in channel', () {
       final events = <VideEvent>[
         MessageEvent(
           agentId: 'agent-1',
           agentType: 'main',
           eventId: 'msg-1',
           role: MessageRole.user,
-          content: '@user this is from the user',
+          content: 'Fix the auth bug please',
+          isPartial: false,
+        ),
+      ];
+
+      final result = ChannelTimelineProjector.project(events);
+      expect(result, hasLength(1));
+      expect(result[0].senderAgentName, 'You');
+      expect(result[0].senderAgentType, 'user');
+      expect(result[0].content, 'Fix the auth bug please');
+      expect(result[0].target, isA<AgentMention>());
+      expect(result[0].source, isA<UserMessageSource>());
+    });
+
+    test('system-like user messages are excluded from channel', () {
+      final events = <VideEvent>[
+        MessageEvent(
+          agentId: 'agent-1',
+          agentType: 'main',
+          eventId: 'msg-1',
+          role: MessageRole.user,
+          content: '[Request interrupted by user]',
           isPartial: false,
         ),
       ];
@@ -275,6 +296,28 @@ void main() {
       expect(entries, hasLength(1));
       expect(entries[0].target, isA<EveryoneMention>());
       expect(entries[0].content, 'All agents please stop.');
+    });
+
+    test('sendMessageToAgent with @everyone creates EveryoneMention', () {
+      final events = <VideEvent>[
+        ToolUseEvent(
+          agentId: 'agent-1',
+          agentType: 'lead',
+          agentName: 'Lead',
+          toolUseId: 'tool-1',
+          toolName: 'mcp__vide-agent__sendMessageToAgent',
+          toolInput: {
+            'targetAgentId': '@everyone',
+            'message': 'All agents stand by.',
+          },
+        ),
+      ];
+
+      final entries = ChannelTimelineProjector.project(events);
+      expect(entries, hasLength(1));
+      expect(entries[0].target, isA<EveryoneMention>());
+      expect(entries[0].content, 'All agents stand by.');
+      expect(entries[0].source, isA<ToolMessageSource>());
     });
 
     test('multiple agents produce correctly attributed entries', () {
