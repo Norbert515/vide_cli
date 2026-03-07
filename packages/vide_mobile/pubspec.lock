@@ -9,6 +9,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "85.0.0"
+  agent_sdk:
+    dependency: "direct overridden"
+    description:
+      path: "../agent_sdk"
+      relative: true
+    source: path
+    version: "0.1.0"
   analyzer:
     dependency: transitive
     description:

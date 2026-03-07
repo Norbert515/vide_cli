@@ -262,6 +262,36 @@ class TransportSession {
     await _sendCommand('clear-session-permission-cache');
   }
 
+  /// Get effective Claude settings.
+  Future<Map<String, dynamic>?> getClaudeSettings() async {
+    final result = await _sendCommand('get-claude-settings');
+    return result?['settings'] as Map<String, dynamic>?;
+  }
+
+  /// Apply Claude settings at runtime.
+  Future<void> applyClaudeSettings(Map<String, dynamic> settings) async {
+    await _sendCommand('apply-claude-settings', data: {'settings': settings});
+  }
+
+  /// Reconnect a disconnected MCP server.
+  Future<void> reconnectMcpServer(String serverName) async {
+    await _sendCommand(
+      'reconnect-mcp-server',
+      data: {'server-name': serverName},
+    );
+  }
+
+  /// Enable or disable an MCP server.
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    await _sendCommand(
+      'toggle-mcp-server',
+      data: {'server-name': serverName, 'enabled': enabled},
+    );
+  }
+
   void _send(Map<String, dynamic> message) {
     if (_status != SessionStatus.open) {
       throw StateError('Cannot send message on closed session');

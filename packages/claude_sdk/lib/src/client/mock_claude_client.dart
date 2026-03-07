@@ -440,6 +440,41 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
+  Future<GetSettingsResponse> getSettings() async {
+    return const GetSettingsResponse(effective: {}, sources: []);
+  }
+
+  @override
+  Future<void> applyFlagSettings(Map<String, dynamic> settings) async {
+    print('[MockClaudeClient] Applying flag settings: $settings');
+  }
+
+  @override
+  Future<void> setEffort(String effort) async {
+    print('[MockClaudeClient] Setting effort to: $effort');
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    print('[MockClaudeClient] Reconnecting MCP server: $serverName');
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    print(
+      '[MockClaudeClient] Toggling MCP server $serverName: ${enabled ? "enabled" : "disabled"}',
+    );
+  }
+
+  @override
+  Future<void> stopTask(String taskId) async {
+    print('[MockClaudeClient] Stopping task: $taskId');
+  }
+
+  @override
   Future<void> close() async {
     _activeTimer?.cancel();
     await _conversationController.close();

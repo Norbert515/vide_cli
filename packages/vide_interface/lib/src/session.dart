@@ -305,6 +305,28 @@ abstract class VideSession {
   /// Stream of MCP server status changes.
   Stream<List<VideMcpServerInfo>> mcpServersStream();
 
+  /// Reconnect a disconnected MCP server.
+  Future<void> reconnectMcpServer(String serverName);
+
+  /// Enable or disable an MCP server.
+  Future<void> toggleMcpServer(String serverName, {required bool enabled});
+
+  // ============================================================
+  // Claude settings
+  // ============================================================
+
+  /// Get the effective Claude settings (effort level, model, etc.).
+  ///
+  /// Returns a map of effective settings merged from all sources,
+  /// or null if no session is active.
+  Future<Map<String, dynamic>?> getClaudeSettings();
+
+  /// Apply Claude settings at runtime.
+  ///
+  /// Common keys:
+  /// - `effortLevel`: 'low', 'medium', 'high', or 'max'
+  Future<void> applyClaudeSettings(Map<String, dynamic> settings);
+
   // ============================================================
   // Worktree management
   // ============================================================

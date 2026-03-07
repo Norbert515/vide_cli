@@ -7,7 +7,6 @@ enum SettingsCategory {
   appearance('Appearance'),
   daemon('Daemon'),
   debug('Debug'),
-  mcpServers('MCP Servers'),
   about('About');
 
   const SettingsCategory(this.label);

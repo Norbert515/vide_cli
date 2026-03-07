@@ -1257,6 +1257,41 @@ class RemoteVideSession implements VideSession {
   }
 
   @override
+  Future<Map<String, dynamic>?> getClaudeSettings() async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return null;
+    return session.getClaudeSettings();
+  }
+
+  @override
+  Future<void> applyClaudeSettings(Map<String, dynamic> settings) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.applyClaudeSettings(settings);
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.reconnectMcpServer(serverName);
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    _checkNotDisposed();
+    final session = _clientSession;
+    if (session == null) return;
+    await session.toggleMcpServer(serverName, enabled: enabled);
+  }
+
+  @override
   AgentConversationState? getConversation(String agentId) {
     return _conversationState.getAgentState(agentId);
   }

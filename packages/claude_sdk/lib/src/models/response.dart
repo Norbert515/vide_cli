@@ -791,6 +791,19 @@ class MetaResponse extends ClaudeResponse {
   /// Working directory from init message
   String? get cwd => metadata['cwd'] as String?;
 
+  /// Output style from init message
+  String? get outputStyle => metadata['output_style'] as String?;
+
+  /// Fast mode state from init message ('off', 'cooldown', 'on')
+  String? get fastModeState => metadata['fast_mode_state'] as String?;
+
+  /// Active beta features from init message
+  List<String>? get betas {
+    final betasList = metadata['betas'];
+    if (betasList == null) return null;
+    return (betasList as List).cast<String>();
+  }
+
   factory MetaResponse.fromJson(Map<String, dynamic> json) {
     return MetaResponse(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),

@@ -450,6 +450,23 @@ class _AgentChatState extends State<_AgentChat> {
       showSettingsDialog: () async {
         await SettingsPopup.show(context);
       },
+      getClaudeSettings: () => session.getClaudeSettings(),
+      applyClaudeSettings: (settings) =>
+          session.applyClaudeSettings(settings),
+      getMcpServers: () async {
+        final servers = await session.getMcpServers();
+        return servers
+            .where((s) => !s.name.startsWith('vide-'))
+            .map((s) => McpServerStatus(
+                  name: s.name,
+                  status: s.status.name,
+                  error: s.error,
+                ))
+            .toList();
+      },
+      reconnectMcpServer: (name) => session.reconnectMcpServer(name),
+      toggleMcpServer: (name, {required enabled}) =>
+          session.toggleMcpServer(name, enabled: enabled),
       showSessionLogs: () {
         final sessionId = session.id;
         final logPath = VideLogger.instance.sessionLogPath(sessionId);

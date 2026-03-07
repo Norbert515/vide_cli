@@ -623,6 +623,38 @@ class _SimplifiedStreamHandler {
         await session.clearSessionPermissionCache();
         return null;
 
+      case 'get-claude-settings':
+        final settings = await session.getClaudeSettings();
+        return {'settings': settings};
+
+      case 'apply-claude-settings':
+        final settings = data['settings'] as Map<String, dynamic>?;
+        if (settings == null) {
+          throw ArgumentError('Missing required field: settings');
+        }
+        await session.applyClaudeSettings(settings);
+        return null;
+
+      case 'reconnect-mcp-server':
+        final serverName = data['server-name'] as String?;
+        if (serverName == null || serverName.isEmpty) {
+          throw ArgumentError('Missing required field: server-name');
+        }
+        await session.reconnectMcpServer(serverName);
+        return null;
+
+      case 'toggle-mcp-server':
+        final serverName = data['server-name'] as String?;
+        if (serverName == null || serverName.isEmpty) {
+          throw ArgumentError('Missing required field: server-name');
+        }
+        final enabled = data['enabled'] as bool?;
+        if (enabled == null) {
+          throw ArgumentError('Missing required field: enabled');
+        }
+        await session.toggleMcpServer(serverName, enabled: enabled);
+        return null;
+
       default:
         throw ArgumentError('Unknown session command: $command');
     }

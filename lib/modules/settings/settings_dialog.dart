@@ -8,7 +8,6 @@ import 'package:vide_cli/modules/settings/sections/appearance_section.dart';
 import 'package:vide_cli/modules/settings/sections/daemon_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/debug_settings_section.dart';
 import 'package:vide_cli/modules/settings/sections/team_settings_section.dart';
-import 'package:vide_cli/modules/settings/sections/mcp_servers_section.dart';
 import 'package:vide_cli/modules/settings/sections/about_section.dart';
 
 /// A popup overlay wrapper for the settings dialog.
@@ -249,11 +248,6 @@ class _SettingsDialogState extends State<SettingsDialog> {
         );
       case SettingsCategory.debug:
         return DebugSettingsSection(
-          focused: !_sidebarFocused,
-          onExit: _handleContentExit,
-        );
-      case SettingsCategory.mcpServers:
-        return McpServersSection(
           focused: !_sidebarFocused,
           onExit: _handleContentExit,
         );

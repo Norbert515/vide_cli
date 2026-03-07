@@ -30,6 +30,8 @@ dependencies:
 dependency_overrides:
   vide_interface:
     path: ../vide_interface
+  agent_sdk:
+    path: ../agent_sdk
 
 dev_dependencies:
   flutter_test:

@@ -425,6 +425,58 @@ class ControlProtocol {
     await _sendControlRequest('mcp_set_servers', {'servers': serversMap});
   }
 
+  /// Reconnect a disconnected MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to reconnect
+  Future<void> reconnectMcpServer(String serverName) async {
+    await _sendControlRequest('mcp_reconnect', {
+      'serverName': serverName,
+    });
+  }
+
+  /// Enable or disable an MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to toggle
+  /// [enabled] - Whether to enable or disable the server
+  Future<void> toggleMcpServer(String serverName, {required bool enabled}) async {
+    await _sendControlRequest('mcp_toggle', {
+      'serverName': serverName,
+      'enabled': enabled,
+    });
+  }
+
+  /// Get the effective merged settings and per-source breakdown.
+  ///
+  /// Returns all settings from all sources (user, project, local, flag)
+  /// merged together, plus the raw per-source settings.
+  Future<GetSettingsResponse> getSettings() async {
+    final response = await _sendControlRequest('get_settings', {});
+    return GetSettingsResponse.fromJson(response);
+  }
+
+  /// Apply settings to the flag settings layer.
+  ///
+  /// Merges the provided settings into the active configuration.
+  /// This can be used to set effort level, model, and other settings at runtime.
+  ///
+  /// Common settings:
+  /// - `effortLevel`: 'low', 'medium', 'high', or 'max'
+  /// - `model`: model alias or full model ID
+  ///
+  /// [settings] - Map of setting keys to values
+  Future<void> applyFlagSettings(Map<String, dynamic> settings) async {
+    await _sendControlRequest('apply_flag_settings', {
+      'settings': settings,
+    });
+  }
+
+  /// Stop a running subagent task.
+  ///
+  /// [taskId] - The task ID to stop
+  Future<void> stopTask(String taskId) async {
+    await _sendControlRequest('stop_task', {'task_id': taskId});
+  }
+
   /// Send a message to a specific MCP server.
   ///
   /// [serverName] - Name of the target MCP server

@@ -194,6 +194,76 @@ class RewindFilesResponse {
   }
 }
 
+/// Response from get_settings control request
+class GetSettingsResponse {
+  /// The effective merged settings (all sources combined)
+  final Map<String, dynamic> effective;
+
+  /// Per-source settings breakdown
+  final List<SettingsSource> sources;
+
+  const GetSettingsResponse({
+    required this.effective,
+    required this.sources,
+  });
+
+  /// Get a specific setting value from effective settings
+  T? getSetting<T>(String key) => effective[key] as T?;
+
+  /// Current effort level from effective settings
+  String? get effortLevel => effective['effortLevel'] as String?;
+
+  /// Current model from effective settings
+  String? get model => effective['model'] as String?;
+
+  /// Current permission mode default from effective settings
+  String? get permissionMode {
+    final permissions = effective['permissions'] as Map<String, dynamic>?;
+    return permissions?['defaultMode'] as String?;
+  }
+
+  /// Available models restriction from effective settings
+  List<String>? get availableModels {
+    final models = effective['availableModels'] as List?;
+    return models?.cast<String>();
+  }
+
+  factory GetSettingsResponse.fromJson(Map<String, dynamic> json) {
+    final sourcesJson = json['sources'] as List<dynamic>? ?? [];
+    return GetSettingsResponse(
+      effective: json['effective'] as Map<String, dynamic>? ?? {},
+      sources: sourcesJson
+          .map((s) => SettingsSource.fromJson(s as Map<String, dynamic>))
+          .toList(),
+    );
+  }
+
+  @override
+  String toString() =>
+      'GetSettingsResponse(effective: $effective, sources: $sources)';
+}
+
+/// A settings source with its name and settings values
+class SettingsSource {
+  /// Source name (e.g., 'userSettings', 'projectSettings', 'localSettings', 'flagSettings')
+  final String source;
+
+  /// Settings values from this source
+  final Map<String, dynamic> settings;
+
+  const SettingsSource({required this.source, required this.settings});
+
+  factory SettingsSource.fromJson(Map<String, dynamic> json) {
+    return SettingsSource(
+      source: json['source'] as String? ?? '',
+      settings: json['settings'] as Map<String, dynamic>? ?? {},
+    );
+  }
+
+  @override
+  String toString() => 'SettingsSource(source: $source, settings: $settings)';
+}
+
 /// MCP server configuration for mcp_set_servers
 class McpServerConfig {
   /// Server name

@@ -39,6 +39,11 @@ class CommandContext {
     this.showGitPopup,
     this.showSettingsDialog,
     this.showSessionLogs,
+    this.getClaudeSettings,
+    this.applyClaudeSettings,
+    this.getMcpServers,
+    this.reconnectMcpServer,
+    this.toggleMcpServer,
   });
 
   /// The ID of the agent in whose context the command is executing.
@@ -89,6 +94,41 @@ class CommandContext {
   /// Callback to open the current session's log file in the file viewer.
   /// Used by /logs command.
   final void Function()? showSessionLogs;
+
+  /// Callback to get current Claude settings (effort, model, etc.).
+  /// Used by /model and /effort commands.
+  final Future<Map<String, dynamic>?> Function()? getClaudeSettings;
+
+  /// Callback to apply Claude settings at runtime.
+  /// Used by /model and /effort commands.
+  final Future<void> Function(Map<String, dynamic> settings)?
+      applyClaudeSettings;
+
+  /// Callback to get live MCP server status for the current agent's session.
+  /// Used by /mcp command.
+  final Future<List<McpServerStatus>> Function()? getMcpServers;
+
+  /// Callback to reconnect a disconnected MCP server.
+  /// Used by /mcp reconnect command.
+  final Future<void> Function(String serverName)? reconnectMcpServer;
+
+  /// Callback to enable or disable an MCP server.
+  /// Used by /mcp enable|disable command.
+  final Future<void> Function(String serverName, {required bool enabled})?
+      toggleMcpServer;
+}
+
+/// Simplified MCP server status for use in command results.
+class McpServerStatus {
+  final String name;
+  final String status;
+  final String? error;
+
+  const McpServerStatus({
+    required this.name,
+    required this.status,
+    this.error,
+  });
 }
 
 /// Base interface for all slash commands.

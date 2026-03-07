@@ -12,6 +12,7 @@ import '../protocol/json_decoder.dart';
 import '../control/control_types.dart';
 import '../control/control_protocol.dart';
 import '../control/control_responses.dart';
+export '../control/control_responses.dart' show GetSettingsResponse, SettingsSource;
 import 'conversation_loader.dart';
 import 'process_manager.dart';
 import 'response_processor.dart';
@@ -122,6 +123,49 @@ abstract class ClaudeClient {
   ///
   /// [userMessageId] - The message ID to rewind to
   Future<void> rewindFiles(String userMessageId);
+
+  /// Get the effective merged settings and per-source breakdown.
+  ///
+  /// Returns all settings from all sources (user, project, local, flag)
+  /// merged together, plus the raw per-source settings.
+  /// Use this to query the current effort level, model, and other settings.
+  Future<GetSettingsResponse> getSettings();
+
+  /// Apply settings to the flag settings layer at runtime.
+  ///
+  /// Merges the provided settings into the active configuration.
+  /// This is the general-purpose way to change settings dynamically.
+  ///
+  /// Common settings:
+  /// - `effortLevel`: 'low', 'medium', 'high', or 'max'
+  /// - `model`: model alias or full model ID
+  ///
+  /// [settings] - Map of setting keys to values
+  Future<void> applyFlagSettings(Map<String, dynamic> settings);
+
+  /// Set the effort level for subsequent API calls.
+  ///
+  /// Convenience method that wraps [applyFlagSettings].
+  ///
+  /// [effort] - Effort level: 'low', 'medium', 'high', or 'max'.
+  /// Not all models support all levels.
+  Future<void> setEffort(String effort);
+
+  /// Reconnect a disconnected MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to reconnect
+  Future<void> reconnectMcpServer(String serverName);
+
+  /// Enable or disable an MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to toggle
+  /// [enabled] - Whether to enable or disable the server
+  Future<void> toggleMcpServer(String serverName, {required bool enabled});
+
+  /// Stop a running subagent task.
+  ///
+  /// [taskId] - The task ID to stop
+  Future<void> stopTask(String taskId);
 
   /// Creates and fully initializes a client.
   /// Awaits initialization before returning.
@@ -763,6 +807,64 @@ class ClaudeClientImpl implements ClaudeClient {
       throw StateError('Client not initialized - cannot rewind files');
     }
     await controlProtocol.rewindFiles(userMessageId);
+  }
+
+  @override
+  Future<GetSettingsResponse> getSettings() async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot get settings');
+    }
+    return await controlProtocol.getSettings();
+  }
+
+  @override
+  Future<void> applyFlagSettings(Map<String, dynamic> settings) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot apply settings');
+    }
+    await controlProtocol.applyFlagSettings(settings);
+  }
+
+  @override
+  Future<void> setEffort(String effort) async {
+    await applyFlagSettings({'effortLevel': effort});
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot reconnect MCP server');
+    }
+    await controlProtocol.reconnectMcpServer(serverName);
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot toggle MCP server');
+    }
+    await controlProtocol.toggleMcpServer(serverName, enabled: enabled);
+  }
+
+  @override
+  Future<void> stopTask(String taskId) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot stop task');
+    }
+    await controlProtocol.stopTask(taskId);
   }
 
   @override

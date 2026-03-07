@@ -24,7 +24,8 @@ class ClaudeAgentClient
         ThinkingConfigurable,
         Interruptible,
         FileRewindable,
-        McpConfigurable {
+        McpConfigurable,
+        SettingsConfigurable {
   final ClaudeClient _inner;
 
   ClaudeAgentClient(this._inner);
@@ -152,5 +153,18 @@ class ClaudeAgentClient
   Future<AgentMcpStatusInfo> getMcpStatus() async {
     final result = await _inner.getMcpStatus();
     return AgentMcpStatusMapper.fromClaude(result);
+  }
+
+  // ── SettingsConfigurable ──────────────────────────────────
+
+  @override
+  Future<Map<String, dynamic>> getEffectiveSettings() async {
+    final response = await _inner.getSettings();
+    return response.effective;
+  }
+
+  @override
+  Future<void> applySettings(Map<String, dynamic> settings) async {
+    await _inner.applyFlagSettings(settings);
   }
 }

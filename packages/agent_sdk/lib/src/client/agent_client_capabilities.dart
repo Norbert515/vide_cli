@@ -35,6 +35,15 @@ abstract class FileRewindable {
   Future<void> rewindFiles(String userMessageId);
 }
 
+/// Agent supports querying and applying runtime settings.
+abstract class SettingsConfigurable {
+  /// Get the effective merged settings from all sources.
+  Future<Map<String, dynamic>> getEffectiveSettings();
+
+  /// Apply settings at runtime (merges into flag settings layer).
+  Future<void> applySettings(Map<String, dynamic> settings);
+}
+
 /// Agent supports dynamic MCP server configuration.
 abstract class McpConfigurable {
   Future<void> setMcpServers(

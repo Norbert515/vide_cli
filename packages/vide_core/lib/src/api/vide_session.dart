@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:agent_sdk/agent_sdk.dart' hide AgentConversationState;
+import 'package:claude_sdk/claude_sdk.dart' show ClaudeAgentClient;
 import 'package:path/path.dart' as p;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -499,6 +500,26 @@ class LocalVideSession implements VideSession {
   }
 
   @override
+  Future<Map<String, dynamic>?> getClaudeSettings() async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return null;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is! SettingsConfigurable) return null;
+    return (client as SettingsConfigurable).getEffectiveSettings();
+  }
+
+  @override
+  Future<void> applyClaudeSettings(Map<String, dynamic> settings) async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is! SettingsConfigurable) return;
+    await (client as SettingsConfigurable).applySettings(settings);
+  }
+
+  @override
   AgentConversationState? getConversation(String agentId) {
     _checkNotDisposed();
     return _conversationState.getAgentState(agentId);
@@ -633,6 +654,31 @@ class LocalVideSession implements VideSession {
     }
 
     return stream();
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is ClaudeAgentClient) {
+      await client.innerClient.reconnectMcpServer(serverName);
+    }
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is ClaudeAgentClient) {
+      await client.innerClient.toggleMcpServer(serverName, enabled: enabled);
+    }
   }
 
   List<VideMcpServerInfo> _parseMcpServers(AgentInitData? data) {
