@@ -613,15 +613,6 @@ class _AgentRowItemState extends State<_AgentRowItem>
                       maxLines: 1,
                     ),
                   ),
-                  // View indicator for currently viewed agent
-                  if (component.isSelectedById)
-                    Text(
-                      '◀',
-                      style: TextStyle(
-                        color: theme.base.primary
-                            .withOpacity(TextOpacity.tertiary),
-                      ),
-                    ),
                 ],
               ),
               // Harness:model tag on a separate line (e.g., "cc:opus", "codex:o3")
