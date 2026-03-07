@@ -19,6 +19,7 @@ class AgentConfigResolver {
   Future<AgentConfiguration> getConfigurationForType(
     String type, {
     required String teamName,
+    String? harnessOverride,
   }) async {
     var effectiveTeamName = teamName;
 
@@ -50,6 +51,7 @@ class AgentConfigResolver {
     final config = await _teamFrameworkLoader.buildAgentConfiguration(
       agentName,
       teamName: effectiveTeamName,
+      harnessOverride: harnessOverride,
     );
     if (config == null) {
       throw Exception(
