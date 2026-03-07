@@ -625,6 +625,9 @@ class _AgentChatState extends State<_AgentChat> {
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
     final filteredMessages = _getFilteredMessages();
+    final todos = _getLatestTodos();
+    final hasTodos = todos != null && todos.isNotEmpty;
+    final itemCount = filteredMessages.length + (hasTodos ? 1 : 0);
 
     return SelectionArea(
       onSelectionCompleted: ClipboardManager.copy,
@@ -633,9 +636,17 @@ class _AgentChatState extends State<_AgentChat> {
         reverse: true,
         padding: EdgeInsets.all(1),
         lazy: true,
-        itemCount: filteredMessages.length,
+        itemCount: itemCount,
         itemBuilder: (context, index) {
-          final messageIndex = index;
+          // Index 0 in reversed list = bottom of chat. Show todo list there.
+          if (hasTodos && index == 0) {
+            return Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: TodoListComponent(todos: todos),
+            );
+          }
+
+          final messageIndex = hasTodos ? index - 1 : index;
           final message = filteredMessages[messageIndex];
           final workingDir = component.session.state.workingDirectory;
 
@@ -713,18 +724,6 @@ class _AgentChatState extends State<_AgentChat> {
                       key: Key('plan_approval_${currentPlanApproval.requestId}'),
                     ),
                   ),
-
-                // Todo list (fixed above input area)
-                Builder(builder: (context) {
-                  final todos = _getLatestTodos();
-                  if (todos != null && todos.isNotEmpty) {
-                    return Padding(
-                      padding: EdgeInsets.only(top: 1),
-                      child: TodoListComponent(todos: todos),
-                    );
-                  }
-                  return SizedBox.shrink();
-                }),
 
                 // Input area
                 ChatInputArea(
