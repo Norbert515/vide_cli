@@ -324,7 +324,7 @@ class _AgentSidebarState extends State<AgentSidebar>
   /// Build a section header row
   Component _buildSectionHeader(String title, VideThemeData theme) {
     return Padding(
-      padding: EdgeInsets.only(top: 1),
+      padding: EdgeInsets.only(top: 1, bottom: 1),
       child: Text(
         title,
         style: TextStyle(
