@@ -672,10 +672,7 @@ $message''';
   /// for each recipient.
   ///
   /// Returns the number of agents the message was successfully delivered to.
-  int broadcastMessage({
-    required String message,
-    required AgentId sentBy,
-  }) {
+  int broadcastMessage({required String message, required AgentId sentBy}) {
     final network = state.currentNetwork;
     if (network == null) {
       throw StateError('No active network for broadcast');
