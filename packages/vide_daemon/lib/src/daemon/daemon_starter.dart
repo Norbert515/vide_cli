@@ -109,6 +109,9 @@ class DaemonStarter {
 
   DaemonServer? _server;
   SessionRegistry? _registry;
+  Timer? _infoFileWatcher;
+  DaemonInfo? _daemonInfo;
+  String? _stateDir;
   bool _shuttingDown = false;
 
   DaemonStarter(this.config);
@@ -200,16 +203,24 @@ class DaemonStarter {
     _registry = registry;
 
     // Write daemon info file for lifecycle management (stop/status)
-    DaemonInfo.write(
-      DaemonInfo(
-        pid: pid,
-        port: config.port,
-        host: config.bindAddress,
-        startedAt: DateTime.now().toUtc(),
-        logFile: DaemonInfo.logFilePath(stateDir: stateDir),
-        authToken: authToken,
-      ),
-      stateDir: stateDir,
+    final daemonInfo = DaemonInfo(
+      pid: pid,
+      port: config.port,
+      host: config.bindAddress,
+      startedAt: DateTime.now().toUtc(),
+      logFile: DaemonInfo.logFilePath(stateDir: stateDir),
+      authToken: authToken,
+    );
+    DaemonInfo.write(daemonInfo, stateDir: stateDir);
+    _daemonInfo = daemonInfo;
+    _stateDir = stateDir;
+
+    // Periodically ensure daemon.json exists. External processes (e.g. a
+    // stale-PID cleanup in DaemonLifecycle) can delete it while we're still
+    // running. Re-writing it keeps `vide daemon status` working.
+    _infoFileWatcher = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _ensureInfoFile(),
     );
 
     return (server: server, registry: registry);
@@ -220,6 +231,9 @@ class DaemonStarter {
     if (_shuttingDown) return;
     _shuttingDown = true;
 
+    _infoFileWatcher?.cancel();
+    _infoFileWatcher = null;
+
     _log.info('Shutting down...');
     await _server?.stop();
     await _registry?.dispose();
@@ -229,6 +243,19 @@ class DaemonStarter {
     DaemonInfo.delete(stateDir: stateDir);
 
     _log.info('Goodbye!');
+  }
+
+  /// Re-write daemon.json if it was deleted while we're still running.
+  void _ensureInfoFile() {
+    final info = _daemonInfo;
+    final stateDir = _stateDir;
+    if (info == null || stateDir == null) return;
+
+    final file = File(DaemonInfo.filePath(stateDir: stateDir));
+    if (!file.existsSync()) {
+      _log.warning('daemon.json was deleted externally — re-creating');
+      DaemonInfo.write(info, stateDir: stateDir);
+    }
   }
 
   /// Set up signal handlers for graceful shutdown.
