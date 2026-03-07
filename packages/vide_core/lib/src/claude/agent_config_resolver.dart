@@ -1,12 +1,13 @@
 import 'agent_configuration.dart';
 import '../logging/vide_logger.dart';
 import '../models/agent_metadata.dart';
+import '../team_framework/team_framework.dart';
 import '../team_framework/team_framework_loader.dart';
 
 /// Resolves agent configurations from the team framework.
 ///
-/// Handles mapping agent types to their personality names and loading
-/// the appropriate configuration, with fallback to the default team.
+/// Provides a single entry point for all team framework lookups:
+/// agent configurations, team definitions, and agent personalities.
 class AgentConfigResolver {
   AgentConfigResolver(
     this._teamFrameworkLoader, {
@@ -15,6 +16,14 @@ class AgentConfigResolver {
 
   final TeamFrameworkLoader _teamFrameworkLoader;
   final bool Function() _getChannelViewEnabled;
+
+  /// Get a team definition by name.
+  Future<TeamDefinition?> getTeam(String name) =>
+      _teamFrameworkLoader.getTeam(name);
+
+  /// Get an agent personality by name.
+  Future<AgentPersonality?> getAgent(String name) =>
+      _teamFrameworkLoader.getAgent(name);
 
   /// Get the appropriate AgentConfiguration for a given agent type string.
   ///

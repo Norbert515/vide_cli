@@ -131,7 +131,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
        _getStatusNotifier = getStatusNotifier,
        super(AgentNetworkState()) {
     _factoryRegistry = factoryRegistry;
-    _teamFrameworkLoader = TeamFrameworkLoader(
+    final teamFrameworkLoader = TeamFrameworkLoader(
       workingDirectory: workingDirectory,
     );
 
@@ -142,7 +142,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       getCurrentNetwork: () => state.currentNetwork,
     );
     _configResolver = AgentConfigResolver(
-      _teamFrameworkLoader,
+      teamFrameworkLoader,
       getChannelViewEnabled: _getChannelViewEnabled,
     );
     _worktreeService = WorktreeService(
@@ -165,7 +165,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       factoryRegistry: _factoryRegistry,
       statusSyncService: _statusSyncService,
       configResolver: _configResolver,
-      teamFrameworkLoader: _teamFrameworkLoader,
       sendMessage: sendMessage,
       updateAgentSessionId: updateAgentSessionId,
     );
@@ -178,7 +177,6 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
   final bool Function()? _getChannelViewEnabled;
   late final AgentClientFactoryRegistry _factoryRegistry;
-  late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;
   late final AgentConfigResolver _configResolver;
   late final WorktreeService _worktreeService;
@@ -235,7 +233,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final mainAgentId = const Uuid().v4();
 
     // Load the main agent configuration from the selected team
-    final teamDef = await _teamFrameworkLoader.getTeam(team);
+    final teamDef = await _configResolver.getTeam(team);
     if (teamDef == null) {
       throw Exception('Team "$team" not found in team framework');
     }
@@ -243,17 +241,12 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     final mainAgentName = teamDef.mainAgent;
 
     // Load the main agent personality to get display name and description
-    final mainAgentPersonality = await _teamFrameworkLoader.getAgent(
-      mainAgentName,
-    );
+    final mainAgentPersonality = await _configResolver.getAgent(mainAgentName);
 
-    var leadConfig = await _teamFrameworkLoader.buildAgentConfiguration(
-      mainAgentName,
+    var leadConfig = await _configResolver.getConfigurationForType(
+      'main',
       teamName: team,
     );
-    if (leadConfig == null) {
-      throw Exception('Agent configuration not found for: $mainAgentName');
-    }
 
     // Apply permission mode override if provided.
     // Validates against PermissionMode enum to catch typos at startup.
@@ -364,7 +357,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
 
     // Check if the saved team exists, fall back to 'enterprise' if not
     var effectiveTeam = network.team;
-    final team = await _teamFrameworkLoader.getTeam(effectiveTeam);
+    final team = await _configResolver.getTeam(effectiveTeam);
     if (team == null) {
       VideLogger.instance.warn(
         'AgentNetworkManager',

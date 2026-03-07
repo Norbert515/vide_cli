@@ -12,7 +12,6 @@ import 'agent_status_sync_service.dart';
 import '../analytics/bashboard_service.dart';
 import '../claude/agent_client_factory_registry.dart';
 import '../claude/claude_manager.dart';
-import '../team_framework/team_framework_loader.dart';
 
 /// Manages the lifecycle of agents within a network.
 ///
@@ -28,7 +27,6 @@ class AgentLifecycleService {
     required AgentClientFactoryRegistry factoryRegistry,
     required AgentStatusSyncService statusSyncService,
     required AgentConfigResolver configResolver,
-    required TeamFrameworkLoader teamFrameworkLoader,
     required void Function(AgentId, AgentMessage) sendMessage,
     required Future<void> Function(AgentId, String) updateAgentSessionId,
   }) : _claudeManager = claudeManager,
@@ -38,7 +36,6 @@ class AgentLifecycleService {
        _factoryRegistry = factoryRegistry,
        _statusSyncService = statusSyncService,
        _configResolver = configResolver,
-       _teamFrameworkLoader = teamFrameworkLoader,
        _sendMessage = sendMessage,
        _updateAgentSessionId = updateAgentSessionId;
 
@@ -49,7 +46,6 @@ class AgentLifecycleService {
   final AgentClientFactoryRegistry _factoryRegistry;
   final AgentStatusSyncService _statusSyncService;
   final AgentConfigResolver _configResolver;
-  final TeamFrameworkLoader _teamFrameworkLoader;
   final void Function(AgentId, AgentMessage) _sendMessage;
   final Future<void> Function(AgentId, String) _updateAgentSessionId;
 
@@ -112,7 +108,7 @@ class AgentLifecycleService {
 
     // Load configuration from team framework using the network's team
     final teamName = network.team;
-    final team = await _teamFrameworkLoader.getTeam(teamName);
+    final team = await _configResolver.getTeam(teamName);
     if (team == null) {
       throw Exception('Team "$teamName" not found in team framework');
     }
@@ -133,16 +129,13 @@ class AgentLifecycleService {
     }
 
     // Load the agent personality to get display name and short description
-    final personality = await _teamFrameworkLoader.getAgent(agentType);
+    final personality = await _configResolver.getAgent(agentType);
 
-    final config = await _teamFrameworkLoader.buildAgentConfiguration(
+    final config = await _configResolver.getConfigurationForType(
       agentType,
       teamName: teamName,
       harnessOverride: harness,
     );
-    if (config == null) {
-      throw Exception('Agent configuration not found for: $agentType');
-    }
 
     // Generate new agent ID
     final newAgentId = const Uuid().v4();
