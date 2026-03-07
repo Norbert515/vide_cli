@@ -106,6 +106,8 @@ agentNetworkManagerProvider =
         factoryRegistry: factoryRegistry,
         getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
         getStatus: (id) => ref.read(agentStatusProvider(id)),
+        getChannelViewEnabled: () =>
+            config.configManager.readGlobalSettings().channelViewEnabled,
       );
 
       managerRef = manager;
@@ -121,7 +123,9 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
     required AgentClientFactoryRegistry factoryRegistry,
     required AgentStatusNotifier Function(AgentId) getStatusNotifier,
     required AgentStatus Function(AgentId) getStatus,
+    bool Function()? getChannelViewEnabled,
   }) : _claudeManager = claudeManager,
+       _getChannelViewEnabled = getChannelViewEnabled,
        _persistenceManager = persistenceManager,
        _getTriggerService = getTriggerService,
        _getStatusNotifier = getStatusNotifier,
@@ -137,7 +141,10 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
       getTriggerService: getTriggerService,
       getCurrentNetwork: () => state.currentNetwork,
     );
-    _configResolver = AgentConfigResolver(_teamFrameworkLoader);
+    _configResolver = AgentConfigResolver(
+      _teamFrameworkLoader,
+      getChannelViewEnabled: _getChannelViewEnabled,
+    );
     _worktreeService = WorktreeService(
       baseWorkingDirectory: workingDirectory,
       claudeManager: claudeManager,
@@ -169,6 +176,7 @@ class AgentNetworkManager extends StateNotifier<AgentNetworkState> {
   final AgentNetworkPersistenceManager _persistenceManager;
   final TriggerService Function() _getTriggerService;
   final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
+  final bool Function()? _getChannelViewEnabled;
   late final AgentClientFactoryRegistry _factoryRegistry;
   late final TeamFrameworkLoader _teamFrameworkLoader;
   late final AgentStatusSyncService _statusSyncService;

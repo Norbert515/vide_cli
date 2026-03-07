@@ -204,10 +204,15 @@ class _VideScaffoldState extends State<VideScaffold> {
           ],
         );
 
+        final channelViewEnabled = context
+            .read(videConfigManagerProvider)
+            .readGlobalSettings()
+            .channelViewEnabled;
+
         final mainLayout = Column(
           children: [
             if (showSidebars) _buildTitleBar(context, theme, repoPath),
-            if (showSidebars) _buildViewTabBar(context),
+            if (showSidebars && channelViewEnabled) _buildViewTabBar(context),
             Expanded(child: panelRow),
           ],
         );

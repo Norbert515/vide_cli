@@ -77,6 +77,12 @@ class VideGlobalSettings {
   @JsonKey(includeIfNull: false)
   final String? customAttentionNeededSound;
 
+  /// Whether the #channel view is enabled.
+  /// When true, shows a Slack-like channel view with cross-agent messages
+  /// and injects @mention prompting so agents use @user for visibility.
+  @JsonKey(defaultValue: true)
+  final bool channelViewEnabled;
+
   /// Whether to use the "extreme" team instead of "enterprise".
   /// Extreme mode uses dual-harness parallel analysis with agent debates,
   /// a dedicated verification strategist, and dual-model code review.
@@ -98,6 +104,7 @@ class VideGlobalSettings {
     this.soundNotificationsEnabled = true,
     this.customTaskCompleteSound,
     this.customAttentionNeededSound,
+    this.channelViewEnabled = true,
     this.extremeTeamEnabled = false,
   });
 
@@ -123,6 +130,7 @@ class VideGlobalSettings {
     bool? soundNotificationsEnabled,
     String? Function()? customTaskCompleteSound,
     String? Function()? customAttentionNeededSound,
+    bool? channelViewEnabled,
     bool? extremeTeamEnabled,
   }) {
     return VideGlobalSettings(
@@ -146,6 +154,7 @@ class VideGlobalSettings {
       customAttentionNeededSound: customAttentionNeededSound != null
           ? customAttentionNeededSound()
           : this.customAttentionNeededSound,
+      channelViewEnabled: channelViewEnabled ?? this.channelViewEnabled,
       extremeTeamEnabled: extremeTeamEnabled ?? this.extremeTeamEnabled,
     );
   }

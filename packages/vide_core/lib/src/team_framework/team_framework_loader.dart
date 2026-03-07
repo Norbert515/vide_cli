@@ -151,6 +151,7 @@ class TeamFrameworkLoader {
   Future<String> buildAgentPrompt(
     AgentPersonality agent, {
     List<String> teamIncludes = const [],
+    bool channelViewEnabled = true,
   }) async {
     final parts = <String>[];
 
@@ -164,8 +165,15 @@ class TeamFrameworkLoader {
 
     // Resolve all includes
     for (final includePath in allIncludes) {
-      final protocol = await _resolveInclude(includePath);
+      var protocol = await _resolveInclude(includePath);
       if (protocol != null) {
+        // Strip @Mention Communication Protocol section when channel view is disabled
+        if (!channelViewEnabled && includePath == 'etiquette/messaging') {
+          final mentionIndex = protocol.indexOf('## @Mention Communication Protocol');
+          if (mentionIndex != -1) {
+            protocol = protocol.substring(0, mentionIndex).trimRight();
+          }
+        }
         parts.add(protocol);
       }
     }
@@ -191,6 +199,7 @@ class TeamFrameworkLoader {
     String agentName, {
     String? teamName,
     String? harnessOverride,
+    bool channelViewEnabled = true,
   }) async {
     final agent = await getAgent(agentName);
     if (agent == null) {
@@ -211,6 +220,7 @@ class TeamFrameworkLoader {
     var systemPrompt = await buildAgentPrompt(
       agent,
       teamIncludes: team?.include ?? const [],
+      channelViewEnabled: channelViewEnabled,
     );
 
     // If agent has vide-agent MCP, inject available agent types.

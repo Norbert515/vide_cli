@@ -103,8 +103,14 @@ class _AgentSidebarState extends State<AgentSidebar>
   List<_SidebarItem> _buildItems(List<VideAgent> spawnedAgents) {
     final items = <_SidebarItem>[];
 
-    // Channel entry is always first (selectable)
-    items.add(_SidebarItem.channel());
+    // Channel entry shown when channel view is enabled
+    final channelEnabled = context
+        .read(videConfigManagerProvider)
+        .readGlobalSettings()
+        .channelViewEnabled;
+    if (channelEnabled) {
+      items.add(_SidebarItem.channel());
+    }
 
     if (spawnedAgents.isEmpty) return items;
 

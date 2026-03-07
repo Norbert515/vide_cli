@@ -8,9 +8,13 @@ import '../team_framework/team_framework_loader.dart';
 /// Handles mapping agent types to their personality names and loading
 /// the appropriate configuration, with fallback to the default team.
 class AgentConfigResolver {
-  AgentConfigResolver(this._teamFrameworkLoader);
+  AgentConfigResolver(
+    this._teamFrameworkLoader, {
+    bool Function()? getChannelViewEnabled,
+  }) : _getChannelViewEnabled = getChannelViewEnabled ?? (() => true);
 
   final TeamFrameworkLoader _teamFrameworkLoader;
+  final bool Function() _getChannelViewEnabled;
 
   /// Get the appropriate AgentConfiguration for a given agent type string.
   ///
@@ -52,6 +56,7 @@ class AgentConfigResolver {
       agentName,
       teamName: effectiveTeamName,
       harnessOverride: harnessOverride,
+      channelViewEnabled: _getChannelViewEnabled(),
     );
     if (config == null) {
       throw Exception(

@@ -139,7 +139,21 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
       chatViewSelectionProvider(sessionId).notifier,
     );
 
-    final contentChild = switch (selection) {
+    final channelViewEnabled = context
+        .read(videConfigManagerProvider)
+        .readGlobalSettings()
+        .channelViewEnabled;
+
+    // If channel view is disabled but selection is ChannelOverview, switch to first agent.
+    var effectiveSelection = selection;
+    if (effectiveSelection is ChannelOverview && !channelViewEnabled) {
+      if (agentIds.isNotEmpty) {
+        effectiveSelection = AgentView(agentIds[0]);
+        selectionNotifier.state = effectiveSelection;
+      }
+    }
+
+    final contentChild = switch (effectiveSelection) {
       ChannelOverview() => ChannelView(
         session: component.session,
         agents: _agents,

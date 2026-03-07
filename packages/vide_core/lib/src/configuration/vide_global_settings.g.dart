@@ -24,6 +24,7 @@ VideGlobalSettings _$VideGlobalSettingsFromJson(Map<String, dynamic> json) =>
           json['soundNotificationsEnabled'] as bool? ?? true,
       customTaskCompleteSound: json['customTaskCompleteSound'] as String?,
       customAttentionNeededSound: json['customAttentionNeededSound'] as String?,
+      channelViewEnabled: json['channelViewEnabled'] as bool? ?? true,
       extremeTeamEnabled: json['extremeTeamEnabled'] as bool? ?? false,
     );
 
@@ -45,5 +46,6 @@ Map<String, dynamic> _$VideGlobalSettingsToJson(VideGlobalSettings instance) =>
         'customTaskCompleteSound': value,
       if (instance.customAttentionNeededSound case final value?)
         'customAttentionNeededSound': value,
+      'channelViewEnabled': instance.channelViewEnabled,
       'extremeTeamEnabled': instance.extremeTeamEnabled,
     };
