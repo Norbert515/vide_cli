@@ -12,7 +12,6 @@ import 'package:vide_cli/main.dart'
         currentRepoPathProvider;
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
 import 'package:vide_cli/modules/agent_network/components/agent_sidebar.dart';
-import 'package:vide_cli/modules/agent_network/components/view_tab_bar.dart';
 import 'package:vide_cli/modules/git/git_sidebar.dart';
 import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/components/file_preview_overlay.dart';
@@ -204,15 +203,9 @@ class _VideScaffoldState extends State<VideScaffold> {
           ],
         );
 
-        final channelViewEnabled = context
-            .read(videConfigManagerProvider)
-            .readGlobalSettings()
-            .channelViewEnabled;
-
         final mainLayout = Column(
           children: [
             if (showSidebars) _buildTitleBar(context, theme, repoPath),
-            if (showSidebars && channelViewEnabled) _buildViewTabBar(context),
             Expanded(child: panelRow),
           ],
         );
@@ -319,30 +312,6 @@ class _VideScaffoldState extends State<VideScaffold> {
           ),
         ),
       ],
-    );
-  }
-
-  Component _buildViewTabBar(BuildContext context) {
-    final session = component.session;
-    final selection = context.watch(chatViewSelectionProvider(session.id));
-    final notifier = context.read(
-      chatViewSelectionProvider(session.id).notifier,
-    );
-
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: ViewTabBar(
-        isChannelActive: selection is ChannelOverview,
-        onSelectAgentView: () {
-          // If already on an agent view, keep it. Otherwise select the first.
-          if (selection is! AgentView && component.agents.isNotEmpty) {
-            notifier.state = AgentView(component.agents.first.id);
-          }
-        },
-        onSelectChannel: () {
-          notifier.state = const ChannelOverview();
-        },
-      ),
     );
   }
 

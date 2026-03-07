@@ -169,16 +169,10 @@ class _ChannelViewState extends State<ChannelView> {
     final dimColor = theme.base.onSurface.withOpacity(TextOpacity.tertiary);
     final isUser = entry.senderAgentType == 'user';
 
-    // Show first 8 lines as preview
-    final lines = entry.content.split('\n');
-    final preview = lines.length > 8
-        ? '${lines.take(8).join('\n')}...'
-        : entry.content;
-
     final body = Padding(
       padding: EdgeInsets.only(left: 2),
       child: MarkdownText(
-        preview.trimRight(),
+        entry.content.trimRight(),
         styleSheet: theme.markdownStyleSheet,
       ),
     );
@@ -215,21 +209,21 @@ class _ChannelViewState extends State<ChannelView> {
 
     if (isUser) {
       return Padding(
-        padding: EdgeInsets.only(bottom: 1),
+        padding: EdgeInsets.only(bottom: 2),
         child: Container(
           decoration: BoxDecoration(
             color: theme.base.primary.withOpacity(0.05),
           ),
-          padding: EdgeInsets.symmetric(horizontal: 1),
+          padding: EdgeInsets.symmetric(horizontal: 2),
           child: content,
         ),
       );
     }
 
     return Padding(
-      padding: EdgeInsets.only(bottom: 1),
+      padding: EdgeInsets.only(bottom: 2),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 1),
+        padding: EdgeInsets.symmetric(horizontal: 2),
         child: content,
       ),
     );
