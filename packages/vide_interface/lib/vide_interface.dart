@@ -32,6 +32,7 @@ export 'package:agent_sdk/src/models/agent_status.dart'
 // =============================================================================
 // Models
 // =============================================================================
+export 'src/models/chat_view_selection.dart';
 export 'src/models/enums.dart';
 export 'src/models/filesystem.dart';
 export 'src/models/git_branch.dart';
@@ -46,4 +47,10 @@ export 'src/models/vide_permission.dart';
 // =============================================================================
 // State Management
 // =============================================================================
+export 'src/state/channel_timeline.dart';
 export 'src/state/conversation_state.dart';
+
+// =============================================================================
+// Utilities
+// =============================================================================
+export 'src/utils/mention_parser.dart';
