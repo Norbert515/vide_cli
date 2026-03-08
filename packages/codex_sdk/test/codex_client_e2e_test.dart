@@ -3,7 +3,33 @@ import 'dart:io';
 
 import 'package:claude_sdk/claude_sdk.dart';
 import 'package:codex_sdk/codex_sdk.dart';
+import 'package:mcp_dart/mcp_dart.dart';
 import 'package:test/test.dart';
+
+/// A real MCP server that starts an HTTP endpoint with a single test tool.
+class TestMcpServer extends McpServerBase {
+  int callCount = 0;
+
+  TestMcpServer() : super(name: 'test-mcp', version: '1.0.0');
+
+  @override
+  void registerTools(McpServer server) {
+    server.tool(
+      'ping',
+      description: 'Returns "pong". Use this tool when asked to ping.',
+      toolInputSchema: ToolInputSchema(properties: {}, required: []),
+      callback: ({args, extra}) async {
+        callCount++;
+        return CallToolResult.fromContent(
+          content: [TextContent(text: 'pong')],
+        );
+      },
+    );
+  }
+
+  @override
+  List<String> get toolNames => ['ping'];
+}
 
 /// E2E tests for [CodexClient] using a real `codex app-server` subprocess.
 ///
@@ -177,6 +203,107 @@ void main() {
         expect(logs.where((l) => l.contains('Ignoring message')), isNotEmpty);
       },
       timeout: const Timeout(Duration(seconds: 30)),
+    );
+  });
+
+  group('MCP server discovery via -c args (no API key needed)', () {
+    late CodexClient client;
+    late TestMcpServer mcpServer;
+
+    setUp(() {
+      mcpServer = TestMcpServer();
+      client = CodexClient(
+        codexConfig: CodexConfig(
+          workingDirectory: tempDir.path,
+          sessionId: 'e2e-mcp-test',
+          approvalPolicy: 'never',
+        ),
+        mcpServers: [mcpServer],
+        log: log,
+      );
+    });
+
+    tearDown(() async {
+      await client.close();
+    });
+
+    test(
+      'init completes with MCP startup when server passed via -c args',
+      () async {
+        await client.init();
+
+        // MCP startup must have completed — codex connected to our server
+        expect(
+          logs.where((l) => l.contains('MCP startup complete')),
+          isNotEmpty,
+          reason: 'codex should discover MCP server via -c CLI args',
+        );
+
+        expect(client.threadId, isNotNull);
+        expect(client.currentStatus, ClaudeStatus.ready);
+        expect(mcpServer.isRunning, isTrue);
+      },
+      timeout: const Timeout(Duration(seconds: 45)),
+    );
+  });
+
+  group('MCP tool call round-trip (requires OPENAI_API_KEY)', () {
+    late CodexClient client;
+    late TestMcpServer mcpServer;
+
+    setUp(() {
+      if (!Platform.environment.containsKey('OPENAI_API_KEY')) return;
+
+      mcpServer = TestMcpServer();
+      client = CodexClient(
+        codexConfig: CodexConfig(
+          workingDirectory: tempDir.path,
+          sessionId: 'e2e-mcp-tool-test',
+          approvalPolicy: 'never',
+        ),
+        mcpServers: [mcpServer],
+        log: log,
+      );
+    });
+
+    tearDown(() async {
+      if (Platform.environment.containsKey('OPENAI_API_KEY')) {
+        await client.close();
+      }
+    });
+
+    test(
+      'codex calls MCP tool and receives result',
+      () async {
+        if (!Platform.environment.containsKey('OPENAI_API_KEY')) {
+          markTestSkipped('OPENAI_API_KEY not set');
+          return;
+        }
+
+        await client.init();
+
+        final turnFuture = client.onTurnComplete.first;
+
+        client.sendMessage(
+          const Message(
+            text: 'Call the "ping" MCP tool from the "test-mcp" server. '
+                'Do not use any other tools. Just call ping and tell me the result.',
+          ),
+        );
+
+        await turnFuture.timeout(
+          const Duration(seconds: 60),
+          onTimeout: () => fail('Turn did not complete within 60s'),
+        );
+
+        // The MCP server should have been called
+        expect(
+          mcpServer.callCount,
+          greaterThan(0),
+          reason: 'codex should have called the ping MCP tool',
+        );
+      },
+      timeout: const Timeout(Duration(seconds: 90)),
     );
   });
 

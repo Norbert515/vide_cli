@@ -94,16 +94,15 @@ class CodexClient {
       }
     }
 
-    // Write MCP config before starting the app-server
-    if (mcpServers.isNotEmpty) {
-      await CodexMcpRegistry.writeConfig(
-        mcpServers: mcpServers,
-        workingDirectory: _workingDirectory,
-      );
-    }
+    // Build -c CLI args so codex app-server discovers our MCP servers.
+    // Codex only reads ~/.codex/config.toml — project-level config is ignored.
+    final mcpArgs = CodexMcpRegistry.buildArgs(mcpServers: mcpServers);
 
     // Start the persistent subprocess
-    await _transport.start(workingDirectory: _workingDirectory);
+    await _transport.start(
+      workingDirectory: _workingDirectory,
+      extraArgs: mcpArgs,
+    );
 
     // Subscribe to notifications → event pipeline
     _transport.notifications.listen(_onNotification);
@@ -309,8 +308,6 @@ class CodexClient {
     for (final server in mcpServers) {
       await server.stop();
     }
-
-    await CodexMcpRegistry.cleanUp(workingDirectory: _workingDirectory);
 
     await _conversationController.close();
     await _turnCompleteController.close();
