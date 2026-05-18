@@ -128,6 +128,41 @@ vide daemon install            # Install as system service (launchd/systemd)
 vide daemon uninstall          # Remove system service
 ```
 
+---
+
+## Troubleshooting
+
+### "Claude test failed" Error
+
+If you see an error message like `Claude test failed:` when starting Vide, this typically means there's an issue with your Claude Code CLI authentication.
+
+**To diagnose:**
+
+Open a separate terminal and run:
+```bash
+claude --print 'Respond with exactly: "Connected and ready to help!"'
+```
+
+**Common issues:**
+
+1. **Authentication expired** - If you see an OAuth token expired error:
+```bash
+   claude login
+```
+   Follow the prompts to re-authenticate with your Claude account.
+
+2. **Claude Code not installed** - Install it:
+```bash
+   npm install -g @anthropic-ai/claude-code
+```
+
+3. **Claude Code not in PATH** - Ensure the installation directory is in your system's PATH environment variable.
+
+After resolving the issue, restart Vide.
+
+---
+
+## Agent Architecture
 ### Architecture
 
 ```
