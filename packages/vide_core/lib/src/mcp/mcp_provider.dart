@@ -2,9 +2,8 @@ import 'package:claude_sdk/claude_sdk.dart';
 import 'package:flutter_runtime_mcp/flutter_runtime_mcp.dart';
 import 'agent/agent_mcp_server.dart';
 import 'ask_user_question/ask_user_question_server.dart';
-import 'git/git_server.dart';
+import 'knowledge/knowledge_mcp_server.dart';
 import 'mcp_server_type.dart';
-import 'task_management/task_management_server.dart';
 import 'package:riverpod/riverpod.dart';
 
 import '../models/agent_id.dart';
@@ -45,19 +44,31 @@ class AgentIdAndMcpServerType {
   }
 
   @override
-  int get hashCode => agentId.hashCode ^ mcpServerType.hashCode ^ projectPath.hashCode;
+  int get hashCode =>
+      agentId.hashCode ^ mcpServerType.hashCode ^ projectPath.hashCode;
 }
 
-final genericMcpServerProvider = Provider.family<McpServerBase, AgentIdAndMcpServerType>((
-  ref,
-  params,
-) {
-  return switch (params.mcpServerType) {
-    McpServerType.git => ref.watch(gitServerProvider(params.agentId)),
-    McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
-    McpServerType.taskManagement => ref.watch(taskManagementServerProvider(params.agentId)),
-    McpServerType.askUserQuestion => ref.watch(askUserQuestionServerProvider(params.agentId)),
-    McpServerType.flutterRuntime => ref.watch(flutterRuntimeServerProvider(params.agentId)),
-    _ => throw Exception('MCP server type not supported: ${params.mcpServerType}'),
-  };
-});
+final ProviderFamily<McpServerBase, AgentIdAndMcpServerType>
+genericMcpServerProvider =
+    Provider.family<McpServerBase, AgentIdAndMcpServerType>((ref, params) {
+      return switch (params.mcpServerType) {
+        McpServerType.agent => ref.watch(agentServerProvider(params.agentId)),
+        McpServerType.askUserQuestion => ref.watch(
+          askUserQuestionServerProvider(params.agentId),
+        ),
+        McpServerType.flutterRuntime => ref.watch(
+          flutterRuntimeServerProvider(params.agentId),
+        ),
+        McpServerType.knowledge => ref.watch(
+          knowledgeServerProvider(
+            KnowledgeServerParams(
+              agentId: params.agentId,
+              projectPath: params.projectPath,
+            ),
+          ),
+        ),
+        _ => throw Exception(
+          'MCP server type not supported: ${params.mcpServerType}',
+        ),
+      };
+    });

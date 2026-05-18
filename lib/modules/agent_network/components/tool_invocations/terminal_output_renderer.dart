@@ -1,14 +1,13 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_core/api.dart' show AgentId;
-import 'package:path/path.dart' as p;
-import 'default_renderer.dart';
+import 'package:vide_cli/theme/theme.dart';
+import 'package:vide_core/vide_core.dart' show AgentId;
+import 'shared/tool_header.dart';
 
 /// Renderer for terminal/bash output tool invocations.
 /// Shows collapsed preview (last 3 lines) by default, expandable to full output (max 8 lines).
 class TerminalOutputRenderer extends StatefulComponent {
-  final ToolInvocation invocation;
+  final AgentToolInvocation invocation;
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -27,6 +26,8 @@ class TerminalOutputRenderer extends StatefulComponent {
 
 class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
   bool isExpanded = false;
+  bool isHovered = false;
+  final ScrollController _scrollController = ScrollController();
 
   /// Regex to match ANSI escape sequences (color codes, etc.)
   static final _ansiRegex = RegExp(r'\x1b\[[0-9;]*m');
@@ -60,96 +61,57 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
 
   @override
   Component build(BuildContext context) {
-    // Fallback to DefaultRenderer if no result or error
+    // Fallback to just the header if no result or error
     if (!component.invocation.hasResult || component.invocation.isError) {
-      return DefaultRenderer(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
     // Parse output - process carriage returns first to handle terminal overwrites
     final resultContent = component.invocation.resultContent ?? '';
     final processedContent = _processCarriageReturns(resultContent);
-    final lines = processedContent
-        .split('\n')
-        .where((l) => l.trim().isNotEmpty)
-        .toList();
+    final lines = processedContent.split('\n').where((l) => l.trim().isNotEmpty).toList();
 
-    // If no lines, fallback to default
+    // If no lines, fallback to just the header
     if (lines.isEmpty) {
-      return DefaultRenderer(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
-    return GestureDetector(
-      onTap: () => setState(() => isExpanded = !isExpanded),
-      child: Container(
-        padding: EdgeInsets.only(bottom: 1),
+    final theme = VideTheme.of(context);
+
+    return MouseRegion(
+      onEnter: (_) {
+        if (mounted) setState(() => isHovered = true);
+      },
+      onExit: (_) {
+        if (mounted) setState(() => isHovered = false);
+      },
+      child: GestureDetector(
+        onTap: () => setState(() => isExpanded = !isExpanded),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Tool header with name and params
-            _buildHeader(),
-            // Terminal output
-            _buildOutput(lines),
+            ToolHeader(
+              invocation: component.invocation,
+              workingDirectory: component.workingDirectory,
+              statusColor: ToolHeader.getStatusColor(component.invocation, theme),
+            ),
+            _buildOutput(lines, theme),
           ],
         ),
       ),
     );
   }
 
-  Component _buildHeader() {
-    final statusColor = _getStatusColor();
-    return Row(
-      children: [
-        // Status indicator
-        Text('●', style: TextStyle(color: statusColor)),
-        SizedBox(width: 1),
-        // Tool name
-        Text(
-          component.invocation.displayName,
-          style: TextStyle(color: Colors.white),
-        ),
-        if (component.invocation.parameters.isNotEmpty) ...[
-          Flexible(
-            child: Text(
-              '(${_getParameterPreview()}',
-              style: TextStyle(
-                color: Colors.white.withOpacity(TextOpacity.tertiary),
-              ),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-          Text(
-            ')',
-            style: TextStyle(
-              color: Colors.white.withOpacity(TextOpacity.tertiary),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Component _buildOutput(List<String> lines) {
+  Component _buildOutput(List<String> lines, VideThemeData theme) {
     // Show last 3 lines when collapsed (so user sees most recent output)
-    final displayLines = isExpanded
-        ? lines
-        : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
+    final displayLines = isExpanded ? lines : (lines.length > 3 ? lines.sublist(lines.length - 3) : lines);
     final hasMore = lines.length > 3;
 
+    final bgColor = isHovered ? theme.base.surface.withOpacity(0.8) : theme.base.surface.withOpacity(0.5);
+    final dimText = theme.base.onSurface.withOpacity(0.4);
+
     return Container(
-      decoration: BoxDecoration(
-        color: Color(0xFF1E1E1E), // Dark terminal background
-      ),
+      decoration: BoxDecoration(color: bgColor),
       padding: EdgeInsets.all(1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,84 +121,35 @@ class _TerminalOutputRendererState extends State<TerminalOutputRenderer> {
             // Scrollable container for expanded state with many lines
             Container(
               constraints: BoxConstraints(maxHeight: 8),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [for (final line in displayLines) _buildLine(line)],
+              child: Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                thumbColor: theme.base.onSurface.withOpacity(0.3),
+                trackColor: bgColor,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [for (final line in displayLines) _buildLine(line, theme)],
+                  ),
                 ),
               ),
             )
           else
             // Direct render for collapsed or small expanded state
-            for (final line in displayLines) _buildLine(line),
+            for (final line in displayLines) _buildLine(line, theme),
 
           // Show line count if collapsed with more lines
-          if (!isExpanded && hasMore)
-            Text(
-              '(${lines.length} total)',
-              style: TextStyle(color: Colors.white.withOpacity(0.4)),
-            ),
+          if (!isExpanded && hasMore) Text('(${lines.length} total)', style: TextStyle(color: dimText)),
 
           // Show line count if expanded and exceeds 8 lines
-          if (isExpanded && lines.length > 8)
-            Text(
-              '(${lines.length} total)',
-              style: TextStyle(color: Colors.white.withOpacity(0.4)),
-            ),
+          if (isExpanded && lines.length > 8) Text('(${lines.length} total)', style: TextStyle(color: dimText)),
         ],
       ),
     );
   }
 
-  Component _buildLine(String line) {
-    return Text(
-      _stripAnsi(line),
-      style: TextStyle(
-        color: Color(0xFFD4D4D4), // Terminal text color
-      ),
-    );
-  }
-
-  Color _getStatusColor() {
-    if (!component.invocation.hasResult) {
-      return Color(0xFFE5C07B); // Yellow - pending
-    }
-    return component.invocation.isError
-        ? Color(0xFFE06C75) // Red - error
-        : Color(0xFF98C379); // Green - success
-  }
-
-  String _getParameterPreview() {
-    final params = component.invocation.parameters;
-    if (params.isEmpty) return '';
-
-    final firstKey = params.keys.first;
-    final value = params[firstKey];
-    String valueStr = value.toString();
-
-    // Format file paths
-    if (firstKey == 'file_path') {
-      // Use typed invocation for file path formatting if available
-      if (component.invocation is FileOperationToolInvocation) {
-        final typed = component.invocation as FileOperationToolInvocation;
-        valueStr = typed.getRelativePath(component.workingDirectory);
-      } else {
-        valueStr = _formatFilePath(valueStr);
-      }
-    }
-
-    return '$firstKey: $valueStr';
-  }
-
-  String _formatFilePath(String filePath) {
-    if (component.workingDirectory.isEmpty) return filePath;
-
-    try {
-      final relative = p.relative(filePath, from: component.workingDirectory);
-      // Only use relative if it's actually shorter (file is within working dir)
-      return relative.length < filePath.length ? relative : filePath;
-    } catch (e) {
-      return filePath; // Fallback on error
-    }
+  Component _buildLine(String line, VideThemeData theme) {
+    return Text(_stripAnsi(line), style: TextStyle(color: theme.base.onSurface.withOpacity(0.7)));
   }
 }

@@ -23,7 +23,8 @@ sealed class VideEvent {
   /// rather than silently substituting empty strings that hide errors.
   factory VideEvent.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String;
-    final timestamp = DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now();
+    final timestamp =
+        DateTime.tryParse(json['timestamp'] as String? ?? '') ?? DateTime.now();
     final seq = json['seq'] as int?;
     final eventId = json['event-id'] as String?;
     final agent = json['agent-id'] != null ? AgentInfo.fromJson(json) : null;
@@ -31,128 +32,131 @@ sealed class VideEvent {
 
     return switch (type) {
       'connected' => ConnectedEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required fields - will throw if missing (intentional)
-          sessionId: json['session-id'] as String,
-          mainAgentId: json['main-agent-id'] as String,
-          lastSeq: json['last-seq'] as int? ?? 0,
-          agents: (json['agents'] as List<dynamic>?)
-                  ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
-                  .toList() ??
-              [],
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required fields - will throw if missing (intentional)
+        sessionId: json['session-id'] as String,
+        mainAgentId: json['main-agent-id'] as String,
+        lastSeq: json['last-seq'] as int? ?? 0,
+        agents:
+            (json['agents'] as List<dynamic>?)
+                ?.map((a) => AgentInfo.fromJson(a as Map<String, dynamic>))
+                .toList() ??
+            [],
+      ),
       'history' => HistoryEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          lastSeq: json['last-seq'] as int? ?? 0,
-          events: data?['events'] as List<dynamic>? ?? [],
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        lastSeq: json['last-seq'] as int? ?? 0,
+        events: data?['events'] as List<dynamic>? ?? [],
+      ),
       'message' => MessageEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          role: MessageRole.fromString(data?['role'] as String? ?? 'assistant'),
-          content: data?['content'] as String? ?? '',
-          isPartial: json['is-partial'] as bool? ?? false,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        role: MessageRole.fromString(data?['role'] as String? ?? 'assistant'),
+        content: data?['content'] as String? ?? '',
+        isPartial: json['is-partial'] as bool? ?? false,
+      ),
       'status' => StatusEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          status: AgentStatus.fromString(data?['status'] as String?),
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        status: AgentStatus.fromString(data?['status'] as String?),
+      ),
       'tool-use' => ToolUseEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required fields - will throw if missing (intentional)
-          toolUseId: data!['tool-use-id'] as String,
-          toolName: data['tool-name'] as String,
-          toolInput: data['tool-input'] as Map<String, dynamic>? ?? {},
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required fields - will throw if missing (intentional)
+        toolUseId: data!['tool-use-id'] as String,
+        toolName: data['tool-name'] as String,
+        toolInput: data['tool-input'] as Map<String, dynamic>? ?? {},
+      ),
       'tool-result' => ToolResultEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required fields - will throw if missing (intentional)
-          toolUseId: data!['tool-use-id'] as String,
-          toolName: data['tool-name'] as String,
-          result: data['result'],
-          isError: data['is-error'] as bool? ?? false,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required fields - will throw if missing (intentional)
+        toolUseId: data!['tool-use-id'] as String,
+        toolName: data['tool-name'] as String,
+        result: data['result'],
+        isError: data['is-error'] as bool? ?? false,
+      ),
       'permission-request' => PermissionRequestEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required fields - will throw if missing (intentional)
-          requestId: data!['request-id'] as String,
-          tool: data['tool'] as Map<String, dynamic>,
-        ),
-      'permission-timeout' => PermissionTimeoutEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required field - will throw if missing (intentional)
-          requestId: data!['request-id'] as String,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required fields - will throw if missing (intentional)
+        requestId: data!['request-id'] as String,
+        tool: data['tool'] as Map<String, dynamic>,
+      ),
+      'permission-resolved' => PermissionResolvedEvent(
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required field - will throw if missing (intentional)
+        requestId: data!['request-id'] as String,
+        allow: data['allow'] as bool? ?? false,
+        message: data['message'] as String?,
+      ),
       'agent-spawned' => AgentSpawnedEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required field - will throw if missing (intentional)
-          spawnedBy: data!['spawned-by'] as String,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required field - will throw if missing (intentional)
+        spawnedBy: data!['spawned-by'] as String,
+      ),
       'agent-terminated' => AgentTerminatedEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required field - will throw if missing (intentional)
-          terminatedBy: data!['terminated-by'] as String,
-          reason: data['reason'] as String?,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required field - will throw if missing (intentional)
+        terminatedBy: data!['terminated-by'] as String,
+        reason: data['reason'] as String?,
+      ),
       'done' => DoneEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          reason: data?['reason'] as String? ?? 'complete',
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        reason: data?['reason'] as String? ?? 'complete',
+      ),
       'aborted' => AbortedEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+      ),
       'error' => ErrorEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          // Required field - will throw if missing (intentional)
-          message: data!['message'] as String,
-          code: data['code'] as String?,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        // Required field - will throw if missing (intentional)
+        message: data!['message'] as String,
+        code: data['code'] as String?,
+      ),
       _ => UnknownEvent(
-          seq: seq,
-          eventId: eventId,
-          timestamp: timestamp,
-          agent: agent,
-          type: type,
-          rawData: json,
-        ),
+        seq: seq,
+        eventId: eventId,
+        timestamp: timestamp,
+        agent: agent,
+        type: type,
+        rawData: json,
+      ),
     };
   }
 }
@@ -274,16 +278,20 @@ class PermissionRequestEvent extends VideEvent {
   String get toolName => tool['name'] as String? ?? '';
 }
 
-/// Permission request timed out.
-class PermissionTimeoutEvent extends VideEvent {
+/// Permission request was resolved (allowed or denied).
+class PermissionResolvedEvent extends VideEvent {
   final String requestId;
+  final bool allow;
+  final String? message;
 
-  const PermissionTimeoutEvent({
+  const PermissionResolvedEvent({
     super.seq,
     super.eventId,
     required super.timestamp,
     super.agent,
     required this.requestId,
+    required this.allow,
+    this.message,
   });
 }
 

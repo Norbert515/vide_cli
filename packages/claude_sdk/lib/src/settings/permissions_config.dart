@@ -49,11 +49,8 @@ class PermissionsConfig {
   });
 
   /// Creates an empty permissions config.
-  factory PermissionsConfig.empty() => const PermissionsConfig(
-        allow: [],
-        deny: [],
-        ask: [],
-      );
+  factory PermissionsConfig.empty() =>
+      const PermissionsConfig(allow: [], deny: [], ask: []);
 
   factory PermissionsConfig.fromJson(Map<String, dynamic> json) =>
       _$PermissionsConfigFromJson(json);
@@ -72,7 +69,8 @@ class PermissionsConfig {
       allow: allow ?? this.allow,
       deny: deny ?? this.deny,
       ask: ask ?? this.ask,
-      additionalDirectories: additionalDirectories ?? this.additionalDirectories,
+      additionalDirectories:
+          additionalDirectories ?? this.additionalDirectories,
       defaultMode: defaultMode ?? this.defaultMode,
       disableBypassPermissionsMode:
           disableBypassPermissionsMode ?? this.disableBypassPermissionsMode,

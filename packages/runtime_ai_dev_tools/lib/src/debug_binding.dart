@@ -1,5 +1,9 @@
+import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'debug_overlay_wrapper.dart';
+
+// Keep a handle to ensure semantics stays enabled throughout the app lifecycle
+SemanticsHandle? _globalSemanticsHandle;
 
 /// Custom binding that automatically wraps the root widget with DebugOverlayWrapper.
 ///
@@ -53,6 +57,7 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
           '🔗 [DebugWidgetsFlutterBinding] No existing binding, creating DebugWidgetsFlutterBinding');
       DebugWidgetsFlutterBinding();
       print('🔗 [DebugWidgetsFlutterBinding] Created and initialized');
+      _initializeSemanticsEarly();
       return WidgetsBinding.instance;
     }
 
@@ -60,6 +65,7 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
     if (existingBinding is DebugWidgetsFlutterBinding) {
       print(
           '🔗 [DebugWidgetsFlutterBinding] Already using DebugWidgetsFlutterBinding');
+      _initializeSemanticsEarly();
       return existingBinding;
     }
 
@@ -68,6 +74,30 @@ class DebugWidgetsFlutterBinding extends WidgetsFlutterBinding {
         '⚠️ [DebugWidgetsFlutterBinding] Different binding already initialized: ${existingBinding.runtimeType}');
     print(
         '⚠️ [DebugWidgetsFlutterBinding] DebugOverlayWrapper will NOT be automatically injected');
+    _initializeSemanticsEarly();
     return existingBinding;
   }
+}
+
+/// Initialize semantics early so the tree is ready when getActionableElements is called.
+/// This is critical for proper visibility filtering (Navigator routes, etc.).
+void _initializeSemanticsEarly() {
+  if (_globalSemanticsHandle != null) return;
+
+  print(
+      '🔗 [DebugWidgetsFlutterBinding] Initializing semantics for AI dev tools');
+
+  // Enable semantics - this creates the semantics tree
+  _globalSemanticsHandle = SemanticsBinding.instance.ensureSemantics();
+
+  // Schedule a post-frame callback to ensure the tree is built after the first frame
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    print(
+        '🔗 [DebugWidgetsFlutterBinding] Semantics tree ready after first frame');
+    // Force a rebuild to ensure semantics are fully generated
+    final rootElement = WidgetsBinding.instance.rootElement;
+    if (rootElement != null) {
+      rootElement.markNeedsBuild();
+    }
+  });
 }

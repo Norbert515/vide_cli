@@ -2,8 +2,8 @@
 ///
 /// Tests verify:
 /// 1. Tool use events (tool-use, tool-result)
-/// 2. Permission handling (permission-request, permission-response, permission-timeout)
-/// 3. Model and permission-mode selection
+/// 2. Permission handling (permission-request, permission-response, permission-resolved)
+/// 3. Permission-mode selection
 /// 4. Error handling (unknown message types)
 /// 5. Abort functionality
 /// 6. WebSocket keepalive
@@ -30,33 +30,12 @@ void main() {
   late int port;
   late String baseUrl;
   late Directory testDir;
-  late String configFilePath;
 
   setUpAll(() async {
     // Create a test directory for file operations
     testDir = await Directory.systemTemp.createTemp('phase25_e2e_test_');
 
-    // Create config file with short permission timeout for testing
-    final homeDir = Platform.environment['HOME'] ?? Directory.current.path;
-    final configDir = Directory(p.join(homeDir, '.vide', 'api'));
-    await configDir.create(recursive: true);
-    configFilePath = p.join(configDir.path, 'config.json');
-
-    // Save existing config if present
-    String? existingConfig;
-    final configFile = File(configFilePath);
-    if (await configFile.exists()) {
-      existingConfig = await configFile.readAsString();
-    }
-
-    // Write test config with short timeout
-    await configFile.writeAsString(jsonEncode({
-      'permission-timeout-seconds': 5, // Short timeout for testing
-      'auto-approve-all': false,
-      'filesystem-root': testDir.path,
-    }));
-
-    // Start the server
+    // Start the server with filesystem-root pointing to our test directory
     port = testPortBase + phase25ComprehensiveTestOffset;
     baseUrl = 'http://127.0.0.1:$port';
 
@@ -65,6 +44,8 @@ void main() {
       'bin/vide_server.dart',
       '--port',
       '$port',
+      '--filesystem-root',
+      testDir.path,
     ], workingDirectory: Directory.current.path);
 
     // Wait for server to be ready
@@ -83,16 +64,6 @@ void main() {
       const Duration(seconds: 30),
       onTimeout: () => throw Exception('Server failed to start'),
     );
-
-    // Restore config on teardown
-    addTearDown(() async {
-      final file = File(configFilePath);
-      if (existingConfig != null) {
-        await file.writeAsString(existingConfig);
-      } else if (await file.exists()) {
-        await file.delete();
-      }
-    });
   });
 
   tearDownAll(() async {
@@ -147,19 +118,19 @@ void main() {
           await completer.future.timeout(
             const Duration(seconds: 90),
             onTimeout: () {
-              fail(
-                'Timeout. Events: ${events.map((e) => e['type']).toList()}',
-              );
+              fail('Timeout. Events: ${events.map((e) => e['type']).toList()}');
             },
           );
 
           await channel.sink.close();
 
           // Look for tool-use events
-          final toolUseEvents =
-              events.where((e) => e['type'] == 'tool-use').toList();
-          final toolResultEvents =
-              events.where((e) => e['type'] == 'tool-result').toList();
+          final toolUseEvents = events
+              .where((e) => e['type'] == 'tool-use')
+              .toList();
+          final toolResultEvents = events
+              .where((e) => e['type'] == 'tool-result')
+              .toList();
 
           // Agent MUST have used at least one tool (Bash for echo)
           // If this fails, it's a real issue that needs investigation
@@ -171,8 +142,11 @@ void main() {
                 'Events received: ${events.map((e) => e['type']).toList()}',
           );
 
-          expect(toolResultEvents, isNotEmpty,
-              reason: 'Must have tool-result for every tool-use');
+          expect(
+            toolResultEvents,
+            isNotEmpty,
+            reason: 'Must have tool-result for every tool-use',
+          );
 
           // Verify tool-use event format
           for (final toolUse in toolUseEvents) {
@@ -229,25 +203,24 @@ void main() {
           final events = <Map<String, dynamic>>[];
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              events.add(event);
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            events.add(event);
 
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 90));
           await channel.sink.close();
 
-          final toolUseEvents =
-              events.where((e) => e['type'] == 'tool-use').toList();
-          final toolResultEvents =
-              events.where((e) => e['type'] == 'tool-result').toList();
+          final toolUseEvents = events
+              .where((e) => e['type'] == 'tool-use')
+              .toList();
+          final toolResultEvents = events
+              .where((e) => e['type'] == 'tool-result')
+              .toList();
 
           // Agent MUST use tools when explicitly asked to execute a command
           expect(
@@ -272,109 +245,6 @@ void main() {
           }
         },
         timeout: Timeout(Duration(seconds: 120)),
-      );
-    });
-
-    group('Model Selection', () {
-      test(
-        'session can be created with model parameter',
-        () async {
-          // Test with haiku model (faster)
-          final createResponse = await http.post(
-            Uri.parse('$baseUrl/api/v1/sessions'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'initial-message': 'Say "hello" only.',
-              'working-directory': Directory.current.path,
-              'model': 'haiku',
-            }),
-          );
-
-          expect(createResponse.statusCode, 200);
-          final sessionData = jsonDecode(createResponse.body);
-          expect(sessionData['session-id'], isNotEmpty);
-
-          // Connect and verify it works
-          final sessionId = sessionData['session-id'];
-          final wsUrl =
-              'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
-          final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-          final completer = Completer<void>();
-          var gotMessage = false;
-
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (event['type'] == 'message') gotMessage = true;
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
-
-          await completer.future.timeout(const Duration(seconds: 60));
-          await channel.sink.close();
-
-          expect(gotMessage, isTrue, reason: 'Should receive message events');
-        },
-        timeout: Timeout(Duration(seconds: 90)),
-      );
-
-      test(
-        'user-message can specify model for subsequent messages',
-        () async {
-          final createResponse = await http.post(
-            Uri.parse('$baseUrl/api/v1/sessions'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'initial-message': 'Remember the word "apple".',
-              'working-directory': Directory.current.path,
-            }),
-          );
-
-          expect(createResponse.statusCode, 200);
-          final sessionData = jsonDecode(createResponse.body);
-          final sessionId = sessionData['session-id'];
-
-          final wsUrl =
-              'ws://127.0.0.1:$port/api/v1/sessions/$sessionId/stream';
-          final channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-          var turnCount = 0;
-          final completer = Completer<void>();
-
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-
-              if (event['type'] == 'done') {
-                turnCount++;
-                if (turnCount == 1) {
-                  // Send follow-up with different model
-                  channel.sink.add(jsonEncode({
-                    'type': 'user-message',
-                    'content': 'What word did I ask you to remember?',
-                    'model': 'haiku', // Use haiku for speed
-                  }));
-                } else if (turnCount == 2) {
-                  completer.complete();
-                }
-              }
-              if (event['type'] == 'error' && !completer.isCompleted) {
-                completer.complete();
-              }
-            },
-          );
-
-          await completer.future.timeout(const Duration(seconds: 120));
-          await channel.sink.close();
-
-          expect(turnCount, greaterThanOrEqualTo(2));
-        },
-        timeout: Timeout(Duration(seconds: 150)),
       );
     });
 
@@ -406,16 +276,13 @@ void main() {
           final completer = Completer<void>();
           var gotMessage = false;
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (event['type'] == 'message') gotMessage = true;
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            if (event['type'] == 'message') gotMessage = true;
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 90));
           await channel.sink.close();
@@ -451,26 +318,25 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 500));
 
         // Subscribe to events
-        channel.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
+        channel.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
 
-            if (event['type'] == 'error') {
-              errorEvent = event;
-              if (!completer.isCompleted) completer.complete();
-            }
-            if (event['type'] == 'done' && !completer.isCompleted) {
-              // If we get done without error, wait for error
-            }
-          },
-        );
+          if (event['type'] == 'error') {
+            errorEvent = event;
+            if (!completer.isCompleted) completer.complete();
+          }
+          if (event['type'] == 'done' && !completer.isCompleted) {
+            // If we get done without error, wait for error
+          }
+        });
 
         // Send an unknown message type
-        channel.sink.add(jsonEncode({
-          'type': 'unknown-message-type',
-          'content': 'This should fail',
-        }));
+        channel.sink.add(
+          jsonEncode({
+            'type': 'unknown-message-type',
+            'content': 'This should fail',
+          }),
+        );
 
         await completer.future.timeout(
           const Duration(seconds: 10),
@@ -507,23 +373,21 @@ void main() {
         Map<String, dynamic>? errorEvent;
         final completer = Completer<void>();
 
-        channel.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
-            if (event['type'] == 'error') {
-              errorEvent = event;
-              if (!completer.isCompleted) completer.complete();
-            }
-          },
-        );
+        channel.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
+          if (event['type'] == 'error') {
+            errorEvent = event;
+            if (!completer.isCompleted) completer.complete();
+          }
+        });
 
         // Send malformed JSON
         channel.sink.add('not valid json {{{');
 
         await completer.future.timeout(
           const Duration(seconds: 10),
-          onTimeout: () => fail('Did not receive error event for malformed JSON'),
+          onTimeout: () =>
+              fail('Did not receive error event for malformed JSON'),
         );
 
         await channel.sink.close();
@@ -574,8 +438,7 @@ void main() {
         channel.stream.listen(
           (message) {
             // Might receive an error event
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
             if (event['type'] == 'error') {
               completer.complete();
             }
@@ -613,16 +476,13 @@ void main() {
         Map<String, dynamic>? connectedEvent;
         final completer = Completer<void>();
 
-        channel.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
-            if (event['type'] == 'connected') {
-              connectedEvent = event;
-              completer.complete();
-            }
-          },
-        );
+        channel.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
+          if (event['type'] == 'connected') {
+            connectedEvent = event;
+            completer.complete();
+          }
+        });
 
         await completer.future.timeout(const Duration(seconds: 10));
         await channel.sink.close();
@@ -634,13 +494,13 @@ void main() {
         expect(connectedEvent!['agents'], isA<List>());
         expect(connectedEvent!['metadata'], isA<Map>());
         expect(connectedEvent!['metadata']['working-directory'], isNotEmpty);
+        expect(connectedEvent!['metadata']['goal'], isNotEmpty);
+        expect(connectedEvent!['metadata']['team'], isNotEmpty);
       });
 
       // NOTE: This test is expected to FAIL until status events are implemented
       // See spec Phase 2.5.6 - status events should be sent when agent state changes
-      test(
-        'status events show agent working state',
-        () async {
+      test('status events show agent working state', () async {
         final createResponse = await http.post(
           Uri.parse('$baseUrl/api/v1/sessions'),
           headers: {'Content-Type': 'application/json'},
@@ -659,23 +519,21 @@ void main() {
         final events = <Map<String, dynamic>>[];
         final completer = Completer<void>();
 
-        channel.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
-            events.add(event);
-            if (event['type'] == 'done' || event['type'] == 'error') {
-              if (!completer.isCompleted) completer.complete();
-            }
-          },
-        );
+        channel.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
+          events.add(event);
+          if (event['type'] == 'done' || event['type'] == 'error') {
+            if (!completer.isCompleted) completer.complete();
+          }
+        });
 
         await completer.future.timeout(const Duration(seconds: 60));
         await channel.sink.close();
 
         // Look for status events
-        final statusEvents =
-            events.where((e) => e['type'] == 'status').toList();
+        final statusEvents = events
+            .where((e) => e['type'] == 'status')
+            .toList();
 
         // Should have at least one status event (initial connected state)
         expect(statusEvents, isNotEmpty);
@@ -710,16 +568,13 @@ void main() {
         final firstClientEvents = <Map<String, dynamic>>[];
         final doneCompleter = Completer<void>();
 
-        channel1.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
-            firstClientEvents.add(event);
-            if (event['type'] == 'done') {
-              if (!doneCompleter.isCompleted) doneCompleter.complete();
-            }
-          },
-        );
+        channel1.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
+          firstClientEvents.add(event);
+          if (event['type'] == 'done') {
+            if (!doneCompleter.isCompleted) doneCompleter.complete();
+          }
+        });
 
         await doneCompleter.future.timeout(const Duration(seconds: 60));
         await channel1.sink.close();
@@ -736,16 +591,13 @@ void main() {
         Map<String, dynamic>? historyEvent;
         final historyCompleter = Completer<void>();
 
-        channel2.stream.listen(
-          (message) {
-            final event =
-                jsonDecode(message as String) as Map<String, dynamic>;
-            if (event['type'] == 'history') {
-              historyEvent = event;
-              historyCompleter.complete();
-            }
-          },
-        );
+        channel2.stream.listen((message) {
+          final event = jsonDecode(message as String) as Map<String, dynamic>;
+          if (event['type'] == 'history') {
+            historyEvent = event;
+            historyCompleter.complete();
+          }
+        });
 
         await historyCompleter.future.timeout(const Duration(seconds: 10));
         await channel2.sink.close();
@@ -754,8 +606,7 @@ void main() {
         expect(historyEvent, isNotNull);
         expect(historyEvent!['last-seq'], firstClientLastSeq);
 
-        final events =
-            historyEvent!['data']['events'] as List<dynamic>;
+        final events = historyEvent!['data']['events'] as List<dynamic>;
         expect(events, isNotEmpty);
 
         // History should include message events
@@ -793,31 +644,28 @@ void main() {
           var gotAbortedEvent = false;
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              events.add(event);
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            events.add(event);
 
-              // When we see the agent start working (first message), send abort
-              if (event['type'] == 'message' && events.length < 5) {
-                // Give it a moment to start processing, then abort
-                Future.delayed(const Duration(milliseconds: 500), () {
-                  channel.sink.add(jsonEncode({'type': 'abort'}));
-                });
-              }
+            // When we see the agent start working (first message), send abort
+            if (event['type'] == 'message' && events.length < 5) {
+              // Give it a moment to start processing, then abort
+              Future.delayed(const Duration(milliseconds: 500), () {
+                channel.sink.add(jsonEncode({'type': 'abort'}));
+              });
+            }
 
-              if (event['type'] == 'aborted') {
-                gotAbortedEvent = true;
-                if (!completer.isCompleted) completer.complete();
-              }
+            if (event['type'] == 'aborted') {
+              gotAbortedEvent = true;
+              if (!completer.isCompleted) completer.complete();
+            }
 
-              // Also complete on done/error to not hang
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+            // Also complete on done/error to not hang
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 60));
           await channel.sink.close();
@@ -832,8 +680,9 @@ void main() {
           );
 
           // Verify aborted event format
-          final abortedEvents =
-              events.where((e) => e['type'] == 'aborted').toList();
+          final abortedEvents = events
+              .where((e) => e['type'] == 'aborted')
+              .toList();
           if (abortedEvents.isNotEmpty) {
             final aborted = abortedEvents.first;
             expect(aborted['agent-id'], isNotEmpty);
@@ -876,41 +725,41 @@ void main() {
           String? requestId;
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              events.add(event);
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            events.add(event);
 
-              // Log every event for debugging
-              stdout.writeln(
-                  '[TEST] Event: ${event['type']} - seq=${event['seq']}');
+            // Log every event for debugging
+            stdout.writeln(
+              '[TEST] Event: ${event['type']} - seq=${event['seq']}',
+            );
 
-              // Look for permission-request event
-              if (event['type'] == 'permission-request') {
-                gotPermissionRequest = true;
-                requestId = event['data']['request-id'] as String;
-                stdout.writeln('[TEST] Got permission-request: $requestId');
+            // Look for permission-request event
+            if (event['type'] == 'permission-request') {
+              gotPermissionRequest = true;
+              requestId = event['data']['request-id'] as String;
+              stdout.writeln('[TEST] Got permission-request: $requestId');
 
-                // Approve the permission
-                channel.sink.add(jsonEncode({
+              // Approve the permission
+              channel.sink.add(
+                jsonEncode({
                   'type': 'permission-response',
                   'request-id': requestId,
                   'allow': true,
-                }));
-              }
+                }),
+              );
+            }
 
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
 
-              // Also handle permission-timeout
-              if (event['type'] == 'permission-timeout') {
-                stdout.writeln('[TEST] Permission timed out!');
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+            // Also handle permission-resolved
+            if (event['type'] == 'permission-resolved') {
+              stdout.writeln('[TEST] Permission resolved!');
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 120));
           await channel.sink.close();
@@ -940,8 +789,9 @@ void main() {
           );
 
           // Verify permission-request format
-          final permissionRequests =
-              events.where((e) => e['type'] == 'permission-request').toList();
+          final permissionRequests = events
+              .where((e) => e['type'] == 'permission-request')
+              .toList();
           if (permissionRequests.isNotEmpty) {
             final req = permissionRequests.first;
             expect(req['data']['request-id'], isNotEmpty);
@@ -988,55 +838,56 @@ void main() {
           var turnCount = 0;
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              events.add(event);
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            events.add(event);
 
-              stdout.writeln('[TEST] Event: ${event['type']}');
+            stdout.writeln('[TEST] Event: ${event['type']}');
 
-              // Count permission requests per turn
-              if (event['type'] == 'permission-request') {
-                if (turnCount == 0) {
-                  turn1PermissionRequests++;
-                } else {
-                  turn2PermissionRequests++;
-                }
+            // Count permission requests per turn
+            if (event['type'] == 'permission-request') {
+              if (turnCount == 0) {
+                turn1PermissionRequests++;
+              } else {
+                turn2PermissionRequests++;
+              }
 
-                // Always approve
-                final requestId = event['data']['request-id'] as String;
-                channel.sink.add(jsonEncode({
+              // Always approve
+              final requestId = event['data']['request-id'] as String;
+              channel.sink.add(
+                jsonEncode({
                   'type': 'permission-response',
                   'request-id': requestId,
                   'allow': true,
-                }));
-              }
+                }),
+              );
+            }
 
-              if (event['type'] == 'done') {
-                turnCount++;
-                if (turnCount == 1) {
-                  // First turn done, send second message with bypassPermissions
-                  channel.sink.add(jsonEncode({
+            if (event['type'] == 'done') {
+              turnCount++;
+              if (turnCount == 1) {
+                // First turn done, send second message with bypassPermissions
+                channel.sink.add(
+                  jsonEncode({
                     'type': 'user-message',
                     'content':
                         'Create a file at $testFile2 with content "test2". Use the Write tool.',
                     'permission-mode': 'bypassPermissions',
-                  }));
-                } else if (turnCount == 2) {
-                  if (!completer.isCompleted) completer.complete();
-                }
-              }
-
-              if (event['type'] == 'error') {
+                  }),
+                );
+              } else if (turnCount == 2) {
                 if (!completer.isCompleted) completer.complete();
               }
+            }
 
-              if (event['type'] == 'permission-timeout') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+            if (event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+
+            if (event['type'] == 'permission-resolved') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 180));
           await channel.sink.close();
@@ -1075,7 +926,8 @@ void main() {
             Uri.parse('$baseUrl/api/v1/sessions'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'initial-message': 'Say exactly: "Hello, I am working correctly!"',
+              'initial-message':
+                  'Say exactly: "Hello, I am working correctly!"',
               'working-directory': Directory.current.path,
             }),
           );
@@ -1091,18 +943,15 @@ void main() {
           final messageEvents = <Map<String, dynamic>>[];
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (event['type'] == 'message') {
-                messageEvents.add(event);
-              }
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            if (event['type'] == 'message') {
+              messageEvents.add(event);
+            }
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 60));
           await channel.sink.close();
@@ -1111,8 +960,11 @@ void main() {
           final assistantMessages = messageEvents
               .where((e) => e['data']?['role'] == 'assistant')
               .toList();
-          expect(assistantMessages, isNotEmpty,
-              reason: 'Should have assistant message(s)');
+          expect(
+            assistantMessages,
+            isNotEmpty,
+            reason: 'Should have assistant message(s)',
+          );
 
           // Reconstruct message by concatenating all content chunks
           // This simulates what a client should do:
@@ -1136,8 +988,11 @@ void main() {
 
           // The reconstructed text should:
           // 1. Not be empty
-          expect(fullText.trim(), isNotEmpty,
-              reason: 'Reconstructed text should not be empty');
+          expect(
+            fullText.trim(),
+            isNotEmpty,
+            reason: 'Reconstructed text should not be empty',
+          );
 
           // 2. Contain recognizable words (not garbled)
           // If streaming reconstruction is broken, we'd see random fragments
@@ -1179,18 +1034,15 @@ void main() {
           final messageEvents = <Map<String, dynamic>>[];
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (event['type'] == 'message') {
-                messageEvents.add(event);
-              }
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            if (event['type'] == 'message') {
+              messageEvents.add(event);
+            }
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           await completer.future.timeout(const Duration(seconds: 60));
           await channel.sink.close();
@@ -1212,8 +1064,11 @@ void main() {
 
             // Should not have empty result from non-empty chunks
             if (chunks.any((c) => c.isNotEmpty)) {
-              expect(fullText, isNotEmpty,
-                  reason: 'Concatenated chunks should not be empty');
+              expect(
+                fullText,
+                isNotEmpty,
+                reason: 'Concatenated chunks should not be empty',
+              );
             }
           }
         },
@@ -1244,18 +1099,15 @@ void main() {
           var gotConnected = false;
           final completer = Completer<void>();
 
-          channel.stream.listen(
-            (message) {
-              final event =
-                  jsonDecode(message as String) as Map<String, dynamic>;
-              if (event['type'] == 'connected') {
-                gotConnected = true;
-              }
-              if (event['type'] == 'done' || event['type'] == 'error') {
-                if (!completer.isCompleted) completer.complete();
-              }
-            },
-          );
+          channel.stream.listen((message) {
+            final event = jsonDecode(message as String) as Map<String, dynamic>;
+            if (event['type'] == 'connected') {
+              gotConnected = true;
+            }
+            if (event['type'] == 'done' || event['type'] == 'error') {
+              if (!completer.isCompleted) completer.complete();
+            }
+          });
 
           // Wait a moment then verify connection is still alive
           await Future.delayed(const Duration(seconds: 2));

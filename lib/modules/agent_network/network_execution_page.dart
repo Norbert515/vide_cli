@@ -1,43 +1,48 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:vide_cli/components/enhanced_loading_indicator.dart';
-import 'package:vide_cli/components/queue_indicator.dart';
-import 'package:vide_cli/components/typing_text.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/main.dart';
 import 'package:vide_cli/modules/agent_network/components/attachment_text_field.dart';
-import 'package:vide_cli/modules/agent_network/components/running_agents_bar.dart';
-import 'package:vide_cli/modules/agent_network/components/context_usage_bar.dart';
-import 'package:vide_cli/modules/agent_network/components/tool_invocations/tool_invocation_router.dart';
+import 'package:vide_cli/modules/agent_network/components/connecting_indicator.dart';
+import 'package:vide_cli/modules/agent_network/components/chat_input_area.dart';
+import 'package:vide_cli/modules/agent_network/components/assistant_entry_renderer.dart';
+import 'package:vide_cli/modules/agent_network/components/user_message_renderer.dart';
 import 'package:vide_cli/modules/agent_network/components/tool_invocations/todo_list_component.dart';
 import 'package:vide_cli/modules/commands/command.dart';
 import 'package:vide_cli/modules/commands/command_provider.dart';
-import 'package:vide_cli/modules/git/git_branch_indicator.dart';
 import 'package:vide_cli/modules/git/git_popup.dart';
-import 'package:vide_cli/modules/permissions/components/ask_user_question_dialog.dart';
-import 'package:vide_cli/modules/permissions/components/permission_dialog.dart';
+import 'package:vide_cli/modules/permissions/components/plan_approval_dialog.dart';
 import 'package:vide_cli/modules/permissions/permission_scope.dart';
 import 'package:vide_cli/modules/permissions/permission_service.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_cli/modules/settings/settings_dialog.dart';
+import 'package:vide_client/src/remote_vide_session.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/modules/agent_network/state/vide_session_providers.dart';
+import 'package:vide_cli/modules/remote/daemon_connection_service.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_cli/modules/agent_network/state/prompt_history_provider.dart';
+import 'package:vide_cli/components/vide_scaffold.dart';
 
 class NetworkExecutionPage extends StatefulComponent {
-  final AgentNetworkId networkId;
+  final VideSession session;
 
-  const NetworkExecutionPage({required this.networkId, super.key});
+  const NetworkExecutionPage({required this.session, super.key});
 
-  static Future<void> push(BuildContext context, String networkId) async {
-    return Navigator.of(context).push<void>(
-      PageRoute(
-        builder: (context) => NetworkExecutionPage(networkId: networkId),
-        settings: RouteSettings(),
-      ),
-    );
+  static Future<void> push(BuildContext context, {required VideSession session}) async {
+    context.read(sessionSelectionProvider.notifier).selectSession(session);
+
+    // Mark session as seen on the daemon (best-effort).
+    final daemonState = context.read(daemonConnectionProvider);
+    if (daemonState.isConnected) {
+      context.read(daemonConnectionProvider.notifier).markSessionSeen(session.id);
+    }
+
+    return Navigator.of(
+      context,
+    ).push<void>(PageRoute(builder: (context) => NetworkExecutionPage(session: session), settings: RouteSettings()));
   }
 
   @override
@@ -49,75 +54,137 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
   bool _showQuitWarning = false;
   static const _quitTimeWindow = Duration(seconds: 2);
 
-  int selectedAgentIndex = 0;
+  /// Tracks whether conversation data has loaded for the main agent.
+  /// For local sessions this is true immediately; for remote sessions
+  /// the WebSocket must deliver history events first.
+  bool _conversationReady = false;
+  StreamSubscription<AgentConversationState>? _conversationReadySub;
+  String? _trackedAgentId;
+
+  /// Agents list, updated via direct session stream subscription.
+  List<VideAgent> _agents = const [];
+  StreamSubscription<List<VideAgent>>? _agentsSub;
+
+  /// Connection state for remote sessions.
+  bool _isConnected = true;
+  StreamSubscription<bool>? _connectionSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // We're not on the home page anymore - set this early so sidebar shows
+    context.read(isOnHomePageProvider.notifier).state = false;
+
+    final session = component.session;
+
+    // Subscribe to agents stream
+    _agents = session.state.agents;
+    _agentsSub = session.stateStream.map((s) => s.agents).listen((agents) {
+      if (mounted) setState(() => _agents = agents);
+    });
+
+    // Subscribe to connection stream (remote sessions only)
+    if (session is RemoteVideSession) {
+      _isConnected = session.isConnected;
+      _connectionSub = session.connectionStateStream.listen((connected) {
+        if (mounted) setState(() => _isConnected = connected);
+      });
+    }
+  }
+
+  void _trackConversationReady(VideSession session, String agentId) {
+    if (_trackedAgentId == agentId) return;
+    _conversationReadySub?.cancel();
+    _trackedAgentId = agentId;
+
+    // Check synchronously first
+    final existing = session.getConversation(agentId);
+    if (existing != null) {
+      _conversationReady = true;
+      return;
+    }
+
+    // Subscribe and wait for the first event
+    _conversationReadySub = session.conversationStream(agentId).listen((_) {
+      if (!_conversationReady && mounted) {
+        setState(() => _conversationReady = true);
+      }
+      _conversationReadySub?.cancel();
+      _conversationReadySub = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _conversationReadySub?.cancel();
+    _agentsSub?.cancel();
+    _connectionSub?.cancel();
+    // Back to home page
+    context.read(isOnHomePageProvider.notifier).state = true;
+    context.read(sessionSelectionProvider.notifier).clear();
+    super.dispose();
+  }
 
   Component _buildAgentChat(
     BuildContext context,
-    AgentNetworkState networkState, {
-    bool ideModeEnabled = false,
+    List<String> agentIds, {
+    required bool contentFocused,
+    required VoidCallback focusLeftSidebar,
+    required VoidCallback focusRightSidebar,
   }) {
-    // Clamp selectedAgentIndex to valid bounds after agents may have been removed
-    final safeIndex = selectedAgentIndex.clamp(
-      0,
-      networkState.agentIds.length - 1,
-    );
-    if (safeIndex != selectedAgentIndex) {
-      // Schedule index update for next frame to avoid setState during build
-      Future.microtask(() {
-        if (mounted) setState(() => selectedAgentIndex = safeIndex);
-      });
+    // Get selected agent ID from provider, or use the first agent
+    final sessionId = component.session.id;
+    final selectedAgentIdNotifier = context.read(selectedAgentIdProvider(sessionId).notifier);
+    final selectedAgentId = context.watch(selectedAgentIdProvider(sessionId));
+
+    // Find the selected agent, or default to the first agent
+    String agentId = selectedAgentId ?? (agentIds.isNotEmpty ? agentIds[0] : '');
+
+    // Ensure selected agent is still valid
+    if (!agentIds.contains(agentId) && agentIds.isNotEmpty) {
+      agentId = agentIds[0];
+      selectedAgentIdNotifier.state = agentId;
     }
-    final agentId = networkState.agentIds[safeIndex];
-    final session = context.watch(currentVideSessionProvider);
-    if (session == null) {
-      // Session still being created - show optimistic loading state
-      // This looks the same as when we're waiting for a response
-      final theme = VideTheme.of(context);
-      return Expanded(
-        child: Container(
-          decoration: BoxDecoration(title: BorderTitle(text: 'Main')),
-          child: Column(
-            children: [
-              Expanded(child: SizedBox()),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  EnhancedLoadingIndicator(agentId: agentId),
-                  SizedBox(width: 2),
-                  Text(
-                    '(Press ESC to stop)',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+
+    final session = component.session;
     return Expanded(
       child: _AgentChat(
         key: ValueKey(agentId),
+        session: session,
         agentId: agentId,
-        networkId: component.networkId,
+        networkId: session.id,
+        agents: _agents,
         showQuitWarning: _showQuitWarning,
-        ideModeEnabled: ideModeEnabled,
+        onExit: _exitWithDaemonCleanup,
+        contentFocused: contentFocused,
+        focusLeftSidebar: focusLeftSidebar,
+        focusRightSidebar: focusRightSidebar,
       ),
     );
+  }
+
+  Future<void> _exitWithDaemonCleanup() async {
+    final sessionId = component.session.id;
+    final daemonState = context.read(daemonConnectionProvider);
+    if (daemonState.isConnected) {
+      try {
+        await context
+            .read(daemonConnectionProvider.notifier)
+            .stopSession(sessionId)
+            .timeout(const Duration(seconds: 3));
+      } catch (_) {
+        // Best-effort — don't block exit if stop fails or times out.
+      }
+    }
+    shutdownApp();
   }
 
   void _handleCtrlC() {
     final now = DateTime.now();
 
-    if (_lastCtrlCPress != null &&
-        now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
-      // Second press within time window - quit app
-      shutdownApp();
+    if (_lastCtrlCPress != null && now.difference(_lastCtrlCPress!) < _quitTimeWindow) {
+      // Second press within time window - stop daemon session and quit
+      _exitWithDaemonCleanup();
     } else {
       // First press - show warning
       setState(() {
@@ -139,93 +206,104 @@ class _NetworkExecutionPageState extends State<NetworkExecutionPage> {
 
   @override
   Component build(BuildContext context) {
-    final networkState = context.watch(agentNetworkManagerProvider);
-    final currentNetwork = networkState.currentNetwork;
-    final workingDirectory = context
-        .read(agentNetworkManagerProvider.notifier)
-        .effectiveWorkingDirectory;
+    // Check connection state before building the full scaffold.
+    // Remote sessions start disconnected while the WebSocket connects.
+    final session = component.session;
 
-    // Check if IDE mode is enabled
-    final configManager = context.read(videConfigManagerProvider);
-    final ideModeEnabled = configManager.readGlobalSettings().ideModeEnabled;
+    if (!_isConnected) {
+      return _buildConnectingScreen(context, label: 'Connecting to session...');
+    }
 
-    // Display the network goal
-    final goalText = currentNetwork?.goal ?? 'Loading...';
+    final agentIds = _agents.map((a) => a.id).toList();
 
-    // Build the main content column
-    final content = Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Display the network goal with git branch indicator
-          Row(
+    // For remote sessions, conversation data loads asynchronously after
+    // the WebSocket connects. Show loading screen until it arrives to
+    // avoid a jarring empty scaffold.
+    if (agentIds.isNotEmpty) {
+      _trackConversationReady(session, agentIds.first);
+      if (!_conversationReady) {
+        return _buildConnectingScreen(context, label: 'Loading conversation...');
+      }
+    }
+
+    return VideScaffold(
+      session: session,
+      agents: _agents,
+      childBuilder: ({
+        required contentFocused,
+        required focusLeftSidebar,
+        required focusRightSidebar,
+      }) {
+        final content = Container(
+          padding: EdgeInsets.symmetric(horizontal: 1),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: TypingText(
-                  text: goalText,
-                  style: TextStyle(fontWeight: FontWeight.bold),
+              if (agentIds.isEmpty)
+                Center(child: Text('No agents'))
+              else
+                _buildAgentChat(
+                  context,
+                  agentIds,
+                  contentFocused: contentFocused,
+                  focusLeftSidebar: focusLeftSidebar,
+                  focusRightSidebar: focusRightSidebar,
                 ),
-              ),
-              GitBranchIndicator(repoPath: workingDirectory),
             ],
           ),
-          Divider(),
-          RunningAgentsBar(
-            agents: networkState.agents,
-            selectedIndex: selectedAgentIndex,
+        );
+
+        return PermissionScope(
+          session: session,
+          child: Focusable(
+            focused: true,
+            onKeyEvent: (event) {
+              if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
+                _handleCtrlC();
+                return true;
+              }
+              return false;
+            },
+            child: MouseRegion(child: content),
           ),
-          if (networkState.agentIds.isEmpty)
-            Center(child: Text('No agents'))
-          else
-            _buildAgentChat(
-              context,
-              networkState,
-              ideModeEnabled: ideModeEnabled,
-            ),
-        ],
-      ),
+        );
+      },
     );
+  }
 
-    return PermissionScope(
-      child: Focusable(
-        focused: true,
-        onKeyEvent: (event) {
-          // Tab: Cycle through agents
-          if (event.logicalKey == LogicalKey.tab &&
-              networkState.agentIds.isNotEmpty) {
-            setState(() {
-              selectedAgentIndex =
-                  (selectedAgentIndex + 1) % networkState.agentIds.length;
-            });
-            return true;
-          }
+  /// Full-screen loading state shown while connecting to a remote session
+  /// or waiting for conversation history to load.
+  Component _buildConnectingScreen(BuildContext context, {required String label}) {
+    final theme = VideTheme.of(context);
 
-          // Ctrl+C: Show quit warning (double press to quit)
-          if (event.logicalKey == LogicalKey.keyC && event.isControlPressed) {
-            _handleCtrlC();
-            return true;
-          }
-
-          return false;
-        },
-        child: MouseRegion(child: content),
-      ),
+    return Container(
+      decoration: BoxDecoration(color: theme.base.surface),
+      child: Center(child: ConnectingIndicator(label: label)),
     );
   }
 }
 
 class _AgentChat extends StatefulComponent {
+  final VideSession session;
   final String agentId;
   final String networkId;
+  final List<VideAgent> agents;
   final bool showQuitWarning;
-  final bool ideModeEnabled;
+  final Future<void> Function() onExit;
+  final bool contentFocused;
+  final VoidCallback focusLeftSidebar;
+  final VoidCallback focusRightSidebar;
 
   const _AgentChat({
+    required this.session,
     required this.agentId,
     required this.networkId,
+    required this.agents,
+    required this.onExit,
+    required this.contentFocused,
+    required this.focusLeftSidebar,
+    required this.focusRightSidebar,
     this.showQuitWarning = false,
-    this.ideModeEnabled = false,
     super.key,
   });
 
@@ -234,25 +312,42 @@ class _AgentChat extends StatefulComponent {
 }
 
 class _AgentChatState extends State<_AgentChat> {
-  StreamSubscription<Conversation>? _conversationSubscription;
+  StreamSubscription<AgentConversationState>? _conversationSubscription;
   StreamSubscription<String?>? _queueSubscription;
-  Conversation _conversation = Conversation.empty();
+  StreamSubscription<String?>? _modelSubscription;
+  AgentConversationState? _conversation;
   final _scrollController = AutoScrollController();
   String? _commandResult;
   bool _commandResultIsError = false;
   String? _queuedMessage;
+  String? _model;
+
+  /// Cached file list from git ls-files for @mention suggestions.
+  List<String>? _cachedFileList;
+  DateTime? _cachedFileListTimestamp;
+
+  /// Tracks attachments sent with user messages (keyed by message content).
+  final Map<String, List<AgentAttachment>> _sentAttachments = {};
+
+  Future<void> _loadInitialAgentRuntimeMetadata(VideSession session) async {
+    final queuedMessage = await session.getQueuedMessage(component.agentId);
+    final model = await session.getModel(component.agentId);
+    if (!mounted) return;
+    setState(() {
+      _queuedMessage = queuedMessage;
+      _model = model;
+    });
+    context.read(currentModelProvider(component.session.id).notifier).state = model;
+  }
 
   @override
   void initState() {
     super.initState();
 
-    final session = context.read(currentVideSessionProvider);
-    if (session == null) return;
+    final session = component.session;
 
     // Listen to conversation updates
-    _conversationSubscription = session.conversationStream(component.agentId).listen((
-      conversation,
-    ) {
+    _conversationSubscription = session.conversationStream(component.agentId).listen((conversation) {
       setState(() {
         _conversation = conversation;
       });
@@ -260,23 +355,29 @@ class _AgentChatState extends State<_AgentChat> {
       // Sync token stats to AgentMetadata for persistence and network-wide tracking
       _syncTokenStats(conversation, session);
     });
-    _conversation = session.getConversation(component.agentId) ?? Conversation.empty();
+    _conversation = session.getConversation(component.agentId);
 
     // Listen to queued message updates
     _queueSubscription = session.queuedMessageStream(component.agentId).listen((text) {
       setState(() => _queuedMessage = text);
     });
-    _queuedMessage = session.getQueuedMessage(component.agentId);
+
+    // Listen to model updates
+    _modelSubscription = session.modelStream(component.agentId).listen((model) {
+      setState(() => _model = model);
+      context.read(currentModelProvider(component.session.id).notifier).state = model;
+    });
+
+    unawaited(_loadInitialAgentRuntimeMetadata(session));
   }
 
-  void _syncTokenStats(Conversation conversation, VideSession session) {
+  void _syncTokenStats(AgentConversationState conversation, VideSession session) {
     session.updateAgentTokenStats(
       component.agentId,
       totalInputTokens: conversation.totalInputTokens,
       totalOutputTokens: conversation.totalOutputTokens,
       totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-      totalCacheCreationInputTokens:
-          conversation.totalCacheCreationInputTokens,
+      totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
       totalCostUsd: conversation.totalCostUsd,
     );
   }
@@ -285,57 +386,45 @@ class _AgentChatState extends State<_AgentChat> {
   void dispose() {
     _conversationSubscription?.cancel();
     _queueSubscription?.cancel();
+    _modelSubscription?.cancel();
     super.dispose();
   }
 
-  void _sendMessage(Message message) {
-    final session = context.read(currentVideSessionProvider);
-    // Note: session.sendMessage only takes String, not Message with attachments
-    // For now, send text only. Attachment support can be added to the API later.
-    session?.sendMessage(message.text, agentId: component.agentId);
+  void _sendMessage(AgentMessage message) {
+    if (message.attachments != null && message.attachments!.isNotEmpty) {
+      _sentAttachments[message.text] = message.attachments!;
+    }
+    component.session.sendMessage(message, agentId: component.agentId);
   }
 
   bool _isLastAgent() {
-    final network = context.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null) return true; // If no network, treat as last agent (safe default)
-    return network.agents.length <= 1;
+    return component.session.state.agents.length <= 1;
   }
 
   Future<void> _handleCommand(String commandInput) async {
-    final session = context.read(currentVideSessionProvider);
+    final session = component.session;
     final dispatcher = context.read(commandDispatcherProvider);
     final commandContext = CommandContext(
       agentId: component.agentId,
-      workingDirectory: session?.workingDirectory ?? '',
+      workingDirectory: session.state.workingDirectory,
       isLastAgent: _isLastAgent(),
       sendMessage: (message) {
-        session?.sendMessage(message, agentId: component.agentId);
+        session.sendMessage(AgentMessage(text: message), agentId: component.agentId);
       },
       clearConversation: () async {
-        await session?.clearConversation(agentId: component.agentId);
+        await session.clearConversation(agentId: component.agentId);
         setState(() {
-          _conversation = Conversation.empty();
+          _conversation = null;
         });
       },
-      exitApp: shutdownApp,
-      toggleIdeMode: () {
-        final container = ProviderScope.containerOf(context);
-        final current = container.read(ideModeEnabledProvider);
-        container.read(ideModeEnabledProvider.notifier).state = !current;
-
-        // Also persist to settings
-        final configManager = container.read(videConfigManagerProvider);
-        final settings = configManager.readGlobalSettings();
-        configManager.writeGlobalSettings(
-          settings.copyWith(ideModeEnabled: !current),
-        );
-      },
+      exitApp: component.onExit,
+      detachApp: shutdownApp,
       forkAgent: (name) async {
-        final newAgentId = await session?.forkAgent(component.agentId, name: name);
-        return newAgentId ?? '';
+        final newAgentId = await session.forkAgent(component.agentId, name: name);
+        return newAgentId;
       },
       killAgent: () async {
-        await session?.terminateAgent(
+        await session.terminateAgent(
           component.agentId,
           terminatedBy: component.agentId, // Self-termination
           reason: 'User invoked /kill command',
@@ -348,14 +437,40 @@ class _AgentChatState extends State<_AgentChat> {
           context,
           repoPath: repoPath,
           onSendMessage: (message) {
-            session?.sendMessage(message, agentId: component.agentId);
+            session.sendMessage(AgentMessage(text: message), agentId: component.agentId);
           },
-          onSwitchWorktree: (path) {
+          onSwitchWorktree: (path) async {
             final container = ProviderScope.containerOf(context);
             container.read(repoPathOverrideProvider.notifier).state = path;
-            container.read(agentNetworkManagerProvider.notifier).setWorktreePath(path);
+            // Use VideSession.setWorktreePath() instead of direct provider access
+            await session.setWorktreePath(path);
           },
         );
+      },
+      showSettingsDialog: () async {
+        await SettingsPopup.show(context);
+      },
+      getClaudeSettings: () => session.getClaudeSettings(),
+      applyClaudeSettings: (settings) =>
+          session.applyClaudeSettings(settings),
+      getMcpServers: () async {
+        final servers = await session.getMcpServers();
+        return servers
+            .where((s) => !s.name.startsWith('vide-'))
+            .map((s) => McpServerStatus(
+                  name: s.name,
+                  status: s.status.name,
+                  error: s.error,
+                ))
+            .toList();
+      },
+      reconnectMcpServer: (name) => session.reconnectMcpServer(name),
+      toggleMcpServer: (name, {required enabled}) =>
+          session.toggleMcpServer(name, enabled: enabled),
+      showSessionLogs: () {
+        final sessionId = session.id;
+        final logPath = VideLogger.instance.sessionLogPath(sessionId);
+        context.read(filePreviewPathProvider.notifier).state = logPath;
       },
     );
 
@@ -391,19 +506,48 @@ class _AgentChatState extends State<_AgentChat> {
     }).toList();
   }
 
-  List<Map<String, dynamic>>? _getLatestTodos() {
-    for (final message in _conversation.messages.reversed) {
-      for (final response in message.responses.reversed) {
-        if (response is ToolUseResponse && response.toolName == 'TodoWrite') {
-          final todos = response.parameters['todos'];
-          if (todos is List) {
-            return todos.cast<Map<String, dynamic>>();
-          }
+  Future<List<CommandSuggestion>> _getFileSuggestions(String query) async {
+    final workingDir = component.session.state.workingDirectory;
+    if (workingDir.isEmpty) return [];
+
+    final now = DateTime.now();
+    if (_cachedFileList == null ||
+        _cachedFileListTimestamp == null ||
+        now.difference(_cachedFileListTimestamp!) >
+            const Duration(seconds: 10)) {
+      try {
+        final result = await Process.run(
+          'git',
+          ['ls-files', '--cached', '--others', '--exclude-standard'],
+          workingDirectory: workingDir,
+        );
+        if (result.exitCode == 0) {
+          _cachedFileList = (result.stdout as String)
+              .split('\n')
+              .where((l) => l.isNotEmpty)
+              .toList();
+          _cachedFileListTimestamp = now;
         }
+      } catch (_) {
+        return [];
       }
     }
-    return null;
+
+    if (_cachedFileList == null) return [];
+
+    // Empty query: show first N files. Non-empty: filter by substring match.
+    final results = query.isEmpty
+        ? _cachedFileList!.take(10)
+        : _cachedFileList!
+            .where((f) => f.toLowerCase().contains(query.toLowerCase()))
+            .take(10);
+
+    return results
+        .map((f) => CommandSuggestion(name: f, description: 'file'))
+        .toList();
   }
+
+  List<Map<String, dynamic>>? _getLatestTodos() => _conversation?.latestTodos;
 
   void _handlePermissionResponse(
     PermissionRequest request,
@@ -411,39 +555,7 @@ class _AgentChatState extends State<_AgentChat> {
     bool remember, {
     String? patternOverride,
     String? denyReason,
-  }) async {
-    final permissionService = context.read(permissionServiceProvider);
-
-    // If remember and granted, decide where to store based on tool type
-    if (remember && granted) {
-      final toolName = request.toolName;
-      final toolInput = request.toolInput;
-
-      // Convert to type-safe ToolInput for pattern inference
-      final input = ToolInput.fromJson(toolName, toolInput);
-
-      // Check if this is a write operation
-      final isWriteOperation =
-          toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
-
-      if (isWriteOperation) {
-        // Add to session cache (in-memory only) using inferred pattern
-        final pattern =
-            patternOverride ?? PatternInference.inferPattern(toolName, input);
-        permissionService.addSessionPattern(pattern);
-      } else {
-        // Add to persistent whitelist with inferred pattern (or override)
-        final settingsManager = ClaudeSettingsManager(
-          projectRoot: request.cwd,
-        );
-
-        final pattern =
-            patternOverride ?? PatternInference.inferPattern(toolName, input);
-        await settingsManager.addToAllowList(pattern);
-      }
-    }
-
-    // Determine the reason for the response
+  }) {
     String reason;
     if (granted) {
       reason = 'User approved';
@@ -453,619 +565,235 @@ class _AgentChatState extends State<_AgentChat> {
       reason = 'User denied';
     }
 
-    permissionService.respondToPermission(
+    component.session.respondToPermission(
       request.requestId,
-      PermissionResponse(
-        decision: granted ? 'allow' : 'deny',
-        reason: reason,
-        remember: remember,
-      ),
+      allow: granted,
+      message: reason,
+      remember: remember,
+      patternOverride: patternOverride,
     );
 
     // Dequeue the current request to show the next one
-    context.read(permissionStateProvider.notifier).dequeueRequest();
+    context.read(permissionStateProvider(component.session.id).notifier).dequeueRequest();
   }
 
-  void _handleAskUserQuestionResponse(
-    AskUserQuestionRequest request,
-    Map<String, String> answers,
-  ) {
-    final askUserQuestionService = context.read(askUserQuestionServiceProvider);
-
-    // Send the response back to the MCP tool
-    askUserQuestionService.respondToRequest(
-      request.requestId,
-      AskUserQuestionResponse(answers: answers),
-    );
+  void _handleAskUserQuestionResponse(AskUserQuestionUIRequest request, Map<String, String> answers) {
+    // Send the response through the session (unified path for local and remote)
+    component.session.respondToAskUserQuestion(request.requestId, answers: answers);
 
     // Dequeue the current request to show the next one
-    context.read(askUserQuestionStateProvider.notifier).dequeueRequest();
+    context.read(askUserQuestionStateProvider(component.session.id).notifier).dequeueRequest();
+  }
+
+  void _handlePlanApprovalResponse(PlanApprovalUIRequest request, String action, String? feedback) {
+    component.session.respondToPlanApproval(request.requestId, action: action, feedback: feedback);
+
+    // Dequeue the current request to show the next one
+    context.read(planApprovalStateProvider(component.session.id).notifier).dequeueRequest();
+  }
+
+  void _handleEscape() {
+    // If there's a queued message, clear it first
+    if (_queuedMessage != null) {
+      unawaited(component.session.clearQueuedMessage(component.agentId));
+    } else {
+      // Otherwise abort the current processing
+      component.session.abortAgent(component.agentId);
+    }
   }
 
   bool _handleKeyEvent(KeyboardEvent event) {
-    if (event.logicalKey == LogicalKey.escape) {
-      final session = context.read(currentVideSessionProvider);
-      if (session == null) return false;
+    // Don't intercept keys when plan approval dialog is active —
+    // the dialog handles its own key events (Escape, Tab, etc.)
+    final planState = context.read(planApprovalStateProvider(component.session.id));
+    if (planState.current != null) return false;
 
-      // If there's a queued message, clear it first
-      if (_queuedMessage != null) {
-        session.clearQueuedMessage(component.agentId);
-        return true;
-      }
-      // Otherwise abort the current processing
-      session.abortAgent(component.agentId);
+    if (event.logicalKey == LogicalKey.escape) {
+      _handleEscape();
       return true;
     }
+
+    // Tab: Quick access to settings (when not consumed by text field autocomplete)
+    if (event.logicalKey == LogicalKey.tab) {
+      SettingsPopup.show(context);
+      return true;
+    }
+
     return false;
   }
 
-  Component _buildContextUsageSection(VideThemeData theme) {
-    // Use currentContextWindowTokens for context window percentage.
-    // This is the CURRENT context size (from latest turn), which includes:
-    // input_tokens + cache_read_input_tokens + cache_creation_input_tokens
-    // Cache tokens DO count towards context window - they're just read from cache.
-    final usedTokens = _conversation.currentContextWindowTokens;
-    final percentage = kClaudeContextWindowSize > 0
-        ? (usedTokens / kClaudeContextWindowSize).clamp(0.0, 1.0)
-        : 0.0;
-    final isWarningZone = percentage >= kContextWarningThreshold;
-    final isCautionZone = percentage >= kContextCautionThreshold;
-
-    // Only show context usage when it's getting full (>= 60%)
-    final showContextUsage = isCautionZone;
-
-    // If nothing to show, return empty
-    if (!showContextUsage && _conversation.totalCostUsd <= 0) {
-      return SizedBox();
-    }
-
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 1),
-      child: Row(
-        children: [
-          // Context usage indicator (only when >= caution threshold)
-          if (showContextUsage) ...[
-            ContextUsageIndicator(usedTokens: usedTokens),
-            SizedBox(width: 1),
-            Text(
-              'context',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-              ),
-            ),
-          ],
-
-          // Show /compact hint when in warning zone
-          if (isWarningZone) ...[
-            SizedBox(width: 1),
-            Text(
-              '(/compact)',
-              style: TextStyle(color: theme.base.error.withOpacity(0.7)),
-            ),
-          ],
-        ],
-      ),
-    );
+  /// Builds the filtered list of messages (excluding slash commands and
+  /// entries that consist entirely of hidden/invisible tools).
+  List<ConversationEntry> _getFilteredMessages() {
+    final conv = _conversation;
+    if (conv == null) return [];
+    return conv.messages.reversed.where((entry) => !entry.isSlashCommand && !entry.isAllHidden).toList();
   }
 
-  /// Builds the filtered list of messages (excluding slash commands)
-  List<ConversationMessage> _getFilteredMessages() {
-    return _conversation.messages.reversed
-        .where((message) => !(message.role == MessageRole.user &&
-            message.content.startsWith('/')))
-        .toList();
-  }
+  /// Whether the current agent is working.
+  ///
+  /// Uses [AgentConversationState.isProcessing] which is updated synchronously
+  /// via the sync broadcast event stream, so it's correct immediately after
+  /// [sendMessage] — unlike [videSessionAgentsProvider] which is stream-based
+  /// and can miss the initial status event on broadcast streams.
+  bool get _isAgentWorking => _conversation?.isProcessing ?? false;
 
   /// Builds the message list using ListView.builder for better performance.
   /// This avoids rebuilding all messages when unrelated state changes (like spinner).
   Component _buildMessageList(BuildContext context) {
+    final filteredMessages = _getFilteredMessages();
     final todos = _getLatestTodos();
     final hasTodos = todos != null && todos.isNotEmpty;
-    final filteredMessages = _getFilteredMessages();
+    final itemCount = filteredMessages.length + (hasTodos ? 1 : 0);
 
-    // Total items = todos (if any) + filtered messages
-    final itemCount = (hasTodos ? 1 : 0) + filteredMessages.length;
+    return SelectionArea(
+      onSelectionCompleted: ClipboardManager.copy,
+      child: ListView.builder(
+        controller: _scrollController,
+        reverse: true,
+        padding: EdgeInsets.all(1),
+        lazy: true,
+        itemCount: itemCount,
+        itemBuilder: (context, index) {
+          // Index 0 in reversed list = bottom of chat. Show todo list there.
+          if (hasTodos && index == 0) {
+            return Padding(
+              padding: EdgeInsets.only(top: 1),
+              child: TodoListComponent(todos: todos),
+            );
+          }
 
-    return ListView.builder(
-      controller: _scrollController,
-      reverse: true,
-      padding: EdgeInsets.all(1),
-      lazy: true,
-      itemCount: itemCount,
-      itemBuilder: (context, index) {
-        // First item (index 0) is the todo list if it exists
-        if (hasTodos && index == 0) {
-          return TodoListComponent(todos: todos);
-        }
+          final messageIndex = hasTodos ? index - 1 : index;
+          final message = filteredMessages[messageIndex];
+          final workingDir = component.session.state.workingDirectory;
 
-        // Adjust index for messages (subtract 1 if todos exist)
-        final messageIndex = hasTodos ? index - 1 : index;
-        final message = filteredMessages[messageIndex];
-        return _buildMessage(context, message);
-      },
+          // Render system-like user messages (e.g. "[Request interrupted by user]")
+          // as dimmed inline text instead of a full user message bubble.
+          final isSystemLike = message.role == MessageRole.user &&
+              message.text.startsWith('[') &&
+              message.text.endsWith(']');
+
+          return Padding(
+            padding: EdgeInsets.only(top: 1),
+            child: switch (message.role) {
+              MessageRole.user when isSystemLike => _SystemMessageRenderer(
+                key: ValueKey(message.hashCode),
+                text: message.text,
+              ),
+              MessageRole.user => UserMessageRenderer(
+                key: ValueKey(message.hashCode),
+                entry: message,
+                sentAttachments: _sentAttachments,
+              ),
+              MessageRole.system => _SystemMessageRenderer(
+                key: ValueKey(message.hashCode),
+                text: message.text,
+              ),
+              MessageRole.assistant => AssistantEntryRenderer(
+                key: ValueKey(message.hashCode),
+                entry: message,
+                networkId: component.networkId,
+                agentId: component.agentId,
+                workingDirectory: workingDir,
+              ),
+            },
+          );
+        },
+      ),
     );
   }
 
   @override
   Component build(BuildContext context) {
-    final theme = VideTheme.of(context);
-
-    // Get the current permission queue state from the provider
-    final permissionQueueState = context.watch(permissionStateProvider);
-    final currentPermissionRequest = permissionQueueState.current;
-
-    // Get the current AskUserQuestion queue state from the provider
-    final askUserQuestionQueueState = context.watch(
-      askUserQuestionStateProvider,
-    );
-    final currentAskUserQuestionRequest = askUserQuestionQueueState.current;
+    // Get the current plan approval queue state from the provider
+    final planApprovalQueueState = context.watch(planApprovalStateProvider(component.session.id));
+    final currentPlanApproval = planApprovalQueueState.current;
 
     return Focusable(
       onKeyEvent: _handleKeyEvent,
       focused: true,
-      child: Container(
-        decoration: BoxDecoration(
-          title: BorderTitle(text: component.key.toString()),
-        ),
-        child: Column(
-          children: [
-            // Messages area
-            Expanded(
-              child: _buildMessageList(context),
-            ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate the max height available for dialogs inside the input area.
+          // Reserve space for the loading indicator line, text field, and
+          // context bar (~4 lines) so the dialog doesn't push them off-screen.
+          final maxDialogHeight = (constraints.maxHeight - 4).clamp(4.0, double.infinity);
 
-            // Input area - conditionally show permission dialog or text field
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+          return Container(
+            child: Column(
               children: [
-                // Show queued message indicator above the generating indicator
-                if (_queuedMessage != null)
-                  QueueIndicator(
-                    queuedText: _queuedMessage!,
-                    onClear: () {
-                      final session = context.read(currentVideSessionProvider);
-                      session?.clearQueuedMessage(component.agentId);
-                    },
+                // Messages area (hidden when plan approval is active to give it
+                // the full Expanded space for scrolling)
+                if (currentPlanApproval == null)
+                  Expanded(
+                    child: _conversation == null
+                        ? Center(child: EnhancedLoadingIndicator())
+                        : _buildMessageList(context),
                   ),
 
-                // Loading indicator row - always 1 cell height to prevent layout jumps
-                if (_conversation.isProcessing &&
-                    currentAskUserQuestionRequest == null &&
-                    currentPermissionRequest == null)
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      EnhancedLoadingIndicator(agentId: component.agentId),
-                      SizedBox(width: 2),
-                      Text(
-                        '(Press ESC to stop)',
-                        style: TextStyle(
-                          color: theme.base.onSurface.withOpacity(
-                            TextOpacity.tertiary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(' '), // Reserve 1 line when loading indicator is hidden
-                // Show quit warning if active
-                if (component.showQuitWarning)
-                  Text(
-                    '(Press Ctrl+C again to quit)',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
+                // Plan approval dialog takes the Expanded slot when active
+                if (currentPlanApproval != null)
+                  Expanded(
+                    child: PlanApprovalDialog(
+                      request: currentPlanApproval,
+                      onResponse: (action, feedback) =>
+                          _handlePlanApprovalResponse(currentPlanApproval, action, feedback),
+                      key: Key('plan_approval_${currentPlanApproval.requestId}'),
                     ),
                   ),
 
-                // Show AskUserQuestion dialog above text field (if active)
-                if (currentAskUserQuestionRequest != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Show queue length if there are more questions waiting
-                      if (askUserQuestionQueueState.queueLength > 1)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 1,
-                            vertical: 0,
-                          ),
-                          child: Text(
-                            'Question 1 of ${askUserQuestionQueueState.queueLength} (${askUserQuestionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(
-                              color: theme.base.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      AskUserQuestionDialog(
-                        request: currentAskUserQuestionRequest,
-                        onSubmit: (answers) => _handleAskUserQuestionResponse(
-                          currentAskUserQuestionRequest,
-                          answers,
-                        ),
-                        key: Key(
-                          'ask_user_question_${currentAskUserQuestionRequest.requestId}',
-                        ),
-                      ),
-                    ],
-                  )
-                // Show permission dialog above text field (if active)
-                else if (currentPermissionRequest != null)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Show queue length if there are more requests waiting
-                      if (permissionQueueState.queueLength > 1)
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 1,
-                            vertical: 0,
-                          ),
-                          child: Text(
-                            'Permission 1 of ${permissionQueueState.queueLength} (${permissionQueueState.queueLength - 1} more in queue)',
-                            style: TextStyle(
-                              color: theme.base.warning,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      PermissionDialog.fromRequest(
-                        request: currentPermissionRequest,
-                        onResponse:
-                            (
-                              granted,
-                              remember, {
-                              String? patternOverride,
-                              String? denyReason,
-                            }) => _handlePermissionResponse(
-                              currentPermissionRequest,
-                              granted,
-                              remember,
-                              patternOverride: patternOverride,
-                              denyReason: denyReason,
-                            ),
-                        key: Key(
-                          'permission_${currentPermissionRequest.requestId}',
-                        ),
-                      ),
-                    ],
-                  ),
-
-                // Text field - rendered when no dialogs are active
-                // Text persists through pendingInputTextProvider when dialogs appear
-                if (currentAskUserQuestionRequest == null &&
-                    currentPermissionRequest == null)
-                  Builder(
-                    builder: (context) {
-                      final promptHistory =
-                          context.watch(promptHistoryProvider);
-                      final pendingText =
-                          context.watch(pendingInputTextProvider);
-                      return AttachmentTextField(
-                        focused: !context.watch(sidebarFocusProvider) &&
-                            !context.watch(mcpPanelFocusProvider),
-                        enabled:
-                            true, // Always enabled - messages queue during processing
-                        placeholder: 'Type a message...',
-                        initialText: pendingText,
-                        onTextChanged: (text) => context
-                            .read(pendingInputTextProvider.notifier)
-                            .state = text,
-                        onSubmit: (message) {
-                          // Clear pending text on submit
-                          context
-                              .read(pendingInputTextProvider.notifier)
-                              .state = '';
-                          _sendMessage(message);
-                        },
-                        onCommand: (cmd) {
-                          // Clear pending text on command
-                          context
-                              .read(pendingInputTextProvider.notifier)
-                              .state = '';
-                          _handleCommand(cmd);
-                        },
-                        commandSuggestions: _getCommandSuggestions,
-                        promptHistory: promptHistory,
-                        onPromptSubmitted: (prompt) => context
-                            .read(promptHistoryProvider.notifier)
-                            .addPrompt(prompt),
-                        onLeftEdge: component.ideModeEnabled
-                            ? () => context
-                                .read(sidebarFocusProvider.notifier)
-                                .state = true
-                            : null,
-                        onRightEdge: component.ideModeEnabled
-                            ? () => context
-                                .read(mcpPanelFocusProvider.notifier)
-                                .state = true
-                            : null,
-                        onEscape: () {
-                          final session = context.read(currentVideSessionProvider);
-                          if (session == null) return;
-                          // If there's a queued message, clear it first
-                          if (_queuedMessage != null) {
-                            session.clearQueuedMessage(component.agentId);
-                          } else {
-                            // Otherwise abort the current processing
-                            session.abortAgent(component.agentId);
-                          }
-                        },
-                      );
-                    },
-                  ),
-
-                // Command result feedback
-                if (_commandResult != null)
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 1),
-                    child: Text(
-                      _commandResult!,
-                      style: TextStyle(
-                        color: _commandResultIsError
-                            ? theme.base.error
-                            : theme.base.onSurface.withOpacity(
-                                TextOpacity.secondary,
-                              ),
-                      ),
-                    ),
-                  ),
-
-                // Context usage bar with compact button
-                _buildContextUsageSection(theme),
+                // Input area
+                ChatInputArea(
+                  agentId: component.agentId,
+                  sessionId: component.session.id,
+                  agents: component.agents,
+                  queuedMessage: _queuedMessage,
+                  isAgentWorking: _isAgentWorking,
+                  showQuitWarning: component.showQuitWarning,
+                  hasPlanApproval: currentPlanApproval != null,
+                  commandResult: _commandResult,
+                  commandResultIsError: _commandResultIsError,
+                  conversation: _conversation,
+                  model: _model,
+                  maxDialogHeight: maxDialogHeight,
+                  onClearQueue: () {
+                    unawaited(component.session.clearQueuedMessage(component.agentId));
+                  },
+                  onSendMessage: _sendMessage,
+                  onCommand: _handleCommand,
+                  onPermissionResponse: _handlePermissionResponse,
+                  onAskUserQuestionResponse: _handleAskUserQuestionResponse,
+                  onEscape: _handleEscape,
+                  commandSuggestions: _getCommandSuggestions,
+                  fileSuggestions: _getFileSuggestions,
+                  contentFocused: component.contentFocused,
+                  onFocusLeftSidebar: component.focusLeftSidebar,
+                  onFocusRightSidebar: component.focusRightSidebar,
+                ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
+}
 
-  Component _buildMessage(BuildContext context, ConversationMessage message) {
+/// Renders a system message (e.g. context compaction boundary, request
+/// interrupted) as a left-aligned, dimmed line.
+class _SystemMessageRenderer extends StatelessComponent {
+  final String text;
+
+  const _SystemMessageRenderer({required this.text, super.key});
+
+  @override
+  Component build(BuildContext context) {
     final theme = VideTheme.of(context);
-
-    // Check for compact boundary message using messageType
-    if (message.messageType == MessageType.compactBoundary) {
-      // Extract compact metadata for display
-      final compactResponse =
-          message.responses.firstWhere((r) => r is CompactBoundaryResponse)
-              as CompactBoundaryResponse;
-      final trigger = compactResponse.trigger;
-      final preTokens = compactResponse.preTokens;
-
-      return Container(
-        padding: EdgeInsets.symmetric(vertical: 1),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '────────────── Conversation Compacted ($trigger) ──────────────',
-                    style: TextStyle(
-                      color: theme.base.onSurface.withOpacity(
-                        TextOpacity.tertiary,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (preTokens > 0)
-              Text(
-                'Previous context: ${(preTokens / 1000).toStringAsFixed(0)}k tokens',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
-
-    // Check for compact summary user message
-    if (message.messageType == MessageType.compactSummary) {
-      // Show compact summary as collapsed/truncated
-      final summaryPreview = message.content.length > 100
-          ? '${message.content.substring(0, 100)}...'
-          : message.content;
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '📋 Continuation Summary',
-              style: TextStyle(
-                color: theme.base.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              summaryPreview,
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (message.role == MessageRole.user) {
-      return Container(
-        padding: EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '> ${message.content}',
-              style: TextStyle(color: theme.base.onSurface),
-            ),
-            if (message.attachments != null && message.attachments!.isNotEmpty)
-              for (var attachment in message.attachments!)
-                Text(
-                  '  📎 ${attachment.path ?? "image"}',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-          ],
-        ),
-      );
-    } else {
-      // Build tool results lookup for pairing with tool calls
-      final toolResultsById = <String, ToolResultResponse>{};
-      for (final response in message.responses) {
-        if (response is ToolResultResponse) {
-          toolResultsById[response.toolUseId] = response;
-        }
-      }
-
-      // Process responses in order, preserving interleaving of text and tool calls.
-      // Text segments are accumulated between tool calls to handle streaming deltas.
-      final widgets = <Component>[];
-      final renderedToolResults = <String>{};
-
-      // Track text accumulation for the current segment
-      final textBuffer = StringBuffer();
-      bool hasPartialInSegment = false;
-
-      // Helper to flush accumulated text as a widget
-      void flushTextSegment() {
-        final text = textBuffer.toString();
-        if (text.isNotEmpty) {
-          // Check for context-full errors and add helpful hint
-          final isContextFullError =
-              text.toLowerCase().contains('prompt is too long') ||
-              text.toLowerCase().contains('context window') ||
-              text.toLowerCase().contains('token limit');
-
-          widgets.add(MarkdownText(text));
-
-          if (isContextFullError) {
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(top: 1),
-                child: Text(
-                  '💡 Tip: Type /compact to free up context space',
-                  style: TextStyle(color: theme.base.primary),
-                ),
-              ),
-            );
-          }
-        }
-        textBuffer.clear();
-        hasPartialInSegment = false;
-      }
-
-      for (final response in message.responses) {
-        if (response is TextResponse) {
-          // Accumulate text for the current segment, handling streaming deduplication.
-          // When we have partial (delta) responses, only use those.
-          // When we have cumulative responses, use only the last one (clear before writing).
-          if (response.isPartial) {
-            hasPartialInSegment = true;
-            textBuffer.write(response.content);
-          } else if (response.isCumulative) {
-            // Cumulative contains full text up to this point - only use if no partials
-            if (!hasPartialInSegment) {
-              textBuffer.clear();
-              textBuffer.write(response.content);
-            }
-            // If we have partials, ignore cumulative to avoid duplicates
-          } else {
-            // Sequential non-partial, non-cumulative - concatenate
-            textBuffer.write(response.content);
-          }
-        } else if (response is ToolUseResponse) {
-          // Flush any accumulated text before this tool call
-          flushTextSegment();
-
-          // Check if we have a result for this tool call
-          final result = response.toolUseId != null
-              ? toolResultsById[response.toolUseId]
-              : null;
-
-          // Use factory method to create typed invocation
-          final invocation = ConversationMessage.createTypedInvocation(
-            response,
-            result,
-          );
-
-          final session = context.read(currentVideSessionProvider);
-          widgets.add(
-            ToolInvocationRouter(
-              key: ValueKey(response.toolUseId ?? response.id),
-              invocation: invocation,
-              workingDirectory: session?.workingDirectory ?? '',
-              executionId: component.networkId,
-              agentId: component.agentId,
-            ),
-          );
-          if (result != null && response.toolUseId != null) {
-            renderedToolResults.add(response.toolUseId!);
-          }
-        } else if (response is ToolResultResponse) {
-          // Tool results are paired with their calls above, so we skip them here
-          // unless they're orphaned (which shouldn't normally happen)
-          if (!renderedToolResults.contains(response.toolUseId)) {
-            flushTextSegment();
-            widgets.add(
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[orphaned result: ${response.content}]',
-                  style: TextStyle(color: theme.base.error),
-                ),
-              ),
-            );
-          }
-        }
-      }
-
-      // Flush any remaining text after the last tool call
-      flushTextSegment();
-
-      // Show loading indicator if streaming with no content yet
-      if (widgets.isEmpty && message.isStreaming) {
-        widgets.add(EnhancedLoadingIndicator(agentId: component.agentId));
-      }
-
-      return Container(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ...widgets,
-
-            // If no responses yet but streaming, show loading
-            if (message.responses.isEmpty && message.isStreaming)
-              EnhancedLoadingIndicator(agentId: component.agentId),
-
-            if (message.error != null)
-              Container(
-                padding: EdgeInsets.only(left: 2, top: 1),
-                child: Text(
-                  '[error: ${message.error}]',
-                  style: TextStyle(
-                    color: theme.base.onSurface.withOpacity(
-                      TextOpacity.secondary,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      );
-    }
+    return Text(
+      text,
+      style: TextStyle(
+        color: theme.base.onSurface.withOpacity(TextOpacity.tertiary),
+      ),
+    );
   }
 }

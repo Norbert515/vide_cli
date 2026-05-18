@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 import '../helpers/mock_vide_config_manager.dart';
 import '../helpers/test_fixtures.dart';
 
@@ -216,6 +217,168 @@ void main() {
       });
     });
 
+    group('project path isolation', () {
+      test('different project paths have separate storage', () async {
+        final managerA = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/alpha',
+        );
+        final managerB = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/beta',
+        );
+
+        await managerA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'alpha-session', goal: 'Alpha goal'),
+        );
+        await managerB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'beta-session', goal: 'Beta goal'),
+        );
+
+        final alphaNetworks = await managerA.loadNetworks();
+        final betaNetworks = await managerB.loadNetworks();
+
+        expect(alphaNetworks.length, 1);
+        expect(alphaNetworks[0].id, 'alpha-session');
+
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].id, 'beta-session');
+      });
+
+      test('deleting from one project does not affect another', () async {
+        final managerA = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/alpha',
+        );
+        final managerB = AgentNetworkPersistenceManager(
+          configManager: configManager,
+          projectPath: '/project/beta',
+        );
+
+        await managerA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'shared-id', goal: 'Alpha'),
+        );
+        await managerB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'shared-id', goal: 'Beta'),
+        );
+
+        await managerA.deleteNetwork('shared-id');
+
+        final alphaNetworks = await managerA.loadNetworks();
+        final betaNetworks = await managerB.loadNetworks();
+
+        expect(alphaNetworks, isEmpty);
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].goal, 'Beta');
+      });
+    });
+
+    group('Riverpod provider scoping', () {
+      test('provider uses workingDirProvider for project scoping', () async {
+        final containerA = ProviderContainer(
+          overrides: [
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/project/alpha',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
+          ],
+        );
+        final containerB = ProviderContainer(
+          overrides: [
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/project/beta',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
+          ],
+        );
+
+        addTearDown(() {
+          containerA.dispose();
+          containerB.dispose();
+        });
+
+        final pmA = containerA.read(agentNetworkPersistenceManagerProvider);
+        final pmB = containerB.read(agentNetworkPersistenceManagerProvider);
+
+        await pmA.saveNetwork(
+          TestFixtures.agentNetwork(id: 'alpha-net', goal: 'Alpha work'),
+        );
+        await pmB.saveNetwork(
+          TestFixtures.agentNetwork(id: 'beta-net', goal: 'Beta work'),
+        );
+
+        final alphaNetworks = await pmA.loadNetworks();
+        final betaNetworks = await pmB.loadNetworks();
+
+        expect(alphaNetworks.length, 1);
+        expect(alphaNetworks[0].id, 'alpha-net');
+
+        expect(betaNetworks.length, 1);
+        expect(betaNetworks[0].id, 'beta-net');
+      });
+
+      test('isolated containers scope persistence independently', () async {
+        // Simulates server mode: root container has daemon CWD,
+        // but isolated session containers have client CWDs.
+        final rootContainer = ProviderContainer(
+          overrides: [
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/daemon/cwd',
+                configManager: configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
+          ],
+        );
+        addTearDown(rootContainer.dispose);
+
+        // Simulate creating an isolated container for a client session
+        // (mimics _containerForSession in LocalVideSessionManager)
+        final clientContainer = ProviderContainer(
+          overrides: [
+            videCoreConfigProvider.overrideWithValue(
+              VideCoreConfig(
+                workingDirectory: '/client/project',
+                configManager: rootContainer
+                    .read(videCoreConfigProvider)
+                    .configManager,
+                permissionHandler: PermissionHandler(),
+              ),
+            ),
+          ],
+        );
+        addTearDown(clientContainer.dispose);
+
+        final rootPm = rootContainer.read(
+          agentNetworkPersistenceManagerProvider,
+        );
+        final clientPm = clientContainer.read(
+          agentNetworkPersistenceManagerProvider,
+        );
+
+        // Save via client container (simulates session creation)
+        await clientPm.saveNetwork(
+          TestFixtures.agentNetwork(id: 'client-session'),
+        );
+
+        // Root container should NOT see the client's session
+        final rootNetworks = await rootPm.loadNetworks();
+        expect(rootNetworks, isEmpty);
+
+        // Client container should see its own session
+        final clientNetworks = await clientPm.loadNetworks();
+        expect(clientNetworks.length, 1);
+        expect(clientNetworks[0].id, 'client-session');
+      });
+    });
+
     group('agent metadata preservation', () {
       test('preserves full agent metadata through serialization', () async {
         final agents = [
@@ -224,15 +387,13 @@ void main() {
             name: 'Main',
             type: 'main',
             createdAt: DateTime(2024, 1, 15, 10, 30),
-            status: AgentStatus.working,
           ),
           AgentMetadata(
             id: 'impl-agent',
-            name: 'Implementation',
-            type: 'implementation',
+            name: 'Implementer',
+            type: 'implementer',
             spawnedBy: 'main-agent',
             createdAt: DateTime(2024, 1, 15, 10, 35),
-            status: AgentStatus.waitingForAgent,
             taskName: 'Fix bug',
           ),
         ];
@@ -254,13 +415,11 @@ void main() {
         final mainAgent = loaded.agents.firstWhere((a) => a.id == 'main-agent');
         expect(mainAgent.name, 'Main');
         expect(mainAgent.type, 'main');
-        expect(mainAgent.status, AgentStatus.working);
 
         final implAgent = loaded.agents.firstWhere((a) => a.id == 'impl-agent');
-        expect(implAgent.name, 'Implementation');
-        expect(implAgent.type, 'implementation');
+        expect(implAgent.name, 'Implementer');
+        expect(implAgent.type, 'implementer');
         expect(implAgent.spawnedBy, 'main-agent');
-        expect(implAgent.status, AgentStatus.waitingForAgent);
         expect(implAgent.taskName, 'Fix bug');
 
         expect(loaded.worktreePath, '/path/to/worktree');

@@ -37,6 +37,11 @@ class ClaudeConfig {
   /// The new session will start with the full conversation history from the source.
   final bool forkSession;
 
+  /// Whether to skip all permission checks.
+  /// DANGEROUS: Only use in sandboxed environments (Docker) where filesystem
+  /// isolation protects the host system. This bypasses all safety checks.
+  final bool dangerouslySkipPermissions;
+
   const ClaudeConfig({
     this.model,
     this.timeout = const Duration(seconds: 120),
@@ -57,6 +62,7 @@ class ClaudeConfig {
     this.enableStreaming = true,
     this.resumeSessionId,
     this.forkSession = false,
+    this.dangerouslySkipPermissions = false,
   });
 
   factory ClaudeConfig.defaults() => const ClaudeConfig();
@@ -146,6 +152,11 @@ class ClaudeConfig {
       args.addAll(additionalFlags!);
     }
 
+    // DANGEROUS: Skip all permission checks (only for sandboxed environments)
+    if (dangerouslySkipPermissions) {
+      args.add('--dangerously-skip-permissions');
+    }
+
     return args;
   }
 
@@ -169,6 +180,7 @@ class ClaudeConfig {
     bool? enableStreaming,
     String? resumeSessionId,
     bool? forkSession,
+    bool? dangerouslySkipPermissions,
   }) {
     return ClaudeConfig(
       model: model ?? this.model,
@@ -190,6 +202,8 @@ class ClaudeConfig {
       enableStreaming: enableStreaming ?? this.enableStreaming,
       resumeSessionId: resumeSessionId ?? this.resumeSessionId,
       forkSession: forkSession ?? this.forkSession,
+      dangerouslySkipPermissions:
+          dangerouslySkipPermissions ?? this.dangerouslySkipPermissions,
     );
   }
 }

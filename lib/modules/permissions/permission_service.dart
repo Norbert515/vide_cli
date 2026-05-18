@@ -1,13 +1,14 @@
-import 'dart:async';
 import 'package:riverpod/riverpod.dart';
-import 'package:uuid/uuid.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 
 // =============================================================================
 // Data Classes
 // =============================================================================
 
-/// Permission request from Claude Code hook
+/// Permission request for display in the UI.
+///
+/// All permission requests (local and remote) flow through VideSession.events
+/// as PermissionRequestEvent. This class is the UI-friendly wrapper.
 class PermissionRequest {
   final String requestId;
   final String toolName;
@@ -36,6 +37,20 @@ class PermissionRequest {
     );
   }
 
+  /// Create a permission request from a PermissionRequestEvent.
+  factory PermissionRequest.fromEvent(
+    PermissionRequestEvent event,
+    String cwd,
+  ) {
+    return PermissionRequest(
+      requestId: event.requestId,
+      toolName: event.toolName,
+      toolInput: event.toolInput,
+      cwd: cwd,
+      inferredPattern: event.inferredPattern,
+    );
+  }
+
   String get displayAction {
     switch (toolName) {
       case 'Bash':
@@ -54,126 +69,60 @@ class PermissionRequest {
         return 'Use $toolName';
     }
   }
-}
 
-/// Permission response to Claude Code hook
-class PermissionResponse {
-  final String decision;
-  final String? reason;
-  final bool remember;
-
-  PermissionResponse({
-    required this.decision,
-    this.reason,
-    required this.remember,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'decision': decision,
-    if (reason != null) 'reason': reason,
-    'remember': remember,
-  };
-}
-
-final permissionServiceProvider = Provider<PermissionService>((ref) {
-  final service = PermissionService();
-  ref.onDispose(() => service.dispose());
-  return service;
-});
-
-class PermissionService {
-  final PermissionChecker _checker = PermissionChecker();
-
-  final _requestController = StreamController<PermissionRequest>.broadcast();
-  final Map<String, Completer<PermissionResponse>> _pendingRequests = {};
-
-  /// Stream of permission requests for the UI
-  Stream<PermissionRequest> get requests => _requestController.stream;
-
-  /// Respond to a permission request
-  void respondToPermission(String requestId, PermissionResponse response) {
-    _pendingRequests[requestId]?.complete(response);
-  }
-
-  /// Delegate to checker
-  bool isAllowedBySessionCache(
-    String toolName,
-    Map<String, dynamic> toolInput,
-  ) {
-    final input = ToolInput.fromJson(toolName, toolInput);
-    return _checker.isAllowedBySessionCache(toolName, input);
-  }
-
-  void addSessionPattern(String pattern) {
-    _checker.addSessionPattern(pattern);
-  }
-
-  void clearSessionCache() {
-    _checker.clearSessionCache();
-  }
-
-  /// Check permission for a tool use via control protocol callback.
-  /// This method is designed to be passed as the `canUseTool` callback to ClaudeClient.create().
-  ///
-  /// [toolName] - The name of the tool being invoked
-  /// [toolInput] - The input parameters for the tool
-  /// [context] - Additional context from the control protocol
-  /// [cwd] - The current working directory (needed for settings lookup)
-  Future<PermissionResult> checkToolPermission(
-    String toolName,
-    Map<String, dynamic> toolInput,
-    ToolPermissionContext context, {
-    required String cwd,
-  }) async {
-    // Convert raw map to type-safe ToolInput
-    final input = ToolInput.fromJson(toolName, toolInput);
-
-    final result = await _checker.checkPermission(
-      toolName: toolName,
-      input: input,
-      cwd: cwd,
-    );
-
-    switch (result) {
-      case PermissionAllow():
-        return const PermissionResultAllow();
-      case PermissionDeny(reason: final reason):
-        return PermissionResultDeny(message: reason);
-      case PermissionAskUser(inferredPattern: final inferredPattern):
-        // Create completer for user response
-        final requestId = const Uuid().v4();
-        final completer = Completer<PermissionResponse>();
-        _pendingRequests[requestId] = completer;
-
-        // Create a PermissionRequest for the UI
-        final permissionRequest = PermissionRequest(
-          requestId: requestId,
-          toolName: toolName,
-          toolInput: toolInput,
-          cwd: cwd,
-          inferredPattern: inferredPattern,
-        );
-
-        // Emit request to UI
-        _requestController.add(permissionRequest);
-
-        // Wait for user response
-        final response = await completer.future;
-        _pendingRequests.remove(requestId);
-
-        if (response.decision == 'allow') {
-          return const PermissionResultAllow();
-        } else {
-          return PermissionResultDeny(
-            message: response.reason ?? 'Permission denied by user',
-          );
-        }
+  /// Label for the action type (e.g. "Command", "File", "URL").
+  String get actionLabel {
+    switch (toolName) {
+      case 'Bash':
+        return 'Command';
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return 'File';
+      case 'WebFetch':
+        return 'URL';
+      case 'WebSearch':
+        return 'Query';
+      default:
+        return toolName;
     }
   }
 
-  /// Dispose all resources
-  Future<void> dispose() async {
-    _checker.dispose();
-    await _requestController.close();
+  /// Raw action value without the prefix (e.g. "ls -la" instead of "Run: ls -la").
+  String get rawAction {
+    switch (toolName) {
+      case 'Bash':
+        return '${toolInput['command']}';
+      case 'Write':
+      case 'Edit':
+      case 'MultiEdit':
+        return '${toolInput['file_path']}';
+      case 'WebFetch':
+        return '${toolInput['url']}';
+      case 'WebSearch':
+        return '${toolInput['query']}';
+      default:
+        return 'Use $toolName';
+    }
   }
+}
+
+/// Provider for permission service (now just a placeholder for backwards compat).
+///
+/// Permission checking and response handling now flows through VideSession.
+/// This provider is kept for any remaining references but may be removed.
+final permissionServiceProvider = Provider<PermissionService>((ref) {
+  return PermissionService();
+});
+
+/// Permission service - now a minimal utility class.
+///
+/// Previously this handled the full permission request/response flow,
+/// but that has been unified into VideSession. This class is kept for
+/// backwards compatibility and potential future utility methods.
+class PermissionService {
+  PermissionService();
+
+  /// Dispose resources (currently a no-op)
+  void dispose() {}
 }

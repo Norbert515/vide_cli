@@ -1,23 +1,24 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:test/test.dart';
 import 'package:riverpod/riverpod.dart';
-import 'package:vide_core/src.dart';
-import '../helpers/mock_claude_client.dart';
+import 'package:vide_core/vide_core.dart';
+import '../helpers/mock_agent_client.dart';
 
 /// Integration tests for Agent lifecycle components working together.
 ///
 /// Tests the interaction between:
 /// - AgentStatusManager (status tracking)
-/// - ClaudeManager (client management)
+/// - AgentClientManager (client management)
 /// - AgentNetwork (network model)
-/// - MockClaudeClient (simulated Claude interaction)
+/// - MockAgentClient (simulated agent interaction)
 void main() {
   group('Agent Lifecycle Integration', () {
     late ProviderContainer container;
-    late MockClaudeClientFactory clientFactory;
+    late MockAgentClientFactory clientFactory;
 
     setUp(() {
       container = ProviderContainer();
-      clientFactory = MockClaudeClientFactory();
+      clientFactory = MockAgentClientFactory();
     });
 
     tearDown(() {
@@ -69,11 +70,11 @@ void main() {
           fireImmediately: false,
         );
 
-        // Initial status is 'working', so setting to 'working' is a no-op (no rebuild)
+        // Initial status is 'idle', so setting to 'working' IS a change (rebuild)
         container
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.working);
-        // These two actually change the value
+        // These two also change the value
         container
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.waitingForAgent);
@@ -81,20 +82,20 @@ void main() {
             .read(agentStatusProvider(agentId).notifier)
             .setStatus(AgentStatus.idle);
 
-        expect(rebuildCount, 2);
+        expect(rebuildCount, 3);
       });
     });
 
-    group('ClaudeManager with mock clients', () {
+    group('AgentClientManager with mock clients', () {
       test('adding and removing clients works correctly', () {
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         final client1 = clientFactory.getClient('agent-1');
         final client2 = clientFactory.getClient('agent-2');
 
         manager.addAgent('agent-1', client1);
         manager.addAgent('agent-2', client2);
 
-        final state = container.read(claudeManagerProvider);
+        final state = container.read(agentClientManagerProvider);
         expect(state.containsKey('agent-1'), isTrue);
         expect(state.containsKey('agent-2'), isTrue);
         expect(state['agent-1'], same(client1));
@@ -102,28 +103,28 @@ void main() {
 
         manager.removeAgent('agent-1');
 
-        final updatedState = container.read(claudeManagerProvider);
+        final updatedState = container.read(agentClientManagerProvider);
         expect(updatedState.containsKey('agent-1'), isFalse);
         expect(updatedState.containsKey('agent-2'), isTrue);
       });
 
       test('family provider returns correct client for agent', () {
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         final client = clientFactory.getClient('my-agent');
 
         manager.addAgent('my-agent', client);
 
-        final retrieved = container.read(claudeProvider('my-agent'));
+        final retrieved = container.read(agentClientProvider('my-agent'));
         expect(retrieved, same(client));
       });
     });
 
-    group('MockClaudeClient message flow', () {
+    group('MockAgentClient message flow', () {
       test('sending messages adds to sent list', () {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(Message.text('Hello'));
-        client.sendMessage(Message.text('World'));
+        client.sendMessage(const AgentMessage.text('Hello'));
+        client.sendMessage(const AgentMessage.text('World'));
 
         expect(client.sentMessages.length, 2);
         expect(client.sentMessages[0].text, 'Hello');
@@ -134,10 +135,10 @@ void main() {
         final client = clientFactory.getClient('test-agent');
 
         // Listen to conversation stream
-        final conversations = <Conversation>[];
+        final conversations = <AgentConversation>[];
         final subscription = client.conversation.listen(conversations.add);
 
-        client.sendMessage(Message.text('Question?'));
+        client.sendMessage(const AgentMessage.text('Question?'));
         client.simulateTextResponse('Answer!');
 
         // Allow stream to propagate
@@ -146,8 +147,11 @@ void main() {
 
         expect(conversations.length, 2);
         expect(conversations.last.messages.length, 2);
-        expect(conversations.last.messages.first.role, MessageRole.user);
-        expect(conversations.last.messages.last.role, MessageRole.assistant);
+        expect(conversations.last.messages.first.role, AgentMessageRole.user);
+        expect(
+          conversations.last.messages.last.role,
+          AgentMessageRole.assistant,
+        );
       });
 
       test('abort can be called without error', () async {
@@ -168,7 +172,7 @@ void main() {
       test('reset clears state for reuse', () async {
         final client = clientFactory.getClient('test-agent');
 
-        client.sendMessage(Message.text('Test'));
+        client.sendMessage(const AgentMessage.text('Test'));
         await client.abort();
 
         expect(client.sentMessages.isNotEmpty, isTrue);
@@ -185,14 +189,14 @@ void main() {
       test('agent metadata tracks creation and type', () {
         final metadata = AgentMetadata(
           id: 'agent-123',
-          name: 'Implementation',
-          type: 'implementation',
+          name: 'Implementer',
+          type: 'implementer',
           createdAt: DateTime.now(),
         );
 
         expect(metadata.id, 'agent-123');
-        expect(metadata.name, 'Implementation');
-        expect(metadata.type, 'implementation');
+        expect(metadata.name, 'Implementer');
+        expect(metadata.type, 'implementer');
         expect(metadata.spawnedBy, isNull);
       });
 
@@ -207,7 +211,7 @@ void main() {
         final spawnedAgent = AgentMetadata(
           id: 'spawned-agent',
           name: 'Worker',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: mainAgent.id,
           createdAt: DateTime.now(),
         );
@@ -228,8 +232,8 @@ void main() {
             ),
             AgentMetadata(
               id: 'impl',
-              name: 'Implementation',
-              type: 'implementation',
+              name: 'Implementer',
+              type: 'implementer',
               createdAt: DateTime.now(),
             ),
           ],
@@ -245,7 +249,7 @@ void main() {
     group('Full agent conversation simulation', () {
       test('simulates complete agent interaction', () async {
         final client = clientFactory.getClient('main-agent');
-        final manager = container.read(claudeManagerProvider.notifier);
+        final manager = container.read(agentClientManagerProvider.notifier);
         manager.addAgent('main-agent', client);
 
         // Set agent as working
@@ -254,7 +258,7 @@ void main() {
             .setStatus(AgentStatus.working);
 
         // Send user message
-        client.sendMessage(Message.text('Implement feature X'));
+        client.sendMessage(const AgentMessage.text('Implement feature X'));
 
         // Simulate Claude thinking and responding
         client.simulateTextResponse('I will implement feature X by...');

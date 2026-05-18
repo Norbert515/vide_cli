@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OG Image</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html, body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+        background: #080810;
+        font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+      }
+
+      canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1200px;
+        height: 630px;
+      }
+
+      .content {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 1200px;
+        height: 630px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        z-index: 5;
+      }
+
+      .vide-logo {
+        font-family: "JetBrains Mono", monospace;
+        font-size: 22px;
+        line-height: 1.1;
+        white-space: pre;
+        color: #8dd8e8;
+        text-shadow:
+          0 0 2px rgba(141, 216, 232, 0.8),
+          0 0 10px rgba(141, 216, 232, 0.5),
+          0 0 30px rgba(141, 216, 232, 0.3),
+          0 0 60px rgba(0, 212, 255, 0.2);
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .subtitle {
+        color: #9999bb;
+        font-size: 1.1rem;
+        letter-spacing: 0.05em;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="vortex-canvas" width="1200" height="630"></canvas>
+
+    <div class="content">
+      <div class="vide-logo" aria-hidden="true">██╗   ██╗██╗██████╗ ███████╗
+██║   ██║██║██╔══██╗██╔════╝
+██║   ██║██║██║  ██║█████╗
+╚██╗ ██╔╝██║██║  ██║██╔══╝
+ ╚████╔╝ ██║██████╔╝███████╗
+  ╚═══╝  ╚═╝╚═════╝ ╚══════╝</div>
+      <p class="subtitle">The open source agent orchestrator.</p>
+    </div>
+
+    <script>
+      // Simplified vortex renderer - single frame, no animation loop needed.
+      // The generate-og.mjs script calls window.__renderVortex(time) to draw.
+      class OGVortex {
+        constructor(canvas) {
+          this.canvas = canvas;
+          this.charWidth = 10;
+          this.charHeight = 16;
+          this.vortexChars = "░▒▓█▓▒░";
+          this.width = 1200;
+          this.height = 630;
+
+          this.gl =
+            canvas.getContext("webgl") ||
+            canvas.getContext("experimental-webgl");
+          if (!this.gl) return;
+
+          this.init();
+        }
+
+        init() {
+          const gl = this.gl;
+
+          this.glyphAtlas = this.createGlyphAtlas();
+
+          const vertexShaderSource = `
+            attribute vec2 a_position;
+            varying vec2 v_uv;
+            void main() {
+              v_uv = a_position * 0.5 + 0.5;
+              gl_Position = vec4(a_position, 0.0, 1.0);
+            }
+          `;
+
+          const fragmentShaderSource = `
+            precision highp float;
+
+            varying vec2 v_uv;
+            uniform float u_time;
+            uniform vec2 u_resolution;
+            uniform float u_charWidth;
+            uniform float u_charHeight;
+            uniform float u_glyphCount;
+            uniform vec2 u_atlasSize;
+            uniform sampler2D u_glyphAtlas;
+
+            void main() {
+              vec2 cssPixelPos = vec2(v_uv.x, 1.0 - v_uv.y) * u_resolution;
+
+              float colExact = cssPixelPos.x / u_charWidth;
+              float rowExact = cssPixelPos.y / u_charHeight;
+
+              vec2 cellFrac = vec2(fract(colExact), fract(rowExact));
+
+              float cols = u_resolution.x / u_charWidth;
+              float totalRows = u_resolution.y / u_charHeight;
+
+              float col = min(floor(colExact), cols - 1.0);
+              float row = min(floor(rowExact), totalRows - 1.0);
+
+              float centerX = cols / 2.0;
+              float centerY = totalRows / 2.0;
+
+              float aspectRatio = 1.8;
+              float dx = col - centerX;
+              float dy = (row - centerY) * aspectRatio;
+              float dist = sqrt(dx * dx + dy * dy);
+              float angle = atan(dy, dx);
+
+              float spiralTightness = 0.08;
+              float rotationSpeed = 0.4;
+              float waveFreq = 0.2;
+              float radialWeight = 0.3;
+              float colorR = 0.0;
+              float colorG = 60.0;
+              float colorB = 100.0;
+
+              float spiralAngle = angle + dist * spiralTightness - u_time * rotationSpeed;
+              float spiralValue = sin(spiralAngle * 2.0) * 0.5 + 0.5;
+              float radialWave = sin(dist * waveFreq - u_time * 0.6) * 0.5 + 0.5;
+              float intensity = spiralValue * (1.0 - radialWeight) + radialWave * radialWeight;
+
+              float maxDist = max(centerX, totalRows / 2.0) * 1.2;
+              float distFade = 1.0 - min(dist / maxDist, 1.0);
+              float finalIntensity = intensity * (0.15 + distFade * 0.6);
+
+              float normalizedDist = min(dist / maxDist, 1.0);
+              float r = colorR;
+              float g = colorG + finalIntensity * 80.0;
+              float b = colorB + finalIntensity * 100.0;
+
+              float colorShift = sin(u_time * 0.5 + dist * 0.05) * 15.0;
+              g = clamp(g + colorShift, 30.0, 180.0);
+
+              if (normalizedDist < 0.25) {
+                float centerBoost = (0.25 - normalizedDist) / 0.25;
+                r = r + centerBoost * 40.0;
+                g = g + centerBoost * 30.0;
+                b = b + centerBoost * 20.0;
+              }
+
+              float alpha = 0.15 + finalIntensity * 0.5 * (1.0 - normalizedDist * 0.7);
+
+              float glyphIndex = floor(finalIntensity * (u_glyphCount - 1.0));
+              glyphIndex = clamp(glyphIndex, 0.0, u_glyphCount - 1.0);
+
+              vec2 atlasPixel = vec2(
+                (glyphIndex + cellFrac.x) * u_charWidth,
+                cellFrac.y * u_charHeight
+              );
+              vec2 atlasUV = atlasPixel / u_atlasSize;
+
+              float glyphAlpha = texture2D(u_glyphAtlas, atlasUV).a;
+
+              if (finalIntensity < 0.05) {
+                glyphAlpha = 0.0;
+              }
+
+              float finalAlpha = glyphAlpha * alpha;
+
+              vec3 fgColor = vec3(r / 255.0, g / 255.0, b / 255.0) * 0.7;
+              vec3 bgColor = vec3(0.02, 0.02, 0.04);
+
+              vec3 finalColor = mix(bgColor, fgColor, finalAlpha);
+
+              vec2 center = vec2(u_resolution.x / 2.0, u_resolution.y / 2.0);
+              float gradientDist = length(cssPixelPos - center);
+              float maxGradientDist = max(u_resolution.x, u_resolution.y);
+              if (gradientDist < maxGradientDist * 0.3) {
+                float gradientAlpha = (1.0 - gradientDist / (maxGradientDist * 0.3)) * 0.05;
+                finalColor += vec3(0.0, 0.83, 1.0) * gradientAlpha;
+              }
+
+              gl_FragColor = vec4(finalColor, 1.0);
+            }
+          `;
+
+          const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertexShaderSource);
+          const fragmentShader = this.compileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+          this.program = gl.createProgram();
+          gl.attachShader(this.program, vertexShader);
+          gl.attachShader(this.program, fragmentShader);
+          gl.linkProgram(this.program);
+
+          this.timeLocation = gl.getUniformLocation(this.program, "u_time");
+          this.resolutionLocation = gl.getUniformLocation(this.program, "u_resolution");
+          this.charWidthLocation = gl.getUniformLocation(this.program, "u_charWidth");
+          this.charHeightLocation = gl.getUniformLocation(this.program, "u_charHeight");
+          this.glyphCountLocation = gl.getUniformLocation(this.program, "u_glyphCount");
+          this.atlasSizeLocation = gl.getUniformLocation(this.program, "u_atlasSize");
+          this.glyphAtlasLocation = gl.getUniformLocation(this.program, "u_glyphAtlas");
+          this.positionLocation = gl.getAttribLocation(this.program, "a_position");
+
+          this.positionBuffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+          gl.bufferData(
+            gl.ARRAY_BUFFER,
+            new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
+            gl.STATIC_DRAW
+          );
+
+          this.glyphTexture = gl.createTexture();
+          gl.bindTexture(gl.TEXTURE_2D, this.glyphTexture);
+          gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.glyphAtlas);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+          gl.viewport(0, 0, this.width, this.height);
+        }
+
+        createGlyphAtlas() {
+          const atlas = document.createElement("canvas");
+          atlas.width = Math.ceil(this.vortexChars.length * this.charWidth);
+          atlas.height = Math.ceil(this.charHeight);
+          const ctx = atlas.getContext("2d");
+          ctx.clearRect(0, 0, atlas.width, atlas.height);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = `${this.charHeight - 2}px "JetBrains Mono", monospace`;
+          ctx.textBaseline = "top";
+          for (let i = 0; i < this.vortexChars.length; i++) {
+            ctx.fillText(this.vortexChars[i], i * this.charWidth, 0);
+          }
+          return atlas;
+        }
+
+        compileShader(type, source) {
+          const gl = this.gl;
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+          if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            console.error("Shader compile failed:", gl.getShaderInfoLog(shader));
+            gl.deleteShader(shader);
+            return null;
+          }
+          return shader;
+        }
+
+        render(time) {
+          const gl = this.gl;
+          gl.useProgram(this.program);
+
+          gl.uniform1f(this.timeLocation, time);
+          gl.uniform2f(this.resolutionLocation, this.width, this.height);
+          gl.uniform1f(this.charWidthLocation, this.charWidth);
+          gl.uniform1f(this.charHeightLocation, this.charHeight);
+          gl.uniform1f(this.glyphCountLocation, this.vortexChars.length);
+          gl.uniform2f(this.atlasSizeLocation, this.glyphAtlas.width, this.glyphAtlas.height);
+
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, this.glyphTexture);
+          gl.uniform1i(this.glyphAtlasLocation, 0);
+
+          gl.bindBuffer(gl.ARRAY_BUFFER, this.positionBuffer);
+          gl.enableVertexAttribArray(this.positionLocation);
+          gl.vertexAttribPointer(this.positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+          gl.drawArrays(gl.TRIANGLES, 0, 6);
+        }
+      }
+
+      // Wait for fonts, then expose a render function for Puppeteer to call
+      document.fonts.ready.then(() => {
+        const canvas = document.getElementById("vortex-canvas");
+        const vortex = new OGVortex(canvas);
+
+        window.__renderVortex = (time) => {
+          vortex.render(time);
+        };
+
+        // Render a default frame immediately
+        vortex.render(2.5);
+      });
+    </script>
+  </body>
+</html>

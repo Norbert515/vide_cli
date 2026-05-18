@@ -1,66 +1,130 @@
-/// Providers for VideSession and ConversationStateManager.
-///
-/// These providers bridge the public vide_core API with the TUI state management.
+/// Providers bridging the public vide_core API with TUI state management.
 library;
 
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_client/src/remote_vide_session.dart';
+import 'package:vide_core/vide_core.dart';
 
-/// Provider for the VideCore instance.
+/// Provider for the session manager.
 ///
-/// This is created from the existing ProviderContainer using [VideCore.fromContainer].
-final videoCoreProvider = Provider<VideCore>((ref) {
-  throw UnimplementedError('videoCoreProvider must be overridden in main.dart');
+/// Uses [RemoteVideSessionManager] backed by the daemon. All session lifecycle
+/// operations (create, list, resume, delete) go through this provider.
+final videSessionManagerProvider = Provider<VideSessionManager>((ref) {
+  // Import is deferred to avoid circular dependency — the provider watches
+  // daemonConnectionProvider which lives in the remote module.
+  // This provider is overridden with the concrete implementation in main.dart.
+  throw UnimplementedError(
+    'videSessionManagerProvider must be overridden in main.dart',
+  );
 });
 
-/// Provider for the current VideSession based on the active network.
+/// Unified TUI session selection state.
 ///
-/// Returns null if no network is currently active.
+/// The session ID is always derived from the live [session] object via
+/// [VideSession.id]. This avoids stale-ID bugs where a pending remote session
+/// starts with a temporary UUID that later changes when the daemon responds.
+class SessionSelectionState {
+  final VideSession? session;
+
+  const SessionSelectionState({this.session});
+
+  /// The current session ID, derived from the live session object.
+  String? get sessionId => session?.id;
+}
+
+/// Controls the current session selection for the TUI.
+class SessionSelectionNotifier extends StateNotifier<SessionSelectionState> {
+  SessionSelectionNotifier() : super(const SessionSelectionState());
+
+  /// Select a session.
+  void selectSession(VideSession session) {
+    state = SessionSelectionState(session: session);
+  }
+
+  /// Clear selected session state.
+  void clear() {
+    state = const SessionSelectionState();
+  }
+}
+
+/// Single source of truth for TUI session selection.
+final sessionSelectionProvider =
+    StateNotifierProvider<SessionSelectionNotifier, SessionSelectionState>(
+      (ref) => SessionSelectionNotifier(),
+    );
+
+/// Provider that triggers rebuilds when the selected session connection changes.
+///
+/// Remote sessions emit connectivity changes via their connectionStateStream.
+final sessionConnectionProvider = StreamProvider<bool>((ref) {
+  final session = ref.watch(sessionSelectionProvider.select((s) => s.session));
+  if (session is RemoteVideSession) {
+    return session.connectionStateStream;
+  }
+  return const Stream<bool>.empty();
+});
+
+/// Provider for the current VideSession.
+///
+/// Returns null if no session is currently active.
+///
+/// This is the session accessor for the current active session.
 final currentVideSessionProvider = Provider<VideSession?>((ref) {
-  final core = ref.watch(videoCoreProvider);
-  final networkState = ref.watch(agentNetworkManagerProvider);
-  final currentNetwork = networkState.currentNetwork;
-
-  if (currentNetwork == null) return null;
-
-  return core.getSessionForNetwork(currentNetwork.id);
+  final session = ref.watch(sessionSelectionProvider).session;
+  if (session != null) {
+    // Rebuild when transport connectivity changes (remote sessions).
+    ref.watch(sessionConnectionProvider);
+  }
+  return session;
 });
 
-/// Provider for ConversationStateManager tied to the current session.
+/// Stream provider that emits when the goal changes.
 ///
-/// The ConversationStateManager is owned by the VideSession and accumulates
-/// all events from the session's creation. This avoids missing events that
-/// would occur with late subscription to a broadcast stream.
-final conversationStateManagerProvider =
-    Provider<ConversationStateManager?>((ref) {
+/// This allows widgets to reactively rebuild when the task name is updated.
+final sessionGoalStreamProvider = StreamProvider<String>((ref) {
   final session = ref.watch(currentVideSessionProvider);
-  if (session == null) return null;
+  if (session == null) return Stream.value('Session');
 
-  // Use the session's built-in conversation state manager
-  return session.conversationState;
+  return session.stateStream.map((s) => s.goal).distinct();
 });
 
-/// Provider for a specific agent's conversation state.
+/// Stream provider that emits when the session's working directory changes.
+///
+/// In daemon mode, the working directory arrives asynchronously via the
+/// WebSocket `connected` event. This stream enables providers like
+/// [currentRepoPathProvider] to reactively update when it arrives.
+final sessionWorkingDirectoryStreamProvider = StreamProvider<String>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  if (session == null) return const Stream.empty();
+
+  return session.stateStream.map((s) => s.workingDirectory).distinct();
+});
+
+/// Provider that emits the current agents list whenever it changes.
+///
+/// Watches the session's [stateStream] to detect when agents are
+/// spawned or terminated, triggering UI rebuilds.
 ///
 /// Usage:
 /// ```dart
-/// final agentState = context.watch(agentConversationStateProvider(agentId));
+/// final agents = context.watch(videSessionAgentsProvider);
+/// final agentsList = agents.valueOrNull ?? session?.state.agents ?? [];
 /// ```
-final agentConversationStateProvider =
-    Provider.family<AgentConversationState?, String>((ref, agentId) {
-  final manager = ref.watch(conversationStateManagerProvider);
-  if (manager == null) return null;
+final videSessionAgentsProvider = StreamProvider<List<VideAgent>>((ref) {
+  final session = ref.watch(currentVideSessionProvider);
+  if (session == null) return const Stream.empty();
 
-  return manager.getAgentState(agentId);
+  return session.stateStream.map((s) => s.agents);
 });
 
-/// Provider that triggers rebuilds when conversation state changes.
+/// Provider for the selected agent ID in the sidebar.
 ///
-/// This uses a stream to notify when the ConversationStateManager has updates.
-/// Widgets can watch this to rebuild when any agent's state changes.
-final conversationStateChangedProvider = StreamProvider<void>((ref) {
-  final manager = ref.watch(conversationStateManagerProvider);
-  if (manager == null) return const Stream.empty();
+/// When null, no agent is selected.
+/// Used by AgentSidebar for keyboard navigation and selection.
+final selectedAgentIdProvider = StateProvider.family<String?, String>((ref, sessionId) => null);
 
-  return manager.onStateChanged;
-});
+/// Provider for the currently displayed model name (e.g. "opus", "sonnet").
+///
+/// Updated by the active chat view when the model stream emits.
+/// Read by the scaffold bottom bar to display the model inline.
+final currentModelProvider = StateProvider.family<String?, String>((ref, sessionId) => null);

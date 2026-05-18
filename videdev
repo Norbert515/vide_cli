@@ -1,6 +1,7 @@
 #!/bin/bash
-# videdev - Development version of vide with VM services enabled
-# Runs the local bin/vide.dart with --enable-vm-service
+# videdev - Development version of vide
+# Runs the local bin/vide.dart
+# Use -d to enable VM services for debugging
 
 # Resolve symlinks to get the real script location
 SOURCE="${BASH_SOURCE[0]}"
@@ -11,4 +12,35 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
-exec dart run "$SCRIPT_DIR/bin/vide.dart" "$@"
+# Parse arguments
+DART_ARGS=()
+VIDE_ARGS=()
+ENABLE_VM_SERVICE=false
+WORKTREE_NUM=""
+
+for arg in "$@"; do
+  if [[ "$arg" == "-d" ]]; then
+    ENABLE_VM_SERVICE=true
+  elif [[ "$arg" =~ ^--([0-9]+)$ ]]; then
+    WORKTREE_NUM="${BASH_REMATCH[1]}"
+  else
+    VIDE_ARGS+=("$arg")
+  fi
+done
+
+if [[ "$ENABLE_VM_SERVICE" == true ]]; then
+  DART_ARGS+=("--enable-vm-service")
+fi
+
+# Use worktree directory if --<number> was specified
+if [[ -n "$WORKTREE_NUM" ]]; then
+  RUN_DIR="/Users/norbertkozsir/IdeaProjects/vide_cli_$WORKTREE_NUM"
+  if [[ ! -d "$RUN_DIR" ]]; then
+    echo "Error: Directory $RUN_DIR does not exist" >&2
+    exit 1
+  fi
+else
+  RUN_DIR="$SCRIPT_DIR"
+fi
+
+exec dart "${DART_ARGS[@]}" --packages="$RUN_DIR/.dart_tool/package_config.json" "$RUN_DIR/bin/vide.dart" "${VIDE_ARGS[@]}"

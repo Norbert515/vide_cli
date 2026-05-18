@@ -117,5 +117,71 @@ void main() {
       expect(modified.enableStreaming, isFalse);
       expect(original.enableStreaming, isTrue);
     });
+
+    group('dangerouslySkipPermissions', () {
+      test('defaults to false', () {
+        final config = ClaudeConfig();
+        expect(config.dangerouslySkipPermissions, isFalse);
+      });
+
+      test('includes --dangerously-skip-permissions flag when enabled', () {
+        final config = ClaudeConfig(dangerouslySkipPermissions: true);
+        final args = config.toCliArgs();
+
+        expect(args, contains('--dangerously-skip-permissions'));
+      });
+
+      test(
+        'does not include --dangerously-skip-permissions flag when disabled',
+        () {
+          final config = ClaudeConfig(dangerouslySkipPermissions: false);
+          final args = config.toCliArgs();
+
+          expect(args, isNot(contains('--dangerously-skip-permissions')));
+        },
+      );
+
+      test(
+        'includes both --permission-prompt-tool and --dangerously-skip-permissions when both apply',
+        () {
+          final config = ClaudeConfig(dangerouslySkipPermissions: true);
+          final args = config.toCliArgs(hasPermissionCallback: true);
+
+          expect(args, contains('--dangerously-skip-permissions'));
+          expect(args, contains('--permission-prompt-tool'));
+          expect(args, contains('stdio'));
+        },
+      );
+
+      test(
+        'includes --permission-prompt-tool when callback exists and skip is disabled',
+        () {
+          final config = ClaudeConfig(dangerouslySkipPermissions: false);
+          final args = config.toCliArgs(hasPermissionCallback: true);
+
+          expect(args, isNot(contains('--dangerously-skip-permissions')));
+          expect(args, contains('--permission-prompt-tool'));
+          expect(args, contains('stdio'));
+        },
+      );
+
+      test('does not include --permission-prompt-tool when no callback', () {
+        final config = ClaudeConfig(dangerouslySkipPermissions: true);
+        final args = config.toCliArgs(hasPermissionCallback: false);
+
+        expect(args, contains('--dangerously-skip-permissions'));
+        expect(args, isNot(contains('--permission-prompt-tool')));
+      });
+
+      test('copyWith updates dangerouslySkipPermissions', () {
+        final original = ClaudeConfig();
+        expect(original.dangerouslySkipPermissions, isFalse);
+
+        final modified = original.copyWith(dangerouslySkipPermissions: true);
+
+        expect(modified.dangerouslySkipPermissions, isTrue);
+        expect(original.dangerouslySkipPermissions, isFalse);
+      });
+    });
   });
 }

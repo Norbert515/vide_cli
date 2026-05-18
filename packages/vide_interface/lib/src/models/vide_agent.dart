@@ -1,0 +1,124 @@
+/// Public agent model for the Vide API.
+library;
+
+import 'package:agent_sdk/agent_sdk.dart';
+
+/// Status of an agent in the network.
+enum VideAgentStatus {
+  /// Agent is actively working on a task.
+  working,
+
+  /// Agent is waiting for another agent to respond.
+  waitingForAgent,
+
+  /// Agent is waiting for user input (e.g., permission).
+  waitingForUser,
+
+  /// Agent has completed its current task and is idle.
+  idle;
+
+  static VideAgentStatus fromWireString(String? value) => switch (value) {
+    'working' => VideAgentStatus.working,
+    'waiting-for-agent' => VideAgentStatus.waitingForAgent,
+    'waiting-for-user' => VideAgentStatus.waitingForUser,
+    'idle' => VideAgentStatus.idle,
+    _ => VideAgentStatus.idle,
+  };
+
+  String toWireString() => switch (this) {
+    VideAgentStatus.working => 'working',
+    VideAgentStatus.waitingForAgent => 'waiting-for-agent',
+    VideAgentStatus.waitingForUser => 'waiting-for-user',
+    VideAgentStatus.idle => 'idle',
+  };
+}
+
+/// Immutable snapshot of an agent's state.
+class VideAgent {
+  /// Unique identifier for this agent.
+  final String id;
+
+  /// Human-readable name (e.g., "Main", "Auth Research", "Bug Fix").
+  final String name;
+
+  /// Agent type (e.g., "main", "implementation", "contextCollection").
+  final String type;
+
+  /// Current status of the agent.
+  final VideAgentStatus status;
+
+  /// Current processing phase for UI display (e.g., thinking, responding).
+  ///
+  /// Null when the agent is idle or the phase is unknown (e.g., daemon mode
+  /// where the wire protocol doesn't yet send this field).
+  final AgentProcessingStatus? processingPhase;
+
+  /// ID of the agent that spawned this one (null for main agent).
+  final String? spawnedBy;
+
+  /// Current task name set by the agent (e.g., "Implementing login form").
+  final String? taskName;
+
+  /// When this agent was created.
+  final DateTime createdAt;
+
+  /// Which harness this agent runs on (e.g., 'claude-code', 'codex-cli').
+  final String? harness;
+
+  /// The model this agent uses (e.g., 'opus', 'sonnet', 'haiku').
+  final String? model;
+
+  /// Token usage statistics.
+  final int totalInputTokens;
+  final int totalOutputTokens;
+  final int totalCacheReadInputTokens;
+  final int totalCacheCreationInputTokens;
+  final double totalCostUsd;
+
+  const VideAgent({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.status,
+    this.processingPhase,
+    this.spawnedBy,
+    this.taskName,
+    required this.createdAt,
+    this.harness,
+    this.model,
+    this.totalInputTokens = 0,
+    this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
+  });
+
+  /// Total context tokens (input + cache).
+  int get totalContextTokens =>
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
+
+  @override
+  String toString() => 'VideAgent($name, $type, $status)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideAgent &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          type == other.type &&
+          status == other.status &&
+          processingPhase == other.processingPhase &&
+          spawnedBy == other.spawnedBy &&
+          taskName == other.taskName &&
+          harness == other.harness &&
+          model == other.model;
+
+  @override
+  int get hashCode => Object.hash(
+    id, name, type, status, processingPhase, spawnedBy, taskName, harness, model,
+  );
+}

@@ -9,7 +9,8 @@ class ForkCommand extends Command {
   String get name => 'fork';
 
   @override
-  String get description => 'Fork this agent into a new agent with the same context';
+  String get description =>
+      'Fork this agent into a new agent with the same context';
 
   @override
   String get usage => '/fork';

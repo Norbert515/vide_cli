@@ -1,0 +1,365 @@
+import 'package:agent_sdk/agent_sdk.dart';
+import 'package:uuid/uuid.dart';
+
+import '../claude/agent_configuration.dart';
+import '../logging/vide_logger.dart';
+import '../models/agent_id.dart';
+import '../models/agent_metadata.dart';
+import '../models/agent_network.dart';
+import '../claude/agent_config_resolver.dart';
+import 'agent_network_persistence_manager.dart';
+import 'agent_status_sync_service.dart';
+import '../analytics/bashboard_service.dart';
+import '../claude/agent_client_factory_registry.dart';
+import '../claude/claude_manager.dart';
+import '../team_framework/team_framework_loader.dart';
+
+/// Manages the lifecycle of agents within a network.
+///
+/// Handles spawning, adding, terminating, and forking agents.
+/// Coordinates with AgentStatusSyncService for status tracking
+/// and AgentConfigResolver for configuration loading.
+class AgentLifecycleService {
+  AgentLifecycleService({
+    required AgentClientManagerStateNotifier claudeManager,
+    required AgentNetworkPersistenceManager persistenceManager,
+    required AgentNetwork? Function() getCurrentNetwork,
+    required void Function(AgentNetwork) updateState,
+    required AgentClientFactoryRegistry factoryRegistry,
+    required AgentStatusSyncService statusSyncService,
+    required AgentConfigResolver configResolver,
+    required TeamFrameworkLoader teamFrameworkLoader,
+    required void Function(AgentId, AgentMessage) sendMessage,
+    required Future<void> Function(AgentId, String) updateAgentSessionId,
+  }) : _claudeManager = claudeManager,
+       _persistenceManager = persistenceManager,
+       _getCurrentNetwork = getCurrentNetwork,
+       _updateState = updateState,
+       _factoryRegistry = factoryRegistry,
+       _statusSyncService = statusSyncService,
+       _configResolver = configResolver,
+       _teamFrameworkLoader = teamFrameworkLoader,
+       _sendMessage = sendMessage,
+       _updateAgentSessionId = updateAgentSessionId;
+
+  final AgentClientManagerStateNotifier _claudeManager;
+  final AgentNetworkPersistenceManager _persistenceManager;
+  final AgentNetwork? Function() _getCurrentNetwork;
+  final void Function(AgentNetwork) _updateState;
+  final AgentClientFactoryRegistry _factoryRegistry;
+  final AgentStatusSyncService _statusSyncService;
+  final AgentConfigResolver _configResolver;
+  final TeamFrameworkLoader _teamFrameworkLoader;
+  final void Function(AgentId, AgentMessage) _sendMessage;
+  final Future<void> Function(AgentId, String) _updateAgentSessionId;
+
+  /// Add a new agent to the current network.
+  Future<AgentId> addAgent({
+    required AgentId agentId,
+    required AgentConfiguration config,
+    required AgentMetadata metadata,
+  }) async {
+    final network = _getCurrentNetwork();
+    if (network == null) {
+      throw StateError('No active network to add agent to');
+    }
+
+    final client = await _factoryRegistry.getFactory(config.harness).create(
+      agentId: agentId,
+      config: config,
+      networkId: network.id,
+      agentType: metadata.type,
+      workingDirectory: metadata.workingDirectory,
+    );
+    _claudeManager.addAgent(agentId, client);
+    // Set up status sync to auto-update agent status when turn completes
+    _statusSyncService.setupStatusSync(agentId, client);
+
+    // Update network with new agent metadata
+    final updatedNetwork = network.copyWith(
+      agents: [...network.agents, metadata],
+      lastActiveAt: DateTime.now(),
+    );
+    await _persistenceManager.saveNetwork(updatedNetwork);
+
+    _updateState(updatedNetwork);
+
+    return agentId;
+  }
+
+  /// Spawn a new agent into the current network by agent type.
+  ///
+  /// [agentType] - The agent personality name from the team's agents list
+  /// [name] - A short, human-readable name for the agent (required)
+  /// [initialPrompt] - The initial message/task to send to the new agent
+  /// [spawnedBy] - The ID of the agent that is spawning this one
+  /// [workingDirectory] - Optional working directory for this agent.
+  /// [harness] - Optional harness override (e.g., 'claude-code', 'codex-cli').
+  ///
+  /// Returns the ID of the newly spawned agent.
+  Future<AgentId> spawnAgent({
+    required String agentType,
+    required String name,
+    required String initialPrompt,
+    required AgentId spawnedBy,
+    String? workingDirectory,
+    String? harness,
+  }) async {
+    final network = _getCurrentNetwork();
+    if (network == null) {
+      throw StateError('No active network to spawn agent into');
+    }
+
+    // Load configuration from team framework using the network's team
+    final teamName = network.team;
+    final team = await _teamFrameworkLoader.getTeam(teamName);
+    if (team == null) {
+      throw Exception('Team "$teamName" not found in team framework');
+    }
+
+    // Prevent spawning the main agent type
+    if (agentType == team.mainAgent) {
+      throw Exception(
+        'Cannot spawn the main agent type "$agentType" - use the main agent instead',
+      );
+    }
+
+    // Validate that the agent type is in the team's agents list
+    if (!team.agents.contains(agentType)) {
+      throw Exception(
+        'Team "$teamName" does not have agent type "$agentType". '
+        'Available agent types: ${team.agents.join(", ")}',
+      );
+    }
+
+    // Load the agent personality to get display name and short description
+    final personality = await _teamFrameworkLoader.getAgent(agentType);
+
+    final config = await _teamFrameworkLoader.buildAgentConfiguration(
+      agentType,
+      teamName: teamName,
+      harnessOverride: harness,
+    );
+    if (config == null) {
+      throw Exception('Agent configuration not found for: $agentType');
+    }
+
+    // Generate new agent ID
+    final newAgentId = const Uuid().v4();
+
+    // Use display name from personality, fallback to provided name
+    final baseName = personality?.effectiveDisplayName ?? name;
+    final uniqueName = _configResolver.generateUniqueName(
+      baseName,
+      network.agents,
+    );
+
+    // Create metadata for the new agent
+    final metadata = AgentMetadata(
+      id: newAgentId,
+      name: uniqueName,
+      type: agentType,
+      spawnedBy: spawnedBy,
+      createdAt: DateTime.now(),
+      shortDescription: personality?.shortDescription,
+      teamTag: personality?.team,
+      workingDirectory: workingDirectory,
+      harness: config.harness,
+      model: config.harnessConfig['model'] as String?,
+    );
+
+    // Add agent to network with metadata
+    await addAgent(agentId: newAgentId, config: config, metadata: metadata);
+
+    // Track analytics
+    BashboardService.agentSpawned(agentType);
+
+    // Wrap in <system-reminder> to distinguish from regular user messages
+    final contextualPrompt =
+        '''<system-reminder>
+SPAWNED BY AGENT: $spawnedBy — Extract this agent ID and save it. You will need it to send messages back to your parent agent.
+</system-reminder>
+
+$initialPrompt''';
+
+    // Send initial message to the new agent
+    _sendMessage(newAgentId, AgentMessage.text(contextualPrompt));
+
+    VideLogger.instance.info(
+      'AgentLifecycleService',
+      'Agent $spawnedBy spawned new "$agentType" agent "$uniqueName": $newAgentId',
+      sessionId: _getCurrentNetwork()?.id,
+    );
+
+    return newAgentId;
+  }
+
+  /// Terminate an agent and remove it from the network.
+  Future<void> terminateAgent({
+    required AgentId targetAgentId,
+    required AgentId terminatedBy,
+    String? reason,
+  }) async {
+    final network = _getCurrentNetwork();
+    if (network == null) {
+      throw StateError('No active network');
+    }
+
+    // Check if target agent exists in network
+    final targetAgent = network.agents
+        .where((a) => a.id == targetAgentId)
+        .firstOrNull;
+    if (targetAgent == null) {
+      throw Exception('Agent not found in network: $targetAgentId');
+    }
+
+    // Prevent terminating if this is the last agent
+    if (network.agents.length <= 1) {
+      throw Exception('Cannot terminate the last agent');
+    }
+
+    // Get and abort the AgentClient
+    final client = _claudeManager.clients[targetAgentId];
+    if (client != null) {
+      await client.abort();
+    }
+
+    // Clean up status sync subscription
+    _statusSyncService.cleanupStatusSync(targetAgentId);
+
+    // Remove from manager
+    _claudeManager.removeAgent(targetAgentId);
+
+    // Remove from network agents list
+    final updatedAgents = network.agents
+        .where((a) => a.id != targetAgentId)
+        .toList();
+    final updatedNetwork = network.copyWith(
+      agents: updatedAgents,
+      lastActiveAt: DateTime.now(),
+    );
+
+    // Persist
+    await _persistenceManager.saveNetwork(updatedNetwork);
+
+    // Update state
+    _updateState(updatedNetwork);
+
+    final reasonStr = reason != null ? ': $reason' : '';
+    final selfTerminated = targetAgentId == terminatedBy;
+    final sessionId = _getCurrentNetwork()?.id;
+    if (selfTerminated) {
+      VideLogger.instance.info(
+        'AgentLifecycleService',
+        'Agent $targetAgentId self-terminated$reasonStr',
+        sessionId: sessionId,
+      );
+    } else {
+      VideLogger.instance.info(
+        'AgentLifecycleService',
+        'Agent $terminatedBy terminated agent $targetAgentId$reasonStr',
+        sessionId: sessionId,
+      );
+    }
+
+    // If the terminated agent had a parent, check if the parent can now
+    // transition from waitingForAgent to idle.
+    if (targetAgent.spawnedBy != null) {
+      _statusSyncService.onChildTerminated(targetAgent.spawnedBy!);
+    }
+  }
+
+  /// Fork an existing agent, creating a new agent with the same conversation context.
+  Future<AgentId> forkAgent({
+    required AgentId sourceAgentId,
+    String? name,
+  }) async {
+    final network = _getCurrentNetwork();
+    if (network == null) {
+      throw StateError('No active network to fork agent in');
+    }
+
+    // Find source agent metadata
+    final sourceAgent = network.agents
+        .where((a) => a.id == sourceAgentId)
+        .firstOrNull;
+    if (sourceAgent == null) {
+      throw Exception('Agent not found: $sourceAgentId');
+    }
+
+    // Get the configuration for this agent type
+    final config = await _configResolver.getConfigurationForType(
+      sourceAgent.type,
+      teamName: network.team,
+    );
+
+    if (!_factoryRegistry.supportsFork(config.harness)) {
+      throw UnsupportedError(
+        'The agent backend "${config.harness ?? _factoryRegistry.defaultHarness}" '
+        'does not support session forking',
+      );
+    }
+
+    // Get source agent's client to get the session ID
+    final sourceClient = _claudeManager.clients[sourceAgentId];
+    if (sourceClient == null) {
+      throw Exception('No AgentClient found for agent: $sourceAgentId');
+    }
+
+    // Generate new agent ID (which will also be the new session ID)
+    final newAgentId = const Uuid().v4();
+    final forkName = name ?? '[Fork] ${sourceAgent.name}';
+
+    // Create metadata for the forked agent
+    final metadata = AgentMetadata(
+      id: newAgentId,
+      name: forkName,
+      type: 'fork',
+      spawnedBy: sourceAgentId,
+      createdAt: DateTime.now(),
+    );
+
+    // Create the agent client with fork configuration.
+    final client = await _factoryRegistry
+        .getFactory(config.harness)
+        .createForked(
+          agentId: newAgentId,
+          config: config,
+          networkId: network.id,
+          agentType: metadata.type,
+          resumeSessionId: sourceClient.sessionId,
+          sourceConversation: sourceClient.currentConversation,
+        );
+
+    _claudeManager.addAgent(newAgentId, client);
+    // Set up status sync for the forked agent
+    _statusSyncService.setupStatusSync(newAgentId, client);
+
+    // Listen for init data to capture the actual session ID
+    client.initDataStream.first.then(
+      (initData) {
+        if (initData.sessionId != null) {
+          _updateAgentSessionId(newAgentId, initData.sessionId!);
+        }
+      },
+      onError: (Object e) {
+        VideLogger.instance.error(
+          'AgentLifecycleService',
+          'Error capturing session ID for $newAgentId: $e',
+          sessionId: _getCurrentNetwork()?.id,
+        );
+      },
+    );
+
+    // Update network with new agent metadata
+    final updatedNetwork = network.copyWith(
+      agents: [...network.agents, metadata],
+      lastActiveAt: DateTime.now(),
+    );
+    await _persistenceManager.saveNetwork(updatedNetwork);
+
+    _updateState(updatedNetwork);
+
+    return newAgentId;
+  }
+}

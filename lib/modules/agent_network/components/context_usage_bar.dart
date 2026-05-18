@@ -1,4 +1,5 @@
 import 'package:nocterm/nocterm.dart';
+import 'package:vide_cli/theme/theme.dart';
 
 /// Default context window size for Claude models (200k tokens).
 const int kClaudeContextWindowSize = 200000;
@@ -48,32 +49,35 @@ class ContextUsageBar extends StatelessComponent {
   /// Maximum tokens available in the context window.
   final int maxTokens;
 
-  Color _getBarColor(double percentage) {
-    if (percentage >= kContextWarningThreshold) {
-      return Colors.red;
-    } else if (percentage >= kContextCautionThreshold) {
-      return Colors.yellow;
-    } else {
-      return Colors.green;
-    }
-  }
-
-  Color _getTextColor(double percentage) {
-    // Yellow background needs black text for readability
-    if (percentage >= kContextCautionThreshold &&
-        percentage < kContextWarningThreshold) {
-      return Colors.black;
-    }
-    return Colors.white;
-  }
-
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
     final percentage = maxTokens > 0
         ? (usedTokens / maxTokens).clamp(0.0, 1.0)
         : 0.0;
-    final barColor = _getBarColor(percentage);
-    final textColor = _getTextColor(percentage);
+
+    // Use theme-aware colors for the bar
+    final Color barColor;
+    if (percentage >= kContextWarningThreshold) {
+      barColor = theme.base.error;
+    } else if (percentage >= kContextCautionThreshold) {
+      barColor = theme.base.warning;
+    } else {
+      barColor = theme.base.success;
+    }
+
+    // Text on the filled portion uses the on* color for that semantic color
+    final Color filledTextColor;
+    if (percentage >= kContextWarningThreshold) {
+      filledTextColor = theme.base.onError;
+    } else if (percentage >= kContextCautionThreshold) {
+      filledTextColor = theme.base.onWarning;
+    } else {
+      filledTextColor = theme.base.onSuccess;
+    }
+
+    final unfilledBg = theme.base.outlineVariant;
+    final unfilledFg = theme.base.onSurface;
 
     // Format the label
     final usedStr = formatTokenCount(usedTokens);
@@ -99,29 +103,9 @@ class ContextUsageBar extends StatelessComponent {
           final isFilled = i < filledWidth;
           final isLabel = i >= labelStart && i < labelEnd;
 
-          Color bgColor;
-          Color fgColor;
-          String char;
-
-          if (isLabel) {
-            char = label[i - labelStart.toInt()];
-            if (isFilled) {
-              bgColor = barColor;
-              fgColor = textColor;
-            } else {
-              bgColor = Colors.grey.withOpacity(0.3);
-              fgColor = Colors.white;
-            }
-          } else {
-            char = ' ';
-            if (isFilled) {
-              bgColor = barColor;
-              fgColor = textColor;
-            } else {
-              bgColor = Colors.grey.withOpacity(0.3);
-              fgColor = Colors.white;
-            }
-          }
+          final bgColor = isFilled ? barColor : unfilledBg;
+          final fgColor = isFilled ? filledTextColor : unfilledFg;
+          final char = isLabel ? label[i - labelStart.toInt()] : ' ';
 
           children.add(
             Container(
@@ -152,6 +136,7 @@ class ContextUsageIndicator extends StatelessComponent {
 
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
     final percentage = maxTokens > 0
         ? (usedTokens / maxTokens).clamp(0.0, 1.0)
         : 0.0;
@@ -159,11 +144,11 @@ class ContextUsageIndicator extends StatelessComponent {
 
     Color textColor;
     if (percentage >= kContextWarningThreshold) {
-      textColor = Colors.red;
+      textColor = theme.base.error;
     } else if (percentage >= kContextCautionThreshold) {
-      textColor = Colors.yellow;
+      textColor = theme.base.warning;
     } else {
-      textColor = Colors.grey;
+      textColor = theme.base.outline;
     }
 
     final warningIcon = showWarning && percentage >= kContextWarningThreshold

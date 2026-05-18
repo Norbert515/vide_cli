@@ -17,17 +17,28 @@ dependencies:
 ## Quick Start
 
 ```dart
-import 'package:vide_core/api.dart';
+import 'package:riverpod/riverpod.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() async {
-  // Create VideCore instance
-  final core = VideCore(VideCoreConfig());
+  // Create session manager with isolated containers (each session independent)
+  final permissionHandler = PermissionHandler();
+  final container = ProviderContainer(
+    overrides: [
+      videConfigManagerProvider.overrideWithValue(VideConfigManager()),
+      workingDirProvider.overrideWithValue(Directory.current.path),
+    ],
+  );
+  final sessionManager = LocalVideSessionManager.isolated(
+    container,
+    permissionHandler,
+  );
 
   // Start a new session
-  final session = await core.startSession(VideSessionConfig(
+  final session = await sessionManager.createSession(
     workingDirectory: '/path/to/project',
     initialMessage: 'Help me fix the bug in auth.dart',
-  ));
+  );
 
   // Listen to events from all agents
   session.events.listen((event) {
@@ -59,7 +70,8 @@ void main() async {
 
   // Clean up when done
   await session.dispose();
-  core.dispose();
+  sessionManager.dispose();
+  container.dispose();
 }
 ```
 
@@ -84,8 +96,7 @@ Agents spawn sub-agents using the `spawnAgent` MCP tool and communicate via `sen
 ```
 lib/
 ├── api/                      # Public API (recommended entry point)
-├── agents/                   # Agent configurations and prompts
-│   └── prompt_sections/      # Reusable prompt components
+├── agents/                   # Agent configurations
 ├── mcp/                      # MCP server implementations
 │   ├── agent/                # Agent network operations
 │   ├── ask_user_question/    # User dialog MCP
@@ -107,11 +118,11 @@ The recommended entry point for new consumers. Provides a clean interface withou
 
 **Core Classes:**
 
-- `VideCore` - Main entry point for creating sessions
+- `LocalVideSessionManager` - Main entry point for creating sessions
 - `VideSession` - Active session with agent network
 - `VideEvent` - Sealed event hierarchy
 - `VideAgent` - Immutable agent state snapshot
-- `VideEmbeddedServer` - HTTP/WebSocket server for remote access
+- `RemoteVideSession` - Client for connecting to remote daemon sessions
 
 **Event Types:**
 
@@ -144,7 +155,7 @@ Exports all internal components for advanced use cases (TUI uses this). Includes
 **AgentNetworkManager** - Core agent lifecycle orchestration
 ```dart
 final manager = container.read(agentNetworkManagerProvider.notifier);
-await manager.spawnAgent(agentType: 'implementation', ...);
+await manager.spawnAgent(role: 'implementer', ...);
 ```
 
 **ClaudeManager** - Manages ClaudeClient instances per agent
@@ -167,11 +178,10 @@ final result = checker.checkPermission(toolPermissionContext);
 ### MCP Servers
 
 **Agent MCP Server** - Agent spawning and messaging
-- `spawnAgent` - Create specialized sub-agents
+- `spawnAgent` - Create specialized sub-agents (supports optional `workingDirectory` for per-agent worktrees)
 - `sendMessageToAgent` - Async message passing
 - `setAgentStatus` - Update agent status
 - `terminateAgent` - Remove agent
-- `setSessionWorktree` - Switch working directory
 
 **Git MCP Server** - Comprehensive git operations
 - Status, commit, add, diff, log
@@ -201,7 +211,7 @@ final network = AgentNetwork(
 // Agent metadata with token tracking
 final metadata = AgentMetadata(
   name: 'Bug Fix',
-  agentType: 'implementation',
+  type: 'implementer',
   totalInputTokens: 1500,
   totalOutputTokens: 500,
   costUsd: 0.003,
@@ -230,25 +240,13 @@ Sessions can be persisted and resumed:
 
 ```dart
 // List available sessions
-final sessions = await core.listSessions();
+final sessions = await sessionManager.listSessions();
 
 // Resume a session
-final session = await core.resumeSession(sessionId);
+final session = await sessionManager.resumeSession(sessionId);
 
 // Delete a session
-await core.deleteSession(sessionId);
-```
-
-## Embedded Server
-
-Start a lightweight HTTP/WebSocket server for remote access:
-
-```dart
-final server = await VideEmbeddedServer.start(
-  session: session,
-  port: 8080,
-);
-// External clients connect via HTTP/WebSocket
+await sessionManager.deleteSession(sessionId);
 ```
 
 ## User-Defined Agents

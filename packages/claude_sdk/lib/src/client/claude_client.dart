@@ -12,6 +12,7 @@ import '../protocol/json_decoder.dart';
 import '../control/control_types.dart';
 import '../control/control_protocol.dart';
 import '../control/control_responses.dart';
+export '../control/control_responses.dart' show GetSettingsResponse, SettingsSource;
 import 'conversation_loader.dart';
 import 'process_manager.dart';
 import 'response_processor.dart';
@@ -110,7 +111,10 @@ abstract class ClaudeClient {
   ///
   /// [servers] - List of MCP server configurations to add/update
   /// [replace] - If true, replaces all existing servers. If false, merges.
-  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false});
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  });
 
   /// Interrupt the current execution.
   Future<void> interrupt();
@@ -119,6 +123,49 @@ abstract class ClaudeClient {
   ///
   /// [userMessageId] - The message ID to rewind to
   Future<void> rewindFiles(String userMessageId);
+
+  /// Get the effective merged settings and per-source breakdown.
+  ///
+  /// Returns all settings from all sources (user, project, local, flag)
+  /// merged together, plus the raw per-source settings.
+  /// Use this to query the current effort level, model, and other settings.
+  Future<GetSettingsResponse> getSettings();
+
+  /// Apply settings to the flag settings layer at runtime.
+  ///
+  /// Merges the provided settings into the active configuration.
+  /// This is the general-purpose way to change settings dynamically.
+  ///
+  /// Common settings:
+  /// - `effortLevel`: 'low', 'medium', 'high', or 'max'
+  /// - `model`: model alias or full model ID
+  ///
+  /// [settings] - Map of setting keys to values
+  Future<void> applyFlagSettings(Map<String, dynamic> settings);
+
+  /// Set the effort level for subsequent API calls.
+  ///
+  /// Convenience method that wraps [applyFlagSettings].
+  ///
+  /// [effort] - Effort level: 'low', 'medium', 'high', or 'max'.
+  /// Not all models support all levels.
+  Future<void> setEffort(String effort);
+
+  /// Reconnect a disconnected MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to reconnect
+  Future<void> reconnectMcpServer(String serverName);
+
+  /// Enable or disable an MCP server.
+  ///
+  /// [serverName] - Name of the MCP server to toggle
+  /// [enabled] - Whether to enable or disable the server
+  Future<void> toggleMcpServer(String serverName, {required bool enabled});
+
+  /// Stop a running subagent task.
+  ///
+  /// [taskId] - The task ID to stop
+  Future<void> stopTask(String taskId);
 
   /// Creates and fully initializes a client.
   /// Awaits initialization before returning.
@@ -214,7 +261,8 @@ class ClaudeClientImpl implements ClaudeClient {
   final _turnCompleteController = StreamController<void>.broadcast();
   final _statusController = StreamController<ClaudeStatus>.broadcast();
   final _initDataController = StreamController<MetaResponse>.broadcast();
-  Conversation _currentConversation; // Initialized in constructor (may be pre-loaded for forks)
+  Conversation
+  _currentConversation; // Initialized in constructor (may be pre-loaded for forks)
   ClaudeStatus _currentStatus = ClaudeStatus.ready;
   MetaResponse? _initData;
 
@@ -278,6 +326,11 @@ class ClaudeClientImpl implements ClaudeClient {
     _turnCompleteController.stream.listen((_) {
       _flushQueuedMessage();
     });
+
+    // Monitor process lifecycle for unexpected exits
+    _lifecycleManager.onProcessExited = (exitCode) {
+      _updateStatus(ClaudeStatus.error);
+    };
   }
 
   Future<void> init() async {
@@ -301,19 +354,20 @@ class ClaudeClientImpl implements ClaudeClient {
 
     _isInitialized = true;
 
-    // Start MCP servers
-    for (int i = 0; i < mcpServers.length; i++) {
-      final server = mcpServers[i];
-      // Skip if server is already running (e.g., shared servers between agents)
-      if (server.isRunning) {
-        continue;
+    // For resumed sessions (existing conversation loaded from disk),
+    // defer starting MCP servers and the Claude process until the user
+    // sends a message. This avoids unnecessary processing when just
+    // viewing history.
+    if (_isFirstMessage) {
+      // New session — start everything eagerly
+      for (int i = 0; i < mcpServers.length; i++) {
+        final server = mcpServers[i];
+        if (server.isRunning) continue;
+        await server.start();
       }
 
-      await server.start();
+      await _startControlProtocol();
     }
-
-    // Control protocol is always required
-    await _startControlProtocol();
 
     // Signal that initialization is complete
     if (!_initializedCompleter.isCompleted) {
@@ -330,6 +384,9 @@ class ClaudeClientImpl implements ClaudeClient {
 
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) return;
+
+    // Update status to processing so triggers can detect when agent becomes idle
+    _updateStatus(ClaudeStatus.processing);
 
     for (final message in _pendingMessages) {
       _sendMessageViaProtocol(message, controlProtocol);
@@ -397,10 +454,7 @@ class ClaudeClientImpl implements ClaudeClient {
       // If this was a fork operation, clear fork settings so subsequent messages
       // use the new session ID instead of trying to fork again
       if (config.forkSession && config.resumeSessionId != null) {
-        config = config.copyWith(
-          resumeSessionId: null,
-          forkSession: false,
-        );
+        config = config.copyWith(resumeSessionId: null, forkSession: false);
       }
 
       completer.complete();
@@ -424,10 +478,21 @@ class ClaudeClientImpl implements ClaudeClient {
     var conversation = _currentConversation;
     var turnComplete = false;
 
+    var isCompacting = false;
+
     for (final response in responses) {
       // Extract and emit status updates
       if (response is StatusResponse) {
+        if (response.status == ClaudeStatus.unknown) {
+          // Unknown status — consumer should observe via statusStream
+        }
         _updateStatus(response.status);
+      } else if (response is ThinkingResponse) {
+        // Infer thinking status — Claude CLI does not emit a separate
+        // status:thinking event for extended thinking blocks.
+        _updateStatus(ClaudeStatus.thinking);
+      } else if (response is TextResponse && response.content.isNotEmpty) {
+        _updateStatus(ClaudeStatus.responding);
       }
 
       // Store and emit init data when MetaResponse is received
@@ -437,7 +502,8 @@ class ClaudeClientImpl implements ClaudeClient {
 
         // If we forked a session, Claude returns the new session ID in the response
         // Update our config to use that session ID for subsequent messages
-        if (response.sessionId != null && response.sessionId != config.sessionId) {
+        if (response.sessionId != null &&
+            response.sessionId != config.sessionId) {
           config = config.copyWith(sessionId: response.sessionId);
         }
 
@@ -450,11 +516,19 @@ class ClaudeClientImpl implements ClaudeClient {
       final result = _responseProcessor.processResponse(response, conversation);
       conversation = result.updatedConversation;
       turnComplete = turnComplete || result.turnComplete;
+      isCompacting = isCompacting || result.isCompacting;
     }
 
     _updateConversation(conversation);
 
+    if (isCompacting) {
+      _updateStatus(ClaudeStatus.compacting);
+    }
+
     if (turnComplete) {
+      // When turn completes, update status to ready (idle)
+      // This enables trigger systems to detect when agents are done
+      _updateStatus(ClaudeStatus.ready);
       _turnCompleteController.add(null);
     }
   }
@@ -557,6 +631,9 @@ class ClaudeClientImpl implements ClaudeClient {
           .withState(ConversationState.sendingMessage),
     );
 
+    // Update status to processing so triggers can detect when agent becomes idle
+    _updateStatus(ClaudeStatus.processing);
+
     // Send via control protocol
     _sendMessageViaProtocol(message, controlProtocol);
   }
@@ -658,6 +735,8 @@ class ClaudeClientImpl implements ClaudeClient {
 
   @override
   Future<SetModelResponse> setModel(String model) async {
+    // Wait for initialization if not ready yet
+    await initialized;
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) {
       throw StateError('Client not initialized - cannot set model');
@@ -666,10 +745,14 @@ class ClaudeClientImpl implements ClaudeClient {
   }
 
   @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
     final controlProtocol = _lifecycleManager.controlProtocol;
     if (controlProtocol == null) {
-      throw StateError('Client not initialized - cannot set max thinking tokens');
+      throw StateError(
+        'Client not initialized - cannot set max thinking tokens',
+      );
     }
     return await controlProtocol.setMaxThinkingTokens(maxTokens);
   }
@@ -700,7 +783,8 @@ class ClaudeClientImpl implements ClaudeClient {
     final messages = _currentConversation.messages;
     if (messages.isNotEmpty) {
       final lastMessage = messages.last;
-      if (lastMessage.role == MessageRole.assistant && lastMessage.isStreaming) {
+      if (lastMessage.role == MessageRole.assistant &&
+          lastMessage.isStreaming) {
         final updatedMessage = lastMessage.copyWith(
           isStreaming: false,
           isComplete: true,
@@ -723,6 +807,64 @@ class ClaudeClientImpl implements ClaudeClient {
       throw StateError('Client not initialized - cannot rewind files');
     }
     await controlProtocol.rewindFiles(userMessageId);
+  }
+
+  @override
+  Future<GetSettingsResponse> getSettings() async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot get settings');
+    }
+    return await controlProtocol.getSettings();
+  }
+
+  @override
+  Future<void> applyFlagSettings(Map<String, dynamic> settings) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot apply settings');
+    }
+    await controlProtocol.applyFlagSettings(settings);
+  }
+
+  @override
+  Future<void> setEffort(String effort) async {
+    await applyFlagSettings({'effortLevel': effort});
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot reconnect MCP server');
+    }
+    await controlProtocol.reconnectMcpServer(serverName);
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot toggle MCP server');
+    }
+    await controlProtocol.toggleMcpServer(serverName, enabled: enabled);
+  }
+
+  @override
+  Future<void> stopTask(String taskId) async {
+    await initialized;
+    final controlProtocol = _lifecycleManager.controlProtocol;
+    if (controlProtocol == null) {
+      throw StateError('Client not initialized - cannot stop task');
+    }
+    await controlProtocol.stopTask(taskId);
   }
 
   @override

@@ -1,0 +1,22 @@
+name: vide_in_app_sdk
+description: Embed Vide AI assistant directly into any Flutter app. Collapsible dev-tools panel with chat, screenshot annotations, and voice input.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.8.0
+  flutter: ">=3.16.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  vide_client:
+    path: ../vide_client
+  vide_mobile:
+    path: ../vide_mobile
+  speech_to_text: ^7.0.0
+  shared_preferences: ^2.2.0
+
+dependency_overrides:
+  vide_interface:
+    path: ../vide_interface

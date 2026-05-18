@@ -1,25 +1,23 @@
-import 'dart:io';
-
 import 'package:mcp_dart/mcp_dart.dart';
 import 'package:claude_sdk/claude_sdk.dart';
-import 'package:path/path.dart' as path;
 import 'package:sentry/sentry.dart';
+import '../../logging/vide_logger.dart';
 import '../../models/agent_id.dart';
 import '../../models/agent_status.dart';
-import '../../services/agent_network_manager.dart';
-import '../../state/agent_status_manager.dart';
+import '../../agent_network/agent_network_manager.dart';
+import '../../agent_network/agent_status_manager.dart';
+import '../../team_framework/trigger_service.dart';
 import 'package:riverpod/riverpod.dart';
 
-final agentServerProvider = Provider.family<AgentMCPServer, AgentId>((
-  ref,
-  agentId,
-) {
-  return AgentMCPServer(
-    callerAgentId: agentId,
-    networkManager: ref.watch(agentNetworkManagerProvider.notifier),
-    ref: ref,
-  );
-});
+final ProviderFamily<AgentMCPServer, AgentId> agentServerProvider =
+    Provider.family<AgentMCPServer, AgentId>((ref, agentId) {
+      return AgentMCPServer(
+        callerAgentId: agentId,
+        networkManager: ref.watch(agentNetworkManagerProvider.notifier),
+        getStatusNotifier: (id) => ref.read(agentStatusProvider(id).notifier),
+        getTriggerService: () => ref.read(triggerServiceProvider),
+      );
+    });
 
 /// MCP server for agent network operations.
 ///
@@ -33,14 +31,17 @@ class AgentMCPServer extends McpServerBase {
 
   final AgentId callerAgentId;
   final AgentNetworkManager _networkManager;
-  final Ref _ref;
+  final AgentStatusNotifier Function(AgentId) _getStatusNotifier;
+  final TriggerService Function() _getTriggerService;
 
   AgentMCPServer({
     required this.callerAgentId,
     required AgentNetworkManager networkManager,
-    required Ref ref,
+    required AgentStatusNotifier Function(AgentId) getStatusNotifier,
+    required TriggerService Function() getTriggerService,
   }) : _networkManager = networkManager,
-       _ref = ref,
+       _getStatusNotifier = getStatusNotifier,
+       _getTriggerService = getTriggerService,
        super(name: serverName, version: '1.0.0');
 
   @override
@@ -49,7 +50,9 @@ class AgentMCPServer extends McpServerBase {
     'sendMessageToAgent',
     'setAgentStatus',
     'terminateAgent',
-    'setSessionWorktree',
+    'setTaskName',
+    'setAgentTaskName',
+    'markTaskComplete',
   ];
 
   @override
@@ -58,7 +61,9 @@ class AgentMCPServer extends McpServerBase {
     _registerSendMessageToAgentTool(server);
     _registerSetAgentStatusTool(server);
     _registerTerminateAgentTool(server);
-    _registerSetSessionWorktreeTool(server);
+    _registerSetTaskNameTool(server);
+    _registerSetAgentTaskNameTool(server);
+    _registerMarkTaskCompleteTool(server);
   }
 
   void _registerSpawnAgentTool(McpServer server) {
@@ -69,24 +74,18 @@ class AgentMCPServer extends McpServerBase {
 The new agent will be added to the current network and can receive messages.
 Use this to delegate tasks to specialized agents.
 
-Available agent types:
-- implementation: Implements features and fixes based on clear requirements. Has access to Git, Memory, TaskManagement, FlutterRuntime, Dart, and Figma.
-- contextCollection: Gathers context and explores the codebase. Good for research and understanding.
-- flutterTester: Tests Flutter applications, takes screenshots, validates app behavior.
-- planning: Creates detailed implementation plans for complex tasks.
+The available agent types depend on the current team's agent list. Use the agent
+personality name (e.g., 'solid-implementer', 'creative-explorer', 'deep-researcher').
 
 Returns the ID of the newly spawned agent which can be used with sendMessageToAgent.''',
       toolInputSchema: ToolInputSchema(
         properties: {
           'agentType': {
             'type': 'string',
-            'enum': [
-              'implementation',
-              'contextCollection',
-              'flutterTester',
-              'planning',
-            ],
-            'description': 'The type of agent to spawn',
+            'description':
+                'The agent type/personality to spawn from the current team '
+                '(e.g., "solid-implementer", "creative-explorer", "deep-researcher"). '
+                'Cannot spawn "lead" - that is the main agent.',
           },
           'name': {
             'type': 'string',
@@ -98,6 +97,19 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             'description':
                 'The initial message/task to send to the new agent. Be specific and provide all necessary context.',
           },
+          'workingDirectory': {
+            'type': 'string',
+            'description':
+                'Optional working directory for this agent. If not provided, '
+                'uses the session working directory. Use this to spawn an agent '
+                'in a different directory (e.g., a git worktree).',
+          },
+          'harness': {
+            'type': 'string',
+            'description':
+                'Optional harness override (e.g., "claude-code", "codex-cli"). '
+                'If not provided, uses the personality default or session default.',
+          },
         },
         required: ['agentType', 'name', 'initialPrompt'],
       ),
@@ -108,33 +120,42 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
           );
         }
 
-        final agentTypeStr = args['agentType'] as String;
+        final agentType = args['agentType'] as String;
         final name = args['name'] as String;
         final initialPrompt = args['initialPrompt'] as String;
-
-        // Parse agent type
-        final SpawnableAgentType? agentType = _parseAgentType(agentTypeStr);
-        if (agentType == null) {
-          return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Unknown agent type: $agentTypeStr'),
-            ],
-          );
-        }
+        final workingDirectory = args['workingDirectory'] as String?;
+        final harness = args['harness'] as String?;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'spawnAgent: type=$agentType name="$name" caller=$callerAgentId '
+                'workDir=${workingDirectory ?? '(session default)'} '
+                'harness=${harness ?? '(default)'}',
+            sessionId: networkId,
+          );
+
           final newAgentId = await _networkManager.spawnAgent(
             agentType: agentType,
             name: name,
             initialPrompt: initialPrompt,
             spawnedBy: callerAgentId,
+            workingDirectory: workingDirectory,
+            harness: harness,
+          );
+
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'spawnAgent success: newId=$newAgentId type=$agentType name="$name"',
+            sessionId: networkId,
           );
 
           return CallToolResult.fromContent(
             content: [
               TextContent(
                 text:
-                    'Successfully spawned $agentTypeStr agent "$name".\n'
+                    'Successfully spawned "$agentType" agent "$name".\n'
                     'Agent ID: $newAgentId\n'
                     'Spawned by: $callerAgentId\n\n'
                     'The agent has been sent your initial message and is now working on it. '
@@ -143,11 +164,16 @@ Returns the ID of the newly spawned agent which can be used with sendMessageToAg
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'spawnAgent failed: type=$agentType name="$name" error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'spawnAgent');
             scope.setContexts('mcp_context', {
-              'agent_type': agentTypeStr,
+              'agent_type': agentType,
               'caller_agent_id': callerAgentId.toString(),
             });
           });
@@ -194,6 +220,14 @@ Use this to coordinate with other agents in the network.''',
         final message = args['message'] as String;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.debug(
+            'AgentMCPServer',
+            'sendMessageToAgent: target=$targetAgentId from=$callerAgentId '
+                '(${message.length} chars)',
+            sessionId: networkId,
+          );
+
           _networkManager.sendMessageToAgent(
             targetAgentId: targetAgentId,
             message: message,
@@ -210,6 +244,11 @@ Use this to coordinate with other agents in the network.''',
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'sendMessageToAgent failed: target=$targetAgentId from=$callerAgentId error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'sendMessageToAgent');
@@ -225,16 +264,6 @@ Use this to coordinate with other agents in the network.''',
         }
       },
     );
-  }
-
-  SpawnableAgentType? _parseAgentType(String agentTypeStr) {
-    return switch (agentTypeStr) {
-      'implementation' => SpawnableAgentType.implementation,
-      'contextCollection' => SpawnableAgentType.contextCollection,
-      'flutterTester' => SpawnableAgentType.flutterTester,
-      'planning' => SpawnableAgentType.planning,
-      _ => null,
-    };
   }
 
   void _registerSetAgentStatusTool(McpServer server) {
@@ -279,14 +308,29 @@ Call this when:
           );
         }
 
+        final networkId = _networkManager.currentState.currentNetwork?.id;
+        VideLogger.instance.info(
+          'AgentMCPServer',
+          'setAgentStatus called: agent=$callerAgentId requested=$statusStr',
+          sessionId: networkId,
+        );
+
         try {
-          _ref
-              .read(agentStatusProvider(callerAgentId).notifier)
-              .setStatus(status);
+          AgentStatus effectiveStatus;
+          if (status == AgentStatus.idle) {
+            // Delegate to unified logic: guards against active children,
+            // cascades to parent, and checks the all-idle trigger.
+            effectiveStatus = _networkManager.setAgentIdleStatus(callerAgentId);
+          } else {
+            effectiveStatus = status;
+            _getStatusNotifier(callerAgentId).setStatus(status);
+          }
 
           return CallToolResult.fromContent(
             content: [
-              TextContent(text: 'Agent status updated to: "$statusStr"'),
+              TextContent(
+                text: 'Agent status updated to: "${effectiveStatus.name}"',
+              ),
             ],
           );
         } catch (e, stackTrace) {
@@ -343,6 +387,14 @@ Any agent can terminate any other agent, including itself.''',
         final reason = args['reason'] as String?;
 
         try {
+          final networkId = _networkManager.currentState.currentNetwork?.id;
+          VideLogger.instance.info(
+            'AgentMCPServer',
+            'terminateAgent: target=$targetAgentId by=$callerAgentId '
+                'reason=${reason ?? '(none)'} self=${targetAgentId == callerAgentId}',
+            sessionId: networkId,
+          );
+
           await _networkManager.terminateAgent(
             targetAgentId: targetAgentId,
             terminatedBy: callerAgentId,
@@ -360,6 +412,11 @@ Any agent can terminate any other agent, including itself.''',
             ],
           );
         } catch (e, stackTrace) {
+          VideLogger.instance.error(
+            'AgentMCPServer',
+            'terminateAgent failed: target=$targetAgentId by=$callerAgentId error=$e',
+            sessionId: _networkManager.currentState.currentNetwork?.id,
+          );
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
             scope.setTag('mcp_tool', 'terminateAgent');
@@ -377,31 +434,20 @@ Any agent can terminate any other agent, including itself.''',
     );
   }
 
-  void _registerSetSessionWorktreeTool(McpServer server) {
+  void _registerSetTaskNameTool(McpServer server) {
     server.tool(
-      'setSessionWorktree',
+      'setTaskName',
       description:
-          '''Set the worktree path for this session. All new agents will use this directory.
-
-Use this after creating a git worktree to make all agents work in that directory:
-1. Create worktree: gitWorktreeAdd(path: "../project-feature", branch: "feature/name", createBranch: true)
-2. Set session directory: setSessionWorktree(path: "/absolute/path/to/project-feature")
-
-This is useful for:
-- Working on features in isolation
-- Keeping the main branch clean
-- Allowing easy context switching
-
-Pass null or empty string to clear the worktree and return to the original directory.''',
+          'Set or update the name/description of the current task. Call this as soon as you understand what the task is about to give it a clear, descriptive name. You can call this multiple times if your understanding of the task evolves.',
       toolInputSchema: ToolInputSchema(
         properties: {
-          'path': {
+          'taskName': {
             'type': 'string',
             'description':
-                'Absolute path to the worktree directory. Pass empty string to clear.',
+                'Clear, concise name describing what the task is about (e.g., "Add dark mode toggle", "Fix authentication bug", "Implement user profile page")',
           },
         },
-        required: ['path'],
+        required: ['taskName'],
       ),
       callback: ({args, extra}) async {
         if (args == null) {
@@ -410,63 +456,164 @@ Pass null or empty string to clear the worktree and return to the original direc
           );
         }
 
-        final pathArg = args['path'] as String;
+        final taskName = args['taskName'] as String;
 
         try {
-          // Handle clearing the worktree
-          if (pathArg.isEmpty) {
-            await _networkManager.setWorktreePath(null);
-            return CallToolResult.fromContent(
-              content: [
-                TextContent(
-                  text:
-                      'Session worktree cleared. Agents will now use the original working directory: ${_networkManager.workingDirectory}',
-                ),
-              ],
-            );
-          }
-
-          // Convert to absolute path
-          final absolutePath = path.isAbsolute(pathArg)
-              ? pathArg
-              : Directory(pathArg).absolute.path;
-
-          // Validate directory exists
-          final directory = Directory(absolutePath);
-          if (!await directory.exists()) {
-            return CallToolResult.fromContent(
-              content: [
-                TextContent(
-                  text: 'Error: Directory does not exist: $absolutePath',
-                ),
-              ],
-            );
-          }
-
-          await _networkManager.setWorktreePath(absolutePath);
+          await _networkManager.updateGoal(taskName);
 
           return CallToolResult.fromContent(
-            content: [
-              TextContent(
-                text:
-                    'Session worktree set to: $absolutePath\n\n'
-                    'All newly spawned agents will now work in this directory. '
-                    'Existing agents will continue using their original directory.',
-              ),
-            ],
+            content: [TextContent(text: 'Task name updated to: "$taskName"')],
           );
         } catch (e, stackTrace) {
           await Sentry.configureScope((scope) {
             scope.setTag('mcp_server', serverName);
-            scope.setTag('mcp_tool', 'setSessionWorktree');
+            scope.setTag('mcp_tool', 'setTaskName');
             scope.setContexts('mcp_context', {
-              'path': pathArg,
               'caller_agent_id': callerAgentId.toString(),
             });
           });
           await Sentry.captureException(e, stackTrace: stackTrace);
           return CallToolResult.fromContent(
-            content: [TextContent(text: 'Error setting session worktree: $e')],
+            content: [TextContent(text: 'Error updating task name: $e')],
+          );
+        }
+      },
+    );
+  }
+
+  void _registerSetAgentTaskNameTool(McpServer server) {
+    server.tool(
+      'setAgentTaskName',
+      description:
+          'Set or update the current task name for this agent. Use this to indicate what specific task this agent is currently working on. This is separate from the overall task name (setTaskName) which describes the entire network\'s goal.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'taskName': {
+            'type': 'string',
+            'description':
+                'Clear, concise name describing what this agent is currently working on (e.g., "Researching auth patterns", "Implementing login form", "Running unit tests")',
+          },
+        },
+        required: ['taskName'],
+      ),
+      callback: ({args, extra}) async {
+        if (args == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
+        }
+
+        final taskName = args['taskName'] as String;
+
+        try {
+          await _networkManager.updateAgentTaskName(callerAgentId, taskName);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Agent task name updated to: "$taskName"'),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'setAgentTaskName');
+            scope.setContexts('mcp_context', {
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await Sentry.captureException(e, stackTrace: stackTrace);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error updating agent task name: $e')],
+          );
+        }
+      },
+    );
+  }
+
+  void _registerMarkTaskCompleteTool(McpServer server) {
+    server.tool(
+      'markTaskComplete',
+      description:
+          'Mark the current task as complete. This fires the onTaskComplete trigger which may spawn agents like code-reviewer depending on team configuration. Call this when the main task goal has been achieved.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'summary': {
+            'type': 'string',
+            'description':
+                'Brief summary of what was accomplished (e.g., "Implemented JWT authentication with refresh tokens")',
+          },
+          'filesChanged': {
+            'type': 'array',
+            'items': {'type': 'string'},
+            'description':
+                'Optional list of files that were changed (e.g., ["lib/auth.dart", "test/auth_test.dart"])',
+          },
+        },
+        required: ['summary'],
+      ),
+      callback: ({args, extra}) async {
+        if (args == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: No arguments provided')],
+          );
+        }
+
+        final summary = args['summary'] as String;
+        final filesChanged = (args['filesChanged'] as List?)?.cast<String>();
+
+        try {
+          final network = _networkManager.currentState.currentNetwork;
+
+          if (network == null) {
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: No active network')],
+            );
+          }
+
+          // Fire the onTaskComplete trigger
+          final triggerService = _getTriggerService();
+          final context = TriggerContext(
+            triggerPoint: TriggerPoint.onTaskComplete,
+            network: network,
+            teamName: network.team,
+            taskName: summary,
+            filesChanged: filesChanged,
+          );
+
+          final spawnedAgentId = await triggerService.fire(context);
+
+          if (spawnedAgentId != null) {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text:
+                      'Task marked complete: "$summary"\n'
+                      'Triggered agent spawned for review.',
+                ),
+              ],
+            );
+          } else {
+            return CallToolResult.fromContent(
+              content: [
+                TextContent(
+                  text:
+                      'Task marked complete: "$summary"\n'
+                      'No trigger configured for onTaskComplete in this team.',
+                ),
+              ],
+            );
+          }
+        } catch (e, stackTrace) {
+          await Sentry.configureScope((scope) {
+            scope.setTag('mcp_server', serverName);
+            scope.setTag('mcp_tool', 'markTaskComplete');
+            scope.setContexts('mcp_context', {
+              'caller_agent_id': callerAgentId.toString(),
+            });
+          });
+          await Sentry.captureException(e, stackTrace: stackTrace);
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error marking task complete: $e')],
           );
         }
       },

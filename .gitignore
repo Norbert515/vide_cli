@@ -16,3 +16,22 @@ packages/flutter_runtime_mcp/test_app
 # Local dependency overrides - don't commit pubspec.yaml with local paths
 pubspec_overrides.yaml
 .vscode/settings.json
+
+# Experiments package (not ready for release)
+packages/vide_experiments/
+
+# Build artifacts
+build/
+
+# Generated Flutter files
+.flutter-plugins-dependencies
+
+# vide_in_app_sdk example apps (Flutter boilerplate)
+packages/vide_in_app_sdk/example/
+
+# Specs (local design docs)
+specs/
+
+# Landing page
+landing/node_modules/
+.DS_Store

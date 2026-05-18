@@ -1,10 +1,17 @@
 import 'package:flutter/widgets.dart';
+import 'src/actionable_elements_extension.dart';
 import 'src/screenshot_extension.dart';
 import 'src/tap_extension.dart';
 import 'src/type_extension.dart';
 import 'src/scroll_extension.dart';
 import 'src/widget_info_extension.dart';
 import 'src/cursor_extension.dart';
+import 'src/navigation_extension.dart';
+import 'src/error_extension.dart';
+import 'src/device_size_extension.dart';
+import 'src/animation_extension.dart';
+import 'src/theme_extension.dart';
+import 'src/locale_extension.dart';
 import 'src/debug_overlay_wrapper.dart';
 import 'src/debug_binding.dart';
 
@@ -115,7 +122,14 @@ class RuntimeAiDevTools {
     registerTypeExtension();
     registerScrollExtension();
     registerWidgetInfoExtension();
+    registerActionableElementsExtension();
     registerCursorExtension();
+    registerNavigationExtension();
+    registerErrorExtension();
+    registerDeviceSizeExtension();
+    registerAnimationExtension();
+    registerThemeExtension();
+    registerLocaleExtension();
     print('✅ [RuntimeAiDevTools] Service extensions registered');
 
     _initialized = true;

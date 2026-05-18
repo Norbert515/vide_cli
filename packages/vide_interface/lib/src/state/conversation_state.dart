@@ -1,0 +1,734 @@
+/// Conversation state accumulator for the Vide API.
+///
+/// This provides a mutable state container that accumulates [VideEvent]s
+/// into a renderable conversation structure, suitable for UI display.
+library;
+
+import 'dart:async';
+
+import '../models/enums.dart';
+import '../models/vide_agent.dart';
+import '../models/vide_message.dart';
+import '../events/vide_event.dart';
+
+/// A piece of content within a conversation entry.
+sealed class ConversationContent {
+  const ConversationContent();
+}
+
+/// Text content from an assistant or user.
+final class TextContent extends ConversationContent {
+  /// The accumulated text content.
+  final String text;
+
+  /// Whether this text is still being streamed.
+  final bool isStreaming;
+
+  /// Whether this text indicates the context window is full.
+  bool get isContextWindowError {
+    final lower = text.toLowerCase();
+    return lower.contains('prompt is too long') ||
+        lower.contains('context window') ||
+        lower.contains('token limit');
+  }
+
+  const TextContent({required this.text, this.isStreaming = false});
+
+  TextContent copyWith({String? text, bool? isStreaming}) {
+    return TextContent(
+      text: text ?? this.text,
+      isStreaming: isStreaming ?? this.isStreaming,
+    );
+  }
+}
+
+/// A tool invocation with its result.
+final class ToolContent extends ConversationContent {
+  /// Unique ID for this tool use.
+  final String toolUseId;
+
+  /// Name of the tool.
+  final String toolName;
+
+  /// Input parameters for the tool.
+  final Map<String, dynamic> toolInput;
+
+  /// Result from the tool (null if still executing).
+  final String? result;
+
+  /// True if the tool execution failed.
+  final bool isError;
+
+  /// True if the tool is still executing.
+  bool get isExecuting => result == null;
+
+  /// Whether this tool should be hidden from the message list.
+  ///
+  /// Internal tools (task naming, agent status, plan mode entry, todo writes)
+  /// and plan file writes are not useful to display to the user.
+  bool get isHidden {
+    if (toolName == 'mcp__vide-agent__setTaskName' ||
+        toolName == 'mcp__vide-agent__setAgentTaskName' ||
+        toolName == 'mcp__vide-task-management__setTaskName' ||
+        toolName == 'mcp__vide-task-management__setAgentTaskName' ||
+        toolName == 'mcp__vide-agent__setAgentStatus' ||
+        toolName == 'TodoWrite' ||
+        toolName == 'EnterPlanMode') {
+      return true;
+    }
+    if (toolName == 'Write') {
+      final filePath = toolInput['file_path'] as String?;
+      if (filePath != null && filePath.contains('.claude/plans/')) return true;
+    }
+    return false;
+  }
+
+  /// Whether this is a spawn-agent tool invocation.
+  bool get isSpawnAgent => toolName == 'mcp__vide-agent__spawnAgent';
+
+  /// Whether this is an ExitPlanMode result.
+  bool get isPlanResult => toolName == 'ExitPlanMode';
+
+  /// Tool name with MCP prefixes stripped for display.
+  String get displayName {
+    final mcpPrefix = RegExp(r'^mcp__[^_]+__');
+    return toolName.replaceFirst(mcpPrefix, '');
+  }
+
+  /// A contextual subtitle extracted from the tool input.
+  String? get subtitle {
+    final name = displayName;
+    switch (name) {
+      case 'Read' || 'Edit' || 'Write':
+        return toolInput['file_path'] as String?;
+      case 'Bash':
+        return toolInput['command'] as String?;
+      case 'Grep':
+        final pattern = toolInput['pattern'] as String?;
+        final path = toolInput['path'] as String?;
+        if (pattern != null && path != null) return '"$pattern" in $path';
+        return pattern != null ? '"$pattern"' : null;
+      case 'Glob':
+        return toolInput['pattern'] as String?;
+      case 'WebFetch':
+        return toolInput['url'] as String?;
+      case 'WebSearch':
+        return toolInput['query'] as String?;
+      case 'TodoWrite':
+        return null;
+      case 'Task':
+        return toolInput['description'] as String?;
+      case 'NotebookEdit':
+        return toolInput['notebook_path'] as String?;
+      default:
+        return toolInput['file_path'] as String? ??
+            toolInput['command'] as String? ??
+            toolInput['pattern'] as String? ??
+            toolInput['query'] as String? ??
+            toolInput['description'] as String?;
+    }
+  }
+
+  const ToolContent({
+    required this.toolUseId,
+    required this.toolName,
+    required this.toolInput,
+    this.result,
+    this.isError = false,
+  });
+
+  ToolContent copyWith({
+    String? toolUseId,
+    String? toolName,
+    Map<String, dynamic>? toolInput,
+    String? result,
+    bool? isError,
+  }) {
+    return ToolContent(
+      toolUseId: toolUseId ?? this.toolUseId,
+      toolName: toolName ?? this.toolName,
+      toolInput: toolInput ?? this.toolInput,
+      result: result ?? this.result,
+      isError: isError ?? this.isError,
+    );
+  }
+}
+
+/// Thinking/reasoning content from the model.
+///
+/// Separate from [TextContent] so the UI can render it differently
+/// (e.g., collapsed, dimmed, or in an expandable section).
+final class ThinkingContent extends ConversationContent {
+  /// The accumulated thinking/reasoning text.
+  final String text;
+
+  const ThinkingContent({required this.text});
+
+  ThinkingContent copyWith({String? text}) {
+    return ThinkingContent(text: text ?? this.text);
+  }
+}
+
+/// An attachment included with a user message (image, file, etc.).
+final class AttachmentContent extends ConversationContent {
+  /// The attachments.
+  final List<AgentAttachment> attachments;
+
+  const AttachmentContent({required this.attachments});
+}
+
+/// A message entry in the conversation (for UI rendering).
+///
+/// Named `ConversationEntry` to avoid collision with [AgentMessage] (input message type).
+final class ConversationEntry {
+  /// Role of the message sender.
+  final MessageRole role;
+
+  /// Content blocks within this message.
+  final List<ConversationContent> content;
+
+  /// Whether this message is still being streamed.
+  bool get isStreaming {
+    for (final c in content) {
+      if (c is TextContent && c.isStreaming) return true;
+      if (c is ToolContent && c.isExecuting) return true;
+    }
+    return false;
+  }
+
+  /// Whether this is a user slash command (e.g. `/compact`, `/kill`).
+  bool get isSlashCommand => role == MessageRole.user && text.startsWith('/');
+
+  /// Whether this entry has any non-empty text or thinking content.
+  bool get hasVisibleText {
+    for (final c in content) {
+      if (c is TextContent && c.text.trim().isNotEmpty) return true;
+      if (c is ThinkingContent && c.text.trim().isNotEmpty) return true;
+    }
+    return false;
+  }
+
+  /// Whether this entry consists entirely of hidden/invisible tool calls.
+  ///
+  /// These entries should be skipped to avoid empty padding in the UI.
+  bool get isAllHidden {
+    if (role != MessageRole.assistant) return false;
+    final tools = content.whereType<ToolContent>().toList();
+    if (tools.isEmpty) return false;
+    return !hasVisibleText && tools.every((t) => t.isHidden);
+  }
+
+  /// Get the full text content of this message.
+  String get text {
+    final buffer = StringBuffer();
+    for (final c in content) {
+      if (c is TextContent) {
+        buffer.write(c.text);
+      }
+    }
+    return buffer.toString();
+  }
+
+  const ConversationEntry({required this.role, required this.content});
+
+  ConversationEntry copyWith({
+    MessageRole? role,
+    List<ConversationContent>? content,
+  }) {
+    return ConversationEntry(
+      role: role ?? this.role,
+      content: content ?? this.content,
+    );
+  }
+}
+
+/// Accumulated conversation state for a single agent.
+class AgentConversationState {
+  /// The agent this state is for.
+  final String agentId;
+
+  /// Agent name (for display).
+  final String? agentName;
+
+  /// Agent type.
+  final String agentType;
+
+  /// Current status of the agent.
+  VideAgentStatus status;
+
+  /// Current task name.
+  String? taskName;
+
+  /// Messages in the conversation.
+  final List<ConversationEntry> messages;
+
+  // Token usage (accumulated totals across all turns)
+  int totalInputTokens;
+  int totalOutputTokens;
+  int totalCacheReadInputTokens;
+  int totalCacheCreationInputTokens;
+  double totalCostUsd;
+
+  // Current context window usage (from latest turn)
+  int currentContextInputTokens;
+  int currentContextCacheReadTokens;
+  int currentContextCacheCreationTokens;
+
+  /// Whether the agent is currently processing.
+  bool get isProcessing => status == VideAgentStatus.working;
+
+  /// Whether the agent is currently producing thinking content.
+  ///
+  /// Derived from the conversation content: true when the last assistant
+  /// message's most recent content block is [ThinkingContent].
+  bool get isThinking {
+    if (messages.isEmpty) return false;
+    final last = messages.last;
+    if (last.role != MessageRole.assistant) return false;
+    if (last.content.isEmpty) return false;
+    return last.content.last is ThinkingContent;
+  }
+
+  /// Total context tokens used across all turns.
+  int get totalContextTokens =>
+      totalInputTokens +
+      totalCacheReadInputTokens +
+      totalCacheCreationInputTokens;
+
+  /// Current context window usage (for percentage display).
+  int get currentContextWindowTokens =>
+      currentContextInputTokens +
+      currentContextCacheReadTokens +
+      currentContextCacheCreationTokens;
+
+  /// The most recent TodoWrite payload, or null if none exists.
+  List<Map<String, dynamic>>? get latestTodos {
+    for (final entry in messages.reversed) {
+      for (final content in entry.content.reversed) {
+        if (content is ToolContent && content.toolName == 'TodoWrite') {
+          final todos = content.toolInput['todos'];
+          if (todos is List) return todos.cast<Map<String, dynamic>>();
+        }
+      }
+    }
+    return null;
+  }
+
+  AgentConversationState({
+    required this.agentId,
+    this.agentName,
+    required this.agentType,
+    this.status = VideAgentStatus.idle,
+    this.taskName,
+    List<ConversationEntry>? messages,
+    this.totalInputTokens = 0,
+    this.totalOutputTokens = 0,
+    this.totalCacheReadInputTokens = 0,
+    this.totalCacheCreationInputTokens = 0,
+    this.totalCostUsd = 0.0,
+    this.currentContextInputTokens = 0,
+    this.currentContextCacheReadTokens = 0,
+    this.currentContextCacheCreationTokens = 0,
+  }) : messages = messages ?? [];
+
+  /// Internal: current message event ID being streamed.
+  String? currentMessageEventId;
+
+  /// Internal: pending tool uses waiting for results.
+  final Map<String, int> pendingToolMessageIndex = {};
+  final Map<String, int> pendingToolContentIndex = {};
+}
+
+/// Manages conversation state accumulated from [VideEvent]s.
+///
+/// This is the bridge between the event stream and UI rendering.
+/// It also serves as the authoritative store of event history for the session,
+/// enabling features like history replay for late-joining clients.
+class ConversationStateManager {
+  /// Per-agent conversation state.
+  final Map<String, AgentConversationState> _agentStates = {};
+
+  /// Stream controller for state change notifications.
+  final StreamController<void> _changeController =
+      StreamController<void>.broadcast();
+
+  /// Per-agent stream controllers for targeted subscriptions.
+  final Map<String, StreamController<AgentConversationState>>
+  _agentControllers = {};
+
+  /// Authoritative event history for this session.
+  final List<VideEvent> _eventHistory = [];
+
+  /// Stream that emits whenever state changes.
+  Stream<void> get onStateChanged => _changeController.stream;
+
+  /// Get all agent IDs with state.
+  Iterable<String> get agentIds => _agentStates.keys;
+
+  /// The authoritative list of all events processed by this manager.
+  List<VideEvent> get eventHistory => List.unmodifiable(_eventHistory);
+
+  /// Get state for a specific agent.
+  AgentConversationState? getAgentState(String agentId) =>
+      _agentStates[agentId];
+
+  /// Stream of state changes for a specific agent.
+  ///
+  /// Emits the current [AgentConversationState] whenever that agent's
+  /// conversation state changes (new message, tool use, status update, etc.).
+  Stream<AgentConversationState> agentStream(String agentId) {
+    return _getOrCreateAgentController(agentId).stream;
+  }
+
+  StreamController<AgentConversationState> _getOrCreateAgentController(
+    String agentId,
+  ) {
+    return _agentControllers.putIfAbsent(
+      agentId,
+      () => StreamController<AgentConversationState>.broadcast(),
+    );
+  }
+
+  /// Get or create state for an agent.
+  AgentConversationState _getOrCreateAgentState(VideEvent event) {
+    return _agentStates.putIfAbsent(
+      event.agentId,
+      () => AgentConversationState(
+        agentId: event.agentId,
+        agentName: event.agentName,
+        agentType: event.agentType,
+        taskName: event.taskName,
+      ),
+    );
+  }
+
+  /// Handle an event and update state.
+  ///
+  /// Every event is appended to [eventHistory] before processing.
+  void handleEvent(VideEvent event) {
+    _eventHistory.add(event);
+
+    switch (event) {
+      case MessageEvent e:
+        _handleMessage(e);
+      case ThinkingEvent e:
+        _handleThinking(e);
+      case ToolUseEvent e:
+        _handleToolUse(e);
+      case ToolResultEvent e:
+        _handleToolResult(e);
+      case StatusEvent e:
+        _handleStatus(e);
+      case TurnCompleteEvent e:
+        _handleTurnComplete(e);
+      case AgentSpawnedEvent e:
+        _handleAgentSpawned(e);
+      case AgentTerminatedEvent e:
+        _handleAgentTerminated(e);
+      case PermissionRequestEvent _:
+      case AskUserQuestionEvent _:
+      case AskUserQuestionResolvedEvent _:
+      case PlanApprovalRequestEvent _:
+      case PlanApprovalResolvedEvent _:
+      case ErrorEvent _:
+      case TaskNameChangedEvent _:
+      case ConnectedEvent _:
+      case HistoryEvent _:
+      case PermissionResolvedEvent _:
+      case AbortedEvent _:
+      case CommandResultEvent _:
+      case UnknownEvent _:
+        break;
+    }
+  }
+
+  /// Notify both global and per-agent listeners of a state change.
+  void _notifyChange(String agentId) {
+    _changeController.add(null);
+    final state = _agentStates[agentId];
+    if (state != null) {
+      _getOrCreateAgentController(agentId).add(state);
+    }
+  }
+
+  void _handleMessage(MessageEvent event) {
+    final state = _getOrCreateAgentState(event);
+    state.taskName = event.taskName;
+
+    // Deduplicate user messages against the last message only.
+    // User messages are emitted twice: once optimistically (for instant UI) and
+    // once from the conversation stream (when Claude SDK processes it). Only the
+    // last message needs checking since these arrive back-to-back. Checking all
+    // history would silently drop legitimate repeated messages (e.g. "yes").
+    if (event.role == MessageRole.user && state.messages.isNotEmpty) {
+      final lastMessage = state.messages.last;
+      if (lastMessage.role == MessageRole.user &&
+          lastMessage.text == event.content) {
+        return;
+      }
+    }
+
+    if (state.currentMessageEventId != event.eventId) {
+      state.currentMessageEventId = event.eventId;
+
+      // Merge consecutive assistant messages into a single entry so that
+      // interleaved text/tool sequences render with consistent spacing.
+      // During live streaming, each text segment after a tool call gets a
+      // new eventId, which would otherwise create a separate entry — leading
+      // to extra blank lines from MarkdownText paragraph trailing newlines.
+      if (event.role == MessageRole.assistant && state.messages.isNotEmpty) {
+        final prev = state.messages.last;
+        if (prev.role == MessageRole.assistant) {
+          final contentList = List<ConversationContent>.from(prev.content);
+          if (event.content.isNotEmpty) {
+            contentList.add(
+              TextContent(text: event.content, isStreaming: event.isPartial),
+            );
+          }
+          state.messages[state.messages.length - 1] = prev.copyWith(
+            content: contentList,
+          );
+          _notifyChange(event.agentId);
+          return;
+        }
+      }
+
+      final contentBlocks = <ConversationContent>[
+        if (event.attachments != null && event.attachments!.isNotEmpty)
+          AttachmentContent(attachments: event.attachments!),
+        TextContent(text: event.content, isStreaming: event.isPartial),
+      ];
+      state.messages.add(
+        ConversationEntry(role: event.role, content: contentBlocks),
+      );
+    } else {
+      if (state.messages.isEmpty) return;
+
+      final lastMessage = state.messages.last;
+      final contentList = List<ConversationContent>.from(lastMessage.content);
+
+      final lastTextIndex = contentList.lastIndexWhere((c) => c is TextContent);
+      if (lastTextIndex >= 0 && contentList[lastTextIndex] is TextContent) {
+        final textContent = contentList[lastTextIndex] as TextContent;
+        contentList[lastTextIndex] = textContent.copyWith(
+          text: textContent.text + event.content,
+          isStreaming: event.isPartial,
+        );
+      } else {
+        contentList.add(
+          TextContent(text: event.content, isStreaming: event.isPartial),
+        );
+      }
+
+      state.messages[state.messages.length - 1] = lastMessage.copyWith(
+        content: contentList,
+      );
+    }
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleThinking(ThinkingEvent event) {
+    final state = _getOrCreateAgentState(event);
+    state.taskName = event.taskName;
+
+    // Ensure we have an assistant message to attach thinking to
+    if (state.messages.isEmpty ||
+        state.messages.last.role != MessageRole.assistant) {
+      state.messages.add(
+        const ConversationEntry(role: MessageRole.assistant, content: []),
+      );
+    }
+
+    final lastMessage = state.messages.last;
+    final contentList = List<ConversationContent>.from(lastMessage.content);
+
+    // Normalize: strip markdown bold markers (some models wrap thinking in
+    // **...**) so consumers get clean text without per-UI stripping.
+    final normalizedContent = event.content
+        .replaceAll(RegExp(r'^\*\*'), '')
+        .replaceAll(RegExp(r'\*\*$'), '');
+
+    // Append to the last ThinkingContent only if it's the final item in the
+    // list (i.e. no text or tool content has been interleaved since). Otherwise
+    // create a new ThinkingContent block to preserve proper interleaving.
+    final lastThinkingIndex = contentList.lastIndexWhere(
+      (c) => c is ThinkingContent,
+    );
+    if (lastThinkingIndex >= 0 &&
+        lastThinkingIndex == contentList.length - 1) {
+      if (event.isCumulative) {
+        // Cumulative thinking contains the full text up to this point.
+        // Replace instead of appending to avoid duplication when both
+        // streaming deltas and a final cumulative message are received
+        // (which happens with --include-partial-messages).
+        contentList[lastThinkingIndex] = ThinkingContent(
+          text: normalizedContent,
+        );
+      } else {
+        final existing = contentList[lastThinkingIndex] as ThinkingContent;
+        contentList[lastThinkingIndex] = existing.copyWith(
+          text: existing.text + normalizedContent,
+        );
+      }
+    } else {
+      contentList.add(ThinkingContent(text: normalizedContent));
+    }
+
+    state.messages[state.messages.length - 1] = lastMessage.copyWith(
+      content: contentList,
+    );
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleToolUse(ToolUseEvent event) {
+    final state = _getOrCreateAgentState(event);
+    state.taskName = event.taskName;
+
+    if (state.messages.isEmpty ||
+        state.messages.last.role != MessageRole.assistant) {
+      state.messages.add(
+        const ConversationEntry(role: MessageRole.assistant, content: []),
+      );
+    }
+
+    final lastMessage = state.messages.last;
+    final contentList = List<ConversationContent>.from(lastMessage.content);
+
+    for (int i = 0; i < contentList.length; i++) {
+      if (contentList[i] is TextContent) {
+        final textContent = contentList[i] as TextContent;
+        if (textContent.isStreaming) {
+          contentList[i] = textContent.copyWith(isStreaming: false);
+        }
+      }
+    }
+
+    contentList.add(
+      ToolContent(
+        toolUseId: event.toolUseId,
+        toolName: event.toolName,
+        toolInput: event.toolInput,
+      ),
+    );
+
+    state.pendingToolMessageIndex[event.toolUseId] = state.messages.length - 1;
+    state.pendingToolContentIndex[event.toolUseId] = contentList.length - 1;
+
+    state.messages[state.messages.length - 1] = lastMessage.copyWith(
+      content: contentList,
+    );
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleToolResult(ToolResultEvent event) {
+    final state = _agentStates[event.agentId];
+    if (state == null) return;
+
+    final messageIndex = state.pendingToolMessageIndex.remove(event.toolUseId);
+    final contentIndex = state.pendingToolContentIndex.remove(event.toolUseId);
+
+    if (messageIndex == null ||
+        contentIndex == null ||
+        messageIndex >= state.messages.length) {
+      return;
+    }
+
+    final message = state.messages[messageIndex];
+    if (contentIndex >= message.content.length) return;
+
+    final content = message.content[contentIndex];
+    if (content is! ToolContent) return;
+
+    final contentList = List<ConversationContent>.from(message.content);
+    contentList[contentIndex] = content.copyWith(
+      result: event.result,
+      isError: event.isError,
+    );
+
+    state.messages[messageIndex] = message.copyWith(content: contentList);
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleStatus(StatusEvent event) {
+    final state = _getOrCreateAgentState(event);
+    state.status = event.status;
+    state.taskName = event.taskName;
+    _notifyChange(event.agentId);
+  }
+
+  void _handleTurnComplete(TurnCompleteEvent event) {
+    final state = _agentStates[event.agentId];
+    if (state == null) return;
+
+    state.currentMessageEventId = null;
+
+    state.totalInputTokens = event.totalInputTokens;
+    state.totalOutputTokens = event.totalOutputTokens;
+    state.totalCacheReadInputTokens = event.totalCacheReadInputTokens;
+    state.totalCacheCreationInputTokens = event.totalCacheCreationInputTokens;
+    state.totalCostUsd = event.totalCostUsd;
+    state.currentContextInputTokens = event.currentContextInputTokens;
+    state.currentContextCacheReadTokens = event.currentContextCacheReadTokens;
+    state.currentContextCacheCreationTokens =
+        event.currentContextCacheCreationTokens;
+
+    if (state.messages.isNotEmpty) {
+      final lastMessage = state.messages.last;
+      final contentList = List<ConversationContent>.from(lastMessage.content);
+      bool changed = false;
+
+      for (int i = 0; i < contentList.length; i++) {
+        if (contentList[i] is TextContent) {
+          final textContent = contentList[i] as TextContent;
+          if (textContent.isStreaming) {
+            contentList[i] = textContent.copyWith(isStreaming: false);
+            changed = true;
+          }
+        }
+      }
+
+      if (changed) {
+        state.messages[state.messages.length - 1] = lastMessage.copyWith(
+          content: contentList,
+        );
+      }
+    }
+
+    _notifyChange(event.agentId);
+  }
+
+  void _handleAgentSpawned(AgentSpawnedEvent event) {
+    _getOrCreateAgentState(event);
+    _notifyChange(event.agentId);
+  }
+
+  void _handleAgentTerminated(AgentTerminatedEvent event) {
+    _agentStates.remove(event.agentId);
+    _agentControllers.remove(event.agentId)?.close();
+    _changeController.add(null);
+  }
+
+  /// Clear all state.
+  void clear() {
+    _agentStates.clear();
+    _eventHistory.clear();
+    for (final controller in _agentControllers.values) {
+      controller.close();
+    }
+    _agentControllers.clear();
+    _changeController.add(null);
+  }
+
+  /// Dispose resources.
+  void dispose() {
+    for (final controller in _agentControllers.values) {
+      controller.close();
+    }
+    _agentControllers.clear();
+    _changeController.close();
+  }
+}

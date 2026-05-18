@@ -7,7 +7,6 @@ void main() {
       final json = {
         'initial-message': 'Hello',
         'working-directory': '/path/to/project',
-        'model': 'opus',
         'permission-mode': 'interactive',
       };
 
@@ -15,7 +14,6 @@ void main() {
 
       expect(request.initialMessage, 'Hello');
       expect(request.workingDirectory, '/path/to/project');
-      expect(request.model, 'opus');
       expect(request.permissionMode, 'interactive');
     });
 
@@ -26,8 +24,72 @@ void main() {
 
       expect(request.initialMessage, 'Hello');
       expect(request.workingDirectory, '/path');
-      expect(request.model, isNull);
       expect(request.permissionMode, isNull);
+      expect(request.attachments, isNull);
+    });
+
+    test('fromJson parses attachments', () {
+      final json = {
+        'initial-message': 'Check this image',
+        'working-directory': '/path',
+        'attachments': [
+          {
+            'type': 'image',
+            'file-path': '/path/to/screenshot.png',
+            'mime-type': 'image/png',
+          },
+        ],
+      };
+
+      final request = CreateSessionRequest.fromJson(json);
+
+      expect(request.attachments, isNotNull);
+      expect(request.attachments, hasLength(1));
+      expect(request.attachments![0].type, 'image');
+      expect(request.attachments![0].filePath, '/path/to/screenshot.png');
+      expect(request.attachments![0].mimeType, 'image/png');
+      expect(request.attachments![0].content, isNull);
+    });
+
+    test('fromJson parses multiple attachments including base64', () {
+      final json = {
+        'initial-message': 'Multiple images',
+        'working-directory': '/path',
+        'attachments': [
+          {
+            'type': 'image',
+            'file-path': '/path/to/a.png',
+            'mime-type': 'image/png',
+          },
+          {
+            'type': 'image',
+            'content': 'iVBORw0KGgo=',
+            'mime-type': 'image/jpeg',
+          },
+        ],
+      };
+
+      final request = CreateSessionRequest.fromJson(json);
+
+      expect(request.attachments, hasLength(2));
+      expect(request.attachments![0].filePath, '/path/to/a.png');
+      expect(request.attachments![0].content, isNull);
+      expect(request.attachments![1].filePath, isNull);
+      expect(request.attachments![1].content, 'iVBORw0KGgo=');
+      expect(request.attachments![1].mimeType, 'image/jpeg');
+    });
+
+    test('fromJson with empty attachments list', () {
+      final json = {
+        'initial-message': 'Hello',
+        'working-directory': '/path',
+        'attachments': <Map<String, dynamic>>[],
+      };
+
+      final request = CreateSessionRequest.fromJson(json);
+
+      expect(request.attachments, isNotNull);
+      expect(request.attachments, isEmpty);
     });
   });
 
@@ -49,18 +111,123 @@ void main() {
 
   group('ClientMessage', () {
     test('fromJson parses user-message', () {
-      final json = {
-        'type': 'user-message',
-        'content': 'Hello there',
-        'model': 'haiku',
-      };
+      final json = {'type': 'user-message', 'content': 'Hello there'};
 
       final message = ClientMessage.fromJson(json);
 
       expect(message, isA<UserMessage>());
       final userMsg = message as UserMessage;
       expect(userMsg.content, 'Hello there');
-      expect(userMsg.model, 'haiku');
+      expect(userMsg.agentId, isNull);
+    });
+
+    test('fromJson parses user-message with target agent', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Hi sub-agent',
+        'agent-id': 'agent-2',
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<UserMessage>());
+      final userMsg = message as UserMessage;
+      expect(userMsg.content, 'Hi sub-agent');
+      expect(userMsg.agentId, 'agent-2');
+    });
+
+    test('fromJson parses user-message without attachments', () {
+      final json = {'type': 'user-message', 'content': 'No attachments here'};
+
+      final message = ClientMessage.fromJson(json) as UserMessage;
+
+      expect(message.content, 'No attachments here');
+      expect(message.attachments, isNull);
+    });
+
+    test('fromJson parses user-message with image attachment', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Check this image',
+        'attachments': [
+          {
+            'type': 'image',
+            'file-path': '/path/to/screenshot.png',
+            'mime-type': 'image/png',
+          },
+        ],
+      };
+
+      final message = ClientMessage.fromJson(json) as UserMessage;
+
+      expect(message.content, 'Check this image');
+      expect(message.attachments, isNotNull);
+      expect(message.attachments, hasLength(1));
+      expect(message.attachments![0].type, 'image');
+      expect(message.attachments![0].filePath, '/path/to/screenshot.png');
+      expect(message.attachments![0].mimeType, 'image/png');
+      expect(message.attachments![0].content, isNull);
+    });
+
+    test('fromJson parses user-message with base64 image attachment', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Pasted image',
+        'attachments': [
+          {
+            'type': 'image',
+            'content': 'iVBORw0KGgoAAAANS',
+            'mime-type': 'image/png',
+          },
+        ],
+      };
+
+      final message = ClientMessage.fromJson(json) as UserMessage;
+
+      expect(message.attachments, hasLength(1));
+      expect(message.attachments![0].type, 'image');
+      expect(message.attachments![0].filePath, isNull);
+      expect(message.attachments![0].content, 'iVBORw0KGgoAAAANS');
+      expect(message.attachments![0].mimeType, 'image/png');
+    });
+
+    test('fromJson parses user-message with multiple attachments', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Multiple images',
+        'attachments': [
+          {
+            'type': 'image',
+            'file-path': '/path/to/a.png',
+            'mime-type': 'image/png',
+          },
+          {
+            'type': 'image',
+            'file-path': '/path/to/b.jpg',
+            'mime-type': 'image/jpeg',
+          },
+        ],
+      };
+
+      final message = ClientMessage.fromJson(json) as UserMessage;
+
+      expect(message.attachments, hasLength(2));
+      expect(message.attachments![0].filePath, '/path/to/a.png');
+      expect(message.attachments![1].filePath, '/path/to/b.jpg');
+      expect(message.attachments![1].mimeType, 'image/jpeg');
+    });
+
+    test('fromJson parses user-message with empty attachments list', () {
+      final json = {
+        'type': 'user-message',
+        'content': 'Empty list',
+        'attachments': <Map<String, dynamic>>[],
+      };
+
+      final message = ClientMessage.fromJson(json) as UserMessage;
+
+      expect(message.attachments, isNotNull);
+      expect(message.attachments, isEmpty);
     });
 
     test('fromJson parses permission-response', () {
@@ -103,12 +270,124 @@ void main() {
       expect(message, isA<AbortMessage>());
     });
 
+    test('fromJson parses ask-user-question-response', () {
+      final json = {
+        'type': 'ask-user-question-response',
+        'request-id': 'ask-1',
+        'answers': {'Pick one': 'A'},
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<AskUserQuestionResponseMessage>());
+      final ask = message as AskUserQuestionResponseMessage;
+      expect(ask.requestId, 'ask-1');
+      expect(ask.answers, {'Pick one': 'A'});
+    });
+
+    test('fromJson parses session-command', () {
+      final json = {
+        'type': 'session-command',
+        'request-id': 'cmd-1',
+        'command': 'fork-agent',
+        'data': {'agent-id': 'main'},
+      };
+
+      final message = ClientMessage.fromJson(json);
+
+      expect(message, isA<SessionCommandMessage>());
+      final command = message as SessionCommandMessage;
+      expect(command.requestId, 'cmd-1');
+      expect(command.command, 'fork-agent');
+      expect(command.data, {'agent-id': 'main'});
+    });
+
     test('fromJson throws on unknown type', () {
       final json = {'type': 'unknown-type'};
 
       expect(() => ClientMessage.fromJson(json), throwsA(isA<ArgumentError>()));
     });
   });
+
+  group(
+    'Attachment round-trip (client serialization → server deserialization)',
+    () {
+      test('image file attachment survives round-trip', () {
+        // Simulate what vide_client Session.sendMessage() produces
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Check this',
+          'attachments': [
+            {
+              'type': 'image',
+              'file-path': '/Users/me/screenshot.png',
+              'mime-type': 'image/png',
+            },
+          ],
+        };
+
+        // Server parses it
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
+
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'image');
+        expect(att.filePath, '/Users/me/screenshot.png');
+        expect(att.mimeType, 'image/png');
+        expect(att.content, isNull);
+      });
+
+      test('base64 image attachment survives round-trip', () {
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Pasted',
+          'attachments': [
+            {
+              'type': 'image',
+              'content': 'base64encodeddata==',
+              'mime-type': 'image/jpeg',
+            },
+          ],
+        };
+
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
+
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'image');
+        expect(att.filePath, isNull);
+        expect(att.content, 'base64encodeddata==');
+        expect(att.mimeType, 'image/jpeg');
+      });
+
+      test('attachment with only required type field survives round-trip', () {
+        final clientJson = {
+          'type': 'user-message',
+          'content': 'Minimal',
+          'attachments': [
+            {'type': 'file'},
+          ],
+        };
+
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
+
+        expect(message.attachments, hasLength(1));
+        final att = message.attachments![0];
+        expect(att.type, 'file');
+        expect(att.filePath, isNull);
+        expect(att.content, isNull);
+        expect(att.mimeType, isNull);
+      });
+
+      test('no attachments field results in null', () {
+        final clientJson = {'type': 'user-message', 'content': 'Just text'};
+
+        final message = ClientMessage.fromJson(clientJson) as UserMessage;
+
+        expect(message.attachments, isNull);
+      });
+    },
+  );
 
   group('SessionEvent', () {
     test('message event has correct kebab-case format', () {

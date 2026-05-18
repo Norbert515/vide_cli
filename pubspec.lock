@@ -58,7 +58,7 @@ packages:
     source: hosted
     version: "4.0.7"
   args:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: args
       sha256: d0481093c50b1da8910eb0bb301626d4d8eb7284aa739614d2b394ee09e3ea04
@@ -73,6 +73,15 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  bashboard:
+    dependency: transitive
+    description:
+      path: "."
+      ref: "348b1fcf8cd32b0e6747c4537e057fd3167bd479"
+      resolved-ref: "348b1fcf8cd32b0e6747c4537e057fd3167bd479"
+      url: "https://github.com/Norbert515/bashboard-dart.git"
+    source: git
+    version: "0.1.0"
   boolean_selector:
     dependency: transitive
     description:
@@ -149,10 +158,10 @@ packages:
     dependency: transitive
     description:
       name: characters
-      sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
+      sha256: f71061c654a3380576a52b451dd5532377954cf9dbd272a78fc8479606670803
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.1"
+    version: "1.4.0"
   charcode:
     dependency: transitive
     description:
@@ -477,10 +486,10 @@ packages:
     dependency: transitive
     description:
       name: meta
-      sha256: "23f08335362185a5ea2ad3a4e597f1375e78bce8a040df5c600c8d3552ef2394"
+      sha256: e3641ec5d63ebf0d9b41bd43201a66e3fc79a65db5f61fc181f04cd27aab950c
       url: "https://pub.dev"
     source: hosted
-    version: "1.17.0"
+    version: "1.16.0"
   mime:
     dependency: transitive
     description:
@@ -503,7 +512,7 @@ packages:
       path: "../nocterm"
       relative: true
     source: path
-    version: "0.4.2"
+    version: "0.6.0"
   nocterm_riverpod:
     dependency: "direct main"
     description:

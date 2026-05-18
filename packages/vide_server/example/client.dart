@@ -223,7 +223,12 @@ class _EventHandler {
       case StatusEvent(:final status):
         print('[$agentName] Status: ${status.name}');
 
-      case MessageEvent(:final role, :final content, :final isPartial, :final eventId):
+      case MessageEvent(
+        :final role,
+        :final content,
+        :final isPartial,
+        :final eventId,
+      ):
         _handleMessage(role, content, isPartial, eventId);
 
       case ToolUseEvent(:final toolName):
@@ -256,9 +261,18 @@ class _EventHandler {
         print('   Request ID: $requestId');
         print('   (Auto-approving in this client)');
 
-      case PermissionTimeoutEvent(:final requestId):
+      case PermissionResolvedEvent(
+        :final requestId,
+        :final allow,
+        :final message,
+      ):
         print('');
-        print('⏰ Permission timeout: $requestId');
+        print(
+          '${allow ? '✅' : '❌'} Permission ${allow ? 'allowed' : 'denied'}: $requestId',
+        );
+        if (message != null) {
+          print('   message: $message');
+        }
 
       case DoneEvent():
         _closeStreamingMessage();
@@ -289,8 +303,7 @@ class _EventHandler {
     String? eventId,
   ) {
     if (_currentEventId != eventId) {
-      if (_currentStreamRole == MessageRole.assistant &&
-          _buffer.isNotEmpty) {
+      if (_currentStreamRole == MessageRole.assistant && _buffer.isNotEmpty) {
         print('');
         print('└─');
       }

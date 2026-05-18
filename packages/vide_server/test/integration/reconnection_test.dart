@@ -143,7 +143,10 @@ void main() {
 
       // Verify history event
       expect(historyEvent, isNotNull);
-      expect(historyEvent!['last-seq'], greaterThanOrEqualTo(firstClientLastSeq));
+      expect(
+        historyEvent!['last-seq'],
+        greaterThanOrEqualTo(firstClientLastSeq),
+      );
 
       final historyData = historyEvent!['data'] as Map<String, dynamic>;
       final events = historyData['events'] as List<dynamic>;
@@ -159,10 +162,15 @@ void main() {
       }
 
       // Verify sequence numbers are sequential
-      final seqs = events.map((e) => (e as Map<String, dynamic>)['seq'] as int).toList();
+      final seqs = events
+          .map((e) => (e as Map<String, dynamic>)['seq'] as int)
+          .toList();
       for (var i = 1; i < seqs.length; i++) {
-        expect(seqs[i], greaterThan(seqs[i - 1]),
-            reason: 'Sequence numbers should be increasing');
+        expect(
+          seqs[i],
+          greaterThan(seqs[i - 1]),
+          reason: 'Sequence numbers should be increasing',
+        );
       }
 
       await channel2.sink.close();

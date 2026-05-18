@@ -37,6 +37,7 @@ class ResponseToMessageConverter {
       StatusResponse r => _convertStatusResponse(r, ts),
       MetaResponse r => _convertMetaResponse(r, ts),
       CompletionResponse r => _convertCompletionResponse(r, ts),
+      ThinkingResponse r => _convertThinkingResponse(r, ts),
       UnknownResponse r => _convertUnknownResponse(r, ts),
     };
   }
@@ -221,6 +222,18 @@ class ResponseToMessageConverter {
       id: response.id,
       timestamp: timestamp,
       response: response,
+    );
+  }
+
+  static ConversationMessage _convertThinkingResponse(
+    ThinkingResponse response,
+    DateTime timestamp,
+  ) {
+    return ConversationMessage.assistant(
+      id: response.id,
+      responses: [response],
+      isComplete: false,
+      isStreaming: true,
     );
   }
 

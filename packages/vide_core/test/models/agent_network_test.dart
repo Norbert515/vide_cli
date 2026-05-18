@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('AgentNetwork', () {
@@ -21,7 +21,7 @@ void main() {
           goal: 'Implement feature X',
           agents: [
             createAgent(id: 'main-1', name: 'Main', type: 'main'),
-            createAgent(id: 'impl-1', name: 'Worker', type: 'implementation'),
+            createAgent(id: 'impl-1', name: 'Worker', type: 'implementer'),
           ],
           createdAt: testDate,
           lastActiveAt: lastActiveDate,
@@ -81,7 +81,7 @@ void main() {
             {
               'id': 'impl-1',
               'name': 'Worker',
-              'type': 'implementation',
+              'type': 'implementer',
               'createdAt': testDate.toIso8601String(),
             },
           ],
@@ -166,7 +166,7 @@ void main() {
         );
 
         final newAgents = [
-          createAgent(id: 'new-1', name: 'New Agent', type: 'implementation'),
+          createAgent(id: 'new-1', name: 'New Agent', type: 'implementer'),
         ];
 
         final copied = original.copyWith(
@@ -222,12 +222,8 @@ void main() {
           goal: 'Test goal',
           agents: [
             createAgent(id: 'agent-1', name: 'Agent 1', type: 'main'),
-            createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementation'),
-            createAgent(
-              id: 'agent-3',
-              name: 'Agent 3',
-              type: 'contextCollection',
-            ),
+            createAgent(id: 'agent-2', name: 'Agent 2', type: 'implementer'),
+            createAgent(id: 'agent-3', name: 'Agent 3', type: 'researcher'),
           ],
           createdAt: testDate,
         );
@@ -256,10 +252,9 @@ void main() {
           AgentMetadata(
             id: 'impl-1',
             name: 'Worker',
-            type: 'implementation',
+            type: 'implementer',
             spawnedBy: 'main-1',
             createdAt: testDate,
-            status: AgentStatus.working,
             taskName: 'Fix bug',
           ),
         ],
@@ -276,7 +271,6 @@ void main() {
       expect(restored.agents.length, original.agents.length);
       expect(restored.agents[0].id, original.agents[0].id);
       expect(restored.agents[1].spawnedBy, 'main-1');
-      expect(restored.agents[1].status, AgentStatus.working);
       expect(restored.agents[1].taskName, 'Fix bug');
       expect(restored.createdAt, original.createdAt);
       expect(restored.lastActiveAt, original.lastActiveAt);

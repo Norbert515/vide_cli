@@ -1,154 +1,131 @@
-<h1 align="center">
-  <img src="docs/logo.png" alt="Vide Logo" height="50" style="vertical-align: middle;"/>
-  Vide CLI
-</h1>
+[![CI](https://github.com/Norbert515/vide_cli/actions/workflows/test.yml/badge.svg)](https://github.com/Norbert515/vide_cli/actions/workflows/test.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)](https://github.com/Norbert515/vide_cli)
+[![Website](https://img.shields.io/badge/web-vide.dev-blue)](https://vide.dev)
 
 <p align="center">
-  <strong>An agentic terminal UI for Claude, built for Flutter developers</strong>
+<img src="landing/assets/og-image.png" alt="Vide" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/Norbert515/vide_cli/actions/workflows/test.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/Norbert515/vide_cli/test.yml?branch=main&style=for-the-badge&logo=github&label=Tests" alt="Tests"/>
-  </a>
-  <a href="https://github.com/Norbert515/vide_cli/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache%202.0-blue?style=for-the-badge" alt="License"/>
-  </a>
-  <img src="https://img.shields.io/badge/dart-%5E3.8.0-0175C2?style=for-the-badge&logo=dart&logoColor=white" alt="Dart"/>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey?style=for-the-badge" alt="Platform"/>
+<a href="https://vide.dev"><strong>Website</strong></a> |
+<a href="https://github.com/Norbert515/vide_cli"><strong>GitHub</strong></a>
 </p>
 
-<p align="center">
-  <img src="docs/hero.png" alt="Vide CLI" width="800"/>
-</p>
+**The open source agent orchestrator.** Instead of one AI conversation, Vide orchestrates a team of specialized agents that research, implement, review, and test your code -- all working in parallel.
 
----
-
-## What is Vide?
-
-Vide treats AI-assisted development as a **collaborative multi-agent problem**. Instead of a single Claude conversation, Vide orchestrates a network of specialized agents that spawn, communicate, and collaborate asynchronously—each with distinct responsibilities and tools.
-
----
-
-## What Makes Vide Special
-
-### Collaborative Agent Network
-
-Vide doesn't just talk to Claude—it coordinates a **team of agents**.
-
-A main orchestrator assesses incoming tasks, clarifies requirements with you, then delegates to specialized agents: one researches your codebase, another writes the code, a third runs and tests your Flutter app. They communicate via async message passing, work in parallel, and report back when done.
-
-The orchestrator **never writes code itself**. This separation of concerns—assessment vs. implementation vs. verification—enables better quality control and lets each agent focus on what it does best.
-
-### Flutter-Native Testing
-
-Vide injects runtime dev tools into your Flutter app **transparently**—no code changes required.
-
-Ask it to *"tap the login button"* and Vide will:
-1. Take a screenshot of your running app
-2. Use vision AI to locate the element
-3. Simulate the tap at the detected coordinates
-4. Verify the result
-
-Hot reload, screenshots, scrolling, typing—all controllable via natural language.
-
-### Purpose-Built MCP Servers
-
-Custom Model Context Protocol servers designed for agentic workflows:
-
-- **Agent Network** — Spawn sub-agents, send messages, coordinate parallel work
-- **Persistent Memory** — Remember build commands, platform choices, project context across sessions
-- **Git Worktrees** — Work on features in isolated branches without switching directories
-- **Task Management** — Track what each agent is working on in real-time
-
-### Flutter-Specific Prompts
-
-Agents come with deep Flutter knowledge baked in:
-- Automatic FVM detection and platform selection
-- Understanding of Flutter project structure and conventions
-- Dart analyzer integration for immediate feedback
-- Hot reload workflows that verify changes actually work
-
----
-
-## Prerequisites
-
-<table>
-<tr>
-<td width="80" align="center">
-<img src="https://cdn.simpleicons.org/anthropic" width="40" alt="Claude"/>
-</td>
-<td>
-<strong>Claude Code CLI</strong><br/>
-<code>npm install -g @anthropic-ai/claude-code</code><br/>
-<sub>Must be installed, authenticated, and available in PATH</sub>
-</td>
-</tr>
-<tr>
-<td width="80" align="center">
-<img src="https://cdn.simpleicons.org/dart" width="40" alt="Dart"/>
-</td>
-<td>
-<strong>Dart SDK</strong><br/>
-<code>^3.8.0</code> or higher
-</td>
-</tr>
-</table>
-
-> Vide currently uses Claude Code as its backend. Support for additional agent backends is planned.
-
----
-
-## Installation
-
-### Quick Install (macOS/Linux)
+## Install
 
 ```bash
+# macOS / Linux
 curl -fsSL https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.sh | bash
-```
 
-Installs to `~/.local/bin/vide` and optionally adds it to your PATH.
-
-### Quick Install (Windows)
-
-```powershell
+# Windows
 irm https://raw.githubusercontent.com/Norbert515/vide_cli/main/scripts/install.ps1 | iex
 ```
 
-### Manual Download
+Requires [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) (`npm install -g @anthropic-ai/claude-code`).
 
-Download the latest binary from [GitHub Releases](https://github.com/Norbert515/vide_cli/releases):
-
-| Platform | Binary |
-|----------|--------|
-| macOS (ARM64) | `vide-macos-arm64.tar.gz` |
-| macOS (Intel) | `vide-macos-x64.tar.gz` |
-| Linux (x64) | `vide-linux-x64` |
-| Windows (x64) | `vide-windows-x64.exe` |
-
-### From Source
-
-```bash
-git clone https://github.com/Norbert515/vide_cli.git
-cd vide_cli
-dart pub get
-dart compile exe bin/vide.dart -o vide
-cp vide ~/.local/bin/
-```
-
-Then run from any directory:
+Then just run:
 
 ```bash
 vide
 ```
 
-### Auto-Updates
+## Agent Teams, Not Single Agents
 
-Vide automatically checks for updates and downloads them in the background. Updates are applied on the next restart.
+Most AI coding tools give you one agent in one conversation. Vide gives you a team.
 
-To disable auto-updates:
+A lead agent breaks down your request and spawns specialists -- researcher, implementer, tester -- that work in parallel across separate git worktrees. They communicate asynchronously and iterate through review rounds until the job is done.
+
+<p align="center">
+<img src="docs/hero.png" alt="Vide agent team in action" width="700" />
+</p>
+
+## Collaboration Built In
+
+Agents don't just run in parallel -- they collaborate. The orchestrator delegates to an implementer, a QA agent reviews the result, issues get fixed, another round of review. This loop repeats until quality is met.
+
+Structured engineering workflows, not just autocomplete.
+
+## Remote Control
+
+Run your agent teams on a remote server and connect from anywhere. Vide includes a daemon that manages sessions as sub-processes, with a REST API and WebSocket streaming for real-time control.
+
+### Quick Start (Local Daemon)
+
 ```bash
-export DISABLE_AUTOUPDATER=1
+# Start the daemon
+vide daemon start
+```
+
+Then open Vide and press `Tab` to open settings -- enable daemon mode there. The TUI works identically in daemon mode -- the same UI, same workflows, just backed by daemon-managed sessions that persist even if the TUI disconnects.
+
+### Remote Access
+
+Run the daemon on a VPS and connect from your laptop:
+
+```bash
+# On the VPS
+vide daemon start --host $(tailscale ip -4) --port 8080
+
+# From your laptop
+vide connect 100.64.12.34:8080
+```
+
+[Tailscale](https://tailscale.com) is the recommended way to handle remote access. It creates encrypted peer-to-peer tunnels between your devices using WireGuard -- no port forwarding, no public exposure, no extra auth layer needed.
+
+<details>
+<summary>Setting up Tailscale on a VPS</summary>
+
+**1. Install on both your VPS and laptop:**
+
+```bash
+# VPS (Ubuntu/Debian)
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+sudo systemctl enable --now tailscaled
+
+# macOS laptop
+brew install tailscale
+```
+
+**2. Start the daemon bound to the Tailscale IP:**
+
+```bash
+TS_IP=$(tailscale ip -4)
+vide daemon start --host $TS_IP --port 8080
+```
+
+The Tailscale IP (`100.x.x.x`) is in the CGNAT range -- never routed on the public internet. Your daemon is only reachable by devices on your tailnet.
+
+**3. Connect from your laptop:**
+
+```bash
+vide connect 100.64.12.34:8080
+
+# Or with MagicDNS:
+vide connect my-vps.my-tailnet.ts.net:8080
+```
+
+**4. (Optional) Install as a system service:**
+
+```bash
+# Auto-start the daemon on boot
+vide daemon install
+```
+
+</details>
+
+### Daemon CLI
+
+```bash
+vide daemon start              # Start the daemon (foreground)
+vide daemon start --detach     # Start in background
+vide daemon stop               # Stop the daemon
+vide daemon status             # Check if running
+vide daemon install            # Install as system service (launchd/systemd)
+vide daemon uninstall          # Remove system service
 ```
 
 ---
@@ -186,38 +163,30 @@ After resolving the issue, restart Vide.
 ---
 
 ## Agent Architecture
+### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Main Orchestrator                       │
-│            Assesses • Clarifies • Delegates                 │
-└─────────────────────┬───────────────────────────────────────┘
-                      │ spawns
-        ┌─────────────┼─────────────┬─────────────┐
-        ▼             ▼             ▼             ▼
-   ┌──────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐
-   │ Context  │  │  Impl   │  │ Flutter │  │Planning │
-   │Collection│  │  Agent  │  │ Tester  │  │  Agent  │
-   └──────────┘  └─────────┘  └─────────┘  └─────────┘
-    Research     Write code   Run & test   Plan complex
-    codebase     & edit       the app      changes
+Laptop (TUI)                        VPS
+    │                                │
+    │── vide connect ──────────────► │  vide daemon (port 8080)
+    │                                │    ├── session A (vide_server :54321)
+    │◄─── WebSocket stream ─────────│    ├── session B (vide_server :54322)
+    │                                │    └── session C (vide_server :54323)
 ```
 
-Agents communicate via **async message passing**, enabling parallel workflows without blocking.
+The daemon spawns a separate `vide_server` process per session for full isolation. Sessions persist across daemon restarts and survive client disconnects. Multiple TUI clients can connect to the same session simultaneously.
 
----
+## Multi-Backend
 
-## Built-in MCP Servers
+Vide doesn't call models directly -- it orchestrates full agent frameworks via their SDKs. Currently built on Claude Code. Codex CLI and Gemini CLI are on the roadmap. Same agent teams, same workflows, always using the best each framework has to offer.
 
-| Server | Purpose |
-|--------|---------|
-| `vide-agent` | Spawn agents, inter-agent messaging, status tracking |
-| `vide-git` | Full Git operations including worktree support |
-| `vide-memory` | Persistent key-value storage across sessions |
-| `vide-task-management` | Track what each agent is working on |
-| `flutter-runtime` | App lifecycle, hot reload, screenshots, UI interaction |
+## Features
 
----
+- **Flutter-first** -- hot reload, vision AI (Moondream), widget inspection, screenshot capture
+- **Git worktrees** -- each feature team works on its own branch in isolation
+- **Custom agents** -- drop `.md` files into `.claude/agents/` to define your own specialists
+- **60fps terminal UI** -- a real TUI built on nocterm, not scrolling text
+- **Open source** -- Apache 2.0. Extend with MCP servers. Build on top of it.
 
 ## License
 

@@ -106,6 +106,24 @@ abstract class McpServerBase {
     }
   }
 
+  /// Start the server in stdio mode (for standalone MCP hosting).
+  ///
+  /// Unlike [start], this uses stdin/stdout for communication instead of HTTP.
+  /// The returned future completes when the transport is closed.
+  Future<void> startStdio() async {
+    _mcpServer = McpServer(
+      Implementation(name: name, version: version),
+      options: ServerOptions(
+        capabilities: ServerCapabilities(tools: ServerCapabilitiesTools()),
+      ),
+    );
+
+    registerTools(_mcpServer!);
+
+    final transport = StdioServerTransport();
+    await _mcpServer!.connect(transport);
+  }
+
   /// Stop the server
   Future<void> stop() async {
     await onStop();

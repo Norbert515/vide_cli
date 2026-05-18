@@ -1,6 +1,6 @@
 import 'package:riverpod/riverpod.dart';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('AgentStatusManager', () {
@@ -14,10 +14,10 @@ void main() {
       container.dispose();
     });
 
-    test('initial status is working', () {
+    test('initial status is idle', () {
       final status = container.read(agentStatusProvider('agent-1'));
 
-      expect(status, AgentStatus.working);
+      expect(status, AgentStatus.idle);
     });
 
     test('setStatus updates status', () {
@@ -67,9 +67,9 @@ void main() {
       });
 
       final notifier = container.read(agentStatusProvider('agent-1').notifier);
-      // Initial status is 'working', setting to 'working' again is a no-op
-      notifier.setStatus(AgentStatus.working);
-      notifier.setStatus(AgentStatus.working);
+      // Initial status is 'idle', setting to 'idle' again is a no-op
+      notifier.setStatus(AgentStatus.idle);
+      notifier.setStatus(AgentStatus.idle);
 
       // StateNotifier does NOT notify when value is unchanged (standard behavior)
       expect(notificationCount, 0);

@@ -1,16 +1,15 @@
 import 'dart:math';
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_interface/vide_interface.dart';
 
 class EnhancedLoadingIndicator extends StatefulComponent {
-  const EnhancedLoadingIndicator({super.key, this.agentId});
+  const EnhancedLoadingIndicator({super.key, this.processingPhase});
 
-  /// Optional agent ID to show status-aware loading messages.
-  /// If provided, the indicator will show messages based on Claude's actual status.
-  final String? agentId;
+  /// Optional processing phase to show status-aware loading messages.
+  /// If provided, the indicator will show a label like "Thinking" or "Responding".
+  final AgentProcessingStatus? processingPhase;
 
   @override
   State<EnhancedLoadingIndicator> createState() =>
@@ -72,11 +71,12 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     'Unscrambling quantum eggs',
   ];
 
-  /// Status-specific messages shown when we know Claude's actual state
+  /// Status-specific messages shown when we know the agent's actual state
   static const _statusMessages = {
-    ClaudeStatus.processing: 'Processing',
-    ClaudeStatus.thinking: 'Thinking',
-    ClaudeStatus.responding: 'Responding',
+    AgentProcessingStatus.processing: 'Processing',
+    AgentProcessingStatus.thinking: 'Thinking',
+    AgentProcessingStatus.responding: 'Responding',
+    AgentProcessingStatus.compacting: 'Compacting',
   };
 
   static final _brailleFrames = [
@@ -104,7 +104,8 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
 
   /// Derive shimmer position from animation controller, cycling through activity text
   int get _shimmerPosition {
-    final textLength = _activities[_activityIndex].length + 10; // +10 for padding
+    final textLength =
+        _activities[_activityIndex].length + 10; // +10 for padding
     final pos = (_spinnerController.value * textLength).floor() - 5;
     return pos;
   }
@@ -116,12 +117,10 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
 
     // Animation controller for braille spinner and shimmer effect
     // Duration of 1 second gives smooth animation through all frames
-    _spinnerController = AnimationController(
-      duration: const Duration(seconds: 1),
-      vsync: this,
-    )
-      ..addListener(() => setState(() {}))
-      ..repeat();
+    _spinnerController =
+        AnimationController(duration: const Duration(seconds: 1), vsync: this)
+          ..addListener(() => setState(() {}))
+          ..repeat();
 
     // Activity change controller - cycles through fun messages every 4 seconds
     _activityController = AnimationController(
@@ -146,14 +145,14 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     super.dispose();
   }
 
-  /// Get the display text based on Claude's status.
+  /// Get the display text based on the agent's processing phase.
   /// Shows status prefix when available, otherwise just the fun activity.
-  String _getDisplayText(ClaudeStatus? status) {
+  String _getDisplayText(AgentProcessingStatus? phase) {
     final activity = _activities[_activityIndex];
 
-    // If we have a meaningful status, show it as a prefix
-    if (status != null && _statusMessages.containsKey(status)) {
-      return '${_statusMessages[status]}: $activity';
+    // If we have a meaningful phase, show it as a prefix
+    if (phase != null && _statusMessages.containsKey(phase)) {
+      return '${_statusMessages[phase]}: $activity';
     }
 
     // Fallback to just the activity
@@ -165,16 +164,10 @@ class _EnhancedLoadingIndicatorState extends State<EnhancedLoadingIndicator>
     final theme = VideTheme.of(context);
     final braille = _brailleFrames[_frameIndex];
 
-    // Get Claude status if agent ID is provided
-    ClaudeStatus? claudeStatus;
-    if (component.agentId != null) {
-      final statusAsync = context.watch(claudeStatusProvider(component.agentId!));
-      claudeStatus = statusAsync.valueOrNull;
-    }
-
-    final displayText = _getDisplayText(claudeStatus);
+    final displayText = _getDisplayText(component.processingPhase);
 
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Braille spinner
         Text(

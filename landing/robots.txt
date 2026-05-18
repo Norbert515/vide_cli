@@ -1,0 +1,7 @@
+# Robots.txt for vide.dev
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://vide.dev/sitemap.xml

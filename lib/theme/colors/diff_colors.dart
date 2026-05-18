@@ -23,6 +23,12 @@ class VideDiffColors {
   /// Color for diff headers (file names, line numbers).
   final Color header;
 
+  /// Brighter green for character-level highlight within added/modified lines.
+  final Color addedCharHighlight;
+
+  /// Brighter red for character-level highlight within removed/modified lines.
+  final Color removedCharHighlight;
+
   /// Creates a custom diff color set.
   const VideDiffColors({
     required this.addedBackground,
@@ -31,6 +37,8 @@ class VideDiffColors {
     required this.removedPrefix,
     required this.contextPrefix,
     required this.header,
+    required this.addedCharHighlight,
+    required this.removedCharHighlight,
   });
 
   /// Dark theme diff colors.
@@ -41,16 +49,20 @@ class VideDiffColors {
     removedPrefix: Colors.red,
     contextPrefix: Colors.grey,
     header: Colors.cyan,
+    addedCharHighlight: Color(0x16632E),
+    removedCharHighlight: Color(0x6E1C1C),
   );
 
   /// Light theme diff colors.
   static const VideDiffColors light = VideDiffColors(
-    addedBackground: Color(0xD4EDDA),
-    removedBackground: Color(0xF8D7DA),
+    addedBackground: Color(0xEDF7ED), // very subtle green tint
+    removedBackground: Color(0xFCEDED), // very subtle red tint
     addedPrefix: Color(0x228B22), // forest green
     removedPrefix: Color(0xDC143C), // crimson
     contextPrefix: Color(0x666666),
     header: Color(0x008B8B), // dark cyan
+    addedCharHighlight: Color(0xC8E6C8),
+    removedCharHighlight: Color(0xF5C6C6),
   );
 
   @override
@@ -62,7 +74,9 @@ class VideDiffColors {
         other.addedPrefix == addedPrefix &&
         other.removedPrefix == removedPrefix &&
         other.contextPrefix == contextPrefix &&
-        other.header == header;
+        other.header == header &&
+        other.addedCharHighlight == addedCharHighlight &&
+        other.removedCharHighlight == removedCharHighlight;
   }
 
   @override
@@ -73,5 +87,7 @@ class VideDiffColors {
     removedPrefix,
     contextPrefix,
     header,
+    addedCharHighlight,
+    removedCharHighlight,
   );
 }

@@ -12,6 +12,8 @@ import 'package:shelf/shelf.dart';
 
 import '../services/server_config.dart';
 
+const _maxFileSize = 1024 * 1024; // 1MB
+
 final _log = Logger('FilesystemRoutes');
 
 /// GET /api/v1/filesystem - List directory contents
@@ -117,6 +119,116 @@ Future<Response> listDirectory(Request request, ServerConfig config) async {
 
   return Response.ok(
     jsonEncode({'entries': entries}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// GET /api/v1/filesystem/content - Read file content
+///
+/// Query params:
+///   path: string (required) - absolute path to the file
+///
+/// Returns:
+/// ```json
+/// {
+///   "content": "file content as UTF-8 string",
+///   "path": "/Users/chris/myproject/main.dart"
+/// }
+/// ```
+Future<Response> readFileContent(Request request, ServerConfig config) async {
+  final pathParam = request.url.queryParameters['path'];
+  if (pathParam == null || pathParam.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'path query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final rootPath = p.canonicalize(config.filesystemRoot);
+  final targetPath = p.canonicalize(pathParam);
+
+  _log.fine('GET /filesystem/content: path=$pathParam, resolved=$targetPath');
+
+  if (!_isWithinRoot(targetPath, rootPath)) {
+    _log.warning(
+      'Path traversal attempt: $targetPath is outside root $rootPath',
+    );
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Path is outside allowed filesystem root',
+        'code': 'PATH_TRAVERSAL',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final targetType = FileSystemEntity.typeSync(targetPath, followLinks: false);
+
+  if (targetType == FileSystemEntityType.link) {
+    _log.warning('Symlink access denied: $targetPath');
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Symlinks are not allowed',
+        'code': 'SYMLINK_DENIED',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  if (targetType != FileSystemEntityType.file) {
+    return Response.notFound(
+      jsonEncode({'error': 'File not found: $targetPath', 'code': 'NOT_FOUND'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final file = File(targetPath);
+  final fileSize = await file.length();
+
+  if (fileSize > _maxFileSize) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'File too large (${fileSize} bytes, max $_maxFileSize)',
+        'code': 'FILE_TOO_LARGE',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Check for binary content by reading first 8KB
+  final bytes = await file
+      .openRead(0, fileSize.clamp(0, 8192))
+      .fold<List<int>>(<int>[], (prev, chunk) => prev..addAll(chunk));
+  if (bytes.any((b) => b == 0)) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'Binary files are not supported',
+        'code': 'BINARY_FILE',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final String content;
+  try {
+    content = await file.readAsString();
+  } on FormatException {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'File cannot be read as text',
+        'code': 'ENCODING_ERROR',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  _log.fine('Read file: $targetPath (${content.length} chars)');
+
+  return Response.ok(
+    jsonEncode({'content': content, 'path': targetPath}),
     headers: {'Content-Type': 'application/json'},
   );
 }
@@ -270,6 +382,142 @@ Future<Response> createDirectory(Request request, ServerConfig config) async {
     jsonEncode({'path': canonicalNewPath}),
     headers: {'Content-Type': 'application/json'},
   );
+}
+
+/// GET /api/v1/filesystem/search - Search for files by name
+///
+/// Uses ripgrep for fast, .gitignore-aware file searching.
+/// Falls back to dart:io directory listing if rg is not available.
+///
+/// Query params:
+///   query: string (required) - text to filter file paths by
+///   root: string (optional) - directory to search within; defaults to server root
+///
+/// Returns:
+/// ```json
+/// {
+///   "entries": [
+///     {"name": "main.dart", "path": "/abs/path/src/main.dart", "relative-path": "src/main.dart", "is-directory": false}
+///   ]
+/// }
+/// ```
+Future<Response> searchFiles(Request request, ServerConfig config) async {
+  final queryParam = request.url.queryParameters['query'];
+  if (queryParam == null || queryParam.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final query = queryParam.trim().toLowerCase();
+  final rootParam = request.url.queryParameters['root'];
+  final filesystemRoot = p.canonicalize(config.filesystemRoot);
+  final rootPath = rootParam?.trim().isNotEmpty == true
+      ? p.canonicalize(rootParam!)
+      : filesystemRoot;
+
+  _log.fine('GET /filesystem/search: query=$queryParam, root=$rootPath');
+
+  // Security: Validate path is within filesystem root
+  if (!_isWithinRoot(rootPath, filesystemRoot)) {
+    _log.warning(
+      'Path traversal attempt: $rootPath is outside root $filesystemRoot',
+    );
+    return Response.forbidden(
+      jsonEncode({
+        'error': 'Path is outside allowed filesystem root',
+        'code': 'PATH_TRAVERSAL',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Check if root exists and is a directory
+  final rootType = FileSystemEntity.typeSync(rootPath, followLinks: false);
+  if (rootType != FileSystemEntityType.directory) {
+    return Response.notFound(
+      jsonEncode({
+        'error': 'Directory not found: $rootPath',
+        'code': 'NOT_FOUND',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  // Get file list — try rg first, fall back to dart:io
+  List<String> filePaths;
+  try {
+    final result = await Process.run(
+      'rg',
+      ['--files'],
+      workingDirectory: rootPath,
+    ).timeout(const Duration(seconds: 5));
+
+    if (result.exitCode == 0) {
+      filePaths = (result.stdout as String)
+          .split('\n')
+          .where((line) => line.isNotEmpty)
+          .toList();
+    } else {
+      // rg failed (e.g. empty directory), fall back
+      filePaths = await _listFilesRecursive(rootPath);
+    }
+  } catch (_) {
+    // rg not found or timed out, fall back to dart:io
+    filePaths = await _listFilesRecursive(rootPath);
+  }
+
+  // Filter by query (case-insensitive substring match)
+  final matched = filePaths
+      .where((filePath) => filePath.toLowerCase().contains(query))
+      .take(50)
+      .toList();
+
+  // Build response entries
+  final entries = <Map<String, dynamic>>[];
+  for (final relativePath in matched) {
+    final absolutePath = p.join(rootPath, relativePath);
+    final name = p.basename(relativePath);
+    final entityType = FileSystemEntity.typeSync(
+      absolutePath,
+      followLinks: false,
+    );
+    final isDirectory = entityType == FileSystemEntityType.directory;
+
+    entries.add({
+      'name': name,
+      'path': absolutePath,
+      'relative-path': relativePath,
+      'is-directory': isDirectory,
+    });
+  }
+
+  _log.fine('Search found ${entries.length} entries for query "$queryParam"');
+
+  return Response.ok(
+    jsonEncode({'entries': entries}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// Fallback file listing using dart:io when rg is not available.
+Future<List<String>> _listFilesRecursive(String rootPath) async {
+  final results = <String>[];
+  await for (final entity
+      in Directory(rootPath).list(recursive: true, followLinks: false)) {
+    final entityType = FileSystemEntity.typeSync(
+      entity.path,
+      followLinks: false,
+    );
+    if (entityType == FileSystemEntityType.link) continue;
+
+    results.add(p.relative(entity.path, from: rootPath));
+  }
+  return results;
 }
 
 /// Check if a path is within the allowed root directory.

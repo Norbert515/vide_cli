@@ -1,4 +1,5 @@
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/configuration/claude_settings.dart';
 
 /// Factory functions for creating test objects
 class TestFixtures {
@@ -6,10 +7,9 @@ class TestFixtures {
   static AgentMetadata agentMetadata({
     String? id,
     String name = 'Test Agent',
-    String type = 'implementation',
+    String type = 'implementer',
     String? spawnedBy,
     DateTime? createdAt,
-    AgentStatus status = AgentStatus.idle,
     String? taskName,
   }) {
     return AgentMetadata(
@@ -18,7 +18,6 @@ class TestFixtures {
       type: type,
       spawnedBy: spawnedBy,
       createdAt: createdAt ?? DateTime.now(),
-      status: status,
       taskName: taskName,
     );
   }

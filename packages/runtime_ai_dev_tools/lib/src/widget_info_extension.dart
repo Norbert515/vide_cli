@@ -10,7 +10,8 @@ import 'tap_visualization.dart';
 /// including source file location when available (debug mode with
 /// --track-widget-creation enabled).
 void registerWidgetInfoExtension() {
-  print('🔧 [RuntimeAiDevTools] Registering ext.runtime_ai_dev_tools.getWidgetInfo');
+  print(
+      '🔧 [RuntimeAiDevTools] Registering ext.runtime_ai_dev_tools.getWidgetInfo');
 
   developer.registerExtension(
     'ext.runtime_ai_dev_tools.getWidgetInfo',

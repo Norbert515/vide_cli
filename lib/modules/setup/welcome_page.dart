@@ -1,50 +1,64 @@
 import 'dart:io';
-import 'package:claude_sdk/claude_sdk.dart';
 import 'package:nocterm/nocterm.dart';
+import 'package:vide_core/vide_core.dart' show ProcessManager;
 import 'package:vide_cli/constants/text_opacity.dart';
-import 'package:vide_cli/modules/setup/theme_selector.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Welcome page shown on first run of Vide CLI.
-/// Tests Claude Code availability and shows an animated introduction.
+///
+/// Single-screen onboarding that auto-detects Claude Code and shows a
+/// privacy notice. Theme is auto-detected from the terminal.
 class WelcomePage extends StatefulComponent {
-  final void Function(String? themeId) onComplete;
+  final VoidCallback onComplete;
 
-  const WelcomePage({required this.onComplete, super.key});
+  /// If true, skip Claude verification (use mock response).
+  final bool mockMode;
+
+  const WelcomePage({
+    required this.onComplete,
+    this.mockMode = false,
+    super.key,
+  });
 
   @override
   State<WelcomePage> createState() => _WelcomePageState();
 }
 
-enum _VerificationStep {
-  selectTheme,
-  findingClaude,
-  testingClaude,
-  complete,
-  completing,
+enum _AgentStatus {
+  pending,
+  scanning,
+  found,
+  verifying,
+  verified,
+  notFound,
   error,
 }
 
 class _WelcomePageState extends State<WelcomePage>
     with TickerProviderStateMixin {
-  _VerificationStep _step = _VerificationStep.selectTheme;
+  // Agent detection
+  _AgentStatus _claudeStatus = _AgentStatus.pending;
   String? _errorMessage;
-  String _claudeResponse = '';
-  String _displayedResponse = '';
-  int _typingIndex = 0;
-  late AnimationController _typingController;
-  late AnimationController _shimmerController;
-  int _shimmerPosition = 0;
-  bool _responseComplete = false;
-  bool _claudeFound = false;
-  TuiThemeData? _previewTheme;
-  String? _selectedThemeId;
 
-  // Width for text wrapping (container width minus padding)
-  static const int _textWidth = 52;
-  static const double _boxWidth = 58;
+  // Braille spinner
+  late AnimationController _spinnerController;
+  int _spinnerFrame = 0;
+  static const _brailleFrames = [
+    '⠋',
+    '⠙',
+    '⠹',
+    '⠸',
+    '⠼',
+    '⠴',
+    '⠦',
+    '⠧',
+    '⠇',
+    '⠏',
+  ];
 
-  // ASCII art logo
+  // Completing
+  bool _completing = false;
+
   static const List<String> _logo = [
     ' ██╗   ██╗██╗██████╗ ███████╗',
     ' ██║   ██║██║██╔══██╗██╔════╝',
@@ -57,63 +71,67 @@ class _WelcomePageState extends State<WelcomePage>
   @override
   void initState() {
     super.initState();
-    // Initialize typing animation controller
-    _typingController = AnimationController(
-      duration: const Duration(milliseconds: 1000), // Will be updated dynamically
-      vsync: this,
-    );
-    _typingController.addListener(_onTypingTick);
 
-    // Initialize shimmer animation controller (22 chars for "Confirming connection")
-    _shimmerController = AnimationController(
-      duration: const Duration(milliseconds: 2200), // 100ms per position
+    _spinnerController = AnimationController(
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-    _shimmerController.addListener(() {
+    _spinnerController.addListener(() {
       setState(() {
-        _shimmerPosition =
-            (_shimmerController.value * 22).floor() % 22;
+        _spinnerFrame =
+            (_spinnerController.value * _brailleFrames.length).floor() %
+            _brailleFrames.length;
       });
     });
-    // Start with theme selection, verification happens after
+
+    _startAgentDetection();
   }
 
   @override
   void dispose() {
-    _typingController.dispose();
-    _shimmerController.dispose();
+    _spinnerController.dispose();
     super.dispose();
   }
 
-  void _onTypingTick() {
-    // Calculate how many characters should be shown based on animation progress
-    final targetIndex =
-        (_typingController.value * _claudeResponse.length).ceil().clamp(0, _claudeResponse.length);
+  Future<void> _startAgentDetection() async {
+    setState(() {
+      _claudeStatus = _AgentStatus.scanning;
+      _errorMessage = null;
+    });
+    _spinnerController.repeat();
 
-    if (targetIndex != _typingIndex) {
+    if (component.mockMode) {
+      await Future.delayed(const Duration(milliseconds: 1500));
+      if (!mounted) return;
       setState(() {
-        _typingIndex = targetIndex;
-        _displayedResponse = _claudeResponse.substring(0, _typingIndex);
+        _claudeStatus = _AgentStatus.found;
       });
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      setState(() {
+        _claudeStatus = _AgentStatus.verifying;
+      });
+      await Future.delayed(const Duration(milliseconds: 2000));
+      if (!mounted) return;
+      _spinnerController.stop();
+      _spinnerController.reset();
+      setState(() {
+        _claudeStatus = _AgentStatus.verified;
+      });
+      return;
     }
 
-    // Ensure final text is fully displayed and mark complete when animation finishes
-    if (_typingController.isCompleted) {
-      setState(() {
-        _displayedResponse = _claudeResponse;
-        _responseComplete = true;
-      });
-    }
-  }
-
-  Future<void> _startVerification() async {
-    // Step 1: Check if Claude is available
-    await Future.delayed(Duration(milliseconds: 500)); // Brief pause for effect
+    // Real detection
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
     final isAvailable = await ProcessManager.isClaudeAvailable();
+    if (!mounted) return;
 
     if (!isAvailable) {
+      _spinnerController.stop();
+      _spinnerController.reset();
       setState(() {
-        _step = _VerificationStep.error;
+        _claudeStatus = _AgentStatus.notFound;
         _errorMessage =
             'Claude Code not found.\n\nInstall it at:\nhttps://docs.anthropic.com/en/docs/claude-code';
       });
@@ -121,149 +139,68 @@ class _WelcomePageState extends State<WelcomePage>
     }
 
     setState(() {
-      _claudeFound = true;
-      _step = _VerificationStep.testingClaude;
+      _claudeStatus = _AgentStatus.found;
     });
 
-    // Start shimmer animation for "Confirming connection"
-    _startShimmerAnimation();
+    setState(() {
+      _claudeStatus = _AgentStatus.verifying;
+    });
 
-    // Step 2: Test Claude
-    await Future.delayed(Duration(milliseconds: 300));
-    await _runClaudeTest();
+    await Future.delayed(const Duration(milliseconds: 300));
+    if (!mounted) return;
+    await _verifyClaudeAgent();
   }
 
-  Future<void> _runClaudeTest() async {
+  Future<void> _verifyClaudeAgent() async {
     try {
-      final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
-      final result = await Process.run(
-        executable,
-        ['--print', 'Respond with exactly: "Connected and ready to help!"'],
-      );
+      final executable = await ProcessManager.getClaudeExecutable();
+      final result = await Process.run(executable, [
+        '--print',
+        'Respond with exactly one word: "ok"',
+      ]);
+      if (!mounted) return;
 
       if (result.exitCode != 0) {
+        _spinnerController.stop();
+        _spinnerController.reset();
         setState(() {
-          _step = _VerificationStep.error;
+          _claudeStatus = _AgentStatus.error;
           _errorMessage = 'Claude test failed:\n${result.stderr}';
         });
         return;
       }
 
-      final response = (result.stdout as String).trim();
-      final wrappedResponse = _wrapText(response, _textWidth);
+      _spinnerController.stop();
+      _spinnerController.reset();
       setState(() {
-        _claudeResponse = wrappedResponse;
-        _step = _VerificationStep.complete;
+        _claudeStatus = _AgentStatus.verified;
       });
-
-      // Stop shimmer, start typing
-      _shimmerController.stop();
-      _shimmerController.reset();
-      _startTypingAnimation();
     } catch (e) {
+      if (!mounted) return;
+      _spinnerController.stop();
+      _spinnerController.reset();
       setState(() {
-        _step = _VerificationStep.error;
+        _claudeStatus = _AgentStatus.error;
         _errorMessage = 'Error running Claude:\n$e';
       });
     }
   }
 
-  void _startTypingAnimation() {
-    // Reset state
-    _typingIndex = 0;
-    _displayedResponse = '';
-    _responseComplete = false;
-
-    // Update duration based on text length (25ms per character)
-    _typingController.duration = Duration(
-      milliseconds: 25 * _claudeResponse.length.clamp(1, 1000),
-    );
-
-    // Start the animation
-    _typingController.forward(from: 0);
-  }
-
-  void _startShimmerAnimation() {
-    _shimmerController.repeat();
-  }
-
   void _retry() {
-    _shimmerController.stop();
-    _shimmerController.reset();
-    _typingController.stop();
-    _typingController.reset();
+    _spinnerController.stop();
+    _spinnerController.reset();
     setState(() {
-      _step = _VerificationStep.findingClaude;
+      _claudeStatus = _AgentStatus.pending;
       _errorMessage = null;
-      _claudeResponse = '';
-      _displayedResponse = '';
-      _typingIndex = 0;
-      _shimmerPosition = 0;
-      _responseComplete = false;
-      _claudeFound = false;
-      // Keep the selected theme - user already chose it
     });
-    _startVerification();
-  }
-
-  String _wrapText(String text, int width) {
-    final lines = <String>[];
-    final paragraphs = text.split('\n');
-
-    for (final paragraph in paragraphs) {
-      if (paragraph.isEmpty) {
-        lines.add('');
-        continue;
-      }
-
-      final words = paragraph.split(' ');
-      var currentLine = StringBuffer();
-
-      for (final word in words) {
-        if (currentLine.isEmpty) {
-          currentLine.write(word);
-        } else if (currentLine.length + 1 + word.length <= width) {
-          currentLine.write(' $word');
-        } else {
-          lines.add(currentLine.toString());
-          currentLine = StringBuffer(word);
-        }
-      }
-
-      if (currentLine.isNotEmpty) {
-        lines.add(currentLine.toString());
-      }
-    }
-
-    return lines.join('\n');
+    _startAgentDetection();
   }
 
   @override
   Component build(BuildContext context) {
-    // Wrap in TuiTheme if we have a preview theme
-    Component content = _buildMainContent(context);
-    if (_previewTheme != null) {
-      content = TuiTheme(
-        data: _previewTheme!,
-        child: VideTheme(
-          data: VideThemeData.fromBrightness(_previewTheme!),
-          child: content,
-        ),
-      );
-    }
-    return content;
-  }
-
-  Component _buildMainContent(BuildContext context) {
     final theme = VideTheme.of(context);
 
-    // Show theme selector when in selectTheme step
-    if (_step == _VerificationStep.selectTheme) {
-      return _buildThemeSelectionView(context, theme);
-    }
-
-    // Show loading state while completing
-    if (_step == _VerificationStep.completing) {
+    if (_completing) {
       return Center(
         child: Text(
           'Starting Vide...',
@@ -272,320 +209,226 @@ class _WelcomePageState extends State<WelcomePage>
       );
     }
 
-    return _buildVerificationView(context, theme);
-  }
-
-  Component _buildThemeSelectionView(
-    BuildContext context,
-    VideThemeData theme,
-  ) {
-    return Center(
-      child: Container(
-        decoration: BoxDecoration(
-          border: BoxBorder.all(color: theme.base.outline),
-        ),
-        padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // ASCII Logo
-            ..._buildLogo(theme),
-            SizedBox(height: 1),
-
-            // Tagline
-            Text(
-              'Your AI-powered terminal IDE',
-              style: TextStyle(
-                color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-              ),
-            ),
-            SizedBox(height: 2),
-
-            // Theme selector
-            ThemeSelector(
-              onThemeSelected: (themeId) {
-                // Save theme selection and proceed to verification
-                setState(() {
-                  _selectedThemeId = themeId;
-                  _step = _VerificationStep.findingClaude;
-                });
-                _startVerification();
-              },
-              onPreviewTheme: (previewTheme) {
-                setState(() {
-                  _previewTheme = previewTheme;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Component _buildVerificationView(BuildContext context, VideThemeData theme) {
     return KeyboardListener(
       autofocus: true,
       onKeyEvent: (key) {
-        if (_step == _VerificationStep.error && key == LogicalKey.keyR) {
-          _retry();
+        if (_claudeStatus == _AgentStatus.verified && key == LogicalKey.enter) {
+          setState(() {
+            _completing = true;
+          });
+          component.onComplete();
           return true;
         }
-        if (_responseComplete &&
-            _step == _VerificationStep.complete &&
-            key == LogicalKey.enter) {
-          setState(() {
-            _step = _VerificationStep.completing;
-          });
-          component.onComplete(_selectedThemeId);
+        if ((_claudeStatus == _AgentStatus.error ||
+                _claudeStatus == _AgentStatus.notFound) &&
+            key == LogicalKey.keyR) {
+          _retry();
           return true;
         }
         return false;
       },
-      child: Center(
-        child: Container(
-          width: _boxWidth,
-          decoration: BoxDecoration(
-            border: BoxBorder.all(color: theme.base.outline),
-          ),
-          padding: EdgeInsets.symmetric(horizontal: 2, vertical: 1),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // ASCII Logo
-              ..._buildLogo(theme),
-              SizedBox(height: 1),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableHeight = constraints.maxHeight.toInt();
+          final showFullLogo = availableHeight >= 24;
+          final showCompactLogo = !showFullLogo && availableHeight >= 16;
 
-              // Tagline
-              Text(
-                'Your AI-powered terminal IDE',
-                style: TextStyle(
-                  color: theme.base.onSurface.withOpacity(
-                    TextOpacity.secondary,
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Logo — adaptive
+                if (showFullLogo) ...[
+                  ..._buildLogo(theme),
+                  SizedBox(height: 1),
+                  Text(
+                    'Your AI-powered terminal IDE',
+                    style: TextStyle(
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.tertiary,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              SizedBox(height: 2),
+                ] else if (showCompactLogo) ...[
+                  Text(
+                    'VIDE',
+                    style: TextStyle(
+                      color: theme.base.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
 
-              // Verification checklist
-              _buildChecklist(theme),
-
-              // Claude response area (if complete)
-              if (_step == _VerificationStep.complete) ...[
                 SizedBox(height: 2),
-                _buildClaudeResponse(theme),
+
+                // Agent detection — single line
+                _buildAgentRow(theme),
+
+                // Error display
+                if (_claudeStatus == _AgentStatus.error ||
+                    _claudeStatus == _AgentStatus.notFound) ...[
+                  SizedBox(height: 1),
+                  if (_errorMessage != null)
+                    Text(
+                      _errorMessage!,
+                      style: TextStyle(color: theme.base.error),
+                    ),
+                  SizedBox(height: 1),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('[', style: TextStyle(color: theme.base.outline)),
+                      Text('R', style: TextStyle(color: theme.base.warning)),
+                      Text(
+                        '] Retry',
+                        style: TextStyle(color: theme.base.outline),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // Continue prompt after verification
+                if (_claudeStatus == _AgentStatus.verified) ...[
+                  SizedBox(height: 2),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Press ',
+                        style: TextStyle(color: theme.base.outline),
+                      ),
+                      Text(
+                        'Enter',
+                        style: TextStyle(color: theme.base.success),
+                      ),
+                      Text(
+                        ' to get started',
+                        style: TextStyle(color: theme.base.outline),
+                      ),
+                    ],
+                  ),
+                ],
+
+                // Privacy footnote
+                SizedBox(height: 2),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Anonymous usage data · ',
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.tertiary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'Opt out: ',
+                      style: TextStyle(
+                        color: theme.base.onSurface.withOpacity(
+                          TextOpacity.tertiary,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      'export DO_NOT_TRACK=1',
+                      style: TextStyle(
+                        color: theme.base.warning.withOpacity(
+                          TextOpacity.secondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
-
-              // Error area
-              if (_step == _VerificationStep.error) ...[
-                SizedBox(height: 1),
-                _buildError(theme),
-              ],
-
-              SizedBox(height: 2),
-
-              // Footer
-              _buildFooter(theme),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
 
   List<Component> _buildLogo(VideThemeData theme) {
-    return _logo.map((line) {
-      return Text(
-        line,
-        style: TextStyle(
-          color: theme.base.primary,
-          fontWeight: FontWeight.bold,
-        ),
-      );
-    }).toList();
-  }
-
-  Component _buildChecklist(VideThemeData theme) {
-    final isConfirmingConnection = _step == _VerificationStep.testingClaude;
-    final connectionLabel = isConfirmingConnection
-        ? 'Confirming connection'
-        : 'Connection confirmed';
-
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildChecklistItem(
-          theme,
-          'Claude Code found',
-          isComplete: _claudeFound,
-          isActive: _step == _VerificationStep.findingClaude,
-          hasError: _step == _VerificationStep.error && !_claudeFound,
-        ),
-        SizedBox(height: 1),
-        if (isConfirmingConnection)
-          _buildShimmerChecklistItem(theme, connectionLabel)
-        else
-          _buildChecklistItem(
-            theme,
-            connectionLabel,
-            isComplete: _step == _VerificationStep.complete,
-            isActive: false,
-            hasError: _step == _VerificationStep.error && _claudeFound,
+    return _logo
+        .map(
+          (line) => Text(
+            line,
+            style: TextStyle(
+              color: theme.base.primary,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-      ],
-    );
+        )
+        .toList();
   }
 
-  Component _buildChecklistItem(
-    VideThemeData theme,
-    String label, {
-    required bool isComplete,
-    required bool isActive,
-    required bool hasError,
-  }) {
+  Component _buildAgentRow(VideThemeData theme) {
+    final spinner = _brailleFrames[_spinnerFrame];
+    final isLoading =
+        _claudeStatus == _AgentStatus.scanning ||
+        _claudeStatus == _AgentStatus.verifying;
+
+    // Icon
     String icon;
     Color iconColor;
-    Color textColor;
-
-    if (hasError) {
-      icon = '✗';
-      iconColor = theme.base.error;
-      textColor = theme.base.error;
-    } else if (isComplete) {
+    if (_claudeStatus == _AgentStatus.verified) {
       icon = '✓';
       iconColor = theme.base.success;
-      textColor = theme.base.onSurface;
-    } else if (isActive) {
-      icon = '○';
+    } else if (_claudeStatus == _AgentStatus.error ||
+        _claudeStatus == _AgentStatus.notFound) {
+      icon = '✗';
+      iconColor = theme.base.error;
+    } else if (isLoading) {
+      icon = spinner;
       iconColor = theme.base.warning;
-      textColor = theme.base.warning;
     } else {
       icon = '○';
       iconColor = theme.base.outline;
-      textColor = theme.base.outline;
+    }
+
+    // Status text
+    String statusText;
+    Color statusColor;
+    switch (_claudeStatus) {
+      case _AgentStatus.pending:
+        statusText = '';
+        statusColor = theme.base.outline;
+      case _AgentStatus.scanning:
+        statusText = 'Scanning...';
+        statusColor = theme.base.warning;
+      case _AgentStatus.found:
+        statusText = 'Found';
+        statusColor = theme.base.success;
+      case _AgentStatus.verifying:
+        statusText = 'Verifying...';
+        statusColor = theme.base.warning;
+      case _AgentStatus.verified:
+        statusText = 'Ready';
+        statusColor = theme.base.success;
+      case _AgentStatus.notFound:
+        statusText = 'Not found';
+        statusColor = theme.base.error;
+      case _AgentStatus.error:
+        statusText = 'Error';
+        statusColor = theme.base.error;
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(icon, style: TextStyle(color: iconColor)),
-        SizedBox(width: 2),
-        Text(label, style: TextStyle(color: textColor)),
-        if (isActive) ...[
-          Text('...', style: TextStyle(color: theme.base.warning)),
-        ],
+        SizedBox(width: 1),
+        Text(
+          'Claude Code',
+          style: TextStyle(
+            color: isLoading || _claudeStatus == _AgentStatus.verified
+                ? theme.base.onSurface
+                : theme.base.outline,
+          ),
+        ),
+        SizedBox(width: 1),
+        Text(statusText, style: TextStyle(color: statusColor)),
       ],
     );
-  }
-
-  Component _buildShimmerChecklistItem(VideThemeData theme, String label) {
-    final chars = <Component>[];
-
-    for (int i = 0; i < label.length; i++) {
-      final distFromShimmer = (i - _shimmerPosition).abs();
-      Color color;
-
-      if (distFromShimmer == 0) {
-        color = theme.base.onSurface;
-      } else if (distFromShimmer == 1) {
-        color = theme.base.primary;
-      } else if (distFromShimmer == 2) {
-        color = theme.base.warning.withOpacity(0.8);
-      } else {
-        color = theme.base.warning.withOpacity(0.6);
-      }
-
-      chars.add(Text(label[i], style: TextStyle(color: color)));
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text('○', style: TextStyle(color: theme.base.warning)),
-        SizedBox(width: 2),
-        ...chars,
-        Text('...', style: TextStyle(color: theme.base.warning)),
-      ],
-    );
-  }
-
-  Component _buildClaudeResponse(VideThemeData theme) {
-    if (_displayedResponse.isEmpty) {
-      return Text('');
-    }
-
-    return Container(
-      width: (_textWidth + 4).toDouble(),
-      padding: EdgeInsets.all(1),
-      decoration: BoxDecoration(
-        border: BoxBorder.all(color: theme.base.outline),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Claude',
-                style: TextStyle(
-                  color: theme.base.primary,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(' says:', style: TextStyle(color: theme.base.outline)),
-            ],
-          ),
-          SizedBox(height: 1),
-          Text(
-            _displayedResponse,
-            style: TextStyle(
-              color: theme.base.onSurface.withOpacity(TextOpacity.secondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Component _buildError(VideThemeData theme) {
-    return Container(
-      width: (_textWidth + 4).toDouble(),
-      padding: EdgeInsets.all(1),
-      decoration: BoxDecoration(border: BoxBorder.all(color: theme.base.error)),
-      child: Text(
-        _errorMessage ?? 'Unknown error',
-        style: TextStyle(color: theme.base.error),
-      ),
-    );
-  }
-
-  Component _buildFooter(VideThemeData theme) {
-    if (_step == _VerificationStep.error) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('[', style: TextStyle(color: theme.base.outline)),
-          Text('R', style: TextStyle(color: theme.base.warning)),
-          Text('] Retry', style: TextStyle(color: theme.base.outline)),
-        ],
-      );
-    }
-
-    if (_responseComplete) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Press ', style: TextStyle(color: theme.base.outline)),
-          Text('Enter', style: TextStyle(color: theme.base.success)),
-          Text(' to continue', style: TextStyle(color: theme.base.outline)),
-        ],
-      );
-    }
-
-    // Show nothing while loading
-    return Text('', style: TextStyle(color: theme.base.outline));
   }
 }

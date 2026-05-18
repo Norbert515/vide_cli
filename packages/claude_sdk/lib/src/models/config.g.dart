@@ -38,6 +38,8 @@ ClaudeConfig _$ClaudeConfigFromJson(Map<String, dynamic> json) => ClaudeConfig(
   enableStreaming: json['enableStreaming'] as bool? ?? true,
   resumeSessionId: json['resumeSessionId'] as String?,
   forkSession: json['forkSession'] as bool? ?? false,
+  dangerouslySkipPermissions:
+      json['dangerouslySkipPermissions'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
@@ -61,4 +63,5 @@ Map<String, dynamic> _$ClaudeConfigToJson(ClaudeConfig instance) =>
       'enableStreaming': instance.enableStreaming,
       'resumeSessionId': instance.resumeSessionId,
       'forkSession': instance.forkSession,
+      'dangerouslySkipPermissions': instance.dangerouslySkipPermissions,
     };

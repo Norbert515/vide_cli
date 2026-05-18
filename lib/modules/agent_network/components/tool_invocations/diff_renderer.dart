@@ -1,16 +1,15 @@
+import 'package:agent_sdk/agent_sdk.dart';
 import 'package:nocterm/nocterm.dart';
-import 'package:claude_sdk/claude_sdk.dart';
-import 'package:vide_core/api.dart' show AgentId;
-import 'package:path/path.dart' as p;
+import 'package:vide_core/vide_core.dart' show AgentId;
 import 'shared/code_diff.dart';
 import 'shared/syntax_highlighter.dart';
-import 'default_renderer.dart';
+import 'shared/tool_header.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Renderer for Write/Edit/MultiEdit tool invocations with successful results.
 /// Shows code diffs with syntax highlighting.
 class DiffRenderer extends StatefulComponent {
-  final ToolInvocation invocation;
+  final AgentToolInvocation invocation;
   final String workingDirectory;
   final String executionId;
   final AgentId agentId;
@@ -44,15 +43,13 @@ class _DiffRendererState extends State<DiffRenderer> {
   void initState() {
     super.initState();
 
-    // Get the file path and language from typed invocation
-    if (component.invocation is WriteToolInvocation) {
-      final typed = component.invocation as WriteToolInvocation;
-      _cachedFormattedPath = typed.getRelativePath(component.workingDirectory);
-      _language = SyntaxHighlighter.detectLanguage(typed.filePath);
-    } else if (component.invocation is EditToolInvocation) {
-      final typed = component.invocation as EditToolInvocation;
-      _cachedFormattedPath = typed.getRelativePath(component.workingDirectory);
-      _language = SyntaxHighlighter.detectLanguage(typed.filePath);
+    final fileOp = component.invocation is AgentFileOperationToolInvocation
+        ? component.invocation as AgentFileOperationToolInvocation
+        : null;
+    final filePath = fileOp?.filePath;
+    if (filePath != null && filePath.isNotEmpty) {
+      _cachedFormattedPath = ToolHeader.formatFilePath(filePath, component.workingDirectory);
+      _language = SyntaxHighlighter.detectLanguage(filePath);
     } else {
       _cachedFormattedPath = null;
       _language = null;
@@ -120,109 +117,51 @@ class _DiffRendererState extends State<DiffRenderer> {
 
   @override
   Component build(BuildContext context) {
-    // If no diff lines could be created, fall back to default renderer
+    final theme = VideTheme.of(context);
+
+    // If no diff lines could be created, fall back to just the header
     if (_shouldUseFallback) {
-      return DefaultRenderer(
-        invocation: component.invocation,
-        workingDirectory: component.workingDirectory,
-        executionId: component.executionId,
-        agentId: component.agentId,
-      );
+      return ToolHeader(invocation: component.invocation, workingDirectory: component.workingDirectory);
     }
 
-    // Determine status color
-    final statusColor = component.invocation.isError
-        ? Colors.red
-        : Colors.green;
-    final statusIndicator = component.invocation.isError ? '●' : '●';
-
-    return Container(
-      padding: EdgeInsets.only(bottom: 1),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Tool header
-          _buildHeader(statusColor, statusIndicator),
-
-          // Diff view (with pre-computed syntax highlighting)
-          Container(
-            padding: EdgeInsets.only(left: 2),
-            child: CodeDiff(
-              fileName: _cachedFormattedPath,
-              lines: _getHighlightedLines(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Component _buildHeader(Color statusColor, String statusIndicator) {
-    final params = component.invocation.parameters;
-
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Status indicator
-        Text(statusIndicator, style: TextStyle(color: statusColor)),
-        SizedBox(width: 1),
-        // Tool name
-        Text(
-          component.invocation.displayName,
-          style: TextStyle(color: Colors.white),
+        // Tool header
+        ToolHeader(
+          invocation: component.invocation,
+          workingDirectory: component.workingDirectory,
+          statusColor: ToolHeader.getStatusColor(component.invocation, theme),
         ),
-        if (params.isNotEmpty) ...[
-          Flexible(
-            child: Text(
-              '(${_getParameterPreview()}',
-              style: TextStyle(color: Colors.white.withOpacity(0.5)),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-          Text(')', style: TextStyle(color: Colors.white.withOpacity(0.5))),
-        ],
+
+        // Diff view (with pre-computed syntax highlighting)
+        Container(
+          padding: EdgeInsets.only(left: 2),
+          child: CodeDiff(fileName: _cachedFormattedPath, lines: _getHighlightedLines(context)),
+        ),
       ],
     );
   }
 
-  String _formatFilePath(String filePath) {
-    if (component.workingDirectory.isEmpty) return filePath;
-
-    try {
-      final relative = p.relative(filePath, from: component.workingDirectory);
-      // Only use relative if it's actually shorter (file is within working dir)
-      return relative.length < filePath.length ? relative : filePath;
-    } catch (e) {
-      return filePath; // Fallback on error
-    }
-  }
-
   List<DiffLine> _createDiffLines() {
-    if (component.invocation is WriteToolInvocation) {
-      final typed = component.invocation as WriteToolInvocation;
-      return _parseWriteToolResult(typed);
-    } else if (component.invocation is EditToolInvocation) {
-      final typed = component.invocation as EditToolInvocation;
-      return _parseEditResult(typed);
+    final invocation = component.invocation;
+
+    if (invocation is AgentWriteToolInvocation) {
+      return _parseWriteToolResult(invocation.content);
+    } else if (invocation is AgentEditToolInvocation) {
+      return _parseEditResult(invocation.oldString, invocation.newString);
     }
 
     return [];
   }
 
-  List<DiffLine> _parseWriteToolResult(WriteToolInvocation invocation) {
+  List<DiffLine> _parseWriteToolResult(String content) {
     // For Write tool, show all lines as added
-    final lines = invocation.content.split('\n');
-    return List.generate(
-      lines.length,
-      (i) => DiffLine(
-        lineNumber: i + 1,
-        type: DiffLineType.added,
-        content: lines[i],
-      ),
-    );
+    final lines = content.split('\n');
+    return List.generate(lines.length, (i) => DiffLine(lineNumber: i + 1, type: DiffLineType.added, content: lines[i]));
   }
 
-  List<DiffLine> _parseEditResult(EditToolInvocation invocation) {
+  List<DiffLine> _parseEditResult(String oldString, String newString) {
     final lines = <DiffLine>[];
     final resultContent = component.invocation.resultContent ?? '';
 
@@ -234,14 +173,8 @@ class _DiffRendererState extends State<DiffRenderer> {
     final resultLines = resultContent.split('\n');
 
     // Use Sets for O(1) lookup instead of O(n) list iteration
-    final oldSet = invocation.oldString
-        .split('\n')
-        .map((l) => l.trim())
-        .toSet();
-    final newSet = invocation.newString
-        .split('\n')
-        .map((l) => l.trim())
-        .toSet();
+    final oldSet = oldString.split('\n').map((l) => l.trim()).toSet();
+    final newSet = newString.split('\n').map((l) => l.trim()).toSet();
 
     for (final line in resultLines) {
       // Skip non-content lines (using pre-compiled regex)
@@ -274,28 +207,10 @@ class _DiffRendererState extends State<DiffRenderer> {
           lineType = DiffLineType.unchanged;
         }
 
-        lines.add(
-          DiffLine(lineNumber: lineNumber, type: lineType, content: content),
-        );
+        lines.add(DiffLine(lineNumber: lineNumber, type: lineType, content: content));
       }
     }
 
     return lines;
-  }
-
-  String _getParameterPreview() {
-    final params = component.invocation.parameters;
-    if (params.isEmpty) return '';
-
-    final firstKey = params.keys.first;
-    final value = params[firstKey];
-    String valueStr = value.toString();
-
-    // Format file paths
-    if (firstKey == 'file_path') {
-      valueStr = _formatFilePath(valueStr);
-    }
-
-    return '$firstKey: $valueStr';
   }
 }

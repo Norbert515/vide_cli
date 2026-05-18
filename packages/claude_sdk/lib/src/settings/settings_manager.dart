@@ -33,11 +33,9 @@ class ClaudeSettingsManager {
   ///
   /// [projectRoot] is the project directory containing .claude/ folder.
   /// [userHome] is the user's home directory (defaults to Platform.environment['HOME']).
-  ClaudeSettingsManager({
-    String? projectRoot,
-    String? userHome,
-  })  : _projectRoot = projectRoot,
-        _userHome = userHome ?? Platform.environment['HOME'];
+  ClaudeSettingsManager({String? projectRoot, String? userHome})
+    : _projectRoot = projectRoot,
+      _userHome = userHome ?? Platform.environment['HOME'];
 
   // ============================================
   // Path Helpers
@@ -143,7 +141,10 @@ class ClaudeSettingsManager {
   /// Write settings to a specific scope.
   ///
   /// Creates the .claude directory if it doesn't exist.
-  Future<void> writeSettings(ClaudeSettings settings, SettingsScope scope) async {
+  Future<void> writeSettings(
+    ClaudeSettings settings,
+    SettingsScope scope,
+  ) async {
     final path = _getPathForScope(scope);
     if (path == null) {
       throw StateError('Cannot write to $scope scope: path not configured');
@@ -214,9 +215,7 @@ class ClaudeSettingsManager {
       final enabled = current.enabledMcpjsonServers ?? [];
       if (enabled.contains(serverName)) return current;
 
-      return current.copyWith(
-        enabledMcpjsonServers: [...enabled, serverName],
-      );
+      return current.copyWith(enabledMcpjsonServers: [...enabled, serverName]);
     });
   }
 

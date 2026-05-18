@@ -1,5 +1,5 @@
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
 
 void main() {
   group('AgentMetadata', () {
@@ -10,10 +10,9 @@ void main() {
         final metadata = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: 'parent-456',
           createdAt: testDate,
-          status: AgentStatus.working,
           taskName: 'Fix bug',
         );
 
@@ -21,10 +20,9 @@ void main() {
 
         expect(json['id'], 'agent-123');
         expect(json['name'], 'Test Agent');
-        expect(json['type'], 'implementation');
+        expect(json['type'], 'implementer');
         expect(json['spawnedBy'], 'parent-456');
         expect(json['createdAt'], testDate.toIso8601String());
-        expect(json['status'], 'working');
         expect(json['taskName'], 'Fix bug');
       });
 
@@ -40,7 +38,6 @@ void main() {
 
         expect(json['spawnedBy'], isNull);
         expect(json['taskName'], isNull);
-        expect(json['status'], 'idle'); // Default
       });
     });
 
@@ -49,10 +46,9 @@ void main() {
         final json = {
           'id': 'agent-123',
           'name': 'Test Agent',
-          'type': 'implementation',
+          'type': 'implementer',
           'spawnedBy': 'parent-456',
           'createdAt': testDate.toIso8601String(),
-          'status': 'working',
           'taskName': 'Fix bug',
         };
 
@@ -60,10 +56,9 @@ void main() {
 
         expect(metadata.id, 'agent-123');
         expect(metadata.name, 'Test Agent');
-        expect(metadata.type, 'implementation');
+        expect(metadata.type, 'implementer');
         expect(metadata.spawnedBy, 'parent-456');
         expect(metadata.createdAt, testDate);
-        expect(metadata.status, AgentStatus.working);
         expect(metadata.taskName, 'Fix bug');
       });
 
@@ -79,35 +74,23 @@ void main() {
 
         expect(metadata.spawnedBy, isNull);
         expect(metadata.taskName, isNull);
-        expect(metadata.status, AgentStatus.idle); // Default
       });
 
-      test('handles null status gracefully', () {
+      test('ignores legacy status field in JSON', () {
+        // Old persisted data may have status - ensure we ignore it gracefully
         final json = {
           'id': 'agent-123',
           'name': 'Main',
           'type': 'main',
           'createdAt': testDate.toIso8601String(),
-          'status': null,
+          'status': 'working', // Legacy field - should be ignored
         };
 
         final metadata = AgentMetadata.fromJson(json);
 
-        expect(metadata.status, AgentStatus.idle);
-      });
-
-      test('handles unknown status gracefully', () {
-        final json = {
-          'id': 'agent-123',
-          'name': 'Main',
-          'type': 'main',
-          'createdAt': testDate.toIso8601String(),
-          'status': 'unknown_status',
-        };
-
-        final metadata = AgentMetadata.fromJson(json);
-
-        expect(metadata.status, AgentStatus.idle);
+        // Should parse successfully, status is now runtime-only
+        expect(metadata.id, 'agent-123');
+        expect(metadata.name, 'Main');
       });
     });
 
@@ -116,10 +99,9 @@ void main() {
         final original = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           spawnedBy: 'parent-456',
           createdAt: testDate,
-          status: AgentStatus.working,
           taskName: 'Fix bug',
         );
 
@@ -130,7 +112,6 @@ void main() {
         expect(copied.type, original.type);
         expect(copied.spawnedBy, original.spawnedBy);
         expect(copied.createdAt, original.createdAt);
-        expect(copied.status, original.status);
         expect(copied.taskName, original.taskName);
       });
 
@@ -138,18 +119,16 @@ void main() {
         final original = AgentMetadata(
           id: 'agent-123',
           name: 'Test Agent',
-          type: 'implementation',
+          type: 'implementer',
           createdAt: testDate,
         );
 
         final copied = original.copyWith(
           name: 'Updated Name',
-          status: AgentStatus.waitingForUser,
           taskName: 'New Task',
         );
 
         expect(copied.name, 'Updated Name');
-        expect(copied.status, AgentStatus.waitingForUser);
         expect(copied.taskName, 'New Task');
         // Unchanged
         expect(copied.id, original.id);
@@ -164,7 +143,6 @@ void main() {
         type: 'implementation',
         spawnedBy: 'parent-456',
         createdAt: testDate,
-        status: AgentStatus.waitingForAgent,
         taskName: 'Fix bug',
       );
 
@@ -176,7 +154,6 @@ void main() {
       expect(restored.type, original.type);
       expect(restored.spawnedBy, original.spawnedBy);
       expect(restored.createdAt, original.createdAt);
-      expect(restored.status, original.status);
       expect(restored.taskName, original.taskName);
     });
   });

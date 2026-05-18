@@ -8,8 +8,14 @@ environment:
   sdk: ^3.8.0
 
 dependencies:
-  claude_sdk: any
-  flutter_runtime_mcp: any
+  claude_sdk:
+    path: ../claude_sdk
+  codex_sdk:
+    path: ../codex_sdk
+  flutter_runtime_mcp:
+    path: ../flutter_runtime_mcp
+  vide_interface:
+    path: ../vide_interface
   riverpod: ^2.5.1
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1
@@ -17,8 +23,22 @@ dependencies:
   path: ^1.8.3
   http: ^1.1.0
   crypto: ^3.0.3
+  web_socket_channel: ^3.0.0
+  meta: ^1.9.0
+  bashboard:
+    git:
+      url: https://github.com/Norbert515/bashboard-dart.git
+      ref: 348b1fcf8cd32b0e6747c4537e057fd3167bd479
+
+assets:
+  - assets/team_framework/teams/
+  - assets/team_framework/agents/
+  - assets/team_framework/roles/
+  - assets/team_framework/etiquette/
 
 dev_dependencies:
+  agent_sdk:
+    path: ../agent_sdk
   build_runner: ^2.4.6
   freezed: ^2.4.5
   json_serializable: ^6.7.1

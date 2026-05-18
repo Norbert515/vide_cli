@@ -1,9 +1,7 @@
 import 'dart:io';
 import 'package:nocterm/nocterm.dart';
-import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:path/path.dart' as path;
 import 'package:vide_cli/theme/theme.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'welcome_page.dart';
 
 /// A scope that shows the welcome page on first run of Vide CLI.
@@ -41,19 +39,7 @@ class _WelcomeScopeState extends State<WelcomeScope> {
       }
 
       // Check global first-run status
-      final homeDir =
-          Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-      if (homeDir == null) {
-        setState(() {
-          _error = 'Could not determine home directory';
-          _isChecking = false;
-        });
-        return;
-      }
-
-      final configManager = VideConfigManager(
-        configRoot: path.join(homeDir, '.vide'),
-      );
+      final configManager = VideConfigManager();
       final isFirstRun = configManager.isFirstRun();
 
       setState(() {
@@ -68,32 +54,14 @@ class _WelcomeScopeState extends State<WelcomeScope> {
     }
   }
 
-  Future<void> _onWelcomeComplete(String? themeId) async {
+  Future<void> _onWelcomeComplete() async {
     try {
-      final homeDir =
-          Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
-      if (homeDir == null) {
-        setState(() {
-          _error = 'Could not determine home directory';
-        });
-        return;
-      }
-
-      final configManager = VideConfigManager(
-        configRoot: path.join(homeDir, '.vide'),
-      );
+      final configManager = VideConfigManager();
       configManager.markFirstRunComplete();
-      configManager.setTheme(themeId);
 
-      // IMPORTANT: Set _isFirstRun = false BEFORE updating theme provider
-      // to prevent WelcomePage from being recreated with fresh state
-      // when the provider triggers a rebuild
       setState(() {
         _isFirstRun = false;
       });
-
-      // Update the theme provider so the app uses the new theme
-      context.read(themeSettingProvider.notifier).state = themeId;
     } catch (e) {
       setState(() {
         _error = 'Failed to save settings: $e';
@@ -103,9 +71,11 @@ class _WelcomeScopeState extends State<WelcomeScope> {
 
   @override
   Component build(BuildContext context) {
+    final theme = VideTheme.of(context);
+
     if (_isChecking) {
       return Center(
-        child: Text('Loading...', style: TextStyle(color: Colors.grey)),
+        child: Text('Loading...', style: TextStyle(color: theme.base.outline)),
       );
     }
 
@@ -114,9 +84,12 @@ class _WelcomeScopeState extends State<WelcomeScope> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text('Error: $_error', style: TextStyle(color: Colors.red)),
+            Text('Error: $_error', style: TextStyle(color: theme.base.error)),
             SizedBox(height: 2),
-            Text('Press Ctrl+C to exit', style: TextStyle(color: Colors.grey)),
+            Text(
+              'Press Ctrl+C to exit',
+              style: TextStyle(color: theme.base.outline),
+            ),
           ],
         ),
       );

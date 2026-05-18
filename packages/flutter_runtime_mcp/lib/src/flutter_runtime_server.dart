@@ -33,12 +33,18 @@ class FlutterRuntimeServer extends McpServerBase {
     }
   }
 
-  /// Creates an ImageContent from screenshot bytes, resizing if needed to fit Claude API limits.
+  /// Creates an ImageContent from screenshot bytes, resizing and validating to fit Claude API limits.
   ImageContent _createScreenshotContent(List<int> screenshotBytes) {
     final resizedBytes = resizeImageIfNeeded(screenshotBytes);
-    return ImageContent(
-      data: base64.encode(resizedBytes),
+    // Ensure the image fits within Claude's 5MB API limit
+    final validated = ImageValidator.ensureWithinLimits(
+      Uint8List.fromList(resizedBytes),
       mimeType: 'image/png',
+      onWarning: (msg) => print('[flutter-runtime] $msg'),
+    );
+    return ImageContent(
+      data: base64.encode(validated.bytes),
+      mimeType: validated.mimeType,
     );
   }
 
@@ -76,6 +82,15 @@ class FlutterRuntimeServer extends McpServerBase {
     'flutterScrollAt',
     'flutterMoveCursor',
     'flutterGetWidgetInfo',
+    'flutterGetNavigationState',
+    'flutterGetErrors',
+    'flutterSetDeviceSize',
+    'flutterResetDeviceSize',
+    'flutterSetAnimationSpeed',
+    'flutterSetThemeMode',
+    'flutterGetThemeMode',
+    'flutterSetLocale',
+    'flutterResetLocale',
   ];
 
   @override
@@ -658,7 +673,8 @@ Instance ID: $instanceId
     // Flutter Screenshot
     server.tool(
       'flutterScreenshot',
-      description: 'Take a screenshot of a running Flutter instance',
+      description:
+          'Take a screenshot of a running Flutter instance. Use sparingly - prefer flutterGetElements for understanding UI state. Screenshots are useful for: debugging visual issues, verifying layouts, or when semantic info is insufficient.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {
@@ -718,7 +734,7 @@ Instance ID: $instanceId
     server.tool(
       'flutterAct',
       description:
-          'Perform an action on a Flutter UI element by describing it in natural language. Uses vision AI (Moondream) to locate the element. Returns a screenshot after the action.',
+          'Perform an action on a Flutter UI element by describing it in natural language. Uses vision AI (Moondream) to locate the element. PREFER flutterGetElements + flutterTapElement instead - they are faster and more reliable. Use flutterAct only when elements lack proper semantics/labels.',
       toolInputSchema: ToolInputSchema(
         properties: {
           'instanceId': {
@@ -806,10 +822,7 @@ Instance ID: $instanceId
 
           // Step 3: Use Moondream's point API to find the element coordinates
           final pointResponse = await _moondreamClient!
-              .point(
-                imageUrl: imageUrl,
-                object: description,
-              )
+              .point(imageUrl: imageUrl, object: description)
               .timeout(
                 _moondreamTimeout,
                 onTimeout: () => throw TimeoutException(
@@ -902,28 +915,14 @@ Instance ID: $instanceId
           final success = await instance.tap(x, y);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed $action on "$description" at coordinates ($x, $y)',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after action
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Tap command returned false')],
+              content: [TextContent(text: 'Error: Tap failed')],
             );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
@@ -1124,28 +1123,14 @@ Instance ID: $instanceId
           final success = await instance.tap(x, y);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed tap at coordinates ($x, $y) [from normalized ($coordinateX, $coordinateY)]',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after tap
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [TextContent(text: 'Error: Tap command returned false')],
+              content: [TextContent(text: 'Error: Tap failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1161,6 +1146,135 @@ Instance ID: $instanceId
                 text: 'Error: Failed to perform tap: $e\n$stackTrace',
               ),
             ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Elements - Get all actionable UI elements
+    server.tool(
+      'flutterGetElements',
+      description:
+          'Get all visible actionable UI elements (buttons, text fields, checkboxes, etc.) in the Flutter app. This is the PRIMARY tool for understanding the UI state - use it instead of screenshots. Returns element IDs for use with flutterTapElement. Only elements on the current screen/route are returned (Navigator routes are properly filtered).',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          final result = await instance.getActionableElements();
+          return CallToolResult.fromContent(
+            content: [TextContent(text: _formatElements(result))],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetElements',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to get elements: $e')],
+          );
+        }
+      },
+    );
+
+    // Flutter Tap Element - Tap an element by ID
+    server.tool(
+      'flutterTapElement',
+      description:
+          'Tap an element by its ID from flutterGetElements. This is the PREFERRED way to interact with UI - faster and more reliable than vision AI. Call flutterGetElements after to verify the action worked.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'elementId': {
+            'type': 'string',
+            'description':
+                'ID of the element to tap (e.g., "button_0", "textfield_1"). Get IDs from flutterGetElements.',
+          },
+        },
+        required: ['instanceId', 'elementId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final elementId = args['elementId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (elementId == null || elementId.isEmpty) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: elementId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print('🎯 [FlutterRuntimeServer] Tapping element: $elementId');
+
+          final success = await instance.tapElement(elementId);
+
+          if (success) {
+            // Automatically get updated elements after tap
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
+          } else {
+            return CallToolResult.fromContent(
+              content: [TextContent(text: 'Error: Tap failed')],
+            );
+          }
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterTapElement',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to tap element: $e')],
           );
         }
       },
@@ -1218,27 +1332,14 @@ Instance ID: $instanceId
           final success = await instance.type(text);
 
           if (success) {
-            // Wait for UI to update before taking screenshot
-            await Future.delayed(const Duration(milliseconds: 300));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(text: 'Successfully typed text: "$text"'),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after typing
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Type command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Type failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1466,30 +1567,14 @@ For example:
           );
 
           if (success) {
-            // Wait for UI to update and animations to complete
-            await Future.delayed(const Duration(milliseconds: 500));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed scroll: "$instruction" at ($startX, $startY) with delta ($dx, $dy)',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after scroll
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Scroll command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Scroll failed')],
             );
           }
         } on MoondreamAuthenticationException catch (e, stackTrace) {
@@ -1736,30 +1821,14 @@ For example:
           );
 
           if (success) {
-            // Wait for UI to update and animations to complete
-            await Future.delayed(const Duration(milliseconds: 500));
-
-            // Take screenshot to show the result
-            final resultScreenshot = await instance.screenshot();
-
-            final content = <Content>[
-              TextContent(
-                text:
-                    'Successfully performed scroll at ($startX, $startY) with delta ($dx, $dy) [from normalized start=($normalizedStartX, $normalizedStartY), delta=($normalizedDx, $normalizedDy)]',
-              ),
-            ];
-
-            // Add screenshot if available
-            if (resultScreenshot != null) {
-              content.add(_createScreenshotContent(resultScreenshot));
-            }
-
-            return CallToolResult.fromContent(content: content);
+            // Automatically get updated elements after scroll
+            final updatedElements = await instance.getActionableElements();
+            return CallToolResult.fromContent(
+              content: [TextContent(text: _formatElements(updatedElements))],
+            );
           } else {
             return CallToolResult.fromContent(
-              content: [
-                TextContent(text: 'Error: Scroll command returned false'),
-              ],
+              content: [TextContent(text: 'Error: Scroll failed')],
             );
           }
         } catch (e, stackTrace) {
@@ -1839,11 +1908,15 @@ For example:
 
           // If coordinates provided, use them directly
           if (normalizedX != null && normalizedY != null) {
-            if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) {
+            if (normalizedX < 0 ||
+                normalizedX > 1 ||
+                normalizedY < 0 ||
+                normalizedY > 1) {
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Coordinates must be normalized (0.0 to 1.0). Got x=$normalizedX, y=$normalizedY',
+                    text:
+                        'Error: Coordinates must be normalized (0.0 to 1.0). Got x=$normalizedX, y=$normalizedY',
                   ),
                 ],
               );
@@ -1855,7 +1928,8 @@ For example:
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Failed to capture screenshot for coordinate conversion',
+                    text:
+                        'Error: Failed to capture screenshot for coordinate conversion',
                   ),
                 ],
               );
@@ -1870,7 +1944,9 @@ For example:
                 bytes[3] != 0x47) {
               return CallToolResult.fromContent(
                 content: [
-                  TextContent(text: 'Error: Invalid PNG format from screenshot'),
+                  TextContent(
+                    text: 'Error: Invalid PNG format from screenshot',
+                  ),
                 ],
               );
             }
@@ -1899,7 +1975,8 @@ For example:
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Moondream API not available. Set MOONDREAM_API_KEY environment variable. Use x/y coordinates instead.',
+                    text:
+                        'Error: Moondream API not available. Set MOONDREAM_API_KEY environment variable. Use x/y coordinates instead.',
                   ),
                 ],
               );
@@ -1922,25 +1999,27 @@ For example:
             );
 
             // Query Moondream for element location
-            print('🔍 [FlutterRuntimeServer] Asking Moondream to locate: "$description"');
+            print(
+              '🔍 [FlutterRuntimeServer] Asking Moondream to locate: "$description"',
+            );
             final pointResponse = await _moondreamClient!
-                .point(
-                  imageUrl: imageUrl,
-                  object: description,
-                )
+                .point(imageUrl: imageUrl, object: description)
                 .timeout(_moondreamTimeout);
 
             // Get normalized coordinates (0-1 range)
             final moondreamX = pointResponse.x;
             final moondreamY = pointResponse.y;
 
-            print('📍 [FlutterRuntimeServer] Moondream response: x=$moondreamX, y=$moondreamY');
+            print(
+              '📍 [FlutterRuntimeServer] Moondream response: x=$moondreamX, y=$moondreamY',
+            );
 
             if (moondreamX == null || moondreamY == null) {
               return CallToolResult.fromContent(
                 content: [
                   TextContent(
-                    text: 'Error: Could not locate "$description" in the screenshot. Try a different description or use coordinates.',
+                    text:
+                        'Error: Could not locate "$description" in the screenshot. Try a different description or use coordinates.',
                   ),
                 ],
               );
@@ -1969,7 +2048,8 @@ For example:
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Error: Either x/y coordinates OR description must be provided',
+                  text:
+                      'Error: Either x/y coordinates OR description must be provided',
                 ),
               ],
             );
@@ -1978,19 +2058,14 @@ For example:
           // Move the cursor
           await instance.moveCursor(logicalX, logicalY);
 
-          // Take screenshot to show result
-          final resultScreenshot = await instance.screenshot();
-          final content = <Content>[
-            TextContent(
-              text: 'Cursor moved to ($logicalX, $logicalY) using $locationSource.\n\nUse flutterGetWidgetInfo to inspect widgets at this position.',
-            ),
-          ];
-
-          if (resultScreenshot != null) {
-            content.add(_createScreenshotContent(resultScreenshot));
-          }
-
-          return CallToolResult.fromContent(content: content);
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Cursor moved to ($logicalX, $logicalY) using $locationSource. Use flutterGetWidgetInfo to inspect widgets at this position.',
+              ),
+            ],
+          );
         } catch (e, stackTrace) {
           await _reportError(
             e,
@@ -1999,9 +2074,7 @@ For example:
             instanceId: instanceId,
           );
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: 'Error: Failed to move cursor: $e'),
-            ],
+            content: [TextContent(text: 'Error: Failed to move cursor: $e')],
           );
         }
       },
@@ -2049,7 +2122,8 @@ For example:
             return CallToolResult.fromContent(
               content: [
                 TextContent(
-                  text: 'Error: No cursor position set. Use flutterMoveCursor or flutterTapAt first to position the cursor.',
+                  text:
+                      'Error: No cursor position set. Use flutterMoveCursor or flutterTapAt first to position the cursor.',
                 ),
               ],
             );
@@ -2060,12 +2134,17 @@ For example:
           );
 
           // Get widget info at the cursor position
-          final widgetInfo = await instance.getWidgetInfo(cursorPos.x, cursorPos.y);
+          final widgetInfo = await instance.getWidgetInfo(
+            cursorPos.x,
+            cursorPos.y,
+          );
 
           // Format the response
           final widgets = widgetInfo['widgets'] as List<dynamic>? ?? [];
           final buffer = StringBuffer();
-          buffer.writeln('Widget Info at cursor (${cursorPos.x}, ${cursorPos.y}):');
+          buffer.writeln(
+            'Widget Info at cursor (${cursorPos.x}, ${cursorPos.y}):',
+          );
           buffer.writeln('');
 
           if (widgets.isEmpty) {
@@ -2111,9 +2190,7 @@ For example:
           }
 
           return CallToolResult.fromContent(
-            content: [
-              TextContent(text: buffer.toString()),
-            ],
+            content: [TextContent(text: buffer.toString())],
           );
         } catch (e, stackTrace) {
           await _reportError(
@@ -2124,10 +2201,781 @@ For example:
           );
           return CallToolResult.fromContent(
             content: [
+              TextContent(text: 'Error: Failed to get widget info: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Navigation State - Get current navigation state
+    server.tool(
+      'flutterGetNavigationState',
+      description:
+          'Get the current navigation state of a Flutter app. Returns the current route, route stack, whether back navigation is possible, and count of modal routes. Useful for understanding the navigation context.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
               TextContent(
-                text: 'Error: Failed to get widget info: $e',
+                text: 'Error: Flutter instance not found with ID: $instanceId',
               ),
             ],
+          );
+        }
+
+        try {
+          final result = await instance.getNavigationState();
+
+          // Format the response
+          final buffer = StringBuffer();
+          buffer.writeln('Navigation State:');
+          buffer.writeln('');
+          buffer.writeln(
+            'Current Route: ${result['currentRoute'] ?? '(none)'}',
+          );
+          buffer.writeln('Can Go Back: ${result['canGoBack']}');
+          buffer.writeln('Modal Routes: ${result['modalRoutes']}');
+          buffer.writeln('');
+
+          final routeStack = result['routeStack'] as List<dynamic>? ?? [];
+          if (routeStack.isNotEmpty) {
+            buffer.writeln('Route Stack:');
+            for (var i = 0; i < routeStack.length; i++) {
+              final prefix = i == routeStack.length - 1 ? '→ ' : '  ';
+              buffer.writeln('$prefix${routeStack[i]}');
+            }
+          } else {
+            buffer.writeln('Route Stack: (empty)');
+          }
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: buffer.toString())],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetNavigationState',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to get navigation state: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Errors - Get captured errors from the app
+    server.tool(
+      'flutterGetErrors',
+      description:
+          'Get captured errors from a running Flutter app. Error capture must be enabled first via this tool. Returns Flutter framework errors and async errors with timestamps, messages, and stack traces. Use this to diagnose issues during testing.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'enable': {
+            'type': 'boolean',
+            'description':
+                'Set to true to enable error capture, false to disable. If not specified, just retrieves errors.',
+          },
+          'clear': {
+            'type': 'boolean',
+            'description':
+                'Whether to clear the error buffer after retrieval. Defaults to true.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final enable = args['enable'] as bool?;
+        final clear = args['clear'] as bool? ?? true;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          // Handle enable/disable if specified
+          if (enable != null) {
+            await instance.enableErrorCapture(enabled: enable);
+            if (!enable) {
+              return CallToolResult.fromContent(
+                content: [TextContent(text: 'Error capture disabled.')],
+              );
+            }
+          }
+
+          // Get errors
+          final result = await instance.getErrors(clear: clear);
+          final errors = result['errors'] as List<dynamic>? ?? [];
+          final count = result['count'] as int? ?? 0;
+
+          // Format the response
+          final buffer = StringBuffer();
+          if (enable == true) {
+            buffer.writeln('Error capture enabled.');
+            buffer.writeln('');
+          }
+          buffer.writeln('Captured Errors: $count');
+          buffer.writeln('');
+
+          if (errors.isEmpty) {
+            buffer.writeln('No errors captured.');
+          } else {
+            for (var i = 0; i < errors.length; i++) {
+              final error = errors[i] as Map<String, dynamic>;
+              buffer.writeln('--- Error ${i + 1} ---');
+              buffer.writeln('Type: ${error['type']}');
+              buffer.writeln('Time: ${error['timestamp']}');
+              buffer.writeln('Message: ${error['message']}');
+              if (error['context'] != null) {
+                buffer.writeln('Context: ${error['context']}');
+              }
+              if (error['library'] != null) {
+                buffer.writeln('Library: ${error['library']}');
+              }
+              if (error['stackTrace'] != null &&
+                  (error['stackTrace'] as String).isNotEmpty) {
+                buffer.writeln('Stack Trace:');
+                // Limit stack trace to first 10 lines
+                final stackLines = (error['stackTrace'] as String)
+                    .split('\n')
+                    .take(10);
+                for (final line in stackLines) {
+                  buffer.writeln('  $line');
+                }
+                if ((error['stackTrace'] as String).split('\n').length > 10) {
+                  buffer.writeln('  ... (truncated)');
+                }
+              }
+              buffer.writeln('');
+            }
+          }
+
+          if (clear && count > 0) {
+            buffer.writeln('(Error buffer cleared)');
+          }
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: buffer.toString())],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetErrors',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to get errors: $e')],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Device Size - Override device size for responsive testing
+    server.tool(
+      'flutterSetDeviceSize',
+      description:
+          'Set a custom device size for responsive testing. Uses MediaQuery override so the app responds to breakpoints as if on the target device. Choose from presets (iphone-se, iphone-14, ipad-pro-11, pixel-7, desktop-hd, etc.) or specify custom width/height.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'preset': {
+            'type': 'string',
+            'description':
+                'Device preset name. Options: iphone-se, iphone-14, iphone-14-pro-max, iphone-landscape, ipad-mini, ipad-pro-11, ipad-pro-12.9, pixel-7, pixel-fold, desktop-hd, desktop-full-hd, desktop-2k',
+            'enum': [
+              'iphone-se',
+              'iphone-14',
+              'iphone-14-pro-max',
+              'iphone-landscape',
+              'ipad-mini',
+              'ipad-pro-11',
+              'ipad-pro-12.9',
+              'pixel-7',
+              'pixel-fold',
+              'desktop-hd',
+              'desktop-full-hd',
+              'desktop-2k',
+            ],
+          },
+          'width': {
+            'type': 'number',
+            'description':
+                'Custom width in logical pixels. Use instead of preset for custom sizes.',
+          },
+          'height': {
+            'type': 'number',
+            'description':
+                'Custom height in logical pixels. Use instead of preset for custom sizes.',
+          },
+          'devicePixelRatio': {
+            'type': 'number',
+            'description':
+                'Device pixel ratio (default 1.0). Higher values simulate higher DPI screens.',
+          },
+          'showFrame': {
+            'type': 'boolean',
+            'description':
+                'Whether to show a visual device frame around the app (default true)',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final preset = args['preset'] as String?;
+        final width = (args['width'] as num?)?.toDouble();
+        final height = (args['height'] as num?)?.toDouble();
+        final devicePixelRatio = (args['devicePixelRatio'] as num?)?.toDouble();
+        final showFrame = args['showFrame'] as bool? ?? true;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        // Validate that either preset or width+height is provided
+        if (preset == null && (width == null || height == null)) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Error: Either preset or both width and height must be provided',
+              ),
+            ],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '📱 [FlutterRuntimeServer] Setting device size for instance $instanceId',
+          );
+
+          final result = await instance.setDeviceSize(
+            preset: preset,
+            width: width,
+            height: height,
+            devicePixelRatio: devicePixelRatio,
+            showFrame: showFrame,
+          );
+
+          final appliedWidth = result['width'];
+          final appliedHeight = result['height'];
+          final appliedDpr = result['devicePixelRatio'];
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    '''Device size set successfully!
+
+Size: ${appliedWidth}x$appliedHeight @ ${appliedDpr}x
+Frame: ${result['showFrame']}
+
+The app is now running in a simulated ${preset ?? 'custom'} viewport.
+Breakpoints and MediaQuery will respond to the new size.''',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetDeviceSize',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set device size: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Reset Device Size - Reset to native device size
+    server.tool(
+      'flutterResetDeviceSize',
+      description:
+          'Reset the device size to native. Clears any device size override and returns to the actual device dimensions.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '📱 [FlutterRuntimeServer] Resetting device size for instance $instanceId',
+          );
+
+          await instance.resetDeviceSize();
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Device size reset to native. The app is now using the actual device dimensions.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterResetDeviceSize',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to reset device size: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Animation Speed - Control animation speed
+    server.tool(
+      'flutterSetAnimationSpeed',
+      description:
+          'Control the animation speed of the Flutter app. Use slow motion to observe animations or pause for static screenshots.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'speed': {
+            'type': 'string',
+            'description':
+                'Speed preset: normal (1x), slow (0.25x), very-slow (0.1x), paused',
+            'enum': ['normal', 'slow', 'very-slow', 'paused'],
+          },
+          'customFactor': {
+            'type': 'number',
+            'description':
+                'Custom time dilation factor. 1.0=normal, 4.0=4x slower, etc.',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final speed = args['speed'] as String?;
+        final customFactor = (args['customFactor'] as num?)?.toDouble();
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        // Determine the factor to use
+        double factor;
+        if (customFactor != null) {
+          factor = customFactor;
+        } else if (speed != null) {
+          switch (speed) {
+            case 'normal':
+              factor = 1.0;
+            case 'slow':
+              factor = 4.0; // 0.25x speed
+            case 'very-slow':
+              factor = 10.0; // 0.1x speed
+            case 'paused':
+              factor = 1000000.0; // effectively paused
+            default:
+              factor = 1.0;
+          }
+        } else {
+          factor = 1.0;
+        }
+
+        try {
+          print(
+            '🎬 [FlutterRuntimeServer] Setting animation speed for instance $instanceId (factor: $factor)',
+          );
+
+          await instance.setTimeDilation(factor);
+
+          final description = customFactor != null
+              ? '${factor}x time dilation'
+              : speed ?? 'normal';
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Animation speed set to $description. Animations will now run ${factor > 1 ? "${factor}x slower" : "at normal speed"}.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetAnimationSpeed',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(text: 'Error: Failed to set animation speed: $e'),
+            ],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Theme Mode - Switch between light/dark/system
+    server.tool(
+      'flutterSetThemeMode',
+      description:
+          'Switch between light and dark mode for testing. Useful for verifying UI appearance in both themes.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'mode': {
+            'type': 'string',
+            'description': 'Theme mode: light, dark, or system',
+            'enum': ['light', 'dark', 'system'],
+          },
+        },
+        required: ['instanceId', 'mode'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final mode = args['mode'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (mode == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: mode is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🎨 [FlutterRuntimeServer] Setting theme mode to $mode for instance $instanceId',
+          );
+
+          await instance.setThemeMode(mode);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Theme mode set to $mode. The app will now display with ${mode == "system" ? "system default" : mode} theme.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetThemeMode',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to set theme mode: $e')],
+          );
+        }
+      },
+    );
+
+    // Flutter Get Theme Mode - Get current theme mode
+    server.tool(
+      'flutterGetThemeMode',
+      description: 'Get the current theme mode (light, dark, or system).',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          final mode = await instance.getThemeMode();
+
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Current theme mode: $mode')],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterGetThemeMode',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to get theme mode: $e')],
+          );
+        }
+      },
+    );
+
+    // Flutter Set Locale - Change app locale for i18n testing
+    server.tool(
+      'flutterSetLocale',
+      description:
+          'Change the app locale for internationalization testing. Test RTL layouts, text overflow in different languages, etc.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+          'locale': {
+            'type': 'string',
+            'description':
+                'Locale code in format "en-US", "ja-JP", "ar-SA", etc.',
+          },
+        },
+        required: ['instanceId', 'locale'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+        final locale = args['locale'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        if (locale == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: locale is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🌍 [FlutterRuntimeServer] Setting locale to $locale for instance $instanceId',
+          );
+
+          await instance.setLocale(locale);
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Locale set to $locale. The app will now display with this locale if supported.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterSetLocale',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to set locale: $e')],
+          );
+        }
+      },
+    );
+
+    // Flutter Reset Locale - Reset to system locale
+    server.tool(
+      'flutterResetLocale',
+      description: 'Reset the locale to the system default.',
+      toolInputSchema: ToolInputSchema(
+        properties: {
+          'instanceId': {
+            'type': 'string',
+            'description': 'UUID of the Flutter instance',
+          },
+        },
+        required: ['instanceId'],
+      ),
+      callback: ({args, extra}) async {
+        final instanceId = args!['instanceId'] as String?;
+
+        if (instanceId == null) {
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: instanceId is required')],
+          );
+        }
+
+        final instance = _instances[instanceId];
+        if (instance == null) {
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text: 'Error: Flutter instance not found with ID: $instanceId',
+              ),
+            ],
+          );
+        }
+
+        try {
+          print(
+            '🌍 [FlutterRuntimeServer] Resetting locale to system default for instance $instanceId',
+          );
+
+          await instance.resetLocale();
+
+          return CallToolResult.fromContent(
+            content: [
+              TextContent(
+                text:
+                    'Locale reset to system default. The app will now use the device locale.',
+              ),
+            ],
+          );
+        } catch (e, stackTrace) {
+          await _reportError(
+            e,
+            stackTrace,
+            'flutterResetLocale',
+            instanceId: instanceId,
+          );
+          return CallToolResult.fromContent(
+            content: [TextContent(text: 'Error: Failed to reset locale: $e')],
           );
         }
       },
@@ -2191,6 +3039,30 @@ For example:
     return result;
   }
 
+  /// Format elements list as compact text
+  String _formatElements(Map<String, dynamic> result) {
+    final elements = result['elements'] as List<dynamic>? ?? [];
+    if (elements.isEmpty) {
+      return '(no elements)';
+    }
+
+    final buffer = StringBuffer();
+    for (final element in elements) {
+      final id = element['id'] as String?;
+      final type = element['type'] as String?;
+      final label = element['label'] as String?;
+      final enabled = element['enabled'];
+      final checked = element['checked'];
+
+      buffer.write('- $id ($type)');
+      if (label != null && label.isNotEmpty) buffer.write(': "$label"');
+      if (enabled == false) buffer.write(' [disabled]');
+      if (checked != null) buffer.write(' [${checked ? '✓' : '○'}]');
+      buffer.writeln();
+    }
+    return buffer.toString().trimRight();
+  }
+
   /// Get a Flutter instance by ID for direct stream access
   /// Returns null if instance not found
   FlutterInstance? getInstance(String instanceId) {
@@ -2239,10 +3111,7 @@ For example:
 
     // Step 3: Use Moondream's point API to find the element coordinates
     final pointResponse = await _moondreamClient!
-        .point(
-          imageUrl: imageUrl,
-          object: description,
-        )
+        .point(imageUrl: imageUrl, object: description)
         .timeout(
           _moondreamTimeout,
           onTimeout: () => throw TimeoutException(
@@ -2337,9 +3206,7 @@ For example:
         }
       } catch (e) {
         // Log but continue with other instances
-        print(
-          '[FlutterRuntimeServer] Error stopping instance $instanceId: $e',
-        );
+        print('[FlutterRuntimeServer] Error stopping instance $instanceId: $e');
       }
     }
     _instances.clear();

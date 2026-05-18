@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/configuration/claude_settings.dart';
 
 /// Integration tests for Settings and Permissions subsystems working together.
 ///
@@ -21,7 +22,6 @@ void main() {
       projectRoot = tempDir.path;
       settingsManager = LocalSettingsManager(
         projectRoot: projectRoot,
-        parrottRoot: projectRoot,
       );
       permissionChecker = PermissionChecker();
     });
@@ -43,8 +43,9 @@ void main() {
         );
         expect(result, isA<PermissionAskUser>());
 
-        // Add to allow list
+        // Add to allow list and invalidate cache so the checker re-reads
         await settingsManager.addToAllowList('Bash(npm:*)');
+        permissionChecker.invalidateSettingsCache();
 
         // Now should be allowed
         result = await permissionChecker.checkPermission(
@@ -194,6 +195,9 @@ void main() {
             ),
           );
           await settingsFile.writeAsString(jsonEncode(settings.toJson()));
+
+          // Invalidate cache so the checker re-reads from disk
+          permissionChecker.invalidateSettingsCache();
 
           // Subsequent check should pick up new settings
           result = await permissionChecker.checkPermission(

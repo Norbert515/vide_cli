@@ -32,11 +32,6 @@ class CommandRegistry {
     return _commands[name.toLowerCase()];
   }
 
-  /// Check if a command exists.
-  bool hasCommand(String name) {
-    return _commands.containsKey(name.toLowerCase());
-  }
-
   /// Get all registered commands.
   List<Command> get allCommands => _commands.values.toList();
 

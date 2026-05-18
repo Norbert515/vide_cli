@@ -5,6 +5,7 @@ import '../control/control_protocol.dart';
 import '../control/control_types.dart';
 import '../errors/claude_errors.dart';
 import '../models/config.dart';
+import 'process_manager.dart';
 
 /// Manages the lifecycle of a Claude CLI process.
 ///
@@ -19,6 +20,12 @@ class ProcessLifecycleManager {
   /// The control protocol handler for the active process
   ControlProtocol? _controlProtocol;
 
+  /// Called when the process exits unexpectedly (not via close()).
+  void Function(int exitCode)? onProcessExited;
+
+  /// Called when the stdout stream closes.
+  void Function()? onStdoutDone;
+
   /// Get the active process, if any
   Process? get activeProcess => _activeProcess;
 
@@ -27,6 +34,9 @@ class ProcessLifecycleManager {
 
   /// Whether a process is currently running
   bool get isRunning => _activeProcess != null;
+
+  /// Whether close() was called (to distinguish intentional vs unexpected exit).
+  bool _closing = false;
 
   /// Start the Claude CLI process with control protocol.
   ///
@@ -48,8 +58,8 @@ class ProcessLifecycleManager {
     }
 
     // Start the process
-    // On Windows, use 'claude.cmd' since npm installs it as a .cmd wrapper
-    final executable = Platform.isWindows ? 'claude.cmd' : 'claude';
+    // On Windows, check for both standalone installer (.exe) and npm (.cmd)
+    final executable = await ProcessManager.getClaudeExecutable();
     Process process;
     try {
       process = await Process.start(
@@ -68,9 +78,26 @@ class ProcessLifecycleManager {
       );
     }
     _activeProcess = process;
+    _closing = false;
 
     // Create control protocol handler
     _controlProtocol = ControlProtocol(process);
+
+    // Wire up stdout lifecycle callbacks
+    _controlProtocol!.onStdoutDone = () {
+      onStdoutDone?.call();
+    };
+    _controlProtocol!.onStdoutError = (error) {
+      // Error surfaced via onProcessExited callback
+    };
+
+    // Monitor process exit
+    process.exitCode.then((exitCode) {
+      if (!_closing) {
+        onProcessExited?.call(exitCode);
+      }
+      _activeProcess = null;
+    });
 
     // Consume stderr to prevent blocking (errors are surfaced via control protocol)
     process.stderr.transform(utf8.decoder).drain<void>();
@@ -98,6 +125,8 @@ class ProcessLifecycleManager {
   ///
   /// Kills the active process if running and cleans up the control protocol.
   Future<void> close() async {
+    _closing = true;
+
     // Close control protocol if active
     if (_controlProtocol != null) {
       await _controlProtocol!.close();

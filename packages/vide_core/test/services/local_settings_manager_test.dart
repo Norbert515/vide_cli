@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:test/test.dart';
-import 'package:vide_core/src.dart';
+import 'package:vide_core/vide_core.dart';
+import 'package:vide_core/src/configuration/claude_settings.dart';
 
 void main() {
   group('LocalSettingsManager', () {
@@ -14,7 +15,6 @@ void main() {
       projectRoot = tempDir.path;
       manager = LocalSettingsManager(
         projectRoot: projectRoot,
-        parrottRoot: projectRoot,
       );
     });
 

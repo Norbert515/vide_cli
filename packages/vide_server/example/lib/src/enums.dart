@@ -6,10 +6,10 @@ enum MessageRole {
   assistant;
 
   static MessageRole fromString(String value) => switch (value) {
-        'user' => MessageRole.user,
-        'assistant' => MessageRole.assistant,
-        _ => MessageRole.assistant,
-      };
+    'user' => MessageRole.user,
+    'assistant' => MessageRole.assistant,
+    _ => MessageRole.assistant,
+  };
 }
 
 /// Status of an agent.
@@ -20,10 +20,10 @@ enum AgentStatus {
   idle;
 
   static AgentStatus fromString(String? value) => switch (value) {
-        'working' => AgentStatus.working,
-        'waiting-for-agent' => AgentStatus.waitingForAgent,
-        'waiting-for-user' => AgentStatus.waitingForUser,
-        'idle' => AgentStatus.idle,
-        _ => AgentStatus.idle,
-      };
+    'working' => AgentStatus.working,
+    'waiting-for-agent' => AgentStatus.waitingForAgent,
+    'waiting-for-user' => AgentStatus.waitingForUser,
+    'idle' => AgentStatus.idle,
+    _ => AgentStatus.idle,
+  };
 }

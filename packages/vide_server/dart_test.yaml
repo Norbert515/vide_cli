@@ -1,0 +1,3 @@
+tags:
+  integration:
+    # Integration tests that require network/filesystem access

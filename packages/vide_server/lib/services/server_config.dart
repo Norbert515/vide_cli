@@ -8,15 +8,11 @@ import 'package:path/path.dart' as p;
 /// Configuration file format:
 /// ```json
 /// {
-///   "permission-timeout-seconds": 60,
 ///   "auto-approve-all": false,
 ///   "filesystem-root": "/Users/chris/projects"
 /// }
 /// ```
 class ServerConfig {
-  /// Timeout for permission requests in seconds (default: 60)
-  final int permissionTimeoutSeconds;
-
   /// If true, auto-approve all permission requests without prompting
   /// (dangerous, for testing only)
   final bool autoApproveAll;
@@ -26,11 +22,8 @@ class ServerConfig {
   /// Defaults to user's home directory if not specified.
   final String filesystemRoot;
 
-  ServerConfig({
-    this.permissionTimeoutSeconds = 60,
-    this.autoApproveAll = false,
-    String? filesystemRoot,
-  }) : filesystemRoot = filesystemRoot ?? _defaultFilesystemRoot();
+  ServerConfig({this.autoApproveAll = false, String? filesystemRoot})
+    : filesystemRoot = filesystemRoot ?? _defaultFilesystemRoot();
 
   static String _defaultFilesystemRoot() {
     return Platform.environment['HOME'] ??
@@ -60,8 +53,6 @@ class ServerConfig {
     final json = jsonDecode(content) as Map<String, dynamic>;
 
     return ServerConfig(
-      permissionTimeoutSeconds:
-          json['permission-timeout-seconds'] as int? ?? 60,
       autoApproveAll: json['auto-approve-all'] as bool? ?? false,
       filesystemRoot: json['filesystem-root'] as String?,
     );
@@ -79,7 +70,6 @@ class ServerConfig {
     await configFile.parent.create(recursive: true);
 
     final json = {
-      'permission-timeout-seconds': permissionTimeoutSeconds,
       'auto-approve-all': autoApproveAll,
       'filesystem-root': filesystemRoot,
     };
@@ -88,7 +78,4 @@ class ServerConfig {
       const JsonEncoder.withIndent('  ').convert(json),
     );
   }
-
-  /// Duration for permission timeout
-  Duration get permissionTimeout => Duration(seconds: permissionTimeoutSeconds);
 }

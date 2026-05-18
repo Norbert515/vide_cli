@@ -1,10 +1,13 @@
 import 'agent_id.dart';
-import 'agent_status.dart';
 
 /// Metadata about an agent in the network.
 ///
 /// This is persisted along with the agent network and contains
 /// human-readable information about each agent.
+///
+/// Note: Agent status is NOT stored here - it's purely runtime state
+/// managed by [agentStatusProvider]. On session resume, all agents
+/// start as idle since nothing is running.
 class AgentMetadata {
   AgentMetadata({
     required this.id,
@@ -12,9 +15,13 @@ class AgentMetadata {
     required this.type,
     this.spawnedBy,
     required this.createdAt,
-    this.status = AgentStatus.idle,
     this.taskName,
     this.sessionId,
+    this.shortDescription,
+    this.teamTag,
+    this.workingDirectory,
+    this.harness,
+    this.model,
     this.totalInputTokens = 0,
     this.totalOutputTokens = 0,
     this.totalCacheReadInputTokens = 0,
@@ -44,11 +51,25 @@ class AgentMetadata {
   /// When this agent was created
   final DateTime createdAt;
 
-  /// The current status of this agent
-  final AgentStatus status;
-
   /// The current task name for this agent (set via setAgentTaskName MCP tool)
   final String? taskName;
+
+  /// Short description of what this agent type does (from agent personality markdown)
+  final String? shortDescription;
+
+  /// Optional team tag this agent belongs to (from agent personality markdown)
+  /// If null, agent belongs to the root network (no sub-team).
+  final String? teamTag;
+
+  /// Optional working directory override for this agent.
+  /// If null, uses the session's effective working directory.
+  final String? workingDirectory;
+
+  /// Which harness this agent runs on (e.g., 'claude-code', 'codex-cli').
+  final String? harness;
+
+  /// The model this agent uses (e.g., 'opus', 'sonnet', 'haiku').
+  final String? model;
 
   /// Total input tokens used by this agent
   final int totalInputTokens;
@@ -78,9 +99,13 @@ class AgentMetadata {
     String? type,
     AgentId? spawnedBy,
     DateTime? createdAt,
-    AgentStatus? status,
     String? taskName,
     String? sessionId,
+    String? shortDescription,
+    String? teamTag,
+    String? workingDirectory,
+    String? harness,
+    String? model,
     int? totalInputTokens,
     int? totalOutputTokens,
     int? totalCacheReadInputTokens,
@@ -93,9 +118,13 @@ class AgentMetadata {
       type: type ?? this.type,
       spawnedBy: spawnedBy ?? this.spawnedBy,
       createdAt: createdAt ?? this.createdAt,
-      status: status ?? this.status,
       taskName: taskName ?? this.taskName,
       sessionId: sessionId ?? this.sessionId,
+      shortDescription: shortDescription ?? this.shortDescription,
+      teamTag: teamTag ?? this.teamTag,
+      workingDirectory: workingDirectory ?? this.workingDirectory,
+      harness: harness ?? this.harness,
+      model: model ?? this.model,
       totalInputTokens: totalInputTokens ?? this.totalInputTokens,
       totalOutputTokens: totalOutputTokens ?? this.totalOutputTokens,
       totalCacheReadInputTokens:
@@ -113,9 +142,13 @@ class AgentMetadata {
       'type': type,
       'spawnedBy': spawnedBy,
       'createdAt': createdAt.toIso8601String(),
-      'status': status.toStringValue(),
       'taskName': taskName,
       'sessionId': sessionId,
+      'shortDescription': shortDescription,
+      'teamTag': teamTag,
+      'workingDirectory': workingDirectory,
+      'harness': harness,
+      'model': model,
       'totalInputTokens': totalInputTokens,
       'totalOutputTokens': totalOutputTokens,
       'totalCacheReadInputTokens': totalCacheReadInputTokens,
@@ -131,9 +164,13 @@ class AgentMetadata {
       type: json['type'] as String,
       spawnedBy: json['spawnedBy'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
-      status: _parseStatus(json['status'] as String?),
       taskName: json['taskName'] as String?,
       sessionId: json['sessionId'] as String?,
+      shortDescription: json['shortDescription'] as String?,
+      teamTag: json['teamTag'] as String?,
+      workingDirectory: json['workingDirectory'] as String?,
+      harness: json['harness'] as String?,
+      model: json['model'] as String?,
       totalInputTokens: (json['totalInputTokens'] as int?) ?? 0,
       totalOutputTokens: (json['totalOutputTokens'] as int?) ?? 0,
       totalCacheReadInputTokens:
@@ -146,9 +183,4 @@ class AgentMetadata {
 
   @override
   String toString() => 'AgentMetadata(id: $id, name: $name, type: $type)';
-}
-
-AgentStatus _parseStatus(String? value) {
-  if (value == null) return AgentStatus.idle;
-  return AgentStatusExtension.fromString(value) ?? AgentStatus.idle;
 }

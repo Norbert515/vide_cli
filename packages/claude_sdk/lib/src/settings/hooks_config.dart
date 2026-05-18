@@ -92,10 +92,7 @@ class PreToolUseHook {
   /// List of hooks to run when pattern matches.
   final List<HookCommand> hooks;
 
-  const PreToolUseHook({
-    required this.matcher,
-    required this.hooks,
-  });
+  const PreToolUseHook({required this.matcher, required this.hooks});
 
   factory PreToolUseHook.fromJson(Map<String, dynamic> json) =>
       _$PreToolUseHookFromJson(json);
@@ -116,11 +113,7 @@ class HookCommand {
   /// Timeout in milliseconds.
   final int? timeout;
 
-  const HookCommand({
-    required this.type,
-    required this.command,
-    this.timeout,
-  });
+  const HookCommand({required this.type, required this.command, this.timeout});
 
   factory HookCommand.fromJson(Map<String, dynamic> json) =>
       _$HookCommandFromJson(json);

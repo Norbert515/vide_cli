@@ -1,7 +1,7 @@
 /// Session routes for Phase 2.5 multiplexed WebSocket streaming.
 ///
-/// This replaces the per-agent WebSocket endpoint with a single session-level
-/// multiplexed stream that includes events from ALL agents in the session.
+/// This module uses VideSessionManager and VideSession as the single interface
+/// for all session management, events, and permissions.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -9,23 +9,19 @@ import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 import 'package:shelf_web_socket/shelf_web_socket.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
-import 'package:riverpod/riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:uuid/uuid.dart';
-import 'package:vide_core/src.dart';
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:vide_core/vide_core.dart'
+    hide ConnectedEvent, AgentInfo, HistoryEvent, CommandResultEvent;
 import '../dto/session_dto.dart';
-import '../services/network_cache_manager.dart';
-import '../services/session_event_store.dart';
-import '../services/session_permission_manager.dart';
+import '../services/session_broadcaster.dart';
 
 final _log = Logger('SessionRoutes');
 
-/// Create a new session (Phase 2.5 terminology)
+/// Create a new session via VideSessionManager
 Future<Response> createSession(
   Request request,
-  ProviderContainer container,
-  NetworkCacheManager cacheManager,
+  VideSessionManager sessionManager,
+  Map<String, VideSession> sessionCache,
 ) async {
   _log.info('POST /sessions - Creating new session');
 
@@ -107,29 +103,53 @@ Future<Response> createSession(
     );
   }
 
-  // Create the network immediately (like TUI does)
-  final manager = container.read(agentNetworkManagerProvider.notifier);
-  final network = await manager.startNew(
-    Message.text(req.initialMessage),
+  // Convert DTO attachments to AgentAttachment for the session manager.
+  final attachments = req.attachments
+      ?.map(
+        (a) => AgentAttachment(
+          type: a.type,
+          path: a.filePath,
+          content: a.content,
+          mimeType: a.mimeType,
+        ),
+      )
+      .toList();
+
+  // Create session via session manager
+  final session = await sessionManager.createSession(
     workingDirectory: canonicalPath,
-    model: req.model,
+    initialMessage: req.initialMessage,
     permissionMode: req.permissionMode,
+    team: req.team ?? 'enterprise',
+    attachments: attachments,
   );
 
-  _log.info('Session created: ${network.id}');
+  _log.info('Session created: ${session.state.id}');
 
-  // Cache the network for later retrieval
-  cacheManager.cacheNetwork(network);
+  // Register with broadcaster BEFORE emitting the initial user message,
+  // so the broadcaster captures it in history for replay to clients.
+  SessionBroadcasterRegistry.instance.getOrCreate(session);
 
-  final mainAgent = network.agents.first;
+  // Now emit the initial user message so it's captured by the broadcaster.
+  if (session is LocalVideSession) {
+    session.emitInitialUserMessage(
+      req.initialMessage,
+      attachments: attachments,
+    );
+  }
+
+  // Cache for WebSocket access
+  sessionCache[session.state.id] = session;
+
+  final mainAgent = session.state.mainAgent!;
   final response = CreateSessionResponse(
-    sessionId: network.id,
+    sessionId: session.state.id,
     mainAgentId: mainAgent.id,
-    createdAt: network.createdAt,
+    createdAt: mainAgent.createdAt,
   );
 
   _log.info(
-    'Response sent: sessionId=${network.id}, mainAgentId=${mainAgent.id}',
+    'Response sent: sessionId=${session.state.id}, mainAgentId=${mainAgent.id}',
   );
   return Response.ok(
     response.toJsonString(),
@@ -137,207 +157,203 @@ Future<Response> createSession(
   );
 }
 
-/// Manages streaming for a single session with all its agents
-class _SessionStreamManager {
-  final String sessionId;
-  final ProviderContainer container;
-  final NetworkCacheManager cacheManager;
+/// List persisted sessions for a given project directory.
+///
+/// Query parameters:
+/// - `working-directory` (required): The client's project directory to scope
+///   the session listing to.
+Future<Response> listSessions(
+  Request request,
+  VideSessionManager sessionManager,
+) async {
+  final workingDirectory = request.url.queryParameters['working-directory'];
+  if (workingDirectory == null || workingDirectory.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory query parameter is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final canonicalPath = p.canonicalize(workingDirectory);
+  final dir = Directory(canonicalPath);
+  if (!await dir.exists()) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory does not exist: $canonicalPath',
+        'code': 'INVALID_WORKING_DIRECTORY',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  _log.info('GET /sessions?working-directory=$canonicalPath');
+
+  final sessions = await sessionManager.listSessions(
+    workingDirectory: canonicalPath,
+  );
+
+  final json = sessions.map((s) {
+    return {
+      'session-id': s.id,
+      'goal': s.goal,
+      'created-at': s.createdAt.toIso8601String(),
+      if (s.lastActiveAt != null)
+        'last-active-at': s.lastActiveAt!.toIso8601String(),
+      if (s.workingDirectory != null) 'working-directory': s.workingDirectory,
+      if (s.team != null) 'team': s.team,
+      'agent-count': s.agents.length,
+    };
+  }).toList();
+
+  return Response.ok(
+    jsonEncode({'sessions': json}),
+    headers: {'Content-Type': 'application/json'},
+  );
+}
+
+/// Resume a persisted session by ID.
+///
+/// The working directory must be provided so the server can find the correct
+/// persistence file (scoped per project).
+Future<Response> resumeSession(
+  Request request,
+  String sessionId,
+  VideSessionManager sessionManager,
+  Map<String, VideSession> sessionCache,
+) async {
+  _log.info('POST /sessions/$sessionId/resume');
+
+  final body = await request.readAsString();
+
+  Map<String, dynamic> json;
+  try {
+    json = body.isNotEmpty
+        ? jsonDecode(body) as Map<String, dynamic>
+        : <String, dynamic>{};
+  } catch (e) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'Invalid JSON in request body',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final workingDirectory = json['working-directory'] as String?;
+  if (workingDirectory == null || workingDirectory.trim().isEmpty) {
+    return Response.badRequest(
+      body: jsonEncode({
+        'error': 'working-directory is required',
+        'code': 'INVALID_REQUEST',
+      }),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+
+  final canonicalPath = p.canonicalize(workingDirectory);
+
+  try {
+    final session = await sessionManager.resumeSession(
+      sessionId,
+      workingDirectory: canonicalPath,
+    );
+
+    // Register with broadcaster
+    SessionBroadcasterRegistry.instance.getOrCreate(session);
+
+    // Cache for WebSocket access
+    sessionCache[session.state.id] = session;
+
+    final sessionState = session.state;
+    final mainAgent = sessionState.mainAgent;
+    final response = {
+      'session-id': sessionState.id,
+      if (mainAgent != null) 'main-agent-id': mainAgent.id,
+      'working-directory': sessionState.workingDirectory,
+    };
+
+    _log.info('Session resumed: ${sessionState.id}');
+    return Response.ok(
+      jsonEncode(response),
+      headers: {'Content-Type': 'application/json'},
+    );
+  } on ArgumentError catch (e) {
+    return Response.notFound(
+      jsonEncode({'error': e.message, 'code': 'NOT_FOUND'}),
+      headers: {'Content-Type': 'application/json'},
+    );
+  }
+}
+
+/// Simplified stream handler using VideSession as the single interface.
+///
+/// Events are stored centrally by SessionBroadcaster. This handler only:
+/// 1. Sends history on connect
+/// 2. Forwards live events to the WebSocket client
+/// 3. Handles client messages (user input, permissions, abort)
+class _SimplifiedStreamHandler {
+  final VideSession session;
   final WebSocketChannel channel;
 
-  /// Event store for persistence across reconnects
-  final SessionEventStore _eventStore = SessionEventStore.instance;
+  /// Broadcaster that stores events and broadcasts to all clients
+  late final SessionBroadcaster _broadcaster;
 
-  /// Tracks which agents we're subscribed to
-  final Map<String, _AgentSubscription> _agentSubscriptions = {};
+  /// Function to unregister from broadcaster on cleanup
+  void Function()? _unregister;
 
-  /// Subscription to network state changes (for agent spawn/terminate)
-  ProviderSubscription<AgentNetworkState>? _networkSubscription;
-
-  /// Buffered events during setup (for atomic subscribe-then-history pattern)
-  final List<SessionEvent> _bufferedEvents = [];
-  bool _isBuffering = true;
-
-  /// Current message event ID for streaming (shared across chunks)
-  final Map<String, String> _currentMessageEventIds = {};
-
-  _SessionStreamManager({
-    required this.sessionId,
-    required this.container,
-    required this.cacheManager,
-    required this.channel,
-  });
-
-  /// Get the next sequence number for this session
-  int _nextSeq() => _eventStore.nextSeq(sessionId);
-
-  /// Creates a message event with agent attribution from a subscription.
-  SessionEvent _createMessageEvent({
-    required _AgentSubscription sub,
-    required String eventId,
-    required String role,
-    required String content,
-    required bool isPartial,
-  }) {
-    return SessionEvent.message(
-      seq: _nextSeq(),
-      eventId: eventId,
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-      role: role,
-      content: content,
-      isPartial: isPartial,
-    );
+  _SimplifiedStreamHandler({required this.session, required this.channel}) {
+    _broadcaster = SessionBroadcasterRegistry.instance.getOrCreate(session);
   }
 
-  /// Creates an error event with agent attribution from a subscription.
-  SessionEvent _createErrorEvent({
-    required _AgentSubscription sub,
-    required String message,
-    String? code,
-  }) {
-    return SessionEvent.error(
-      seq: _nextSeq(),
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-      message: message,
-      code: code,
-    );
-  }
+  String get sessionId => session.state.id;
 
-  /// Creates a status event with agent attribution from a subscription.
-  SessionEvent _createStatusEvent({
-    required _AgentSubscription sub,
-    required String status,
-    int? seqOverride,
-  }) {
-    return SessionEvent.status(
-      seq: seqOverride ?? _nextSeq(),
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-      status: status,
-    );
-  }
-
-  /// Creates a done event with agent attribution from a subscription.
-  SessionEvent _createDoneEvent({required _AgentSubscription sub}) {
-    return SessionEvent.done(
-      seq: _nextSeq(),
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-    );
-  }
-
-  /// Creates a tool-use event with agent attribution from a subscription.
-  SessionEvent _createToolUseEvent({
-    required _AgentSubscription sub,
-    required String toolUseId,
-    required String toolName,
-    required Map<String, dynamic> toolInput,
-  }) {
-    return SessionEvent.toolUse(
-      seq: _nextSeq(),
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-      toolUseId: toolUseId,
-      toolName: toolName,
-      toolInput: toolInput,
-    );
-  }
-
-  /// Creates a tool-result event with agent attribution from a subscription.
-  SessionEvent _createToolResultEvent({
-    required _AgentSubscription sub,
-    required String toolUseId,
-    required String toolName,
-    required String result,
-    required bool isError,
-  }) {
-    return SessionEvent.toolResult(
-      seq: _nextSeq(),
-      agentId: sub.agentId,
-      agentType: sub.agentType,
-      agentName: sub.agentName,
-      taskName: sub.taskName,
-      toolUseId: toolUseId,
-      toolName: toolName,
-      result: result,
-      isError: isError,
-    );
-  }
-
-  /// Set up the session stream
+  /// Set up the WebSocket stream
   Future<void> setup() async {
     _log.info('[Session $sessionId] Setting up stream');
 
-    // Load network
-    final network = await cacheManager.getNetwork(sessionId);
-    if (network == null) {
-      _log.warning('[Session $sessionId] Network not found');
-      _sendError('Session not found', code: 'NOT_FOUND');
-      await channel.sink.close();
-      return;
-    }
-
-    // Resume network if not already active
-    final manager = container.read(agentNetworkManagerProvider.notifier);
-    final currentNetwork = container
-        .read(agentNetworkManagerProvider)
-        .currentNetwork;
-    if (currentNetwork?.id != network.id) {
-      await manager.resume(network);
-      _log.info('[Session $sessionId] Network resumed');
-    }
-
-    // Register with permission manager to receive permission requests
-    _registerWithPermissionManager();
-
-    // Subscribe to network state changes FIRST (atomic pattern)
-    _subscribeToNetworkChanges();
-
-    // Subscribe to all existing agents
-    for (final agent in network.agents) {
-      _subscribeToAgent(agent);
-    }
-
     // Send connected event
+    final sessionState = session.state;
+    final agents = sessionState.agents;
     final connectedEvent = ConnectedEvent(
-      sessionId: network.id,
-      mainAgentId: network.agents.first.id,
-      lastSeq: _eventStore.getLastSeq(sessionId),
-      agents: network.agents
-          .map((a) => AgentInfo(id: a.id, type: a.type, name: a.name))
+      sessionId: sessionId,
+      mainAgentId: sessionState.mainAgent?.id ?? '',
+      lastSeq: _broadcaster.history.length,
+      agents: agents
+          .map(
+            (a) => AgentInfo(
+              id: a.id,
+              type: a.type,
+              name: a.name,
+              spawnedBy: a.spawnedBy,
+              harness: a.harness,
+            ),
+          )
           .toList(),
-      metadata: {'working-directory': network.worktreePath ?? ''},
+      metadata: {
+        'working-directory': sessionState.workingDirectory,
+        'goal': sessionState.goal,
+        'team': sessionState.team,
+      },
     );
     channel.sink.add(connectedEvent.toJsonString());
     _log.info('[Session $sessionId] Sent connected event');
 
-    // Send history event (empty for new sessions, contains events for reconnects)
+    // Send history
     final historyEvent = HistoryEvent(
-      lastSeq: _eventStore.getLastSeq(sessionId),
-      events: _eventStore.getEvents(sessionId),
+      lastSeq: _broadcaster.history.length,
+      events: _broadcaster.history,
     );
     channel.sink.add(historyEvent.toJsonString());
     _log.info(
-      '[Session $sessionId] Sent history event with ${historyEvent.events.length} events',
+      '[Session $sessionId] Sent history with ${_broadcaster.history.length} events',
     );
 
-    // Flush buffered events
-    _isBuffering = false;
-    for (final event in _bufferedEvents) {
-      _sendEvent(event);
-    }
-    _bufferedEvents.clear();
+    // Register for live events (broadcaster handles storage)
+    _unregister = _broadcaster.addClient(_handleBroadcastEvent);
 
     // Listen for client messages
     channel.stream.listen(
@@ -350,334 +366,12 @@ class _SessionStreamManager {
     );
   }
 
-  void _registerWithPermissionManager() {
-    SessionPermissionManager.instance.registerSession(
-      sessionId: sessionId,
-      onPermissionRequest:
-          (
-            requestId,
-            toolName,
-            toolInput,
-            inferredPattern,
-            agentId,
-            agentType,
-            agentName,
-            taskName,
-          ) {
-            final event = SessionEvent.permissionRequest(
-              seq: _nextSeq(),
-              agentId: agentId,
-              agentType: agentType,
-              agentName: agentName,
-              taskName: taskName,
-              requestId: requestId,
-              tool: {
-                'name': toolName,
-                'input': toolInput,
-                if (inferredPattern != null)
-                  'permission-suggestions': [inferredPattern],
-              },
-            );
-            _emitEvent(event);
-          },
-      onPermissionTimeout:
-          (
-            requestId,
-            toolName,
-            timeoutSeconds,
-            agentId,
-            agentType,
-            agentName,
-            taskName,
-          ) {
-            final event = SessionEvent.permissionTimeout(
-              seq: _nextSeq(),
-              agentId: agentId,
-              agentType: agentType,
-              agentName: agentName,
-              taskName: taskName,
-              requestId: requestId,
-            );
-            _emitEvent(event);
-          },
-    );
-    _log.info('[Session $sessionId] Registered with permission manager');
+  /// Handle event from broadcaster (already stored, just forward)
+  void _handleBroadcastEvent(Map<String, dynamic> event) {
+    channel.sink.add(jsonEncode(event));
   }
 
-  void _subscribeToNetworkChanges() {
-    // Use container.listen to get notified of state changes
-    _networkSubscription = container.listen(agentNetworkManagerProvider, (
-      previous,
-      next,
-    ) {
-      if (next.currentNetwork?.id != sessionId) return;
-
-      final prevAgentIds =
-          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-      final nextAgentIds =
-          next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-
-      // Check for new agents (spawned)
-      for (final agentId in nextAgentIds.difference(prevAgentIds)) {
-        final agent = next.currentNetwork!.agents.firstWhere(
-          (a) => a.id == agentId,
-        );
-        _log.info('[Session $sessionId] Agent spawned: ${agent.name}');
-
-        // Send agent-spawned event
-        final event = SessionEvent.agentSpawned(
-          seq: _nextSeq(),
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          spawnedBy: agent.spawnedBy ?? 'unknown',
-        );
-        _emitEvent(event);
-
-        // Subscribe to the new agent
-        _subscribeToAgent(agent);
-      }
-
-      // Check for removed agents (terminated)
-      for (final agentId in prevAgentIds.difference(nextAgentIds)) {
-        final agent = previous!.currentNetwork!.agents.firstWhere(
-          (a) => a.id == agentId,
-        );
-        _log.info('[Session $sessionId] Agent terminated: ${agent.name}');
-
-        // Send agent-terminated event
-        final event = SessionEvent.agentTerminated(
-          seq: _nextSeq(),
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: agent.taskName,
-          terminatedBy: 'unknown', // See vide_cli-uju for tracking this
-        );
-        _emitEvent(event);
-
-        // Unsubscribe from the terminated agent
-        _unsubscribeFromAgent(agentId);
-      }
-    }, fireImmediately: false);
-  }
-
-  void _subscribeToAgent(AgentMetadata agent) {
-    if (_agentSubscriptions.containsKey(agent.id)) return;
-
-    final claudeClient = container.read(claudeProvider(agent.id));
-    if (claudeClient == null) {
-      throw StateError(
-        '[Session $sessionId] No ClaudeClient for agent ${agent.id}. '
-        'This indicates the agent was not properly initialized.',
-      );
-    }
-
-    final subscription = _AgentSubscription(
-      agentId: agent.id,
-      agentType: agent.type,
-      agentName: agent.name,
-      taskName: agent.taskName,
-    );
-
-    // Subscribe to conversation updates
-    subscription.conversationSubscription = claudeClient.conversation.listen(
-      (conversation) {
-        _handleConversationUpdate(conversation, subscription);
-      },
-      onError: (error) {
-        _log.warning(
-          '[Session $sessionId] Conversation error for ${agent.id}: $error',
-        );
-        final event = _createErrorEvent(
-          sub: subscription,
-          message: error.toString(),
-        );
-        _emitEvent(event);
-      },
-    );
-
-    // Subscribe to turn complete events
-    subscription.turnCompleteSubscription = claudeClient.onTurnComplete.listen((
-      _,
-    ) {
-      _log.info('[Session $sessionId] Turn complete for ${agent.id}');
-
-      // Finalize any in-progress message
-      final eventId = _currentMessageEventIds[agent.id];
-      if (eventId != null) {
-        final finalEvent = _createMessageEvent(
-          sub: subscription,
-          eventId: eventId,
-          role: 'assistant',
-          content: '',
-          isPartial: false,
-        );
-        _emitEvent(finalEvent);
-        _currentMessageEventIds.remove(agent.id);
-      }
-
-      final event = _createDoneEvent(sub: subscription);
-      _emitEvent(event);
-    });
-
-    // Send initial status event (not stored in event history - it's handshake state sync)
-    final initialStatus = container.read(agentStatusProvider(agent.id));
-    final initialStatusEvent = _createStatusEvent(
-      sub: subscription,
-      status: _mapAgentStatus(initialStatus),
-      seqOverride: 0, // Use seq=0 for handshake events (not stored)
-    );
-    channel.sink.add(initialStatusEvent.toJsonString());
-
-    // Subscribe to agent status changes (only fires on actual changes)
-    subscription.statusSubscription = container.listen<AgentStatus>(
-      agentStatusProvider(agent.id),
-      (previous, next) {
-        if (previous != null && previous != next) {
-          _log.fine(
-            '[Session $sessionId] Agent ${agent.id} status: $previous -> $next',
-          );
-          final event = _createStatusEvent(
-            sub: subscription,
-            status: _mapAgentStatus(next),
-          );
-          _emitEvent(event);
-        }
-      },
-      fireImmediately: false,
-    );
-
-    _agentSubscriptions[agent.id] = subscription;
-    _log.fine('[Session $sessionId] Subscribed to agent ${agent.id}');
-  }
-
-  /// Maps AgentStatus enum to kebab-case string for JSON
-  String _mapAgentStatus(AgentStatus status) {
-    switch (status) {
-      case AgentStatus.working:
-        return 'working';
-      case AgentStatus.waitingForAgent:
-        return 'waiting-for-agent';
-      case AgentStatus.waitingForUser:
-        return 'waiting-for-user';
-      case AgentStatus.idle:
-        return 'idle';
-    }
-  }
-
-  void _unsubscribeFromAgent(String agentId) {
-    final subscription = _agentSubscriptions.remove(agentId);
-    subscription?.cancel();
-    _currentMessageEventIds.remove(agentId);
-    _log.fine('[Session $sessionId] Unsubscribed from agent $agentId');
-  }
-
-  void _handleConversationUpdate(
-    Conversation conversation,
-    _AgentSubscription subscription,
-  ) {
-    if (conversation.messages.isEmpty) return;
-
-    final currentMessageCount = conversation.messages.length;
-    final latestMessage = conversation.messages.last;
-    final currentContentLength = latestMessage.content.length;
-
-    // New message started
-    if (currentMessageCount > subscription.lastMessageCount) {
-      // Reset response count for the new message
-      subscription.lastResponseCount = 0;
-
-      // Generate new event ID for this message
-      final eventId = const Uuid().v4();
-      _currentMessageEventIds[subscription.agentId] = eventId;
-
-      if (latestMessage.content.isNotEmpty) {
-        final event = _createMessageEvent(
-          sub: subscription,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: latestMessage.content,
-          isPartial: true,
-        );
-        _emitEvent(event);
-      }
-
-      subscription.lastMessageCount = currentMessageCount;
-      subscription.lastContentLength = currentContentLength;
-    }
-    // Same message, content grew (streaming delta)
-    else if (currentContentLength > subscription.lastContentLength) {
-      final delta = latestMessage.content.substring(
-        subscription.lastContentLength,
-      );
-      if (delta.isNotEmpty) {
-        final eventId =
-            _currentMessageEventIds[subscription.agentId] ?? const Uuid().v4();
-        final event = _createMessageEvent(
-          sub: subscription,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: delta,
-          isPartial: true,
-        );
-        _emitEvent(event);
-      }
-      subscription.lastContentLength = currentContentLength;
-    }
-
-    // Always check for new tool events (handles both new messages and
-    // tool results being added to existing messages)
-    _sendToolEvents(latestMessage, subscription);
-
-    // Check for errors
-    if (conversation.currentError != null) {
-      final event = _createErrorEvent(
-        sub: subscription,
-        message: conversation.currentError!,
-      );
-      _emitEvent(event);
-    }
-  }
-
-  void _sendToolEvents(
-    ConversationMessage message,
-    _AgentSubscription subscription,
-  ) {
-    final responses = message.responses;
-    final startIndex = subscription.lastResponseCount;
-
-    // Only process new responses (those after lastResponseCount)
-    for (int i = startIndex; i < responses.length; i++) {
-      final response = responses[i];
-      if (response is ToolUseResponse) {
-        subscription.toolNamesByUseId[response.toolUseId ?? ''] =
-            response.toolName;
-        final event = _createToolUseEvent(
-          sub: subscription,
-          toolUseId: response.toolUseId ?? const Uuid().v4(),
-          toolName: response.toolName,
-          toolInput: response.parameters,
-        );
-        _emitEvent(event);
-      } else if (response is ToolResultResponse) {
-        final toolName =
-            subscription.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        final event = _createToolResultEvent(
-          sub: subscription,
-          toolUseId: response.toolUseId,
-          toolName: toolName,
-          result: response.content,
-          isError: response.isError,
-        );
-        _emitEvent(event);
-      }
-    }
-
-    // Update the count to mark all responses as processed
-    subscription.lastResponseCount = responses.length;
-  }
-
+  /// Handle incoming client message
   void _handleClientMessage(dynamic message) {
     _log.fine('[Session $sessionId] Received client message: $message');
 
@@ -710,112 +404,270 @@ class _SessionStreamManager {
         _handleUserMessage(msg);
       case PermissionResponse msg:
         _handlePermissionResponse(msg);
+      case AskUserQuestionResponseMessage msg:
+        _handleAskUserQuestionResponse(msg);
+      case PlanApprovalResponseMessage msg:
+        _handlePlanApprovalResponse(msg);
+      case SessionCommandMessage msg:
+        unawaited(_handleSessionCommand(msg));
       case AbortMessage _:
         _handleAbort();
     }
   }
 
-  Future<void> _handleUserMessage(UserMessage msg) async {
-    _log.info('[Session $sessionId] User message: ${msg.content}');
-
-    final network = container.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null || network.id != sessionId) {
-      _sendError('Session not active', code: 'NOT_FOUND');
-      return;
-    }
-
-    // Get main agent's ClaudeClient
-    final mainAgentId = network.agents.first.id;
-    final claudeClient = container.read(claudeProvider(mainAgentId));
-
-    // Set permission mode if specified in the message
-    if (msg.permissionMode != null && claudeClient != null) {
-      try {
-        await claudeClient.setPermissionMode(msg.permissionMode!);
-        _log.fine(
-          '[Session $sessionId] Permission mode set to: ${msg.permissionMode}',
-        );
-      } catch (e, stack) {
-        _log.severe(
-          '[Session $sessionId] Failed to set permission mode: $e',
-          e,
-          stack,
-        );
-        _sendError(
-          'Failed to set permission mode: $e',
-          code: 'PERMISSION_ERROR',
-        );
-        return;
-      }
-    }
-
-    // Note: Model cannot be changed mid-conversation with current Claude SDK.
-    // Model is set at session creation time via CreateSessionRequest.
-    if (msg.model != null) {
-      _log.fine(
-        '[Session $sessionId] Model override requested but not supported mid-conversation',
-      );
-    }
-
-    // Send to main agent
-    final manager = container.read(agentNetworkManagerProvider.notifier);
-    manager.sendMessage(mainAgentId, Message.text(msg.content));
+  void _handleUserMessage(UserMessage msg) {
+    _log.info(
+      '[Session $sessionId] User message: ${msg.content} (agent=${msg.agentId ?? "main"})',
+    );
+    final attachments = msg.attachments
+        ?.map(
+          (a) => AgentAttachment(
+            type: a.type,
+            path: a.filePath,
+            content: a.content,
+            mimeType: a.mimeType,
+          ),
+        )
+        .toList();
+    session.sendMessage(
+      AgentMessage(text: msg.content, attachments: attachments),
+      agentId: msg.agentId,
+    );
   }
 
   void _handlePermissionResponse(PermissionResponse msg) {
     _log.info(
       '[Session $sessionId] Permission response: ${msg.requestId} = ${msg.allow}',
     );
-    final handled = SessionPermissionManager.instance.handlePermissionResponse(
-      requestId: msg.requestId,
+
+    session.respondToPermission(
+      msg.requestId,
       allow: msg.allow,
       message: msg.message,
+      remember: msg.remember,
+      patternOverride: msg.patternOverride,
     );
-    if (!handled) {
+  }
+
+  void _handleAskUserQuestionResponse(AskUserQuestionResponseMessage msg) {
+    _log.info(
+      '[Session $sessionId] AskUserQuestion response: ${msg.requestId} (${msg.answers.length} answers)',
+    );
+
+    session.respondToAskUserQuestion(msg.requestId, answers: msg.answers);
+  }
+
+  void _handlePlanApprovalResponse(PlanApprovalResponseMessage msg) {
+    _log.info(
+      '[Session $sessionId] Plan approval response: ${msg.requestId} = ${msg.action}',
+    );
+
+    session.respondToPlanApproval(
+      msg.requestId,
+      action: msg.action,
+      feedback: msg.feedback,
+    );
+  }
+
+  Future<void> _handleSessionCommand(SessionCommandMessage msg) async {
+    _log.info('[Session $sessionId] Session command: ${msg.command}');
+
+    try {
+      final result = await _executeSessionCommand(msg.command, msg.data);
+      _sendCommandResult(
+        CommandResultEvent(
+          requestId: msg.requestId,
+          command: msg.command,
+          success: true,
+          result: result,
+        ),
+      );
+    } catch (e) {
       _log.warning(
-        '[Session $sessionId] No pending permission request for: ${msg.requestId}',
+        '[Session $sessionId] Session command failed: ${msg.command} - $e',
+      );
+      _sendCommandResult(
+        CommandResultEvent(
+          requestId: msg.requestId,
+          command: msg.command,
+          success: false,
+          errorMessage: e.toString(),
+          errorCode: 'COMMAND_FAILED',
+        ),
       );
     }
   }
 
+  Future<Map<String, dynamic>?> _executeSessionCommand(
+    String command,
+    Map<String, dynamic> data,
+  ) async {
+    switch (command) {
+      case 'abort-agent':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        await session.abortAgent(agentId);
+        return null;
+
+      case 'clear-conversation':
+        await session.clearConversation(agentId: data['agent-id'] as String?);
+        return null;
+
+      case 'set-worktree-path':
+        await session.setWorktreePath(data['path'] as String?);
+        return {'working-directory': session.state.workingDirectory};
+
+      case 'terminate-agent':
+        final agentId = data['agent-id'] as String?;
+        final terminatedBy = data['terminated-by'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        if (terminatedBy == null || terminatedBy.isEmpty) {
+          throw ArgumentError('Missing required field: terminated-by');
+        }
+        await session.terminateAgent(
+          agentId,
+          terminatedBy: terminatedBy,
+          reason: data['reason'] as String?,
+        );
+        return null;
+
+      case 'fork-agent':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        final newAgentId = await session.forkAgent(
+          agentId,
+          name: data['name'] as String?,
+        );
+        return {'agent-id': newAgentId};
+
+      case 'spawn-agent':
+        final agentType = data['agent-type'] as String?;
+        final name = data['name'] as String?;
+        final initialPrompt = data['initial-prompt'] as String?;
+        final spawnedBy = data['spawned-by'] as String?;
+        if (agentType == null || agentType.isEmpty) {
+          throw ArgumentError('Missing required field: agent-type');
+        }
+        if (name == null || name.isEmpty) {
+          throw ArgumentError('Missing required field: name');
+        }
+        if (initialPrompt == null || initialPrompt.isEmpty) {
+          throw ArgumentError('Missing required field: initial-prompt');
+        }
+        if (spawnedBy == null || spawnedBy.isEmpty) {
+          throw ArgumentError('Missing required field: spawned-by');
+        }
+
+        final newAgentId = await session.spawnAgent(
+          agentType: agentType,
+          name: name,
+          initialPrompt: initialPrompt,
+          spawnedBy: spawnedBy,
+        );
+        return {'agent-id': newAgentId};
+
+      case 'get-queued-message':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        return {'message': await session.getQueuedMessage(agentId)};
+
+      case 'clear-queued-message':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        await session.clearQueuedMessage(agentId);
+        return null;
+
+      case 'get-model':
+        final agentId = data['agent-id'] as String?;
+        if (agentId == null || agentId.isEmpty) {
+          throw ArgumentError('Missing required field: agent-id');
+        }
+        return {'model': await session.getModel(agentId)};
+
+      case 'get-mcp-servers':
+        final servers = await session.getMcpServers();
+        return {'servers': servers.map((s) => s.toJson()).toList()};
+
+      case 'add-session-permission-pattern':
+        final pattern = data['pattern'] as String?;
+        if (pattern == null || pattern.isEmpty) {
+          throw ArgumentError('Missing required field: pattern');
+        }
+        await session.addSessionPermissionPattern(pattern);
+        return null;
+
+      case 'is-allowed-by-session-cache':
+        final toolName = data['tool-name'] as String?;
+        final input = data['input'] as Map<String, dynamic>?;
+        if (toolName == null || toolName.isEmpty) {
+          throw ArgumentError('Missing required field: tool-name');
+        }
+        if (input == null) {
+          throw ArgumentError('Missing required field: input');
+        }
+        return {
+          'allowed': await session.isAllowedBySessionCache(toolName, input),
+        };
+
+      case 'clear-session-permission-cache':
+        await session.clearSessionPermissionCache();
+        return null;
+
+      case 'get-claude-settings':
+        final settings = await session.getClaudeSettings();
+        return {'settings': settings};
+
+      case 'apply-claude-settings':
+        final settings = data['settings'] as Map<String, dynamic>?;
+        if (settings == null) {
+          throw ArgumentError('Missing required field: settings');
+        }
+        await session.applyClaudeSettings(settings);
+        return null;
+
+      case 'reconnect-mcp-server':
+        final serverName = data['server-name'] as String?;
+        if (serverName == null || serverName.isEmpty) {
+          throw ArgumentError('Missing required field: server-name');
+        }
+        await session.reconnectMcpServer(serverName);
+        return null;
+
+      case 'toggle-mcp-server':
+        final serverName = data['server-name'] as String?;
+        if (serverName == null || serverName.isEmpty) {
+          throw ArgumentError('Missing required field: server-name');
+        }
+        final enabled = data['enabled'] as bool?;
+        if (enabled == null) {
+          throw ArgumentError('Missing required field: enabled');
+        }
+        await session.toggleMcpServer(serverName, enabled: enabled);
+        return null;
+
+      default:
+        throw ArgumentError('Unknown session command: $command');
+    }
+  }
+
+  void _sendCommandResult(CommandResultEvent event) {
+    channel.sink.add(event.toJsonString());
+  }
+
   void _handleAbort() {
     _log.info('[Session $sessionId] Abort requested');
-
-    final network = container.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null || network.id != sessionId) return;
-
-    // Abort all agents
-    final claudeClients = container.read(claudeManagerProvider);
-    for (final agent in network.agents) {
-      final client = claudeClients[agent.id];
-      if (client != null) {
-        client.abort();
-        final event = SessionEvent.aborted(
-          seq: _nextSeq(),
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: agent.taskName,
-        );
-        _emitEvent(event);
-      }
-    }
-  }
-
-  void _emitEvent(SessionEvent event) {
-    // Store in persistent event store for reconnects
-    final json = event.toJson();
-    _eventStore.storeEvent(sessionId, event.seq, json);
-
-    if (_isBuffering) {
-      _bufferedEvents.add(event);
-    } else {
-      _sendEvent(event);
-    }
-  }
-
-  void _sendEvent(SessionEvent event) {
-    channel.sink.add(event.toJsonString());
+    session.abort();
+    // Abort events will come through the broadcaster
   }
 
   void _sendError(
@@ -823,81 +675,59 @@ class _SessionStreamManager {
     String? code,
     Map<String, dynamic>? originalMessage,
   }) {
-    final event = SessionEvent.error(
-      seq: _nextSeq(),
-      agentId: 'server',
-      agentType: 'system',
-      message: message,
-      code: code,
-      originalMessage: originalMessage,
+    // Server errors go directly to this client only
+    channel.sink.add(
+      jsonEncode({
+        'type': 'error',
+        'agent-id': 'server',
+        'agent-type': 'system',
+        'data': {
+          'message': message,
+          if (code != null) 'code': code,
+          if (originalMessage != null) 'original-message': originalMessage,
+        },
+        'timestamp': DateTime.now().toIso8601String(),
+      }),
     );
-    _emitEvent(event);
   }
 
   void _cleanup() {
     _log.info('[Session $sessionId] Cleaning up');
-    SessionPermissionManager.instance.unregisterSession(sessionId);
-    _networkSubscription?.close();
-    for (final subscription in _agentSubscriptions.values) {
-      subscription.cancel();
-    }
-    _agentSubscriptions.clear();
-  }
-}
-
-/// Tracks subscription state for a single agent
-class _AgentSubscription {
-  final String agentId;
-  final String agentType;
-  final String? agentName;
-  String? taskName;
-
-  StreamSubscription<Conversation>? conversationSubscription;
-  StreamSubscription<void>? turnCompleteSubscription;
-  ProviderSubscription<AgentStatus>? statusSubscription;
-
-  int lastMessageCount = 0;
-  int lastContentLength = 0;
-  int lastResponseCount = 0;
-
-  final Map<String, String> toolNamesByUseId = {};
-
-  _AgentSubscription({
-    required this.agentId,
-    required this.agentType,
-    this.agentName,
-    this.taskName,
-  });
-
-  void cancel() {
-    conversationSubscription?.cancel();
-    turnCompleteSubscription?.cancel();
-    statusSubscription?.close();
+    _unregister?.call();
   }
 }
 
 /// Keepalive ping interval for WebSocket connections.
-/// Server sends ping every 20 seconds; if no pong received within 20s,
-/// connection is closed with code 1001 (Going Away).
 const _keepalivePingInterval = Duration(seconds: 20);
 
 /// Stream session events via WebSocket (Phase 2.5 multiplexed endpoint)
 Handler streamSessionWebSocket(
   String sessionId,
-  ProviderContainer container,
-  NetworkCacheManager cacheManager,
+  Map<String, VideSession> sessionCache,
 ) {
   return webSocketHandler((WebSocketChannel channel, String? protocol) {
     _log.info('[WebSocket] Client connected for session=$sessionId');
 
-    final manager = _SessionStreamManager(
-      sessionId: sessionId,
-      container: container,
-      cacheManager: cacheManager,
+    // Get session from cache
+    final session = sessionCache[sessionId];
+    if (session == null) {
+      _log.warning('[WebSocket] Session not found: $sessionId');
+      channel.sink.add(
+        jsonEncode({
+          'type': 'error',
+          'data': {'message': 'Session not found', 'code': 'NOT_FOUND'},
+        }),
+      );
+      channel.sink.close();
+      return;
+    }
+
+    final handler = _SimplifiedStreamHandler(
+      session: session,
       channel: channel,
     );
 
-    manager.setup().catchError((error, stack) {
+    handler.setup().catchError((error, stack) {
       _log.severe('[WebSocket] Setup error: $error', error, stack);
       channel.sink.add(
         jsonEncode({

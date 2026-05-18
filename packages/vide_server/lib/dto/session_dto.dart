@@ -5,22 +5,30 @@ import 'package:uuid/uuid.dart';
 class CreateSessionRequest {
   final String initialMessage;
   final String workingDirectory;
-  final String? model;
   final String? permissionMode;
+  final String? team;
+  final List<UserMessageAttachment>? attachments;
 
   CreateSessionRequest({
     required this.initialMessage,
     required this.workingDirectory,
-    this.model,
     this.permissionMode,
+    this.team,
+    this.attachments,
   });
 
   factory CreateSessionRequest.fromJson(Map<String, dynamic> json) {
+    final rawAttachments = json['attachments'] as List<dynamic>?;
     return CreateSessionRequest(
       initialMessage: json['initial-message'] as String,
       workingDirectory: json['working-directory'] as String,
-      model: json['model'] as String?,
       permissionMode: json['permission-mode'] as String?,
+      team: json['team'] as String?,
+      attachments: rawAttachments
+          ?.map(
+            (a) => UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+          )
+          .toList(),
     );
   }
 }
@@ -57,6 +65,12 @@ abstract class ClientMessage {
         return UserMessage.fromJson(json);
       case 'permission-response':
         return PermissionResponse.fromJson(json);
+      case 'ask-user-question-response':
+        return AskUserQuestionResponseMessage.fromJson(json);
+      case 'session-command':
+        return SessionCommandMessage.fromJson(json);
+      case 'plan-approval-response':
+        return PlanApprovalResponseMessage.fromJson(json);
       case 'abort':
         return AbortMessage();
       default:
@@ -71,16 +85,52 @@ class UserMessage implements ClientMessage {
   String get type => 'user-message';
 
   final String content;
-  final String? model;
+  final String? agentId;
   final String? permissionMode;
+  final List<UserMessageAttachment>? attachments;
 
-  UserMessage({required this.content, this.model, this.permissionMode});
+  UserMessage({
+    required this.content,
+    this.agentId,
+    this.permissionMode,
+    this.attachments,
+  });
 
   factory UserMessage.fromJson(Map<String, dynamic> json) {
+    final rawAttachments = json['attachments'] as List<dynamic>?;
     return UserMessage(
       content: json['content'] as String,
-      model: json['model'] as String?,
+      agentId: json['agent-id'] as String?,
       permissionMode: json['permission-mode'] as String?,
+      attachments: rawAttachments
+          ?.map(
+            (a) => UserMessageAttachment.fromJson(a as Map<String, dynamic>),
+          )
+          .toList(),
+    );
+  }
+}
+
+/// Attachment within a user message (client → server).
+class UserMessageAttachment {
+  final String type;
+  final String? filePath;
+  final String? content;
+  final String? mimeType;
+
+  UserMessageAttachment({
+    required this.type,
+    this.filePath,
+    this.content,
+    this.mimeType,
+  });
+
+  factory UserMessageAttachment.fromJson(Map<String, dynamic> json) {
+    return UserMessageAttachment(
+      type: json['type'] as String,
+      filePath: json['file-path'] as String?,
+      content: json['content'] as String?,
+      mimeType: json['mime-type'] as String?,
     );
   }
 }
@@ -93,11 +143,15 @@ class PermissionResponse implements ClientMessage {
   final String requestId;
   final bool allow;
   final String? message;
+  final bool remember;
+  final String? patternOverride;
 
   PermissionResponse({
     required this.requestId,
     required this.allow,
     this.message,
+    this.remember = false,
+    this.patternOverride,
   });
 
   factory PermissionResponse.fromJson(Map<String, dynamic> json) {
@@ -105,6 +159,82 @@ class PermissionResponse implements ClientMessage {
       requestId: json['request-id'] as String,
       allow: json['allow'] as bool,
       message: json['message'] as String?,
+      remember: json['remember'] as bool? ?? false,
+      patternOverride: json['pattern-override'] as String?,
+    );
+  }
+}
+
+/// AskUserQuestion response (client -> server)
+class AskUserQuestionResponseMessage implements ClientMessage {
+  @override
+  String get type => 'ask-user-question-response';
+
+  final String requestId;
+  final Map<String, String> answers;
+
+  AskUserQuestionResponseMessage({
+    required this.requestId,
+    required this.answers,
+  });
+
+  factory AskUserQuestionResponseMessage.fromJson(Map<String, dynamic> json) {
+    final rawAnswers = json['answers'] as Map<String, dynamic>? ?? {};
+    return AskUserQuestionResponseMessage(
+      requestId: json['request-id'] as String,
+      answers: rawAnswers.map(
+        (key, value) => MapEntry(key, value?.toString() ?? ''),
+      ),
+    );
+  }
+}
+
+/// Plan approval response (client -> server)
+class PlanApprovalResponseMessage implements ClientMessage {
+  @override
+  String get type => 'plan-approval-response';
+
+  final String requestId;
+  final String action;
+  final String? feedback;
+
+  PlanApprovalResponseMessage({
+    required this.requestId,
+    required this.action,
+    this.feedback,
+  });
+
+  factory PlanApprovalResponseMessage.fromJson(Map<String, dynamic> json) {
+    return PlanApprovalResponseMessage(
+      requestId: json['request-id'] as String,
+      action: json['action'] as String,
+      feedback: json['feedback'] as String?,
+    );
+  }
+}
+
+/// Generic session command request (client -> server)
+class SessionCommandMessage implements ClientMessage {
+  @override
+  String get type => 'session-command';
+
+  final String requestId;
+  final String command;
+  final Map<String, dynamic> data;
+
+  SessionCommandMessage({
+    required this.requestId,
+    required this.command,
+    required this.data,
+  });
+
+  factory SessionCommandMessage.fromJson(Map<String, dynamic> json) {
+    return SessionCommandMessage(
+      requestId: json['request-id'] as String,
+      command: json['command'] as String,
+      data: Map<String, dynamic>.from(
+        json['data'] as Map<String, dynamic>? ?? const {},
+      ),
     );
   }
 }
@@ -113,6 +243,45 @@ class PermissionResponse implements ClientMessage {
 class AbortMessage implements ClientMessage {
   @override
   String get type => 'abort';
+}
+
+/// Command result event (server -> requesting client only)
+class CommandResultEvent {
+  final String requestId;
+  final String command;
+  final bool success;
+  final Map<String, dynamic>? result;
+  final String? errorMessage;
+  final String? errorCode;
+  final DateTime timestamp;
+
+  CommandResultEvent({
+    required this.requestId,
+    required this.command,
+    required this.success,
+    this.result,
+    this.errorMessage,
+    this.errorCode,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+
+  Map<String, dynamic> toJson() => {
+    'type': 'command-result',
+    'timestamp': timestamp.toIso8601String(),
+    'data': {
+      'request-id': requestId,
+      'command': command,
+      'success': success,
+      if (result != null) 'result': result,
+      if (errorMessage != null)
+        'error': {
+          'message': errorMessage,
+          if (errorCode != null) 'code': errorCode,
+        },
+    },
+  };
+
+  String toJsonString() => jsonEncode(toJson());
 }
 
 /// Sequence number generator for session events
@@ -380,24 +549,25 @@ class SessionEvent {
     );
   }
 
-  /// Create a permission-timeout event
-  factory SessionEvent.permissionTimeout({
+  /// Create an ask-user-question event
+  factory SessionEvent.askUserQuestion({
     required int seq,
     required String agentId,
     required String agentType,
     String? agentName,
     String? taskName,
     required String requestId,
+    required List<Map<String, dynamic>> questions,
   }) {
     return SessionEvent(
       seq: seq,
       eventId: const Uuid().v4(),
-      type: 'permission-timeout',
+      type: 'ask-user-question',
       agentId: agentId,
       agentType: agentType,
       agentName: agentName,
       taskName: taskName,
-      data: {'request-id': requestId},
+      data: {'request-id': requestId, 'questions': questions},
     );
   }
 
@@ -458,10 +628,24 @@ class AgentInfo {
   final String id;
   final String type;
   final String name;
+  final String? spawnedBy;
+  final String? harness;
 
-  AgentInfo({required this.id, required this.type, required this.name});
+  AgentInfo({
+    required this.id,
+    required this.type,
+    required this.name,
+    this.spawnedBy,
+    this.harness,
+  });
 
-  Map<String, dynamic> toJson() => {'id': id, 'type': type, 'name': name};
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'name': name,
+    if (spawnedBy != null) 'spawned-by': spawnedBy,
+    if (harness != null) 'harness': harness,
+  };
 }
 
 /// History event (special format without seq)

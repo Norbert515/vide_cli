@@ -1,20 +1,26 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:nocterm_riverpod/nocterm_riverpod.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:vide_cli/theme/theme.dart';
 
 /// Provider to detect if the given repo path is a git worktree.
 /// Returns true if the path is a worktree, false if it's the main repo.
-final isWorktreeProvider = FutureProvider.family.autoDispose<bool, String>((ref, repoPath) async {
-  final client = GitClient(workingDirectory: repoPath);
-  return await client.isWorktree();
+final isWorktreeProvider = FutureProvider.family.autoDispose<bool, String>((
+  ref,
+  repoPath,
+) async {
+  final git = GitService(workingDirectory: repoPath);
+  return await git.isWorktree();
 });
 
 /// Provider to get the main repository path for a given repo path.
 /// This returns the same path whether called from the main repo or a worktree.
-final mainRepoPathProvider = FutureProvider.family.autoDispose<String, String>((ref, repoPath) async {
-  final client = GitClient(workingDirectory: repoPath);
-  return await client.getMainRepoPath();
+final mainRepoPathProvider = FutureProvider.family.autoDispose<String, String>((
+  ref,
+  repoPath,
+) async {
+  final git = GitService(workingDirectory: repoPath);
+  return await git.mainRepoPath();
 });
 
 class GitBranchIndicator extends StatelessComponent {

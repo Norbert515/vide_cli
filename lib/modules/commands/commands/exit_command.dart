@@ -21,7 +21,7 @@ class ExitCommand extends Command {
     }
 
     // Call the exit callback - this will trigger app shutdown
-    context.exitApp!();
+    await context.exitApp!();
 
     // This message may not be shown since the app is exiting
     return CommandResult.success('Exiting...');

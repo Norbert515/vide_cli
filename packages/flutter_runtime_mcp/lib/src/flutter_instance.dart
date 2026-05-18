@@ -676,7 +676,115 @@ class FlutterInstance {
       }
     }
 
-    throw Exception('getCursorPosition failed: ${json['error'] ?? json['status']}');
+    throw Exception(
+      'getCursorPosition failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Get all actionable elements in the current UI.
+  ///
+  /// Returns a list of interactive elements (buttons, text fields, etc.)
+  /// that can be interacted with by ID using [tapElement].
+  ///
+  /// Each element contains:
+  /// - id: Unique identifier for interaction (e.g., "button_0", "textfield_1")
+  /// - type: Element type (button, textfield, checkbox, etc.)
+  /// - label: Text label or content (if available)
+  /// - Additional type-specific properties (hint, checked, enabled, etc.)
+  Future<Map<String, dynamic>> getActionableElements() async {
+    print('🔍 [FlutterInstance] Getting actionable elements');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getActionableElements',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getActionableElements',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getActionableElements timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.getActionableElements',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getActionableElements returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      final elements = json['elements'] as List<dynamic>? ?? [];
+      print('✅ [FlutterInstance] Found ${elements.length} actionable elements');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception(
+      'getActionableElements failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Tap an element by its ID.
+  ///
+  /// The ID must be from a previous call to [getActionableElements].
+  /// This internally looks up the element's coordinates and performs the tap.
+  ///
+  /// Returns true if successful, throws exception if element not found.
+  Future<bool> tapElement(String elementId) async {
+    print('🎯 [FlutterInstance] Tapping element: $elementId');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    // First, look up the element's coordinates
+    print('🔧 [FlutterInstance] Looking up element coordinates');
+    final lookupResponse = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.tapElement',
+          isolateId: isolateId,
+          args: {'id': elementId},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'tapElement lookup timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final lookupJson = lookupResponse.json;
+    if (lookupJson == null || lookupJson['status'] != 'success') {
+      throw Exception(
+        'Element not found: $elementId. Call getActionableElements first to refresh the registry.',
+      );
+    }
+
+    // Get coordinates and tap
+    final x = (lookupJson['x'] as num).toDouble();
+    final y = (lookupJson['y'] as num).toDouble();
+    print('   Found element at ($x, $y), performing tap...');
+
+    return tap(x, y);
   }
 
   /// Perform hot reload using the VM Service
@@ -708,7 +816,8 @@ class FlutterInstance {
       // Look for the reloadSources service in registered services
       String? reloadServiceName;
       if (vm.json != null && vm.json!['_registeredServices'] != null) {
-        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        final services =
+            vm.json!['_registeredServices'] as Map<String, dynamic>?;
         if (services != null) {
           for (final entry in services.entries) {
             if (entry.key == 'reloadSources') {
@@ -722,19 +831,22 @@ class FlutterInstance {
       if (reloadServiceName != null) {
         // Call the Flutter Tools reloadSources service
         print('🔄 [FlutterInstance] Calling $reloadServiceName service...');
-        final result = await _vmService!.callMethod(
-          reloadServiceName,
-          args: {'isolateId': isolateId},
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () => throw TimeoutException('Hot reload timed out'),
+        final result = await _vmService!
+            .callMethod(reloadServiceName, args: {'isolateId': isolateId})
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Hot reload timed out'),
+            );
+        print(
+          '✅ [FlutterInstance] Hot reload completed via service: ${result.json}',
         );
-        print('✅ [FlutterInstance] Hot reload completed via service: ${result.json}');
         return 'Hot reload completed';
       }
 
       // Fallback: Use stdin (works for all platforms including web)
-      print('⚠️  [FlutterInstance] reloadSources service not found, using stdin fallback');
+      print(
+        '⚠️  [FlutterInstance] reloadSources service not found, using stdin fallback',
+      );
       process.stdin.writeln('r');
       await process.stdin.flush();
 
@@ -780,7 +892,8 @@ class FlutterInstance {
 
       String? restartServiceName;
       if (vm.json != null && vm.json!['_registeredServices'] != null) {
-        final services = vm.json!['_registeredServices'] as Map<String, dynamic>?;
+        final services =
+            vm.json!['_registeredServices'] as Map<String, dynamic>?;
         if (services != null) {
           for (final entry in services.entries) {
             if (entry.key == 'hotRestart') {
@@ -794,17 +907,18 @@ class FlutterInstance {
       if (restartServiceName != null) {
         // Call the Flutter Tools hotRestart service
         print('🔄 [FlutterInstance] Calling $restartServiceName service...');
-        await _vmService!.callMethod(
-          restartServiceName,
-          args: {},
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () => throw TimeoutException('Hot restart timed out'),
-        );
+        await _vmService!
+            .callMethod(restartServiceName, args: {})
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw TimeoutException('Hot restart timed out'),
+            );
         print('✅ [FlutterInstance] Hot restart completed via service');
       } else {
         // Fallback: send 'R' to stdin (less reliable but works)
-        print('⚠️  [FlutterInstance] hotRestart service not found, using stdin fallback');
+        print(
+          '⚠️  [FlutterInstance] hotRestart service not found, using stdin fallback',
+        );
         process.stdin.writeln('R');
         await process.stdin.flush();
         // Wait for restart to complete
@@ -937,6 +1051,643 @@ class FlutterInstance {
     if (!_errorController.isClosed) {
       await _errorController.close();
     }
+  }
+
+  /// Set the device size for responsive testing
+  ///
+  /// Uses MediaQuery override to simulate different device sizes.
+  /// The app will respond to breakpoints as if it was running on the target device.
+  ///
+  /// Parameters:
+  /// - width: Logical width in pixels
+  /// - height: Logical height in pixels
+  /// - devicePixelRatio: Device pixel ratio (optional, default 1.0)
+  /// - showFrame: Whether to show a visual device frame (default true)
+  /// - preset: Named preset (e.g., 'iphone-14', 'ipad-pro-11') - overrides width/height
+  ///
+  /// Returns the applied settings.
+  Future<Map<String, dynamic>> setDeviceSize({
+    double? width,
+    double? height,
+    double? devicePixelRatio,
+    bool showFrame = true,
+    String? preset,
+  }) async {
+    print('📱 [FlutterInstance] Setting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final args = <String, String>{'showFrame': showFrame.toString()};
+
+    if (preset != null) {
+      args['preset'] = preset;
+      print('   Using preset: $preset');
+    } else if (width != null && height != null) {
+      args['width'] = width.toString();
+      args['height'] = height.toString();
+      if (devicePixelRatio != null) {
+        args['devicePixelRatio'] = devicePixelRatio.toString();
+      }
+      print(
+        '   Setting size to ${width}x$height @ ${devicePixelRatio ?? 1.0}x',
+      );
+    } else {
+      throw ArgumentError('Either preset or width+height must be provided');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.setDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setDeviceSize',
+          isolateId: isolateId,
+          args: args,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print('📥 [FlutterInstance] Received response from setDeviceSize');
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('setDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Device size set successfully');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('setDeviceSize failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Reset the device size to native
+  ///
+  /// Clears any device size override and returns to the native device size.
+  Future<void> resetDeviceSize() async {
+    print('📱 [FlutterInstance] Resetting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.resetDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.resetDeviceSize',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'resetDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print('📥 [FlutterInstance] Received response from resetDeviceSize');
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('resetDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Device size reset to native');
+      return;
+    }
+
+    throw Exception(
+      'resetDeviceSize failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Get the current device size settings
+  ///
+  /// Returns the current device size settings, or null if using native size.
+  Future<Map<String, dynamic>> getDeviceSize() async {
+    print('📱 [FlutterInstance] Getting device size for instance $id');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getDeviceSize',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getDeviceSize',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getDeviceSize timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print('📥 [FlutterInstance] Received response from getDeviceSize');
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getDeviceSize returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Got device size');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getDeviceSize failed: ${json['error'] ?? json['status']}');
+  }
+
+  /// Get the current navigation state from the running Flutter app
+  ///
+  /// Returns information about routes, navigation stack, and modal routes.
+  /// Requires runtime_ai_dev_tools to be injected into the app.
+  Future<Map<String, dynamic>> getNavigationState() async {
+    print('🔍 [FlutterInstance] Getting navigation state for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    print(
+      '🔧 [FlutterInstance] Calling ext.runtime_ai_dev_tools.getNavigationState',
+    );
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getNavigationState',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getNavigationState timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    print(
+      '📥 [FlutterInstance] Received response from runtime_ai_dev_tools.getNavigationState',
+    );
+
+    final json = response.json;
+    if (json == null) {
+      throw Exception('getNavigationState returned null response');
+    }
+
+    if (json['status'] == 'success') {
+      print('✅ [FlutterInstance] Navigation state retrieved successfully');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception(
+      'getNavigationState failed: ${json['error'] ?? json['status']}',
+    );
+  }
+
+  /// Enable or disable error capture in the running Flutter app
+  ///
+  /// When enabled, Flutter framework errors and async errors are captured
+  /// and can be retrieved via [getErrors].
+  Future<bool> enableErrorCapture({bool enabled = true}) async {
+    print(
+      '🔧 [FlutterInstance] ${enabled ? "Enabling" : "Disabling"} error capture for instance $id',
+    );
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.enableErrorCapture',
+          isolateId: isolateId,
+          args: {'enabled': enabled.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'enableErrorCapture timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print(
+        '✅ [FlutterInstance] Error capture ${enabled ? "enabled" : "disabled"}',
+      );
+      return json['enabled'] as bool? ?? enabled;
+    }
+
+    throw Exception('enableErrorCapture failed: ${json?['status']}');
+  }
+
+  /// Get captured errors from the running Flutter app
+  ///
+  /// Returns a list of errors that have been captured since error capture
+  /// was enabled. By default, clears the error buffer after retrieval.
+  Future<Map<String, dynamic>> getErrors({bool clear = true}) async {
+    print('🔍 [FlutterInstance] Getting errors for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getErrors',
+          isolateId: isolateId,
+          args: {'clear': clear.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getErrors timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final count = json['count'] as int? ?? 0;
+      print('✅ [FlutterInstance] Retrieved $count errors');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getErrors failed: ${json?['status']}');
+  }
+
+  /// Clear the error buffer in the running Flutter app
+  Future<int> clearErrors() async {
+    print('🔍 [FlutterInstance] Clearing errors for instance $id');
+
+    if (!_isRunning) {
+      throw StateError('Flutter instance is not running');
+    }
+
+    if (_vmService == null) {
+      await _connectToVmService();
+      if (_vmService == null) {
+        throw StateError('VM Service not available');
+      }
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.clearErrors',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'clearErrors timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final cleared = json['cleared'] as int? ?? 0;
+      print('✅ [FlutterInstance] Cleared $cleared errors');
+      return cleared;
+    }
+
+    throw Exception('clearErrors failed: ${json?['status']}');
+  }
+
+  /// Set the animation speed by adjusting time dilation.
+  ///
+  /// [factor] controls the speed:
+  /// - 1.0 = normal speed
+  /// - 4.0 = 4x slower (0.25x speed)
+  /// - 10.0 = 10x slower (0.1x speed)
+  /// - 1000000.0 = effectively paused
+  ///
+  /// Returns true if successful.
+  Future<bool> setTimeDilation(double factor) async {
+    print('🎬 [FlutterInstance] Setting time dilation to $factor');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setTimeDilation',
+          isolateId: isolateId,
+          args: {'factor': factor.toString()},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setTimeDilation timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Time dilation set to ${json['factor']}');
+      return true;
+    }
+
+    throw Exception('setTimeDilation failed: ${json?['status']}');
+  }
+
+  /// Get the current time dilation factor.
+  ///
+  /// Returns the factor (1.0 = normal speed).
+  Future<double> getTimeDilation() async {
+    print('🔍 [FlutterInstance] Getting time dilation');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getTimeDilation',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getTimeDilation timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final factor = (json['factor'] as num).toDouble();
+      print('✅ [FlutterInstance] Time dilation is $factor');
+      return factor;
+    }
+
+    throw Exception('getTimeDilation failed: ${json?['status']}');
+  }
+
+  /// Set the theme mode for the app.
+  ///
+  /// [mode] can be 'light', 'dark', or 'system'.
+  ///
+  /// Returns true if successful.
+  Future<bool> setThemeMode(String mode) async {
+    print('🎨 [FlutterInstance] Setting theme mode to $mode');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setThemeMode',
+          isolateId: isolateId,
+          args: {'mode': mode},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setThemeMode timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Theme mode set to ${json['mode']}');
+      return true;
+    }
+
+    throw Exception('setThemeMode failed: ${json?['status']}');
+  }
+
+  /// Get the current theme mode.
+  ///
+  /// Returns the mode ('light', 'dark', or 'system').
+  Future<String> getThemeMode() async {
+    print('🔍 [FlutterInstance] Getting theme mode');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getThemeMode',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getThemeMode timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      final mode = json['mode'] as String;
+      print('✅ [FlutterInstance] Theme mode is $mode');
+      return mode;
+    }
+
+    throw Exception('getThemeMode failed: ${json?['status']}');
+  }
+
+  /// Set the locale for the app.
+  ///
+  /// [locale] should be in format "en-US", "ja-JP", "ar-SA", etc.
+  ///
+  /// Returns true if successful.
+  Future<bool> setLocale(String locale) async {
+    print('🌍 [FlutterInstance] Setting locale to $locale');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.setLocale',
+          isolateId: isolateId,
+          args: {'locale': locale},
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'setLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale set to ${json['locale']}');
+      return true;
+    }
+
+    throw Exception('setLocale failed: ${json?['status']}');
+  }
+
+  /// Get the current locale.
+  ///
+  /// Returns a map containing 'locale', 'languageCode', 'countryCode', and 'isOverride'.
+  Future<Map<String, dynamic>> getLocale() async {
+    print('🔍 [FlutterInstance] Getting locale');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.getLocale',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'getLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale is ${json['locale']}');
+      return Map<String, dynamic>.from(json);
+    }
+
+    throw Exception('getLocale failed: ${json?['status']}');
+  }
+
+  /// Reset the locale to system default.
+  ///
+  /// Returns true if successful.
+  Future<bool> resetLocale() async {
+    print('🌍 [FlutterInstance] Resetting locale to system default');
+
+    if (_vmService == null) {
+      throw StateError('VM Service not connected');
+    }
+
+    final isolateId = _evaluator?.isolateId;
+    if (isolateId == null) {
+      throw StateError('No isolate ID available for service extension call');
+    }
+
+    final response = await _vmService!
+        .callServiceExtension(
+          'ext.runtime_ai_dev_tools.resetLocale',
+          isolateId: isolateId,
+        )
+        .timeout(
+          _vmServiceTimeout,
+          onTimeout: () => throw TimeoutException(
+            'resetLocale timed out after ${_vmServiceTimeout.inSeconds}s',
+          ),
+        );
+
+    final json = response.json;
+    if (json != null && json['status'] == 'success') {
+      print('✅ [FlutterInstance] Locale reset to system default');
+      return true;
+    }
+
+    throw Exception('resetLocale failed: ${json?['status']}');
   }
 
   /// Get a summary of the instance state

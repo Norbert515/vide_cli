@@ -1,14 +1,30 @@
 import 'package:nocterm/nocterm.dart';
 import 'package:path/path.dart' as p;
-import 'package:vide_core/api.dart' show GitBranch, GitStatus;
+import 'package:vide_core/vide_core.dart' show GitBranch, GitStatus;
 import 'package:vide_cli/modules/git/models/git_sidebar_models.dart';
 import 'package:vide_cli/theme/theme.dart';
 import 'package:vide_cli/constants/text_opacity.dart';
 
-/// VS Code-style colors for git status (matching mockup aesthetic).
-const vsCodeStagedColor = Color(0xFF4EC9B0); // Teal/cyan
-const vsCodeModifiedColor = Color(0xFFDCDCAA); // Soft yellow
-const vsCodeAccentColor = Color(0xFFC586C0); // Purple/magenta for git icon
+/// Returns the staged file color appropriate for the theme brightness.
+Color getStagedColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0x2E8B7A) // Dark teal for light bg
+      : const Color(0x4EC9B0); // Bright teal for dark bg
+}
+
+/// Returns the modified file color appropriate for the theme brightness.
+Color getModifiedColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0xB5994D) // Dark goldenrod for light bg
+      : const Color(0xDCDCAA); // Soft yellow for dark bg
+}
+
+/// Returns the git accent color appropriate for the theme brightness.
+Color getAccentColor(VideThemeData theme) {
+  return theme.base.brightness == Brightness.light
+      ? const Color(0x9B4D96) // Dark magenta for light bg
+      : const Color(0xC586C0); // Light magenta for dark bg
+}
 
 /// Returns a colored dot indicator for file status.
 /// ● (filled) for staged/modified, ○ (hollow) for untracked.
@@ -28,9 +44,9 @@ String getStatusDot(String? status) {
 Color getStatusColor(String? status, VideThemeData theme) {
   switch (status) {
     case 'staged':
-      return vsCodeStagedColor;
+      return getStagedColor(theme);
     case 'modified':
-      return vsCodeModifiedColor;
+      return getModifiedColor(theme);
     case 'untracked':
       return theme.base.onSurface.withOpacity(TextOpacity.secondary);
     default:
@@ -67,13 +83,15 @@ Component buildQuickActionRow({
     actionState = isBranchAction
         ? (repoBranchActionState[repoPath] ?? QuickActionState.collapsed)
         : (repoWorktreeActionState[repoPath] ?? QuickActionState.collapsed);
-    isEnteringName = actionState == QuickActionState.enteringName &&
+    isEnteringName =
+        actionState == QuickActionState.enteringName &&
         repoActiveInputType[repoPath] == item.type;
     isExpanded = actionState != QuickActionState.collapsed;
   } else {
     // Single-repo mode
     actionState = isBranchAction ? branchActionState : worktreeActionState;
-    isEnteringName = actionState == QuickActionState.enteringName &&
+    isEnteringName =
+        actionState == QuickActionState.enteringName &&
         activeInputType == item.type;
     isExpanded = actionState != QuickActionState.collapsed;
   }
@@ -180,13 +198,14 @@ Component buildWorktreeHeaderRow({
   // Count total changes
   final changeCount = gitStatus != null
       ? gitStatus.modifiedFiles.length +
-          gitStatus.stagedFiles.length +
-          gitStatus.untrackedFiles.length
+            gitStatus.stagedFiles.length +
+            gitStatus.untrackedFiles.length
       : 0;
 
   // Current worktree uses primary color, others use default
-  final branchColor =
-      isCurrentWorktree ? theme.base.primary : theme.base.onSurface;
+  final branchColor = isCurrentWorktree
+      ? theme.base.primary
+      : theme.base.onSurface;
 
   // Show branch icon: ⎇ for worktrees,  for main repo
   final branchIcon = isWorktree ? '⎇' : '';
@@ -197,21 +216,23 @@ Component buildWorktreeHeaderRow({
       Container(
         decoration: highlight
             ? BoxDecoration(
-                color:
-                    theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
-            : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+            : BoxDecoration(color: theme.base.outlineVariant),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Row(
             children: [
               Text(expandIcon, style: TextStyle(color: branchColor)),
               SizedBox(width: 1),
-              Text(branchIcon,
-                  style: TextStyle(
-                      color: isCurrentWorktree
-                          ? theme.base.primary
-                          : vsCodeAccentColor)),
+              Text(
+                branchIcon,
+                style: TextStyle(
+                  color: isCurrentWorktree
+                      ? theme.base.primary
+                      : getAccentColor(theme),
+                ),
+              ),
               SizedBox(width: 1),
               Expanded(
                 child: Text(
@@ -228,9 +249,7 @@ Component buildWorktreeHeaderRow({
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(
-                    color: vsCodeModifiedColor,
-                  ),
+                  style: TextStyle(color: getModifiedColor(theme)),
                 ),
               // Ahead/behind indicators
               if (gitStatus != null) ...[
@@ -242,7 +261,7 @@ Component buildWorktreeHeaderRow({
                 if (gitStatus.behind > 0)
                   Text(
                     ' ↓${gitStatus.behind}',
-                    style: TextStyle(color: vsCodeModifiedColor),
+                    style: TextStyle(color: getModifiedColor(theme)),
                   ),
               ],
             ],
@@ -376,8 +395,8 @@ Component buildRepoHeaderRow({
   // Fall back to live count if expanded
   final changeCount = isExpanded && status != null
       ? status.modifiedFiles.length +
-          status.stagedFiles.length +
-          status.untrackedFiles.length
+            status.stagedFiles.length +
+            status.untrackedFiles.length
       : item.fileCount;
 
   return Column(
@@ -386,19 +405,16 @@ Component buildRepoHeaderRow({
       Container(
         decoration: highlight
             ? BoxDecoration(
-                color:
-                    theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
+                color: theme.base.primary.withOpacity(isSelected ? 0.3 : 0.15),
               )
-            : BoxDecoration(color: theme.base.outline.withOpacity(0.3)),
+            : BoxDecoration(color: theme.base.outlineVariant),
         child: Padding(
           padding: EdgeInsets.symmetric(horizontal: 1),
           child: Row(
             children: [
-              Text(expandIcon,
-                  style: TextStyle(color: theme.base.onSurface)),
+              Text(expandIcon, style: TextStyle(color: theme.base.onSurface)),
               SizedBox(width: 1),
-              Text('',
-                  style: TextStyle(color: vsCodeAccentColor)),
+              Text('', style: TextStyle(color: getAccentColor(theme))),
               SizedBox(width: 1),
               Flexible(
                 flex: 2,
@@ -419,8 +435,9 @@ Component buildRepoHeaderRow({
                   child: Text(
                     ' ${status.branch}',
                     style: TextStyle(
-                      color: theme.base.onSurface
-                          .withOpacity(TextOpacity.secondary),
+                      color: theme.base.onSurface.withOpacity(
+                        TextOpacity.secondary,
+                      ),
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
@@ -431,19 +448,21 @@ Component buildRepoHeaderRow({
               if (status != null &&
                   (status.ahead > 0 || status.behind > 0)) ...[
                 if (status.behind > 0)
-                  Text(' ↓${status.behind}',
-                      style: TextStyle(color: vsCodeModifiedColor)),
+                  Text(
+                    ' ↓${status.behind}',
+                    style: TextStyle(color: getModifiedColor(theme)),
+                  ),
                 if (status.ahead > 0)
-                  Text(' ↑${status.ahead}',
-                      style: TextStyle(color: theme.base.success)),
+                  Text(
+                    ' ↑${status.ahead}',
+                    style: TextStyle(color: theme.base.success),
+                  ),
               ],
               // Show change count when collapsed (and has changes)
               if (!isExpanded && changeCount > 0)
                 Text(
                   ' $changeCount',
-                  style: TextStyle(
-                    color: vsCodeModifiedColor,
-                  ),
+                  style: TextStyle(color: getModifiedColor(theme)),
                 ),
             ],
           ),
@@ -462,7 +481,7 @@ Component buildDividerRow({
     padding: EdgeInsets.symmetric(horizontal: 1),
     child: Text(
       '─' * (availableWidth - 2),
-      style: TextStyle(color: theme.base.outline.withOpacity(0.5)),
+      style: TextStyle(color: theme.base.outlineVariant),
     ),
   );
 }
@@ -531,9 +550,7 @@ Component buildCommitPushActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.success,
-              ),
+              style: TextStyle(color: theme.base.success),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -571,9 +588,7 @@ Component buildSyncActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Syncing...' : item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -614,9 +629,7 @@ Component buildMergeToMainActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Merging...' : item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -760,9 +773,7 @@ Component buildSwitchWorktreeActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -798,9 +809,7 @@ Component buildWorktreeCopyPathActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -841,9 +850,7 @@ Component buildWorktreeRemoveActionRow({
           Expanded(
             child: Text(
               isLoading ? 'Removing...' : item.name,
-              style: TextStyle(
-                color: theme.base.error,
-              ),
+              style: TextStyle(color: theme.base.error),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
@@ -954,20 +961,11 @@ Component buildBranchRow({
           ),
           // Worktree indicator
           if (isWorktree)
-            Text(
-              '⎇ ',
-              style: TextStyle(color: theme.base.primary),
-            )
+            Text('⎇ ', style: TextStyle(color: theme.base.primary))
           else if (isCurrent)
-            Text(
-              '● ',
-              style: TextStyle(color: theme.base.success),
-            )
+            Text('● ', style: TextStyle(color: theme.base.success))
           else
-            Text(
-              '  ',
-              style: TextStyle(color: theme.base.outline),
-            ),
+            Text('  ', style: TextStyle(color: theme.base.outline)),
           Expanded(
             child: Text(
               item.name,
@@ -975,9 +973,11 @@ Component buildBranchRow({
                 color: isCurrent
                     ? theme.base.primary
                     : isMainBranch
-                        ? theme.base.onSurface
-                        : theme.base.onSurface.withOpacity(TextOpacity.secondary),
-                fontWeight: (isCurrent || isMainBranch) ? FontWeight.bold : FontWeight.normal,
+                    ? theme.base.onSurface
+                    : theme.base.onSurface.withOpacity(TextOpacity.secondary),
+                fontWeight: (isCurrent || isMainBranch)
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
@@ -1015,9 +1015,7 @@ Component buildBranchActionRow({
           Expanded(
             child: Text(
               item.name,
-              style: TextStyle(
-                color: theme.base.primary,
-              ),
+              style: TextStyle(color: theme.base.primary),
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),

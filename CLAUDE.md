@@ -237,8 +237,8 @@ memoryRetrieve(key: "build_command")
 The system encourages using git worktrees for non-trivial features:
 
 1. Create worktree: `gitWorktreeAdd` with new branch
-2. Switch session: `setSessionWorktree` to work in worktree
-3. All agents spawned after this point work in the worktree
+2. Spawn agent with `workingDirectory` pointing to the worktree
+3. Agent works in isolation on the feature branch
 4. Merge back when ready: `gitMerge` from main worktree
 
 ## Testing Guidelines
@@ -299,11 +299,73 @@ tuiStop()
 - Control: `CTRL_A` through `CTRL_Z`
 - Function: `F1` through `F12`
 
-### Debugging with nocterm Logs
+### Structured Logging with VideLogger
 
-Since vide uses nocterm (terminal UI framework), `print()` statements inside the app are redirected and won't appear in the normal terminal output. To view logs:
+Vide uses a global singleton logger (`VideLogger`) that writes structured, timestamped logs to files. **Do not use `print()` in `vide_core`** — all logging goes through `VideLogger`.
 
-**Use nocterm's log viewer:**
+**Log files location:**
+
+```
+~/.vide/logs/
+├── vide.log              # Global log (all sessions)
+├── sessions/
+│   ├── {session-id}.log  # Per-session log
+│   └── ...
+```
+
+Session log files older than 7 days are automatically cleaned up on startup.
+
+**Log format:**
+```
+2026-02-14T10:30:45.123Z [INFO ] [session:abc12345] [AgentLifecycleService] Agent xyz spawned new "implementer" agent "Auth Fix": def456
+```
+
+**Reading logs while debugging:**
+
+```bash
+# Tail the global log
+tail -f ~/.vide/logs/vide.log
+
+# Tail a specific session log (session ID is visible in the TUI header)
+tail -f ~/.vide/logs/sessions/{session-id}.log
+
+# Filter for a specific component
+tail -f ~/.vide/logs/vide.log | grep AgentStatusSyncService
+
+# Filter for errors only
+tail -f ~/.vide/logs/vide.log | grep ERROR
+```
+
+**Adding log calls when debugging:**
+
+```dart
+import '../logging/vide_logger.dart';  // relative import within vide_core
+
+// Log levels: debug, info, warn, error
+VideLogger.instance.debug('MyComponent', 'Detailed trace info', sessionId: networkId);
+VideLogger.instance.info('MyComponent', 'Significant event happened');
+VideLogger.instance.warn('MyComponent', 'Fallback used: $reason');
+VideLogger.instance.error('MyComponent', 'Operation failed: $e', sessionId: networkId);
+```
+
+**Session lifecycle:**
+- `VideLogger.instance.startSession(networkId)` is called in `AgentNetworkManager.startNew()` and `resume()`
+- This opens a per-session log file at `~/.vide/logs/sessions/{networkId}.log`
+- Pass `sessionId` to log calls to write to both global and session-specific logs
+
+**Initialization:**
+- `VideLogger.init('${configRoot}/logs')` must be called once at each entry point (TUI main, server main, daemon main)
+- Before `init()` is called, a no-op logger is used (silently discards messages)
+
+**Log level guidelines:**
+- `debug` — Status transitions, routine checks, detailed traces (removed before committing unless permanent)
+- `info` — Significant events: agent spawned/terminated, session start/resume, triggers fired
+- `warn` — Non-critical fallbacks: team not found, config defaults used
+- `error` — Caught exceptions that need attention
+
+### Debugging TUI with nocterm Logs
+
+Since vide uses nocterm (terminal UI framework), `print()` statements inside the TUI are redirected and won't appear in the normal terminal output. For TUI-specific debugging (rendering, layout, UI state), use nocterm's log viewer:
 
 ```bash
 # In a separate terminal, run:
@@ -320,13 +382,42 @@ nocterm logs --pid 12345
 - Multiple instances are supported with an instance selection UI
 
 **Debugging workflow:**
-1. Add `print()` statements to the code you want to debug
+1. Add `print()` statements to the TUI code you want to debug
 2. Run vide normally: `dart run bin/vide.dart`
 3. In another terminal: `nocterm logs`
 4. Select the vide instance if multiple nocterm apps are running
 5. Logs from your `print()` statements will stream in real-time
 
-**Note:** Remove debug `print()` statements before committing, as per the testing guidelines.
+**Note:** Remove debug `print()` statements before committing. For `vide_core` code, use `VideLogger` instead of `print()`.
+
+### Debugging with Temporary File Logging
+
+For investigating rendering issues, timing problems, or situations where `nocterm logs` isn't practical (e.g., race conditions, rapid state changes), write timestamped logs to a temporary file:
+
+```dart
+import 'dart:io';
+
+void debugLog(String message) {
+  final file = File('/tmp/vide_debug.log');
+  final timestamp = DateTime.now().toIso8601String();
+  file.writeAsStringSync('$timestamp  $message\n', mode: FileMode.append);
+}
+```
+
+```bash
+# Monitor in another terminal
+tail -f /tmp/vide_debug.log
+```
+
+**When to use temporary file logging:**
+- **TUI rendering issues** - timestamps reveal the exact sequence of build/layout/paint calls
+- **Timing-sensitive bugs** - see exactly when events fire relative to each other
+- **High-frequency events** - nocterm's WebSocket log viewer may not keep up with rapid-fire logs
+
+**Tips:**
+- Clear the log before each run: `echo > /tmp/vide_debug.log`
+- Use a consistent prefix to filter: `debugLog('[SIDEBAR] rebuilt')`
+- Remove all `debugLog` calls and the helper function before committing
 
 ## Session Completion Workflow
 

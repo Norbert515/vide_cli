@@ -1,0 +1,3 @@
+tags:
+  e2e:
+    skip: "E2E tests require macOS and a running Flutter app. Run explicitly: dart test test/e2e/all_e2e_test.dart -t e2e --timeout=300s"

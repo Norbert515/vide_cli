@@ -6,15 +6,9 @@
 sealed class McpServerType {
   const McpServerType();
 
-  /// Git operations MCP server (vide-git)
-  static const git = _BuiltInMcpServer._('vide-git');
-
   /// Agent network MCP server (vide-agent)
-  /// Provides tools for spawning agents and inter-agent communication
+  /// Provides tools for spawning agents, inter-agent communication, and task management
   static const agent = _BuiltInMcpServer._('vide-agent');
-
-  /// Task management MCP server (vide-task-management)
-  static const taskManagement = _BuiltInMcpServer._('vide-task-management');
 
   /// Ask user question MCP server (vide-ask-user-question)
   /// Provides structured multiple-choice questions to users
@@ -23,8 +17,9 @@ sealed class McpServerType {
   /// Flutter runtime MCP server (flutter-runtime)
   static const flutterRuntime = _BuiltInMcpServer._('flutter-runtime');
 
-  /// Figma design MCP server (figma-remote-mcp)
-  static const figma = _BuiltInMcpServer._('figma-remote-mcp');
+  /// Knowledge base MCP server (vide-knowledge)
+  /// Provides tools for reading/writing persistent knowledge documents
+  static const knowledge = _BuiltInMcpServer._('vide-knowledge');
 
   /// Custom MCP server referenced by name
   ///

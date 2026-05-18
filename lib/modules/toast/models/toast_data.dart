@@ -25,6 +25,6 @@ class ToastData {
     required this.message,
     required this.type,
     this.duration = const Duration(seconds: 3),
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = DateTime.now();
+  }) : id = id ?? const Uuid().v4(),
+       createdAt = DateTime.now();
 }

@@ -22,9 +22,32 @@ compile:
 generate-devtools:
     dart run packages/flutter_runtime_mcp/tool/generate_bundled_devtools.dart
 
+# Generate bundled team framework assets (run after changing team_framework assets)
+generate-teams:
+    dart run packages/vide_core/tool/generate_bundled_team_framework.dart
+
+# Generate all bundled assets
+generate: generate-devtools generate-teams
+
 # Run vide as if it's the first time (shows onboarding)
 test-onboarding:
     VIDE_FORCE_WELCOME=1 dart run bin/vide.dart
+
+# Start the vide daemon server (default port 8080)
+daemon port="8080":
+    cd packages/vide_daemon && dart run bin/vide_daemon.dart --port {{port}}
+
+# Start the daemon in debug mode with verbose logging
+daemon-debug port="8080":
+    cd packages/vide_daemon && dart run bin/vide_daemon.dart --port {{port}} --verbose
+
+# Start the daemon on Tailscale with detach
+daemon-tailscale:
+    videdev daemon start --host 100.69.74.9 --port 8093 --detach
+
+# Serve the landing page locally
+landing:
+    cd landing && npx -y serve -l 0
 
 # Create a new release (interactive)
 release:

@@ -1,107 +1,129 @@
-/// VideSession - Active session wrapper for the VideCore API.
+/// LocalVideSession - In-process session implementation.
 ///
-/// This provides a clean interface to an agent network session,
-/// hiding the internal Riverpod providers and claude_sdk types.
+/// This provides the concrete local implementation of [VideSession],
+/// wrapping Riverpod providers and agent_sdk types.
 library;
 
 import 'dart:async';
+import 'dart:io';
 
-import 'package:claude_sdk/claude_sdk.dart';
+import 'package:agent_sdk/agent_sdk.dart' hide AgentConversationState;
+import 'package:claude_sdk/claude_sdk.dart' show ClaudeAgentClient;
+import 'package:path/path.dart' as p;
 import 'package:riverpod/riverpod.dart';
 import 'package:uuid/uuid.dart';
+import 'package:vide_interface/vide_interface.dart';
 
 import '../models/agent_metadata.dart';
 import '../models/agent_status.dart' as internal;
-import '../services/agent_network_manager.dart';
-import '../services/claude_manager.dart';
-import '../state/agent_status_manager.dart';
-import 'conversation_state.dart';
-import 'vide_agent.dart';
-import 'vide_event.dart';
+import '../agent_network/agent_network_manager.dart';
+import '../claude/claude_manager.dart';
+import '../permissions/pattern_inference.dart';
+import '../permissions/permission_checker.dart';
+import '../permissions/tool_input.dart';
+import '../configuration/local_settings_manager.dart';
+import '../agent_network/agent_status_manager.dart';
+import '../configuration/vide_core_config.dart';
+import '../logging/vide_logger.dart';
 
-/// An active session with a network of agents.
+/// An active local (in-process) session with a network of agents.
 ///
-/// Use [VideCore.startSession] or [VideCore.resumeSession] to create a session.
+/// This is the concrete implementation of [VideSession] that runs agents
+/// locally using the claude_sdk. Created by [LocalVideSessionManager].
 ///
-/// The session provides:
-/// - A single [events] stream with all events from all agents
-/// - Access to the current list of [agents]
-/// - Methods to [sendMessage], [respondToPermission], and [abort]
-///
-/// Example:
-/// ```dart
-/// final session = await core.startSession(config);
-///
-/// session.events.listen((event) {
-///   switch (event) {
-///     case MessageEvent e:
-///       stdout.write(e.content);
-///     case ToolUseEvent e:
-///       print('Tool: ${e.toolName}');
-///     case PermissionRequestEvent e:
-///       session.respondToPermission(e.requestId, allow: true);
-///     // ... handle other events
-///   }
-/// });
-///
-/// // Send follow-up message
-/// session.sendMessage('What else can you help with?');
-///
-/// // Clean up when done
-/// await session.dispose();
-/// ```
-class VideSession {
+/// For a remote (WebSocket-based) implementation, see `RemoteVideSession`
+/// in the vide_client package.
+class LocalVideSession implements VideSession {
   final String _networkId;
   final ProviderContainer _container;
-  final StreamController<VideEvent> _eventController;
 
-  /// Subscriptions to clean up on dispose.
-  final List<StreamSubscription<dynamic>> _subscriptions = [];
-  final List<ProviderSubscription<dynamic>> _providerSubscriptions = [];
+  /// Direct event pipeline (replaces SessionEventHub).
+  final StreamController<VideEvent> _eventController =
+      StreamController<VideEvent>.broadcast(sync: true);
+  final ConversationStateManager _conversationState =
+      ConversationStateManager();
+  final StreamController<VideState> _stateController =
+      StreamController<VideState>.broadcast();
+  bool _disposed = false;
+
+  /// Session-level subscriptions (not tied to a specific agent).
+  final List<ProviderSubscription<dynamic>> _sessionSubscriptions = [];
+
+  /// Per-agent subscriptions for targeted cleanup on agent termination.
+  final Map<String, List<StreamSubscription<dynamic>>> _agentSubscriptions = {};
+  final Map<String, List<ProviderSubscription<dynamic>>>
+  _agentProviderSubscriptions = {};
+
+  /// Per-agent processing phase for UI display (thinking, responding, etc.).
+  final Map<String, AgentProcessingStatus?> _agentProcessingPhases = {};
 
   /// Tracks state for each agent's conversation stream.
   final Map<String, _AgentStreamState> _agentStates = {};
 
-  /// Pending permission completers by request ID.
-  final Map<String, Completer<PermissionResult>> _pendingPermissions = {};
+  /// All pending user-interaction requests (permissions, questions, plan
+  /// approvals) keyed by request ID.  On [dispose], each pending request's
+  /// [_PendingRequest.onDispose] callback is invoked to complete the
+  /// completer with a sensible fallback so that awaiting code never hangs.
+  final Map<String, _PendingRequest> _pendingRequests = {};
 
-  /// Conversation state manager that accumulates events from the start.
-  ///
-  /// This is created immediately when the session is created, so no events are missed.
-  late final ConversationStateManager _conversationStateManager;
+  /// Permission checker for business logic (allow lists, deny lists, etc.).
+  late final PermissionChecker _permissionChecker;
 
-  /// Whether the session has been disposed.
-  bool _disposed = false;
-
-  VideSession._({
+  LocalVideSession._({
     required String networkId,
     required ProviderContainer container,
-  })  : _networkId = networkId,
-        _container = container,
-        _eventController = StreamController<VideEvent>.broadcast() {
-    // Create conversation state manager immediately and subscribe to events
-    _conversationStateManager = ConversationStateManager();
-    _eventController.stream.listen((event) {
-      _conversationStateManager.handleEvent(event);
-    });
+    PermissionCheckerConfig? permissionConfig,
+  }) : _networkId = networkId,
+       _container = container {
+    _eventController.stream.listen(_conversationState.handleEvent);
+    // Create permission checker for this session
+    _permissionChecker = PermissionChecker(
+      config: permissionConfig ?? PermissionCheckerConfig.tui,
+    );
   }
 
-  /// Creates a new VideSession for an existing network.
+  /// Creates a new LocalVideSession for an existing network.
   ///
-  /// This is called internally by [VideCore.startSession] and [VideCore.resumeSession].
-  static VideSession create({
+  /// This is called internally by [LocalVideSessionManager].
+  /// The [permissionConfig] controls how permissions are checked (TUI vs REST API behavior).
+  ///
+  /// Call [emitInitialUserMessage] after any event listeners (e.g. broadcasters)
+  /// are set up, to ensure the initial user message is captured in history.
+  static LocalVideSession create({
     required String networkId,
     required ProviderContainer container,
+    PermissionCheckerConfig? permissionConfig,
   }) {
-    final session = VideSession._(
+    final session = LocalVideSession._(
       networkId: networkId,
       container: container,
+      permissionConfig: permissionConfig,
     );
     session._initialize();
     return session;
   }
 
+  /// Emits the initial user message on the event stream.
+  ///
+  /// Must be called after any event listeners (e.g. SessionBroadcaster) are
+  /// set up, so the message is captured in history for replay to clients.
+  void emitInitialUserMessage(
+    String message, {
+    List<AgentAttachment>? attachments,
+  }) {
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId != null) {
+      _emitUserMessage(message, agentId: mainAgentId, attachments: attachments);
+    }
+  }
+
   void _initialize() {
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Initializing session',
+      sessionId: _networkId,
+    );
+
     // Subscribe to network changes to detect agent spawn/terminate
     _subscribeToNetworkChanges();
 
@@ -111,123 +133,338 @@ class VideSession {
       for (final agent in network.agents) {
         _subscribeToAgent(agent);
       }
+      VideLogger.instance.debug(
+        'LocalVideSession',
+        'Subscribed to ${network.agents.length} existing agents',
+        sessionId: _networkId,
+      );
     }
   }
 
-  /// Unique identifier for this session.
-  String get id => _networkId;
+  // ============================================================
+  // State management
+  // ============================================================
 
-  /// Get the conversation state manager for this session.
-  ///
-  /// This accumulates all events into a renderable conversation structure.
-  /// The manager is created when the session is created, so all events are captured.
-  ConversationStateManager get conversationState => _conversationStateManager;
-
-  /// Stream of all events from all agents in the session.
-  ///
-  /// Events are emitted in real-time as agents work. The stream includes:
-  /// - [MessageEvent] - Text content from agents
-  /// - [ToolUseEvent] - Tool invocations
-  /// - [ToolResultEvent] - Tool execution results
-  /// - [StatusEvent] - Agent status changes
-  /// - [TurnCompleteEvent] - When an agent completes its turn
-  /// - [AgentSpawnedEvent] - When a new agent is spawned
-  /// - [AgentTerminatedEvent] - When an agent is terminated
-  /// - [PermissionRequestEvent] - When permission is needed
-  /// - [ErrorEvent] - When an error occurs
-  Stream<VideEvent> get events => _eventController.stream;
-
-  /// Current agents in the session.
-  ///
-  /// This returns an immutable snapshot of the current agents.
-  /// Subscribe to [events] to receive [AgentSpawnedEvent] and
-  /// [AgentTerminatedEvent] for real-time updates.
-  List<VideAgent> get agents {
+  /// Build the current list of agents from the network.
+  List<VideAgent> _buildAgents() {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return [];
     return network.agents.map(_mapAgent).toList();
   }
 
-  /// The main agent (first agent in the network).
-  VideAgent? get mainAgent => agents.isNotEmpty ? agents.first : null;
-
-  /// List of agent IDs in the session.
-  ///
-  /// This is useful when you need quick access to IDs without
-  /// mapping the full [VideAgent] objects.
-  List<String> get agentIds {
+  /// Get the current goal from the network.
+  String _currentGoal() {
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    if (network == null || network.id != _networkId) return [];
-    return network.agentIds;
+    return network?.goal ?? 'Session';
   }
 
-  /// Whether any agent in the session is currently processing.
+  /// Get the current team from the network.
+  String _currentTeam() {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    return network?.team ?? 'enterprise';
+  }
+
+  /// Get the effective working directory.
+  String _currentWorkingDirectory() {
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    return manager.effectiveWorkingDirectory;
+  }
+
+  /// Check if any agent is currently processing.
   ///
-  /// This checks all agents in the network and returns true if any
-  /// of them have an active conversation that is processing.
-  bool get isProcessing {
+  /// Uses [agentStatusProvider] as the single source of truth.
+  /// Any status other than idle indicates the agent is busy.
+  bool _isProcessing() {
     for (final agentId in _agentStates.keys) {
-      final client = _container.read(claudeProvider(agentId));
-      if (client?.currentConversation.isProcessing ?? false) {
+      final status = _container.read(agentStatusProvider(agentId));
+      if (status != internal.AgentStatus.idle) {
         return true;
       }
     }
     return false;
   }
 
-  /// The effective working directory for this session.
-  ///
-  /// This may be different from the configured working directory if a
-  /// worktree has been set.
-  String get workingDirectory {
-    final manager = _container.read(agentNetworkManagerProvider.notifier);
-    return manager.effectiveWorkingDirectory;
+  /// Build a snapshot of per-agent conversation states.
+  List<AgentConversationState> get _agentConversationStateSnapshot {
+    return _conversationState.agentIds
+        .map((id) => _conversationState.getAgentState(id))
+        .whereType<AgentConversationState>()
+        .toList();
   }
 
-  /// Send a message to an agent.
-  ///
-  /// If [agentId] is not specified, the message is sent to the main agent.
-  void sendMessage(String content, {String? agentId}) {
+  /// Build the current immutable state snapshot.
+  VideState _buildState() {
+    return VideState(
+      id: _networkId,
+      agents: _buildAgents(),
+      agentConversationStates: _agentConversationStateSnapshot,
+      team: _currentTeam(),
+      goal: _currentGoal(),
+      workingDirectory: _currentWorkingDirectory(),
+      isProcessing: _isProcessing(),
+    );
+  }
+
+  void _emit(VideEvent event) => _eventController.add(event);
+
+  void _emitState() {
+    if (!_disposed) {
+      _stateController.add(_buildState());
+    }
+  }
+
+  void _checkNotDisposed() {
+    if (_disposed) {
+      throw StateError('Session has been disposed');
+    }
+  }
+
+  @override
+  String get id => _networkId;
+
+  @override
+  ConversationStateManager get conversationState => _conversationState;
+
+  @override
+  VideState get state => _buildState();
+
+  @override
+  Stream<VideState> get stateStream {
+    // Prepend the current state snapshot so new subscribers immediately
+    // receive the latest state (like a BehaviorSubject). Without this,
+    // status changes emitted on the broadcast stream before subscription
+    // are lost, causing stale UI (e.g. missing loading indicators).
+    final controller = StreamController<VideState>();
+    controller.add(_buildState());
+    controller
+        .addStream(_stateController.stream)
+        .whenComplete(controller.close);
+    return controller.stream;
+  }
+
+  @override
+  Stream<VideEvent> get events => _eventController.stream;
+
+  @override
+  List<VideEvent> get eventHistory => _conversationState.eventHistory;
+
+  @override
+  void sendMessage(AgentMessage message, {String? agentId}) {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
-    final targetAgent = agentId ?? mainAgent?.id;
+    final targetAgent = agentId ?? state.mainAgent?.id;
     if (targetAgent == null) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'sendMessage failed: no agents in session',
+        sessionId: _networkId,
+      );
       throw StateError('No agents in session');
     }
-    manager.sendMessage(targetAgent, Message.text(content));
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'sendMessage to agent=$targetAgent (${message.text.length} chars)',
+      sessionId: _networkId,
+    );
+
+    // Check if the agent is currently processing. If so, the message will be
+    // queued by the client and should NOT appear in the chat yet. It will
+    // be emitted when the queue is flushed and the message is actually sent.
+    final client = _container.read(agentClientProvider(targetAgent));
+    final willBeQueued = client?.currentConversation.isProcessing ?? false;
+
+    if (!willBeQueued) {
+      _emitUserMessage(
+        message.text,
+        agentId: targetAgent,
+        attachments: message.attachments,
+      );
+    }
+
+    // Expand @file mentions into document attachments
+    final expandedMessage = _expandAtMentions(message);
+    manager.sendMessage(targetAgent, expandedMessage);
+
+    // Optimization: Set status to working immediately for instant UI feedback.
+    // AgentStatusSyncService will also set this when AgentClient emits
+    // AgentProcessingStatus.processing, but that has network latency. Skip for queued
+    // messages since the agent is already working.
+    if (!willBeQueued) {
+      final statusNotifier = _container.read(
+        agentStatusProvider(targetAgent).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.working);
+    }
   }
 
-  /// Respond to a permission request.
-  ///
-  /// Call this when you receive a [PermissionRequestEvent] to allow or deny
-  /// the tool invocation.
+  /// Expands @path/to/file mentions in message text by reading files
+  /// and attaching their content as document attachments.
+  AgentMessage _expandAtMentions(AgentMessage message) {
+    final workingDir = _currentWorkingDirectory();
+
+    // Match @path patterns: @ followed by path characters ending with a file extension.
+    // Must be preceded by whitespace or start of string.
+    final regex = RegExp(r'(?:^|\s)@([\w./\-]+\.\w+)');
+    final matches = regex.allMatches(message.text);
+
+    if (matches.isEmpty) return message;
+
+    final expandedAttachments = <AgentAttachment>[...?message.attachments];
+    final seenPaths = <String>{};
+    final canonicalWorkingDir = p.canonicalize(workingDir);
+    const maxMentions = 10;
+    var expandedCount = 0;
+
+    for (final match in matches) {
+      if (expandedCount >= maxMentions) break;
+
+      final relativePath = match.group(1)!;
+      if (seenPaths.contains(relativePath)) continue;
+      seenPaths.add(relativePath);
+
+      // Security: reject paths that escape the working directory
+      final resolvedPath = p.canonicalize(p.join(workingDir, relativePath));
+      if (!resolvedPath.startsWith('$canonicalWorkingDir${p.separator}') &&
+          resolvedPath != canonicalWorkingDir) {
+        continue;
+      }
+
+      final file = File(resolvedPath);
+      if (!file.existsSync()) continue;
+
+      final stat = file.statSync();
+      if (stat.size > 1024 * 1024) continue; // skip files > 1MB
+
+      try {
+        final content = file.readAsStringSync();
+        expandedAttachments.add(
+          AgentAttachment.documentText(text: content, title: relativePath),
+        );
+        expandedCount++;
+      } catch (_) {
+        // Skip binary files or read errors
+        continue;
+      }
+    }
+
+    if (expandedCount == 0) {
+      return message; // nothing was expanded
+    }
+
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Expanded $expandedCount @mentions in message',
+      sessionId: _networkId,
+    );
+
+    return AgentMessage(
+      text: message.text,
+      attachments: expandedAttachments,
+      metadata: message.metadata,
+    );
+  }
+
+  void _emitUserMessage(
+    String content, {
+    required String agentId,
+    List<AgentAttachment>? attachments,
+  }) {
+    _emit(
+      MessageEvent(
+        agentId: agentId,
+        agentType: 'user',
+        eventId: const Uuid().v4(),
+        role: MessageRole.user,
+        content: content,
+        isPartial: false,
+        attachments: attachments,
+      ),
+    );
+  }
+
+  @override
   void respondToPermission(
     String requestId, {
     required bool allow,
     String? message,
+    bool remember = false,
+    String? patternOverride,
   }) {
     _checkNotDisposed();
-    final completer = _pendingPermissions.remove(requestId);
-    if (completer != null) {
-      if (allow) {
-        completer.complete(const PermissionResultAllow());
-      } else {
-        completer.complete(PermissionResultDeny(
-          message: message ?? 'Permission denied',
-        ));
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingPermission) {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'Permission response: tool=${pending.toolName} agent=${pending.agentId} '
+            'allow=$allow remember=$remember',
+        sessionId: _networkId,
+      );
+      if (remember && allow) {
+        _rememberPermission(pending, patternOverride);
       }
+
+      if (allow) {
+        pending.completer.complete(const AgentPermissionAllow());
+      } else {
+        pending.completer.complete(
+          AgentPermissionDeny(message: message ?? 'Permission denied'),
+        );
+      }
+
+      // Broadcast resolution to all connected clients
+      _emit(
+        PermissionResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          allow: allow,
+          message: message,
+        ),
+      );
     }
   }
 
-  /// Abort all agents in the session.
-  ///
-  /// This cancels any in-progress work across all agents.
+  void _rememberPermission(
+    _PendingPermission pending,
+    String? patternOverride,
+  ) {
+    final toolName = pending.toolName;
+    final typedInput = ToolInput.fromJson(toolName, pending.toolInput);
+    final pattern =
+        patternOverride ?? PatternInference.inferPattern(toolName, typedInput);
+
+    final isWriteOperation =
+        toolName == 'Write' || toolName == 'Edit' || toolName == 'MultiEdit';
+
+    if (isWriteOperation) {
+      _permissionChecker.addSessionPattern(pattern);
+    } else {
+      final settingsManager = LocalSettingsManager(
+        projectRoot: pending.cwd,
+      );
+      unawaited(
+        settingsManager.addToAllowList(pattern).then((_) {
+          _permissionChecker.invalidateSettingsCache();
+        }),
+      );
+    }
+  }
+
+  @override
   Future<void> abort() async {
     _checkNotDisposed();
     final network = _container.read(agentNetworkManagerProvider).currentNetwork;
     if (network == null || network.id != _networkId) return;
 
-    final clients = _container.read(claudeManagerProvider);
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Aborting all agents (${network.agents.length} agents)',
+      sessionId: _networkId,
+    );
+
+    final clients = _container.read(agentClientManagerProvider);
     for (final agent in network.agents) {
       final client = clients[agent.id];
       if (client != null) {
@@ -236,78 +473,65 @@ class VideSession {
     }
   }
 
-  /// Abort a specific agent.
-  ///
-  /// This cancels any in-progress work for the specified agent.
+  @override
   Future<void> abortAgent(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     if (client != null) {
       await client.abort();
     }
   }
 
-  /// Clear the conversation for an agent (resets context).
-  ///
-  /// If [agentId] is not specified, clears the main agent's conversation.
-  /// This is useful for implementing a `/clear` command or resetting context.
+  @override
   Future<void> clearConversation({String? agentId}) async {
     _checkNotDisposed();
-    final targetId = agentId ?? mainAgent?.id;
+    final targetId = agentId ?? state.mainAgent?.id;
     if (targetId == null) return;
 
-    final client = _container.read(claudeProvider(targetId));
+    final client = _container.read(agentClientProvider(targetId));
     await client?.clearConversation();
   }
 
-  /// Get an MCP server instance for an agent.
-  ///
-  /// Returns null if the server is not found or agent doesn't exist.
-  /// This is useful for accessing MCP servers directly, such as
-  /// the flutter runtime MCP for UI rendering.
-  T? getMcpServer<T extends McpServerBase>(String agentId, String serverName) {
-    _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    return client?.getMcpServer<T>(serverName);
-  }
-
-  /// Set the working directory (worktree path) for this session.
-  ///
-  /// This affects all new operations in the session. Pass null or
-  /// an empty string to clear the worktree and return to the original directory.
-  ///
-  /// Note: Agent conversation history may be cleared since Claude CLI
-  /// cannot change its working directory mid-session.
+  @override
   Future<void> setWorktreePath(String? path) async {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     await manager.setWorktreePath(path);
   }
 
-  /// Get the current conversation for an agent.
-  ///
-  /// Returns null if the agent doesn't exist. This provides direct
-  /// access to the conversation for rendering messages and token counts.
-  Conversation? getConversation(String agentId) {
+  @override
+  Future<Map<String, dynamic>?> getClaudeSettings() async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    return client?.currentConversation;
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return null;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is! SettingsConfigurable) return null;
+    return (client as SettingsConfigurable).getEffectiveSettings();
   }
 
-  /// Stream of conversation updates for an agent.
-  ///
-  /// Returns an empty stream if the agent doesn't exist.
-  /// This allows subscribing to conversation changes for real-time updates.
-  Stream<Conversation> conversationStream(String agentId) {
+  @override
+  Future<void> applyClaudeSettings(Map<String, dynamic> settings) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
-    return client?.conversation ?? const Stream.empty();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is! SettingsConfigurable) return;
+    await (client as SettingsConfigurable).applySettings(settings);
   }
 
-  /// Update token/cost statistics for an agent.
-  ///
-  /// This is called by UI when conversation updates to persist stats.
-  /// Token stats will be persisted on the next network save.
+  @override
+  AgentConversationState? getConversation(String agentId) {
+    _checkNotDisposed();
+    return _conversationState.getAgentState(agentId);
+  }
+
+  @override
+  Stream<AgentConversationState> conversationStream(String agentId) {
+    _checkNotDisposed();
+    return _conversationState.agentStream(agentId);
+  }
+
+  @override
   void updateAgentTokenStats(
     String agentId, {
     required int totalInputTokens,
@@ -328,13 +552,7 @@ class VideSession {
     );
   }
 
-  /// Terminate an agent and remove it from the network.
-  ///
-  /// [agentId] is the agent to terminate.
-  /// [terminatedBy] is the ID of the agent requesting termination (typically main agent).
-  ///
-  /// Once terminated, the agent cannot be resumed. Use [abort] to pause
-  /// an agent temporarily.
+  @override
   Future<void> terminateAgent(
     String agentId, {
     required String terminatedBy,
@@ -349,410 +567,1112 @@ class VideSession {
     );
   }
 
-  /// Fork an agent to create a new conversation branch.
-  ///
-  /// Returns the ID of the newly created agent.
+  @override
   Future<String> forkAgent(String agentId, {String? name}) async {
     _checkNotDisposed();
     final manager = _container.read(agentNetworkManagerProvider.notifier);
     return await manager.forkAgent(sourceAgentId: agentId, name: name);
   }
 
-  /// Get the queued message for an agent, if any.
-  ///
-  /// A queued message is a message that will be sent when the agent
-  /// completes its current turn.
-  String? getQueuedMessage(String agentId) {
-    final client = _container.read(claudeProvider(agentId));
+  @override
+  Future<String> spawnAgent({
+    required String agentType,
+    required String name,
+    required String initialPrompt,
+    required String spawnedBy,
+  }) async {
+    _checkNotDisposed();
+    final manager = _container.read(agentNetworkManagerProvider.notifier);
+    return await manager.spawnAgent(
+      agentType: agentType,
+      name: name,
+      initialPrompt: initialPrompt,
+      spawnedBy: spawnedBy,
+    );
+  }
+
+  @override
+  Future<String?> getQueuedMessage(String agentId) async {
+    _checkNotDisposed();
+    final client = _container.read(agentClientProvider(agentId));
     return client?.currentQueuedMessage;
   }
 
-  /// Stream of queued message changes for an agent.
-  ///
-  /// Emits whenever the queued message changes (set or cleared).
+  @override
   Stream<String?> queuedMessageStream(String agentId) {
-    final client = _container.read(claudeProvider(agentId));
+    _checkNotDisposed();
+    final client = _container.read(agentClientProvider(agentId));
     return client?.queuedMessage ?? const Stream.empty();
   }
 
-  /// Clear the queued message for an agent.
-  void clearQueuedMessage(String agentId) {
+  @override
+  Future<void> clearQueuedMessage(String agentId) async {
     _checkNotDisposed();
-    final client = _container.read(claudeProvider(agentId));
+    final client = _container.read(agentClientProvider(agentId));
     client?.clearQueuedMessage();
   }
 
-  /// Dispose the session and release resources.
-  ///
-  /// After calling dispose, the session can no longer be used.
-  /// The underlying agent network is NOT deleted - it can be resumed
-  /// with [VideCore.resumeSession].
-  Future<void> dispose() async {
+  @override
+  Future<String?> getModel(String agentId) async {
+    _checkNotDisposed();
+    final client = _container.read(agentClientProvider(agentId));
+    return client?.initData?.model;
+  }
+
+  @override
+  Stream<String?> modelStream(String agentId) {
+    _checkNotDisposed();
+    final client = _container.read(agentClientProvider(agentId));
+    if (client == null) return Stream.value(null);
+    return client.initDataStream.map((meta) => meta.model);
+  }
+
+  @override
+  Future<List<VideMcpServerInfo>> getMcpServers() async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return [];
+    final client = _container.read(agentClientProvider(mainAgentId));
+    return _parseMcpServers(client?.initData);
+  }
+
+  @override
+  Stream<List<VideMcpServerInfo>> mcpServersStream() {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return Stream.value([]);
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client == null) return Stream.value([]);
+
+    // Emit cached value first (if init data already arrived), then future updates.
+    Stream<List<VideMcpServerInfo>> stream() async* {
+      final cached = _parseMcpServers(client.initData);
+      if (cached.isNotEmpty) {
+        yield cached;
+      }
+      yield* client.initDataStream.map(_parseMcpServers);
+    }
+
+    return stream();
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is ClaudeAgentClient) {
+      await client.innerClient.reconnectMcpServer(serverName);
+    }
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    _checkNotDisposed();
+    final mainAgentId = state.mainAgent?.id;
+    if (mainAgentId == null) return;
+    final client = _container.read(agentClientProvider(mainAgentId));
+    if (client is ClaudeAgentClient) {
+      await client.innerClient.toggleMcpServer(serverName, enabled: enabled);
+    }
+  }
+
+  List<VideMcpServerInfo> _parseMcpServers(AgentInitData? data) {
+    final raw = data?.metadata['mcp_servers'] as List?;
+    if (raw == null) return [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map((s) => VideMcpServerInfo.fromJson(s))
+        .toList();
+  }
+
+  @override
+  void respondToAskUserQuestion(
+    String requestId, {
+    required Map<String, String> answers,
+  }) {
+    _checkNotDisposed();
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingAskUserQuestion) {
+      pending.completer.complete(answers);
+
+      // Broadcast resolution to all connected clients
+      _emit(
+        AskUserQuestionResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          answers: answers,
+        ),
+      );
+    }
+  }
+
+  @override
+  void respondToPlanApproval(
+    String requestId, {
+    required String action,
+    String? feedback,
+  }) {
+    _checkNotDisposed();
+    final pending = _pendingRequests.remove(requestId);
+    if (pending is _PendingPlanApproval) {
+      pending.completer.complete(
+        _PlanApprovalResult(action: action, feedback: feedback),
+      );
+
+      _emit(
+        PlanApprovalResolvedEvent(
+          agentId: pending.agentId,
+          agentType: pending.agentType,
+          agentName: pending.agentName,
+          taskName: pending.taskName,
+          requestId: requestId,
+          action: action,
+          feedback: feedback,
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> addSessionPermissionPattern(String pattern) async {
+    _permissionChecker.addSessionPattern(pattern);
+  }
+
+  @override
+  Future<bool> isAllowedBySessionCache(
+    String toolName,
+    Map<String, dynamic> input,
+  ) async {
+    final typedInput = ToolInput.fromJson(toolName, input);
+    return _permissionChecker.isAllowedBySessionCache(toolName, typedInput);
+  }
+
+  @override
+  Future<void> clearSessionPermissionCache() async {
+    _permissionChecker.clearSessionCache();
+  }
+
+  @override
+  VideCanUseToolCallback createPermissionCallback({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String cwd,
+    String? permissionMode,
+  }) {
+    // Return a VideCanUseToolCallback that wraps the internal permission logic
+    return (
+      String toolName,
+      Map<String, dynamic> input,
+      VidePermissionContext context,
+    ) async {
+      final result = await _createPermissionCallbackInternal(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        cwd: cwd,
+        permissionMode: permissionMode,
+        toolName: toolName,
+        input: input,
+      );
+      // Convert AgentPermissionResult to VidePermissionResult
+      return switch (result) {
+        AgentPermissionAllow(:final updatedInput) => VidePermissionAllow(
+          updatedInput: updatedInput,
+        ),
+        AgentPermissionDeny(:final message) => VidePermissionDeny(
+          message: message,
+        ),
+      };
+    };
+  }
+
+  @override
+  Future<void> dispose({bool fireEndTrigger = true}) async {
     if (_disposed) return;
-    _disposed = true;
 
-    // Cancel all subscriptions
-    for (final sub in _subscriptions) {
-      await sub.cancel();
-    }
-    _subscriptions.clear();
+    VideLogger.instance.info(
+      'LocalVideSession',
+      'Disposing session (pending requests: ${_pendingRequests.length}, '
+          'agent subscriptions: ${_agentSubscriptions.length})',
+      sessionId: _networkId,
+    );
 
-    for (final sub in _providerSubscriptions) {
-      sub.close();
-    }
-    _providerSubscriptions.clear();
-
-    // Complete any pending permissions with deny
-    for (final completer in _pendingPermissions.values) {
-      if (!completer.isCompleted) {
-        completer.complete(const PermissionResultDeny(
-          message: 'Session disposed',
-        ));
+    // Fire onSessionEnd trigger before cleanup (if enabled)
+    if (fireEndTrigger) {
+      try {
+        final manager = _container.read(agentNetworkManagerProvider.notifier);
+        await manager.fireSessionEndTrigger();
+      } catch (e) {
+        // Don't fail dispose if trigger fails
+        VideLogger.instance.error(
+          'LocalVideSession',
+          'Error firing onSessionEnd trigger: $e',
+          sessionId: _networkId,
+        );
       }
     }
-    _pendingPermissions.clear();
+
+    // Cancel session-level subscriptions
+    for (final sub in _sessionSubscriptions) {
+      sub.close();
+    }
+    _sessionSubscriptions.clear();
+
+    // Cancel all per-agent subscriptions
+    for (final subs in _agentSubscriptions.values) {
+      for (final sub in subs) {
+        await sub.cancel();
+      }
+    }
+    _agentSubscriptions.clear();
+
+    for (final subs in _agentProviderSubscriptions.values) {
+      for (final sub in subs) {
+        sub.close();
+      }
+    }
+    _agentProviderSubscriptions.clear();
+
+    // Complete all pending user-interaction requests with their fallbacks
+    for (final pending in _pendingRequests.values) {
+      pending.onDispose();
+    }
+    _pendingRequests.clear();
 
     // Clear agent states
     _agentStates.clear();
 
-    // Dispose conversation state manager
-    _conversationStateManager.dispose();
-
-    // Close the event stream
-    await _eventController.close();
+    // Dispose resources
+    _disposed = true;
+    _permissionChecker.dispose();
+    _conversationState.dispose();
+    _eventController.close();
+    _stateController.close();
   }
 
-  void _checkNotDisposed() {
-    if (_disposed) {
-      throw StateError('Session has been disposed');
+  // ===========================================================================
+  // Internal methods
+  // ===========================================================================
+
+  /// Looks up the current task name for an agent from the source of truth
+  /// ([AgentMetadata]), avoiding the need to eagerly copy it into
+  /// [_AgentStreamState] at multiple mutation sites.
+  String? _taskNameFor(String agentId) {
+    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
+    return network?.agents.where((a) => a.id == agentId).firstOrNull?.taskName;
+  }
+
+  static MessageRole _mapRole(AgentMessageRole role) => switch (role) {
+    AgentMessageRole.user => MessageRole.user,
+    AgentMessageRole.assistant => MessageRole.assistant,
+    AgentMessageRole.system => MessageRole.system,
+  };
+
+  /// Whether to skip all permission checks (auto-approve everything).
+  bool get _dangerouslySkipPermissions {
+    final config = _container.read(videCoreConfigProvider);
+    if (config.dangerouslySkipPermissions) return true;
+    return config.configManager.readGlobalSettings().dangerouslySkipPermissions;
+  }
+
+  /// Internal permission callback implementation using agent_sdk types.
+  Future<AgentPermissionResult> _createPermissionCallbackInternal({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String cwd,
+    String? permissionMode,
+    required String toolName,
+    required Map<String, dynamic> input,
+  }) async {
+    // Skip all permission checks when dangerously-skip-permissions is enabled
+    if (_dangerouslySkipPermissions) {
+      VideLogger.instance.debug(
+        'LocalVideSession',
+        'Permission auto-allowed (dangerouslySkipPermissions): tool=$toolName agent=$agentId',
+        sessionId: _networkId,
+      );
+      return const AgentPermissionAllow();
+    }
+
+    // NOTE: AskUserQuestion and ExitPlanMode are not permission checks, but
+    // they're handled here because the permission callback is the only hook
+    // available to intercept tool calls before execution. These tools require
+    // user interaction (answering questions / approving plans), so we "hijack"
+    // the permission callback to pause execution, emit a UI event, and resume
+    // once the user responds. The result is smuggled back via
+    // AgentPermissionAllow(updatedInput: ...) for AskUserQuestion.
+
+    if (toolName == 'AskUserQuestion') {
+      return _handleAskUserQuestion(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        taskName: _taskNameFor(agentId),
+        toolInput: input,
+      );
+    }
+
+    if (toolName == 'ExitPlanMode') {
+      return _handleExitPlanMode(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        taskName: _taskNameFor(agentId),
+        toolInput: input,
+      );
+    }
+
+    // Convert raw map to type-safe ToolInput for PermissionChecker
+    final typedInput = ToolInput.fromJson(toolName, input);
+
+    // Check with PermissionChecker first (allow lists, deny lists, etc.)
+    final checkResult = await _permissionChecker.checkPermission(
+      toolName: toolName,
+      input: typedInput,
+      cwd: cwd,
+      permissionMode: permissionMode,
+    );
+
+    // Handle the result from PermissionChecker
+    switch (checkResult) {
+      case PermissionAllow():
+        return const AgentPermissionAllow();
+
+      case PermissionDeny(reason: final reason):
+        VideLogger.instance.info(
+          'LocalVideSession',
+          'Permission denied: tool=$toolName agent=$agentId reason=$reason',
+          sessionId: _networkId,
+        );
+        return AgentPermissionDeny(message: reason);
+
+      case PermissionAskUser(inferredPattern: final inferredPattern):
+        // Guard against disposed session — if dispose() already ran, deny
+        // immediately to avoid orphaned completers that never resolve.
+        if (_disposed) {
+          return const AgentPermissionDeny(message: 'Session disposed');
+        }
+
+        VideLogger.instance.info(
+          'LocalVideSession',
+          'Permission ask-user: tool=$toolName agent=$agentId pattern=$inferredPattern',
+          sessionId: _networkId,
+        );
+
+        // Need to ask the user - emit event and wait
+        final requestId = const Uuid().v4();
+        final completer = Completer<AgentPermissionResult>();
+        final taskName = _taskNameFor(agentId);
+        _pendingRequests[requestId] = _PendingPermission(
+          completer: completer,
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: taskName,
+          toolName: toolName,
+          toolInput: input,
+          inferredPattern: inferredPattern,
+          cwd: cwd,
+        );
+
+        // Emit permission request event
+        _emit(
+          PermissionRequestEvent(
+            agentId: agentId,
+            agentType: agentType ?? 'unknown',
+            agentName: agentName,
+            taskName: taskName,
+            requestId: requestId,
+            toolName: toolName,
+            toolInput: input,
+            inferredPattern: inferredPattern,
+          ),
+        );
+
+        // Set agent status to waitingForUser while waiting for permission
+        final statusNotifier = _container.read(
+          agentStatusProvider(agentId).notifier,
+        );
+        statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
+        // Wait for response indefinitely - user can take as long as needed
+        try {
+          return await completer.future;
+        } catch (e) {
+          return AgentPermissionDeny(message: 'Error: $e');
+        } finally {
+          _pendingRequests.remove(requestId);
+          // Restore to working since the agent will continue processing
+          statusNotifier.setStatus(internal.AgentStatus.working);
+        }
     }
   }
 
-  void _subscribeToNetworkChanges() {
-    final subscription = _container.listen(
-      agentNetworkManagerProvider,
-      (previous, next) {
-        if (next.currentNetwork?.id != _networkId) return;
+  /// Expose a permission callback using agent_sdk types for internal use.
+  ///
+  /// This is used by the permission handler which delegates to the session
+  /// for permission checking.
+  AgentCanUseToolCallback createAgentPermissionCallback({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String cwd,
+    String? permissionMode,
+  }) {
+    return (
+      String toolName,
+      Map<String, dynamic> input,
+      AgentPermissionContext context,
+    ) async {
+      return _createPermissionCallbackInternal(
+        agentId: agentId,
+        agentName: agentName,
+        agentType: agentType,
+        cwd: cwd,
+        permissionMode: permissionMode,
+        toolName: toolName,
+        input: input,
+      );
+    };
+  }
 
-        final prevAgentIds =
-            previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
-        final nextAgentIds =
-            next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+  Future<AgentPermissionResult> _handleAskUserQuestion({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String? taskName,
+    required Map<String, dynamic> toolInput,
+  }) async {
+    try {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'AskUserQuestion from agent=$agentId ($agentName)',
+        sessionId: _networkId,
+      );
+      if (_disposed) {
+        VideLogger.instance.warn(
+          'LocalVideSession',
+          'AskUserQuestion rejected: session disposed',
+          sessionId: _networkId,
+        );
+        return const AgentPermissionDeny(message: 'Session disposed');
+      }
 
-        // Check for new agents (spawned)
-        for (final agentId in nextAgentIds.difference(prevAgentIds)) {
-          final agent = next.currentNetwork!.agents.firstWhere(
-            (a) => a.id == agentId,
+      // Parse questions from tool input
+      final questionsJson = toolInput['questions'] as List<dynamic>?;
+      if (questionsJson == null || questionsJson.isEmpty) {
+        return const AgentPermissionAllow();
+      }
+
+      // Convert to event data format
+      final questions = questionsJson.map((q) {
+        final qMap = q as Map<String, dynamic>;
+        final optionsList = qMap['options'] as List<dynamic>? ?? [];
+        return AskUserQuestionData(
+          question: qMap['question'] as String,
+          header: qMap['header'] as String?,
+          multiSelect: qMap['multiSelect'] as bool? ?? false,
+          options: optionsList.map((o) {
+            final oMap = o as Map<String, dynamic>;
+            return AskUserQuestionOptionData(
+              label: oMap['label'] as String,
+              description: oMap['description'] as String? ?? '',
+            );
+          }).toList(),
+        );
+      }).toList();
+
+      // Create completer and emit event
+      final requestId = const Uuid().v4();
+      final completer = Completer<Map<String, String>>();
+      _pendingRequests[requestId] = _PendingAskUserQuestion(
+        completer: completer,
+        agentId: agentId,
+        agentType: agentType ?? 'unknown',
+        agentName: agentName,
+        taskName: taskName,
+      );
+
+      _emit(
+        AskUserQuestionEvent(
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: taskName,
+          requestId: requestId,
+          questions: questions,
+        ),
+      );
+
+      // Set agent status to waitingForUser while waiting for answers
+      final statusNotifier = _container.read(
+        agentStatusProvider(agentId).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
+      final answers = await completer.future;
+
+      // Restore to working since the agent will continue processing
+      statusNotifier.setStatus(internal.AgentStatus.working);
+
+      return AgentPermissionAllow(
+        updatedInput: {...toolInput, 'answers': answers},
+      );
+    } catch (e) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'AskUserQuestion failed: agent=$agentId error=$e',
+        sessionId: _networkId,
+      );
+      return AgentPermissionDeny(
+        message: 'Failed to process AskUserQuestion: $e',
+      );
+    }
+  }
+
+  Future<AgentPermissionResult> _handleExitPlanMode({
+    required String agentId,
+    required String? agentName,
+    required String? agentType,
+    required String? taskName,
+    required Map<String, dynamic> toolInput,
+  }) async {
+    try {
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'ExitPlanMode from agent=$agentId ($agentName)',
+        sessionId: _networkId,
+      );
+      if (_disposed) {
+        VideLogger.instance.warn(
+          'LocalVideSession',
+          'ExitPlanMode rejected: session disposed',
+          sessionId: _networkId,
+        );
+        return const AgentPermissionDeny(message: 'Session disposed');
+      }
+
+      // Extract plan content from the agent's conversation.
+      // The plan is the last assistant text message before ExitPlanMode was called.
+      final client = _container.read(agentClientProvider(agentId));
+      final planContent = _extractPlanContent(client?.currentConversation);
+
+      // Extract allowedPrompts from tool input
+      final allowedPrompts = (toolInput['allowedPrompts'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      // Create completer and emit event
+      final requestId = const Uuid().v4();
+      final completer = Completer<_PlanApprovalResult>();
+      _pendingRequests[requestId] = _PendingPlanApproval(
+        completer: completer,
+        agentId: agentId,
+        agentType: agentType ?? 'unknown',
+        agentName: agentName,
+        taskName: taskName,
+      );
+
+      _emit(
+        PlanApprovalRequestEvent(
+          agentId: agentId,
+          agentType: agentType ?? 'unknown',
+          agentName: agentName,
+          taskName: taskName,
+          requestId: requestId,
+          planContent: planContent,
+          allowedPrompts: allowedPrompts,
+        ),
+      );
+
+      // Set agent status to waitingForUser while waiting for plan approval
+      final statusNotifier = _container.read(
+        agentStatusProvider(agentId).notifier,
+      );
+      statusNotifier.setStatus(internal.AgentStatus.waitingForUser);
+
+      // Wait for user response
+      final result = await completer.future;
+
+      // Restore to working since the agent will continue processing
+      statusNotifier.setStatus(internal.AgentStatus.working);
+
+      VideLogger.instance.info(
+        'LocalVideSession',
+        'Plan approval result: agent=$agentId action=${result.action}',
+        sessionId: _networkId,
+      );
+
+      switch (result.action) {
+        case 'accept':
+          return const AgentPermissionAllow();
+        case 'reject':
+          return AgentPermissionDeny(
+            message: result.feedback ?? 'User rejected the plan',
           );
+        default:
+          return const AgentPermissionDeny(
+            message: 'Unknown plan approval action',
+          );
+      }
+    } catch (e) {
+      VideLogger.instance.error(
+        'LocalVideSession',
+        'ExitPlanMode failed: agent=$agentId error=$e',
+        sessionId: _networkId,
+      );
+      return AgentPermissionDeny(message: 'Failed to process ExitPlanMode: $e');
+    }
+  }
 
-          // Emit spawn event
-          _eventController.add(AgentSpawnedEvent(
+  /// Extracts the plan content from the agent's conversation.
+  ///
+  /// Claude writes the plan to a file (typically ~/.claude/plans/*.md) via the
+  /// Write tool before calling ExitPlanMode. We search the last assistant
+  /// message for a Write tool invocation targeting a `.claude/plans/` directory
+  /// and extract the file content.
+  /// Falls back to the last assistant text if no plan file write is found.
+  String _extractPlanContent(AgentConversation? conversation) {
+    if (conversation == null) return '(No plan content available)';
+
+    // Find the last assistant message (the current turn where ExitPlanMode is called)
+    final lastAssistantMessage = conversation.messages.reversed
+        .where((m) => m.role == AgentMessageRole.assistant)
+        .firstOrNull;
+
+    if (lastAssistantMessage != null) {
+      // Search within this turn for a Write tool targeting .claude/plans/
+      for (final response in lastAssistantMessage.responses.reversed) {
+        if (response is AgentToolUseResponse && response.toolName == 'Write') {
+          final filePath = response.parameters['file_path'] as String?;
+          final content = response.parameters['content'] as String?;
+          if (filePath != null &&
+              content != null &&
+              filePath.contains('.claude/plans/')) {
+            return content;
+          }
+        }
+      }
+
+      // Fallback: use the assistant message text from this turn
+      if (lastAssistantMessage.content.isNotEmpty) {
+        return lastAssistantMessage.content;
+      }
+    }
+
+    return '(No plan content available)';
+  }
+
+  void _subscribeToNetworkChanges() {
+    final subscription = _container.listen(agentNetworkManagerProvider, (
+      previous,
+      next,
+    ) {
+      if (next.currentNetwork?.id != _networkId) return;
+
+      final prevAgentIds =
+          previous?.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+      final nextAgentIds =
+          next.currentNetwork?.agents.map((a) => a.id).toSet() ?? {};
+
+      // Check for goal changes
+      final prevGoal = previous?.currentNetwork?.goal;
+      final nextGoal = next.currentNetwork?.goal;
+      if (prevGoal != nextGoal && nextGoal != null) {
+        final mainAgent = next.currentNetwork!.agents.isNotEmpty
+            ? next.currentNetwork!.agents.first
+            : null;
+
+        _emit(
+          TaskNameChangedEvent(
+            agentId: mainAgent?.id ?? 'unknown',
+            agentType: mainAgent?.type ?? 'main',
+            agentName: mainAgent?.name,
+            taskName: mainAgent?.taskName,
+            newGoal: nextGoal,
+            previousGoal: prevGoal,
+          ),
+        );
+      }
+
+      // Check for new agents (spawned)
+      for (final agentId in nextAgentIds.difference(prevAgentIds)) {
+        final agent = next.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
+
+        _emit(
+          AgentSpawnedEvent(
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
             taskName: agent.taskName,
             spawnedBy: agent.spawnedBy ?? 'unknown',
-          ));
+            harness: agent.harness,
+          ),
+        );
 
-          // Subscribe to the new agent
-          _subscribeToAgent(agent);
-        }
+        _subscribeToAgent(agent);
+      }
 
-        // Check for removed agents (terminated)
-        for (final agentId in prevAgentIds.difference(nextAgentIds)) {
-          final agent = previous!.currentNetwork!.agents.firstWhere(
-            (a) => a.id == agentId,
-          );
+      // Check for removed agents (terminated)
+      for (final agentId in prevAgentIds.difference(nextAgentIds)) {
+        final agent = previous!.currentNetwork!.agents.firstWhere(
+          (a) => a.id == agentId,
+        );
 
-          // Emit terminate event
-          _eventController.add(AgentTerminatedEvent(
+        _emit(
+          AgentTerminatedEvent(
             agentId: agent.id,
             agentType: agent.type,
             agentName: agent.name,
             taskName: agent.taskName,
-          ));
+          ),
+        );
 
-          // Unsubscribe from the terminated agent
-          _unsubscribeFromAgent(agentId);
-        }
-      },
-      fireImmediately: false,
-    );
-    _providerSubscriptions.add(subscription);
+        _unsubscribeFromAgent(agentId);
+      }
+
+      _emitState();
+    }, fireImmediately: false);
+    _sessionSubscriptions.add(subscription);
   }
 
   void _subscribeToAgent(AgentMetadata agent) {
     if (_agentStates.containsKey(agent.id)) return;
 
-    final client = _container.read(claudeProvider(agent.id));
-    if (client == null) return;
+    final client = _container.read(agentClientProvider(agent.id));
+    if (client == null) {
+      VideLogger.instance.warn(
+        'LocalVideSession',
+        'Cannot subscribe to agent=${agent.id} (${agent.name}): no AgentClient found',
+        sessionId: _networkId,
+      );
+      return;
+    }
+    VideLogger.instance.debug(
+      'LocalVideSession',
+      'Subscribing to agent=${agent.id} (${agent.name}, type=${agent.type})',
+      sessionId: _networkId,
+    );
 
-    // Initialize state for this agent
     _agentStates[agent.id] = _AgentStreamState(
       agentId: agent.id,
       agentType: agent.type,
       agentName: agent.name,
     );
 
-    // IMPORTANT: First replay the current conversation state
-    // This catches up on any messages that were sent before we subscribed
+    final initialStatus = _container.read(agentStatusProvider(agent.id));
+    _emit(
+      StatusEvent(
+        agentId: agent.id,
+        agentType: agent.type,
+        agentName: agent.name,
+        taskName: agent.taskName,
+        status: _mapStatus(initialStatus),
+      ),
+    );
+
     final currentConversation = client.currentConversation;
     if (currentConversation.messages.isNotEmpty) {
       _handleConversation(agent, currentConversation);
     }
 
-    // Subscribe to conversation updates
+    final agentStreamSubs = <StreamSubscription<dynamic>>[];
+    final agentProviderSubs = <ProviderSubscription<dynamic>>[];
+
     final conversationSub = client.conversation.listen(
       (conversation) => _handleConversation(agent, conversation),
       onError: (error) {
-        _eventController.add(ErrorEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          message: error.toString(),
-        ));
+        _emit(
+          ErrorEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            message: error.toString(),
+          ),
+        );
       },
     );
-    _subscriptions.add(conversationSub);
+    agentStreamSubs.add(conversationSub);
 
-    // Subscribe to turn complete
     final turnCompleteSub = client.onTurnComplete.listen((_) {
-      // Finalize any in-progress message
       final state = _agentStates[agent.id];
+      final taskName = _taskNameFor(agent.id);
       if (state != null && state.currentMessageEventId != null) {
-        _eventController.add(MessageEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          eventId: state.currentMessageEventId!,
-          role: 'assistant',
-          content: '',
-          isPartial: false,
-        ));
+        _emit(
+          MessageEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: taskName,
+            eventId: state.currentMessageEventId!,
+            role: MessageRole.assistant,
+            content: '',
+            isPartial: false,
+          ),
+        );
         state.currentMessageEventId = null;
       }
 
-      // Get token/cost data from current conversation
       final conversation = client.currentConversation;
-      _eventController.add(TurnCompleteEvent(
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: state?.taskName,
-        reason: 'end_turn',
-        totalInputTokens: conversation.totalInputTokens,
-        totalOutputTokens: conversation.totalOutputTokens,
-        totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
-        totalCacheCreationInputTokens: conversation.totalCacheCreationInputTokens,
-        totalCostUsd: conversation.totalCostUsd,
-        currentContextInputTokens: conversation.currentContextInputTokens,
-        currentContextCacheReadTokens: conversation.currentContextCacheReadTokens,
-        currentContextCacheCreationTokens: conversation.currentContextCacheCreationTokens,
-      ));
+      _emit(
+        TurnCompleteEvent(
+          agentId: agent.id,
+          agentType: agent.type,
+          agentName: agent.name,
+          taskName: taskName,
+          reason: 'end_turn',
+          totalInputTokens: conversation.totalInputTokens,
+          totalOutputTokens: conversation.totalOutputTokens,
+          totalCacheReadInputTokens: conversation.totalCacheReadInputTokens,
+          totalCacheCreationInputTokens:
+              conversation.totalCacheCreationInputTokens,
+          totalCostUsd: conversation.totalCostUsd,
+          currentContextInputTokens: conversation.currentContextInputTokens,
+          currentContextCacheReadTokens:
+              conversation.currentContextCacheReadTokens,
+          currentContextCacheCreationTokens:
+              conversation.currentContextCacheCreationTokens,
+        ),
+      );
     });
-    _subscriptions.add(turnCompleteSub);
+    agentStreamSubs.add(turnCompleteSub);
 
-    // Subscribe to status changes
+    final processingPhaseSub = client.statusStream.listen((processingStatus) {
+      _agentProcessingPhases[agent.id] = processingStatus;
+      _emitState();
+    });
+    agentStreamSubs.add(processingPhaseSub);
+
     final statusSub = _container.listen<internal.AgentStatus>(
       agentStatusProvider(agent.id),
       (previous, next) {
         if (previous != null && previous != next) {
-          // Update task name from network state
-          final network =
-              _container.read(agentNetworkManagerProvider).currentNetwork;
-          final agentMeta =
-              network?.agents.where((a) => a.id == agent.id).firstOrNull;
-          final state = _agentStates[agent.id];
-          if (state != null && agentMeta != null) {
-            state.taskName = agentMeta.taskName;
-          }
-
-          _eventController.add(StatusEvent(
-            agentId: agent.id,
-            agentType: agent.type,
-            agentName: agent.name,
-            taskName: state?.taskName,
-            status: _mapStatus(next),
-          ));
+          VideLogger.instance.debug(
+            'LocalVideSession',
+            'StatusEvent emitted: agent=${agent.id} status=${next.name}',
+            sessionId: _networkId,
+          );
+          _emit(
+            StatusEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: _taskNameFor(agent.id),
+              status: _mapStatus(next),
+            ),
+          );
+          _emitState();
         }
       },
       fireImmediately: false,
     );
-    _providerSubscriptions.add(statusSub);
+    agentProviderSubs.add(statusSub);
+
+    _agentSubscriptions[agent.id] = agentStreamSubs;
+    _agentProviderSubscriptions[agent.id] = agentProviderSubs;
   }
 
   void _unsubscribeFromAgent(String agentId) {
     _agentStates.remove(agentId);
-    // Note: We don't remove subscriptions here because they're all in lists
-    // and will be cleaned up on dispose. The agent's ClaudeClient will be
-    // removed by AgentNetworkManager, so the streams will close naturally.
+    _agentProcessingPhases.remove(agentId);
+
+    final streamSubs = _agentSubscriptions.remove(agentId);
+    if (streamSubs != null) {
+      for (final sub in streamSubs) {
+        sub.cancel();
+      }
+    }
+
+    final providerSubs = _agentProviderSubscriptions.remove(agentId);
+    if (providerSubs != null) {
+      for (final sub in providerSubs) {
+        sub.close();
+      }
+    }
   }
 
-  void _handleConversation(AgentMetadata agent, Conversation conversation) {
+  void _handleConversation(
+    AgentMetadata agent,
+    AgentConversation conversation,
+  ) {
     if (conversation.messages.isEmpty) return;
 
     final state = _agentStates[agent.id];
     if (state == null) return;
 
-    // Update task name from network state
-    final network = _container.read(agentNetworkManagerProvider).currentNetwork;
-    final agentMeta = network?.agents.where((a) => a.id == agent.id).firstOrNull;
-    if (agentMeta != null) {
-      state.taskName = agentMeta.taskName;
-    }
-
+    final taskName = _taskNameFor(agent.id);
     final currentMessageCount = conversation.messages.length;
-    final latestMessage = conversation.messages.last;
-    final currentContentLength = latestMessage.content.length;
 
-    // New message started
     if (currentMessageCount > state.lastMessageCount) {
-      state.lastResponseCount = 0;
+      for (int i = state.lastMessageCount; i < currentMessageCount; i++) {
+        final message = conversation.messages[i];
+        final eventId = const Uuid().v4();
+        final isLastMessage = i == currentMessageCount - 1;
 
-      // Generate new event ID for this message
-      final eventId = const Uuid().v4();
-      state.currentMessageEventId = eventId;
+        state.currentMessageEventId = eventId;
+        state.lastResponseCount = 0;
+        if (isLastMessage) {
+          state.lastContentLength = message.content.length;
+        }
 
-      if (latestMessage.content.isNotEmpty) {
-        _eventController.add(MessageEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: latestMessage.content,
-          isPartial: true,
-        ));
+        if (message.content.isNotEmpty) {
+          _emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: taskName,
+              eventId: eventId,
+              role: _mapRole(message.role),
+              content: message.content,
+              isPartial: isLastMessage && conversation.isProcessing,
+              attachments: message.attachments,
+            ),
+          );
+        }
+
+        _emitToolEvents(agent, message, state, taskName: taskName);
       }
 
       state.lastMessageCount = currentMessageCount;
-      state.lastContentLength = currentContentLength;
+    } else {
+      final latestMessage = conversation.messages.last;
+      final currentContentLength = latestMessage.content.length;
+
+      if (currentContentLength > state.lastContentLength) {
+        final delta = latestMessage.content.substring(state.lastContentLength);
+        if (delta.isNotEmpty) {
+          // If currentMessageEventId is null (e.g. after a tool call finalized
+          // the previous message), generate a new eventId and persist it so all
+          // subsequent delta chunks share the same id — otherwise each chunk
+          // would appear as a separate message on the client.
+          state.currentMessageEventId ??= const Uuid().v4();
+          final eventId = state.currentMessageEventId!;
+          _emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: taskName,
+              eventId: eventId,
+              role: _mapRole(latestMessage.role),
+              content: delta,
+              isPartial: true,
+            ),
+          );
+        }
+        state.lastContentLength = currentContentLength;
+      }
+
+      _emitToolEvents(agent, latestMessage, state, taskName: taskName);
     }
-    // Same message, content grew (streaming delta)
-    else if (currentContentLength > state.lastContentLength) {
-      final delta = latestMessage.content.substring(state.lastContentLength);
-      if (delta.isNotEmpty) {
-        final eventId = state.currentMessageEventId ?? const Uuid().v4();
-        _eventController.add(MessageEvent(
+
+    final currentError = conversation.currentError;
+    if (currentError != null && currentError != state.lastEmittedError) {
+      state.lastEmittedError = currentError;
+      _emit(
+        ErrorEvent(
           agentId: agent.id,
           agentType: agent.type,
           agentName: agent.name,
-          taskName: state.taskName,
-          eventId: eventId,
-          role: latestMessage.role == MessageRole.user ? 'user' : 'assistant',
-          content: delta,
-          isPartial: true,
-        ));
-      }
-      state.lastContentLength = currentContentLength;
-    }
-
-    // Always check for new tool events
-    _emitToolEvents(agent, latestMessage, state);
-
-    // Check for errors
-    if (conversation.currentError != null) {
-      _eventController.add(ErrorEvent(
-        agentId: agent.id,
-        agentType: agent.type,
-        agentName: agent.name,
-        taskName: state.taskName,
-        message: conversation.currentError!,
-      ));
+          taskName: taskName,
+          message: currentError,
+        ),
+      );
+    } else if (currentError == null) {
+      state.lastEmittedError = null;
     }
   }
 
   void _emitToolEvents(
     AgentMetadata agent,
-    ConversationMessage message,
-    _AgentStreamState state,
-  ) {
+    AgentConversationMessage message,
+    _AgentStreamState state, {
+    required String? taskName,
+  }) {
     final responses = message.responses;
     final startIndex = state.lastResponseCount;
 
     for (int i = startIndex; i < responses.length; i++) {
       final response = responses[i];
-      if (response is ToolUseResponse) {
+      if (response is AgentToolUseResponse) {
+        // Finalize any streaming text block before emitting tool events.
+        // Without this, the event stream has incorrect ordering where
+        // ToolUseEvent arrives before the preceding MessageEvent is
+        // finalized (isPartial: false), causing rendering bugs in clients
+        // that consume events sequentially (e.g., mobile via WebSocket).
+        if (state.currentMessageEventId != null) {
+          _emit(
+            MessageEvent(
+              agentId: agent.id,
+              agentType: agent.type,
+              agentName: agent.name,
+              taskName: taskName,
+              eventId: state.currentMessageEventId!,
+              role: MessageRole.assistant,
+              content: '',
+              isPartial: false,
+            ),
+          );
+          state.currentMessageEventId = null;
+        }
+
         final toolUseId = response.toolUseId ?? const Uuid().v4();
         state.toolNamesByUseId[toolUseId] = response.toolName;
 
-        _eventController.add(ToolUseEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          toolUseId: toolUseId,
-          toolName: response.toolName,
-          toolInput: response.parameters,
-        ));
-      } else if (response is ToolResultResponse) {
-        final toolName = state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
-        _eventController.add(ToolResultEvent(
-          agentId: agent.id,
-          agentType: agent.type,
-          agentName: agent.name,
-          taskName: state.taskName,
-          toolUseId: response.toolUseId,
-          toolName: toolName,
-          result: response.content,
-          isError: response.isError,
-        ));
+        _emit(
+          ToolUseEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: taskName,
+            toolUseId: toolUseId,
+            toolName: response.toolName,
+            toolInput: response.parameters,
+          ),
+        );
+      } else if (response is AgentToolResultResponse) {
+        final toolName =
+            state.toolNamesByUseId[response.toolUseId] ?? 'unknown';
+        _emit(
+          ToolResultEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: taskName,
+            toolUseId: response.toolUseId,
+            toolName: toolName,
+            result: response.content,
+            isError: response.isError,
+          ),
+        );
+      } else if (response is AgentThinkingResponse) {
+        _emit(
+          ThinkingEvent(
+            agentId: agent.id,
+            agentType: agent.type,
+            agentName: agent.name,
+            taskName: taskName,
+            content: response.content,
+            isCumulative: response.isCumulative,
+          ),
+        );
       }
     }
 
     state.lastResponseCount = responses.length;
-  }
-
-  /// Creates a permission callback that emits [PermissionRequestEvent]
-  /// and waits for [respondToPermission] to be called.
-  CanUseToolCallback createPermissionCallback({
-    required String agentId,
-    required String? agentName,
-    required String? agentType,
-  }) {
-    return (
-      String toolName,
-      Map<String, dynamic> input,
-      ToolPermissionContext context,
-    ) async {
-      final requestId = const Uuid().v4();
-      final completer = Completer<PermissionResult>();
-      _pendingPermissions[requestId] = completer;
-
-      // Get current task name
-      final state = _agentStates[agentId];
-
-      // Emit permission request event
-      _eventController.add(PermissionRequestEvent(
-        agentId: agentId,
-        agentType: agentType ?? 'unknown',
-        agentName: agentName,
-        taskName: state?.taskName,
-        requestId: requestId,
-        toolName: toolName,
-        toolInput: input,
-      ));
-
-      // Wait for response (with timeout)
-      try {
-        return await completer.future.timeout(
-          const Duration(seconds: 60),
-          onTimeout: () {
-            _pendingPermissions.remove(requestId);
-            return const PermissionResultDeny(
-              message: 'Permission request timed out',
-            );
-          },
-        );
-      } catch (e) {
-        _pendingPermissions.remove(requestId);
-        return PermissionResultDeny(
-          message: 'Error: $e',
-        );
-      }
-    };
   }
 
   VideAgent _mapAgent(AgentMetadata agent) {
@@ -762,9 +1682,12 @@ class VideSession {
       name: agent.name,
       type: agent.type,
       status: _mapStatus(status),
+      processingPhase: _agentProcessingPhases[agent.id],
       spawnedBy: agent.spawnedBy,
       taskName: agent.taskName,
       createdAt: agent.createdAt,
+      harness: agent.harness,
+      model: agent.model,
       totalInputTokens: agent.totalInputTokens,
       totalOutputTokens: agent.totalOutputTokens,
       totalCacheReadInputTokens: agent.totalCacheReadInputTokens,
@@ -781,6 +1704,108 @@ class VideSession {
       internal.AgentStatus.idle => VideAgentStatus.idle,
     };
   }
+
+}
+
+/// Base class for any pending user-interaction request.
+///
+/// Subclasses carry type-specific data (e.g. tool name for permissions,
+/// agent metadata for plan approvals).  [onDispose] is called during
+/// session disposal to unblock any awaiting code.
+sealed class _PendingRequest {
+  void onDispose();
+}
+
+/// A pending permission request with its completer and agent metadata.
+class _PendingPermission extends _PendingRequest {
+  final Completer<AgentPermissionResult> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
+  final String toolName;
+  final Map<String, dynamic> toolInput;
+  final String? inferredPattern;
+  final String cwd;
+
+  _PendingPermission({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+    required this.toolName,
+    required this.toolInput,
+    this.inferredPattern,
+    required this.cwd,
+  });
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.complete(
+        const AgentPermissionDeny(message: 'Session disposed'),
+      );
+    }
+  }
+}
+
+/// A pending AskUserQuestion request with agent metadata for the resolution event.
+class _PendingAskUserQuestion extends _PendingRequest {
+  final Completer<Map<String, String>> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
+
+  _PendingAskUserQuestion({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+  });
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.completeError(StateError('Session disposed'));
+    }
+  }
+}
+
+/// A pending plan approval request with agent metadata for the resolution event.
+class _PendingPlanApproval extends _PendingRequest {
+  final Completer<_PlanApprovalResult> completer;
+  final String agentId;
+  final String agentType;
+  final String? agentName;
+  final String? taskName;
+
+  _PendingPlanApproval({
+    required this.completer,
+    required this.agentId,
+    required this.agentType,
+    this.agentName,
+    this.taskName,
+  });
+
+  @override
+  void onDispose() {
+    if (!completer.isCompleted) {
+      completer.complete(
+        _PlanApprovalResult(action: 'reject', feedback: 'Session disposed'),
+      );
+    }
+  }
+}
+
+/// Result of a plan approval decision.
+class _PlanApprovalResult {
+  final String action; // 'accept' or 'reject'
+  final String? feedback;
+
+  _PlanApprovalResult({required this.action, this.feedback});
 }
 
 /// Tracks state for a single agent's event stream.
@@ -788,7 +1813,6 @@ class _AgentStreamState {
   final String agentId;
   final String agentType;
   final String? agentName;
-  String? taskName;
 
   int lastMessageCount = 0;
   int lastContentLength = 0;
@@ -796,6 +1820,9 @@ class _AgentStreamState {
 
   String? currentMessageEventId;
   final Map<String, String> toolNamesByUseId = {};
+
+  /// Tracks the last error that was emitted to prevent duplicate ErrorEvents.
+  String? lastEmittedError;
 
   _AgentStreamState({
     required this.agentId,

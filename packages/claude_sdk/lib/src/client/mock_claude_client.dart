@@ -390,11 +390,17 @@ class MockClaudeClient implements ClaudeClient {
   Future<McpStatusResponse> getMcpStatus() async {
     // Return mock MCP status
     return McpStatusResponse(
-      servers: mcpServers.map((s) => McpServerStatusInfo(
-        name: s.name,
-        status: s.isRunning ? McpServerStatus.connected : McpServerStatus.disconnected,
-        serverInfo: McpServerInfo(name: s.name, version: '1.0.0'),
-      )).toList(),
+      servers: mcpServers
+          .map(
+            (s) => McpServerStatusInfo(
+              name: s.name,
+              status: s.isRunning
+                  ? McpServerStatus.connected
+                  : McpServerStatus.disconnected,
+              serverInfo: McpServerInfo(name: s.name, version: '1.0.0'),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -405,14 +411,21 @@ class MockClaudeClient implements ClaudeClient {
   }
 
   @override
-  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(int maxTokens) async {
+  Future<SetMaxThinkingTokensResponse> setMaxThinkingTokens(
+    int maxTokens,
+  ) async {
     print('[MockClaudeClient] Setting max thinking tokens to: $maxTokens');
     return SetMaxThinkingTokensResponse(maxThinkingTokens: maxTokens);
   }
 
   @override
-  Future<void> setMcpServers(List<McpServerConfig> servers, {bool replace = false}) async {
-    print('[MockClaudeClient] Setting MCP servers: ${servers.map((s) => s.name).join(', ')}');
+  Future<void> setMcpServers(
+    List<McpServerConfig> servers, {
+    bool replace = false,
+  }) async {
+    print(
+      '[MockClaudeClient] Setting MCP servers: ${servers.map((s) => s.name).join(', ')}',
+    );
   }
 
   @override
@@ -424,6 +437,41 @@ class MockClaudeClient implements ClaudeClient {
   @override
   Future<void> rewindFiles(String userMessageId) async {
     print('[MockClaudeClient] Rewinding files to: $userMessageId');
+  }
+
+  @override
+  Future<GetSettingsResponse> getSettings() async {
+    return const GetSettingsResponse(effective: {}, sources: []);
+  }
+
+  @override
+  Future<void> applyFlagSettings(Map<String, dynamic> settings) async {
+    print('[MockClaudeClient] Applying flag settings: $settings');
+  }
+
+  @override
+  Future<void> setEffort(String effort) async {
+    print('[MockClaudeClient] Setting effort to: $effort');
+  }
+
+  @override
+  Future<void> reconnectMcpServer(String serverName) async {
+    print('[MockClaudeClient] Reconnecting MCP server: $serverName');
+  }
+
+  @override
+  Future<void> toggleMcpServer(
+    String serverName, {
+    required bool enabled,
+  }) async {
+    print(
+      '[MockClaudeClient] Toggling MCP server $serverName: ${enabled ? "enabled" : "disabled"}',
+    );
+  }
+
+  @override
+  Future<void> stopTask(String taskId) async {
+    print('[MockClaudeClient] Stopping task: $taskId');
   }
 
   @override

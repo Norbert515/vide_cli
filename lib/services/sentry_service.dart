@@ -1,5 +1,5 @@
 import 'package:nocterm/nocterm.dart';
-import 'package:vide_core/api.dart';
+import 'package:vide_core/vide_core.dart';
 import 'package:sentry/sentry.dart';
 
 class SentryService {
@@ -26,7 +26,7 @@ class SentryService {
     NoctermError.onError = (details) {
       // Report to Sentry
       Sentry.captureException(details.exception, stackTrace: details.stack);
-      PostHogService.errorOccurred(details.exception.runtimeType.toString());
+      BashboardService.errorOccurred(details.exception.runtimeType.toString());
       // Still log to console
       NoctermError.dumpErrorToConsole(details);
     };
@@ -40,6 +40,6 @@ class SentryService {
     dynamic stackTrace,
   }) async {
     await Sentry.captureException(exception, stackTrace: stackTrace);
-    PostHogService.errorOccurred(exception.runtimeType.toString());
+    BashboardService.errorOccurred(exception.runtimeType.toString());
   }
 }

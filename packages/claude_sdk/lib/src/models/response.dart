@@ -112,6 +112,19 @@ sealed class ClaudeResponse {
             ),
           );
         }
+      } else if (blockType == 'thinking') {
+        final thinkingText = block['thinking'] as String? ?? '';
+        if (thinkingText.isNotEmpty) {
+          responses.add(
+            ThinkingResponse(
+              id: blockId,
+              timestamp: DateTime.now(),
+              content: thinkingText,
+              isCumulative: true,
+              rawData: json,
+            ),
+          );
+        }
       }
     }
 
@@ -160,11 +173,24 @@ sealed class ClaudeResponse {
           final message = json['message'] as Map<String, dynamic>;
           final content = message['content'] as List<dynamic>?;
 
-          // Check if it's a tool use in assistant message
+          // Check if it's a tool use or thinking in assistant message
           if (content != null && content.isNotEmpty) {
             final firstContent = content.first as Map<String, dynamic>;
             if (firstContent['type'] == 'tool_use') {
               return ToolUseResponse.fromAssistantMessage(json);
+            }
+            if (firstContent['type'] == 'thinking') {
+              final thinkingText = firstContent['thinking'] as String? ?? '';
+              return ThinkingResponse(
+                id:
+                    firstContent['id'] ??
+                    json['uuid'] ??
+                    DateTime.now().millisecondsSinceEpoch.toString(),
+                timestamp: DateTime.now(),
+                content: thinkingText,
+                isCumulative: true,
+                rawData: json,
+              );
             }
           }
 
@@ -193,7 +219,10 @@ sealed class ClaudeResponse {
         if (subtype == 'local_command') {
           return LocalCommandResponse.fromJson(json);
         }
-        return StatusResponse.fromJson(json);
+        // Unrecognized system subtype — return as a generic text response
+        // rather than a StatusResponse, which would produce ClaudeStatus.unknown
+        // and incorrectly affect agent status tracking.
+        return TextResponse.fromJson(json);
       case 'result':
         return CompletionResponse.fromResultJson(json);
       case 'meta':
@@ -206,19 +235,37 @@ sealed class ClaudeResponse {
         if (event != null) {
           final eventType = event['type'] as String?;
           if (eventType == 'content_block_delta') {
-            // Extract streaming text delta
             final delta = event['delta'] as Map<String, dynamic>?;
-            final text = delta?['text'] as String?;
-            if (text != null && text.isNotEmpty) {
-              return TextResponse(
-                id:
-                    json['uuid'] ??
-                    DateTime.now().millisecondsSinceEpoch.toString(),
-                timestamp: DateTime.now(),
-                content: text,
-                isPartial: true,
-                rawData: json,
-              );
+            final deltaType = delta?['type'] as String?;
+
+            if (deltaType == 'thinking_delta') {
+              // Extract streaming thinking delta
+              final thinking = delta?['thinking'] as String?;
+              if (thinking != null && thinking.isNotEmpty) {
+                return ThinkingResponse(
+                  id:
+                      json['uuid'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
+                  timestamp: DateTime.now(),
+                  content: thinking,
+                  isCumulative: false,
+                  rawData: json,
+                );
+              }
+            } else {
+              // Extract streaming text delta (text_delta or untyped)
+              final text = delta?['text'] as String?;
+              if (text != null && text.isNotEmpty) {
+                return TextResponse(
+                  id:
+                      json['uuid'] ??
+                      DateTime.now().millisecondsSinceEpoch.toString(),
+                  timestamp: DateTime.now(),
+                  content: text,
+                  isPartial: true,
+                  rawData: json,
+                );
+              }
             }
           }
         }
@@ -559,7 +606,8 @@ class ApiErrorResponse extends ClaudeResponse {
 
   factory ApiErrorResponse.fromJson(Map<String, dynamic> json) {
     return ApiErrorResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -594,7 +642,8 @@ class TurnDurationResponse extends ClaudeResponse {
 
   factory TurnDurationResponse.fromJson(Map<String, dynamic> json) {
     return TurnDurationResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -628,7 +677,8 @@ class LocalCommandResponse extends ClaudeResponse {
 
   factory LocalCommandResponse.fromJson(Map<String, dynamic> json) {
     return LocalCommandResponse(
-      id: json['uuid'] as String? ??
+      id:
+          json['uuid'] as String? ??
           DateTime.now().millisecondsSinceEpoch.toString(),
       timestamp: json['timestamp'] != null
           ? DateTime.tryParse(json['timestamp'] as String) ?? DateTime.now()
@@ -741,6 +791,19 @@ class MetaResponse extends ClaudeResponse {
   /// Working directory from init message
   String? get cwd => metadata['cwd'] as String?;
 
+  /// Output style from init message
+  String? get outputStyle => metadata['output_style'] as String?;
+
+  /// Fast mode state from init message ('off', 'cooldown', 'on')
+  String? get fastModeState => metadata['fast_mode_state'] as String?;
+
+  /// Active beta features from init message
+  List<String>? get betas {
+    final betasList = metadata['betas'];
+    if (betasList == null) return null;
+    return (betasList as List).cast<String>();
+  }
+
   factory MetaResponse.fromJson(Map<String, dynamic> json) {
     return MetaResponse(
       id: json['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
@@ -821,11 +884,10 @@ class CompletionResponse extends ClaudeResponse {
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       modelUsage: json['modelUsage'] as Map<String, dynamic>?,
-      permissionDenials:
-          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      permissionDenials: (json['permission_denials'] as List?)
+          ?.cast<Map<String, dynamic>>(),
       durationApiMs: json['duration_api_ms'] as int?,
-      serverToolUse:
-          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
+      serverToolUse: json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }
@@ -841,16 +903,37 @@ class CompletionResponse extends ClaudeResponse {
       cacheCreationInputTokens: json['usage']?['cache_creation_input_tokens'],
       totalCostUsd: (json['total_cost_usd'] as num?)?.toDouble(),
       modelUsage: json['modelUsage'] as Map<String, dynamic>?,
-      permissionDenials:
-          (json['permission_denials'] as List?)?.cast<Map<String, dynamic>>(),
+      permissionDenials: (json['permission_denials'] as List?)
+          ?.cast<Map<String, dynamic>>(),
       durationApiMs: json['duration_api_ms'] as int?,
-      serverToolUse:
-          json['usage']?['server_tool_use'] as Map<String, dynamic>?,
+      serverToolUse: json['usage']?['server_tool_use'] as Map<String, dynamic>?,
       rawData: json,
     );
   }
 
   Map<String, dynamic> toJson() => _$CompletionResponseToJson(this);
+}
+
+/// Response containing reasoning/thinking content from the model.
+///
+/// This represents internal chain-of-thought text that is separate from
+/// the actual response content. UI layers can render this differently
+/// (e.g., collapsed, dimmed, or in an expandable section).
+class ThinkingResponse extends ClaudeResponse {
+  /// The thinking/reasoning text.
+  final String content;
+
+  /// Whether this contains cumulative content (full text up to this point)
+  /// rather than a sequential delta.
+  final bool isCumulative;
+
+  const ThinkingResponse({
+    required super.id,
+    required super.timestamp,
+    required this.content,
+    this.isCumulative = false,
+    super.rawData,
+  });
 }
 
 @JsonSerializable()
@@ -1052,6 +1135,7 @@ enum ClaudeStatus {
   processing,
   thinking,
   responding,
+  compacting,
   completed,
   error,
   unknown;
